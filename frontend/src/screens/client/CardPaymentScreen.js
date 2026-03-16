@@ -408,6 +408,33 @@ function CardPaymentScreen() {
           )}
         </button>
 
+        {/* Continuar sin tarjeta (modo demo) - visible siempre */}
+        <button
+          onClick={() => {
+            localStorage.setItem('clientEmail', email || 'demo@maqgo.cl');
+            const demoTbk = `demo-${Date.now()}`;
+            window.location.href = `${window.location.origin}/oneclick/complete?tbk_user=${encodeURIComponent(demoTbk)}`;
+          }}
+          style={{
+            marginTop: 16,
+            padding: '14px 24px',
+            background: 'transparent',
+            border: '2px solid rgba(144, 189, 211, 0.6)',
+            borderRadius: 12,
+            color: '#90BDD3',
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: 'pointer',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8
+          }}
+        >
+          Continuar sin tarjeta (modo demo)
+        </button>
+
         {/* Texto legal */}
         <LegalChargeNotice />
       </div>
