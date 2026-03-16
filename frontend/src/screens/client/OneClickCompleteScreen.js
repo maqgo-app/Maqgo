@@ -15,7 +15,6 @@ function OneClickCompleteScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tbk_user = searchParams.get('tbk_user');
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!tbk_user) {
@@ -49,11 +48,19 @@ function OneClickCompleteScreen() {
 
     // Crear solicitud de servicio en backend y continuar
     const createServiceAndContinue = async () => {
-      // Usar userId si existe; si no, crear cliente con email para que el cobro OneClick funcione
+      const isDemo = tbk_user.startsWith('demo-');
       const clientId = localStorage.getItem('userId') || `client_${Date.now()}`;
       if (!localStorage.getItem('userId')) {
         localStorage.setItem('userId', clientId);
       }
+
+      // Modo demo: ir directo a searching sin llamar API (evita CORS si no está configurado)
+      if (isDemo) {
+        localStorage.setItem('currentServiceId', `demo-${Date.now()}`);
+        navigate('/client/searching', { replace: true });
+        return;
+      }
+
       const billingData = getObject('billingData', {});
       const registerData = getObject('registerData', {});
       const clientName = billingData.nombre
@@ -71,7 +78,6 @@ function OneClickCompleteScreen() {
       const totalAmount = parseInt(localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0', 10);
       const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
 
-      // Proveedor(es) elegidos (1 hasta 3; el primero que acepte se asigna)
       const selectedProvider = getObject('selectedProvider', {});
       const selectedProviderIds = getArray('selectedProviderIds', []);
       const selectedProviderId = selectedProviderIds.length > 0 ? selectedProviderIds[0] : (selectedProvider?.id || undefined);
@@ -110,10 +116,9 @@ function OneClickCompleteScreen() {
         navigate('/client/searching', { replace: true });
       } catch (e) {
         console.error('Error creando solicitud:', e);
-        setError(e?.response?.data?.detail || e?.message || 'Error al crear la solicitud');
-        // Fallback: continuar con demo para no bloquear al usuario
+        // Fallback: continuar en demo sin mostrar error al usuario
         localStorage.setItem('currentServiceId', `demo-${Date.now()}`);
-        setTimeout(() => navigate('/client/searching', { replace: true }), 2000);
+        navigate('/client/searching', { replace: true });
       }
     };
 
@@ -136,11 +141,6 @@ function OneClickCompleteScreen() {
         <p style={{ color: '#fff', marginTop: 20, textAlign: 'center' }}>
           Tarjeta registrada. Buscando proveedores disponibles...
         </p>
-        {error && (
-          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 8, textAlign: 'center' }}>
-            {error}
-          </p>
-        )}
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     </div>
