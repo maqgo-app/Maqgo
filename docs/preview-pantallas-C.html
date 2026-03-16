@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Preview – Pantallas C (Cliente)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Inter', -apple-system, sans-serif; background: #0F0F12; color: #fff; padding: 16px; }
+    h1 { font-size: 14px; color: rgba(255,255,255,0.5); margin: 0 0 16px; font-weight: 600; }
+    .screen { margin-bottom: 32px; border: 1px solid #333; border-radius: 12px; overflow: hidden; max-width: 380px; }
+    .screen-title { background: #1a1a1a; padding: 8px 12px; font-size: 11px; color: #90BDD3; }
+    /* ClientHome - tarjeta Inicio HOY */
+    .card { background: linear-gradient(135deg, #EC6819 0%, #c75410 100%); border-radius: 16px; padding: 20px; display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+    .card-icon { width: 52px; height: 52px; border-radius: 14px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .card-text { flex: 1; }
+    .card-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+    .card-sub { font-size: 12px; color: rgba(255,255,255,0.8); font-weight: 500; }
+    /* Modal */
+    .modal { background: #1a1a1a; border: 1px solid #333; border-radius: 16px; padding: 24px; margin-top: 12px; }
+    .modal h3 { font-size: 18px; font-weight: 700; margin: 0 0 12px; }
+    .modal p { color: rgba(255,255,255,0.85); font-size: 14px; line-height: 1.5; margin: 0 0 24px; }
+    .btn-primary { width: 100%; padding: 16px; background: #EC6819; border: none; border-radius: 12px; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 10px; }
+    .btn-secondary { width: 100%; padding: 16px; background: transparent; border: 1px solid rgba(255,255,255,0.25); border-radius: 12px; color: rgba(255,255,255,0.95); font-size: 15px; font-weight: 500; cursor: pointer; }
+    /* MachinerySelection */
+    .machinery { padding: 16px; }
+    .machinery h2 { font-size: 20px; font-weight: 600; text-align: center; margin: 0 0 20px; }
+    .machinery-hint { color: rgba(255,255,255,0.7); font-size: 14px; margin-bottom: 12px; text-align: center; }
+    .machinery-item { background: #1e1e22; border-radius: 12px; padding: 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; border: 1px solid #2e2e35; }
+    .machinery-item.selected { border-color: #EC6819; background: rgba(236,104,25,0.1); }
+    .machinery-name { font-weight: 600; }
+    .machinery-desc { font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 2px; }
+    .btn-ver { width: 100%; padding: 16px; background: #EC6819; border: none; border-radius: 12px; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Preview – Cambios C (lado izquierdo)</h1>
+
+  <!-- ClientHome -->
+  <div class="screen">
+    <div class="screen-title">ClientHome – Tarjeta Inicio HOY (C1)</div>
+    <div style="padding: 16px;">
+      <div class="card">
+        <div class="card-icon">🕐</div>
+        <div class="card-text">
+          <div class="card-title">Inicio HOY</div>
+          <div class="card-sub">Disponibilidad inmediata · Paga solo cuando un operador acepte</div>
+        </div>
+        <div>→</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen">
+    <div class="screen-title">ClientHome – Modal reserva en progreso (C2, C3)</div>
+    <div style="padding: 16px;">
+      <div class="modal">
+        <h3>Arriendo en progreso</h3>
+        <p>¿Continuar con esta reserva?</p>
+        <button class="btn-primary">Continuar</button>
+        <button class="btn-secondary">Empezar otra reserva</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MachinerySelection -->
+  <div class="screen">
+    <div class="screen-title">MachinerySelection (C4, C5)</div>
+    <div class="machinery">
+      <h2>Selecciona el tipo de maquinaria</h2>
+      <p class="machinery-hint">Elige hasta 3 alternativas de maquinaria para enviarles tu solicitud. Toca otra vez en una para quitarla.</p>
+      <div class="machinery-item selected">
+        <span>🔧</span>
+        <div><span class="machinery-name">Retroexcavadora</span><div class="machinery-desc">Excavación y movimiento de tierra</div></div>
+        <span>✓</span>
+      </div>
+      <div class="machinery-item"><span>🚜</span><div><span class="machinery-name">Motoniveladora</span><div class="machinery-desc">Nivelación de superficies</div></div></div>
+      <button class="btn-ver">Ver opciones (1 seleccionada)</button>
+    </div>
+  </div>
+
+  <p style="font-size: 11px; color: rgba(255,255,255,0.4);">Actualizado con C1–C5. Abre este archivo en el navegador y déjalo a la izquierda.</p>
+</body>
+</html>

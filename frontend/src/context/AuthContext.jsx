@@ -1,0 +1,216 @@
+/**
+ * MAQGO - Auth Context con RBAC Jerárquico
+ *
+ * Sistema de roles:
+ * - super_master (Titular): Ve todo + puede invitar Gerentes y Operadores
+ * - master (Gerente): Ve todo pero NO puede invitar Gerentes
+ * - operator (Operador): Solo ve datos operacionales
+ *
+ * Permisos:
+ * - canViewFinances: Titular y Gerente
+ * - canViewInvoices: Titular y Gerente
+ * - canUploadInvoice: Titular y Gerente
+ * - canManageOperators: Titular y Gerente
+ * - canManageMasters: Solo Titular
+ * - canAcceptRequests: Todos
+ */
+
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import BACKEND_URL from '../utils/api';
+
+const AuthContext = createContext(null);
+
+// Permisos por defecto según rol
+const DEFAULT_PERMISSIONS = {
+  super_master: {
+    canViewFinances: true,
+    canViewInvoices: true,
+    canUploadInvoice: true,
+    canManageOperators: true,
+    canManageMasters: true,
+    canViewBankData: true,
+    canAcceptRequests: true,
+    canViewServices: true,
+    canViewDashboard: true
+  },
+  master: {
+    canViewFinances: true,
+    canViewInvoices: true,
+    canUploadInvoice: true,
+    canManageOperators: true,
+    canManageMasters: false,
+    canViewBankData: true,
+    canAcceptRequests: true,
+    canViewServices: true,
+    canViewDashboard: true
+  },
+  owner: {
+    canViewFinances: true,
+    canViewInvoices: true,
+    canUploadInvoice: true,
+    canManageOperators: true,
+    canManageMasters: true,
+    canViewBankData: true,
+    canAcceptRequests: true,
+    canViewServices: true,
+    canViewDashboard: true
+  },
+  operator: {
+    canViewFinances: false,
+    canViewInvoices: false,
+    canUploadInvoice: false,
+    canManageOperators: false,
+    canManageMasters: false,
+    canViewBankData: false,
+    canAcceptRequests: true,
+    canViewServices: true,
+    canViewDashboard: false
+  }
+};
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [providerRole, setProviderRole] = useState('super_master');
+  const [permissions, setPermissions] = useState(DEFAULT_PERMISSIONS.super_master);
+  const [loading, setLoading] = useState(true);
+  const [ownerId, setOwnerId] = useState(null);
+  const [ownerName, setOwnerName] = useState(null);
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const userId = localStorage.getItem('userId');
+      const userRole = localStorage.getItem('userRole');
+      const savedProviderRole = localStorage.getItem('providerRole');
+
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
+
+      if (userRole === 'provider') {
+        try {
+          const response = await fetch(`${BACKEND_URL}/api/users/${userId}/role`);
+          if (response.ok) {
+            const roleData = await response.json();
+            let role = roleData.provider_role || 'super_master';
+            if (role === 'owner') role = 'super_master';
+            setProviderRole(role);
+            setPermissions(DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.super_master);
+            setOwnerId(roleData.owner_id);
+            setOwnerName(roleData.owner_name);
+            localStorage.setItem('providerRole', role);
+            if (roleData.owner_id) localStorage.setItem('ownerId', roleData.owner_id);
+          }
+        } catch (e) {
+          let role = savedProviderRole || 'super_master';
+          if (role === 'owner') role = 'super_master';
+          setProviderRole(role);
+          setPermissions(DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.super_master);
+        }
+      }
+
+      setUser({ id: userId, role: userRole });
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+    setLoading(false);
+  };
+
+  const login = useCallback(async (userId, userRole, provRole = 'super_master') => {
+    let normalizedRole = provRole;
+    if (normalizedRole === 'owner') normalizedRole = 'super_master';
+    localStorage.setItem('userId', userId);
+    localStorage.setItem('userRole', userRole);
+    localStorage.setItem('providerRole', normalizedRole);
+    setUser({ id: userId, role: userRole });
+    setProviderRole(normalizedRole);
+    setPermissions(DEFAULT_PERMISSIONS[normalizedRole] || DEFAULT_PERMISSIONS.super_master);
+  }, []);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('providerRole');
+    localStorage.removeItem('ownerId');
+    setUser(null);
+    setProviderRole('super_master');
+    setPermissions(DEFAULT_PERMISSIONS.super_master);
+  }, []);
+
+  const hasPermission = useCallback((permission) => permissions[permission] === true, [permissions]);
+  const isOwner = useCallback(() => providerRole === 'super_master' || providerRole === 'owner', [providerRole]);
+  const isSuperMaster = useCallback(() => providerRole === 'super_master' || providerRole === 'owner', [providerRole]);
+  const isMaster = useCallback(() => providerRole === 'master', [providerRole]);
+  const isOperator = useCallback(() => providerRole === 'operator', [providerRole]);
+  const hasFullVisibility = useCallback(() => ['super_master', 'master', 'owner'].includes(providerRole), [providerRole]);
+
+  const switchRole = useCallback((newRole) => {
+    if (['super_master', 'master', 'operator', 'owner'].includes(newRole)) {
+      let normalizedRole = newRole;
+      if (normalizedRole === 'owner') normalizedRole = 'super_master';
+      setProviderRole(normalizedRole);
+      setPermissions(DEFAULT_PERMISSIONS[normalizedRole] || DEFAULT_PERMISSIONS.super_master);
+      localStorage.setItem('providerRole', normalizedRole);
+    }
+  }, []);
+
+  const value = {
+    user,
+    providerRole,
+    permissions,
+    loading,
+    ownerId,
+    ownerName,
+    login,
+    logout,
+    hasPermission,
+    isOwner,
+    isSuperMaster,
+    isMaster,
+    isOperator,
+    hasFullVisibility,
+    switchRole,
+    refreshUserData: loadUserData
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth debe usarse dentro de AuthProvider');
+  return context;
+}
+
+export function withPermission(WrappedComponent, requiredPermission) {
+  return function PermissionWrapper(props) {
+    const { hasPermission, loading } = useAuth();
+    if (loading) {
+      return (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#1a1a1a' }}>
+          <p style={{ color: 'rgba(255,255,255,0.95)' }}>Cargando...</p>
+        </div>
+      );
+    }
+    if (!hasPermission(requiredPermission)) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#1a1a1a', padding: 20 }}>
+          <p style={{ color: '#ff6b6b', fontSize: 18, marginBottom: 10 }}>Acceso restringido</p>
+          <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, textAlign: 'center' }}>No tienes permisos para acceder a esta sección.</p>
+        </div>
+      );
+    }
+    return <WrappedComponent {...props} />;
+  };
+}
+
+export default AuthContext;

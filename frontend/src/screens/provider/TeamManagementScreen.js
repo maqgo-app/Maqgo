@@ -1,0 +1,751 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { useAuth } from '../../context/AuthContext';
+
+import BACKEND_URL from '../../utils/api';
+
+/**
+ * Pantalla: Gestión de Equipo
+ * 
+ * Permite a Titular y Gerente:
+ * - Ver lista de Gerentes (solo Titular puede invitar nuevos)
+ * - Ver lista de Operadores
+ * - Generar códigos de invitación
+ * - Ver invitaciones pendientes
+ */
+function TeamManagementScreen() {
+  const navigate = useNavigate();
+  const { isSuperMaster } = useAuth();
+  const [activeTab, setActiveTab] = useState('team'); // 'team' | 'invite'
+  const [inviteType, setInviteType] = useState('operator'); // 'operator' | 'master'
+  const [team, setTeam] = useState({ masters: [], operators: [], pending_invitations: [] });
+  const [loading, setLoading] = useState(true);
+  const [inviteCode, setInviteCode] = useState('');
+  const [showCode, setShowCode] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [operatorName, setOperatorName] = useState('');
+  const [operatorRut, setOperatorRut] = useState('');
+  const [operatorPhone, setOperatorPhone] = useState('');
+
+  useEffect(() => {
+    const fetchTeam = async () => {
+      try {
+        const userId = localStorage.getItem('userId');
+        const ownerId = localStorage.getItem('ownerId') || userId;
+        
+        const response = await axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`);
+        setTeam(response.data);
+      } catch (e) {
+        console.error('Error loading team:', e);
+        setTeam({
+          masters: [],
+          operators: [],
+          pending_invitations: [],
+          masters_count: 0,
+          operators_count: 0
+        });
+      }
+      setLoading(false);
+    };
+    
+    fetchTeam();
+  }, [refreshKey]);
+
+  const loadTeam = () => setRefreshKey(k => k + 1);
+
+  const generateInviteCode = async () => {
+    setInviting(true);
+    try {
+      const userId = localStorage.getItem('userId');
+      const ownerId = localStorage.getItem('ownerId') || userId;
+      
+      const endpoint = inviteType === 'master' 
+        ? `${BACKEND_URL}/api/operators/masters/invite`
+        : `${BACKEND_URL}/api/operators/invite`;
+
+      // Validaciones básicas para operador: nombre y RUT obligatorios
+      let payload = { owner_id: ownerId };
+      if (inviteType === 'operator') {
+        if (!operatorName.trim() || !operatorRut.trim()) {
+          alert('Ingresa nombre y RUT del operador antes de generar el código.');
+          setInviting(false);
+          return;
+        }
+        payload = {
+          owner_id: ownerId,
+          operator_name: operatorName.trim(),
+          operator_rut: operatorRut.trim(),
+          operator_phone: operatorPhone.trim() || null,
+        };
+      }
+
+      const response = await axios.post(endpoint, payload);
+      
+      setInviteCode(response.data.code);
+      setShowCode(true);
+      // Limpiar formulario de datos de operador
+      setOperatorName('');
+      setOperatorRut('');
+      setOperatorPhone('');
+      loadTeam(); // Recargar para ver la invitación pendiente
+    } catch (e) {
+      console.error('Error generating invite:', e);
+      alert(e.response?.data?.detail || 'Error al generar código');
+    }
+    setInviting(false);
+  };
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(inviteCode);
+    alert('Código copiado al portapapeles');
+  };
+
+  const cancelInvitation = async (code) => {
+    try {
+      const userId = localStorage.getItem('userId');
+      const ownerId = localStorage.getItem('ownerId') || userId;
+      
+      await axios.delete(`${BACKEND_URL}/api/operators/invitation/${code}?owner_id=${ownerId}`);
+      loadTeam();
+    } catch (e) {
+      console.error('Error canceling invitation:', e);
+    }
+  };
+
+  const getRoleLabel = (role) => {
+    switch(role) {
+      case 'super_master': return 'Titular';
+      case 'master': return 'Gerente';
+      case 'operator': return 'Operador';
+      default: return role;
+    }
+  };
+
+  const getRoleColor = (role) => {
+    switch(role) {
+      case 'super_master': return '#EC6819';
+      case 'master': return '#9C27B0';
+      case 'operator': return '#90BDD3';
+      default: return '#888';
+    }
+  };
+
+  return (
+    <div className="maqgo-app">
+      <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
+        {/* Header */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 12, 
+          marginBottom: 20,
+          marginTop: 10
+        }}>
+          <button 
+            onClick={() => navigate(-1)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#fff',
+              cursor: 'pointer',
+              padding: 8
+            }}
+            data-testid="back-btn"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <h1 style={{ 
+            color: '#fff', 
+            fontSize: 20, 
+            fontWeight: 700, 
+            margin: 0,
+            fontFamily: "'Space Grotesk', sans-serif"
+          }}>
+            Mi Equipo
+          </h1>
+        </div>
+
+        {/* Tabs */}
+        <div style={{
+          display: 'flex',
+          gap: 10,
+          marginBottom: 20
+        }}>
+          <button
+            onClick={() => { setActiveTab('team'); setShowCode(false); }}
+            style={{
+              flex: 1,
+              padding: 12,
+              background: activeTab === 'team' ? '#EC6819' : '#2A2A2A',
+              border: 'none',
+              borderRadius: 10,
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+            data-testid="tab-team"
+          >
+            Equipo ({team.masters_count + team.operators_count || 0})
+          </button>
+          <button
+            onClick={() => setActiveTab('invite')}
+            style={{
+              flex: 1,
+              padding: 12,
+              background: activeTab === 'invite' ? '#EC6819' : '#2A2A2A',
+              border: 'none',
+              borderRadius: 10,
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+            data-testid="tab-invite"
+          >
+            Invitar
+          </button>
+        </div>
+
+        {/* Tab: Equipo */}
+        {activeTab === 'team' && (
+          <div>
+            {loading ? (
+              <p style={{ color: 'rgba(255,255,255,0.95)', textAlign: 'center' }}>Cargando...</p>
+            ) : (
+              <>
+                {/* Masters */}
+                {team.masters && team.masters.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <p style={{ 
+                      color: 'rgba(255,255,255,0.95)', 
+                      fontSize: 12, 
+                      textTransform: 'uppercase',
+                      marginBottom: 10
+                    }}>
+                      Gerentes ({team.masters.length})
+                    </p>
+                    {team.masters.map((member, idx) => (
+                      <div 
+                        key={member.id || idx}
+                        style={{
+                          background: '#2A2A2A',
+                          borderRadius: 12,
+                          padding: 14,
+                          marginBottom: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12
+                        }}
+                      >
+                        <div style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: '50%',
+                          background: '#363636',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <span style={{ color: '#9C27B0', fontSize: 18, fontWeight: 700 }}>
+                            {member.name?.charAt(0) || 'M'}
+                          </span>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
+                            {member.name}
+                          </p>
+                          <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
+                            {member.phone || 'Sin celular'}
+                          </p>
+                        </div>
+                        <span style={{
+                          padding: '4px 10px',
+                          borderRadius: 20,
+                          background: 'rgba(156, 39, 176, 0.2)',
+                          color: '#9C27B0',
+                          fontSize: 11,
+                          fontWeight: 600
+                        }}>
+                          Gerente
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Operadores */}
+                <div style={{ marginBottom: 20 }}>
+                  <p style={{ 
+                    color: 'rgba(255,255,255,0.95)', 
+                    fontSize: 12, 
+                    textTransform: 'uppercase',
+                    marginBottom: 10
+                  }}>
+                    Operadores ({team.operators?.length || 0})
+                  </p>
+                  {team.operators && team.operators.length > 0 ? (
+                    team.operators.map((op, idx) => (
+                      <div 
+                        key={op.id || idx}
+                        style={{
+                          background: '#2A2A2A',
+                          borderRadius: 12,
+                          padding: 14,
+                          marginBottom: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12
+                        }}
+                      >
+                        <div style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: '50%',
+                          background: '#363636',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <span style={{ color: '#90BDD3', fontSize: 18, fontWeight: 700 }}>
+                            {op.name?.charAt(0) || 'O'}
+                          </span>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
+                            {op.name}
+                          </p>
+                          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                            {op.rut && (
+                              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, margin: 0 }}>
+                                RUT: {op.rut}
+                              </p>
+                            )}
+                            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, margin: 0 }}>
+                              {op.services_completed || 0} servicios
+                            </p>
+                          </div>
+                        </div>
+                        <div style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: '50%',
+                          background: op.isAvailable ? '#4CAF50' : '#666'
+                        }} title={op.isAvailable ? 'Disponible' : 'No disponible'}></div>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{
+                      background: '#2A2A2A',
+                      borderRadius: 12,
+                      padding: 30,
+                      textAlign: 'center'
+                    }}>
+                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, margin: 0 }}>
+                        No hay operadores registrados
+                      </p>
+                      <button
+                        onClick={() => setActiveTab('invite')}
+                        style={{
+                          marginTop: 12,
+                          padding: '10px 20px',
+                          background: '#EC6819',
+                          border: 'none',
+                          borderRadius: 20,
+                          color: '#fff',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Invitar operador
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Invitaciones pendientes */}
+                {team.pending_invitations && team.pending_invitations.length > 0 && (
+                  <div>
+                    <p style={{ 
+                      color: 'rgba(255,255,255,0.95)', 
+                      fontSize: 12, 
+                      textTransform: 'uppercase',
+                      marginBottom: 10
+                    }}>
+                      Invitaciones pendientes ({team.pending_invitations.length})
+                    </p>
+                    {team.pending_invitations.map((inv, idx) => (
+                      <div 
+                        key={inv.code || idx}
+                        style={{
+                          background: '#2A2A2A',
+                          borderRadius: 12,
+                          padding: 14,
+                          marginBottom: 10,
+                          borderLeft: '4px solid #FFA726'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <p style={{ 
+                              color: '#FFA726', 
+                              fontSize: 18, 
+                              fontWeight: 700, 
+                              margin: 0,
+                              fontFamily: "'JetBrains Mono', monospace",
+                              letterSpacing: 2
+                            }}>
+                              {inv.code}
+                            </p>
+                            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 11, margin: '4px 0 0' }}>
+                              {inv.invite_type === 'master' ? 'Para Gerente' : 'Para Operador'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => cancelInvitation(inv.code)}
+                            style={{
+                              padding: '6px 12px',
+                              background: 'rgba(244, 67, 54, 0.2)',
+                              border: 'none',
+                              borderRadius: 6,
+                              color: '#F44336',
+                              fontSize: 12,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Invitar */}
+        {activeTab === 'invite' && (
+          <div>
+            {!showCode ? (
+              <>
+                <p style={{ 
+                  color: 'rgba(255,255,255,0.9)', 
+                  fontSize: 14, 
+                  textAlign: 'center',
+                  marginBottom: 25
+                }}>
+                  Genera un código para que se unan a tu equipo
+                </p>
+
+                {/* Selector de tipo */}
+                <div style={{ marginBottom: 25 }}>
+                  <p style={{ 
+                    color: 'rgba(255,255,255,0.95)', 
+                    fontSize: 12, 
+                    textTransform: 'uppercase',
+                    marginBottom: 10
+                  }}>
+                    Tipo de invitación
+                  </p>
+                  
+                  {/* Opción Operador */}
+                  <div
+                    onClick={() => setInviteType('operator')}
+                    style={{
+                      background: inviteType === 'operator' ? 'rgba(144, 189, 211, 0.15)' : '#2A2A2A',
+                      border: inviteType === 'operator' ? '2px solid #90BDD3' : '2px solid transparent',
+                      borderRadius: 12,
+                      padding: 16,
+                      marginBottom: 10,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    data-testid="invite-type-operator"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        background: '#90BDD3',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="8" r="4" stroke="#fff" strokeWidth="2"/>
+                          <path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="#fff" strokeWidth="2"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
+                          Operador
+                        </p>
+                        <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
+                          Ejecuta servicios en terreno
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Opción Master - Solo visible para Titular */}
+                  {isSuperMaster() && (
+                    <div
+                      onClick={() => setInviteType('master')}
+                      style={{
+                        background: inviteType === 'master' ? 'rgba(156, 39, 176, 0.15)' : '#2A2A2A',
+                        border: inviteType === 'master' ? '2px solid #9C27B0' : '2px solid transparent',
+                        borderRadius: 12,
+                        padding: 16,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                      data-testid="invite-type-master"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '50%',
+                          background: '#9C27B0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <rect x="3" y="3" width="18" height="18" rx="2" stroke="#fff" strokeWidth="2"/>
+                            <path d="M8 12h8M12 8v8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                        </div>
+                        <div>
+                          <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
+                            Gerente / Master
+                          </p>
+                          <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
+                            Visibilidad total de operaciones y finanzas
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Datos del operador cuando la invitación es para Operador */}
+                {inviteType === 'operator' && (
+                  <div style={{ marginBottom: 20 }}>
+                    <p style={{ 
+                      color: 'rgba(255,255,255,0.95)', 
+                      fontSize: 12, 
+                      textTransform: 'uppercase',
+                      marginBottom: 10
+                    }}>
+                      Datos del operador
+                    </p>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                        Nombre completo *
+                      </label>
+                      <input
+                        type="text"
+                        value={operatorName}
+                        onChange={(e) => setOperatorName(e.target.value)}
+                        placeholder="Ej: Tomás Leiva"
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #444',
+                          background: '#1F1F1F',
+                          color: '#fff',
+                          fontSize: 14,
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                        RUT *
+                      </label>
+                      <input
+                        type="text"
+                        value={operatorRut}
+                        onChange={(e) => setOperatorRut(e.target.value)}
+                        placeholder="12.345.678-9"
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #444',
+                          background: '#1F1F1F',
+                          color: '#fff',
+                          fontSize: 14,
+                          outline: 'none',
+                          fontFamily: "'JetBrains Mono', monospace"
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                        Celular (opcional)
+                      </label>
+                      <input
+                        type="tel"
+                        value={operatorPhone}
+                        onChange={(e) => setOperatorPhone(e.target.value)}
+                        placeholder="+56 9 1234 5678"
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #444',
+                          background: '#1F1F1F',
+                          color: '#fff',
+                          fontSize: 14,
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  className="maqgo-btn-primary"
+                  onClick={generateInviteCode}
+                  disabled={inviting}
+                  data-testid="generate-code-btn"
+                >
+                  {inviting ? 'Generando...' : 'Generar código de invitación'}
+                </button>
+              </>
+            ) : (
+              /* Código generado */
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: '50%',
+                  background: inviteType === 'master' ? '#9C27B0' : '#90BDD3',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 20px'
+                }}>
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                    <path d="M9 12L11 14L15 10" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+
+                <h2 style={{ 
+                  color: '#fff', 
+                  fontSize: 20, 
+                  fontWeight: 700, 
+                  margin: '0 0 8px',
+                  fontFamily: "'Space Grotesk', sans-serif"
+                }}>
+                  Código generado
+                </h2>
+                
+                <p style={{ 
+                  color: 'rgba(255,255,255,0.95)', 
+                  fontSize: 13, 
+                  margin: '0 0 25px'
+                }}>
+                  {inviteType === 'master' ? 'Para nuevo Gerente' : 'Para nuevo Operador'}
+                </p>
+
+                {/* Código grande */}
+                <div style={{
+                  background: '#2A2A2A',
+                  borderRadius: 16,
+                  padding: 24,
+                  marginBottom: 20
+                }}>
+                  <p style={{
+                    color: inviteType === 'master' ? '#9C27B0' : '#90BDD3',
+                    fontSize: 36,
+                    fontWeight: 700,
+                    margin: 0,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    letterSpacing: 6
+                  }}>
+                    {inviteCode}
+                  </p>
+                  <p style={{ 
+                    color: 'rgba(255,255,255,0.9)', 
+                    fontSize: 12, 
+                    margin: '12px 0 0'
+                  }}>
+                    Válido por 7 días
+                  </p>
+                </div>
+
+                <button
+                  onClick={copyCode}
+                  style={{
+                    width: '100%',
+                    padding: 14,
+                    background: '#363636',
+                    border: 'none',
+                    borderRadius: 10,
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    marginBottom: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8
+                  }}
+                  data-testid="copy-code-btn"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                  Copiar código
+                </button>
+
+                <div style={{
+                  background: 'rgba(236, 104, 25, 0.1)',
+                  borderRadius: 10,
+                  padding: 14,
+                  marginBottom: 20
+                }}>
+                  <p style={{ color: '#EC6819', fontSize: 13, margin: 0 }}>
+                    Comparte este código con {inviteType === 'master' ? 'tu nuevo gerente' : 'tu operador'} para que se una a tu equipo
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => { setShowCode(false); setInviteCode(''); }}
+                  style={{
+                    width: '100%',
+                    padding: 14,
+                    background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: 10,
+                    color: 'rgba(255,255,255,0.95)',
+                    fontSize: 14,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Generar otro código
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default TeamManagementScreen;
