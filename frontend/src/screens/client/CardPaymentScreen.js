@@ -412,6 +412,7 @@ function CardPaymentScreen() {
         <button
           onClick={() => {
             localStorage.setItem('clientEmail', email || 'demo@maqgo.cl');
+            localStorage.setItem('oneclickDemoMode', 'true');
             const demoTbk = `demo-${Date.now()}`;
             window.location.href = `${window.location.origin}/oneclick/complete?tbk_user=${encodeURIComponent(demoTbk)}`;
           }}

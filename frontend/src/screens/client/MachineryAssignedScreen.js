@@ -691,22 +691,24 @@ function MachineryAssignedScreen() {
           </div>
         </div>
 
-        {/* Demo: botón para simular llegada */}
-        <button
-          onClick={() => navigate('/client/provider-arrived')}
-          style={{
-            width: '100%',
-            padding: 14,
-            background: 'transparent',
-            border: '1px solid rgba(255,255,255,0.2)',
-            borderRadius: 25,
-            color: 'rgba(255,255,255,0.95)',
-            fontSize: 12,
-            cursor: 'pointer'
-          }}
-        >
-          Simular llegada (Demo)
-        </button>
+        {/* Solo modo demo (Continuar sin tarjeta): atajo para llegar hasta el final */}
+        {(localStorage.getItem('currentServiceId') || '').startsWith('demo-') && (
+          <button
+            onClick={() => navigate('/client/provider-arrived')}
+            style={{
+              width: '100%',
+              padding: 14,
+              background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: 25,
+              color: 'rgba(255,255,255,0.95)',
+              fontSize: 12,
+              cursor: 'pointer'
+            }}
+          >
+            Simular llegada (Demo)
+          </button>
+        )}
 
         {/* Modal de confirmación No-Show */}
         {showNoShowModal && (

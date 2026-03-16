@@ -133,14 +133,16 @@ function ServiceActiveScreen() {
 
         <div className="maqgo-spacer"></div>
 
-        {/* Botón demo para finalizar */}
-        <button 
-          className="maqgo-btn-primary"
-          onClick={handleFinish}
-          data-testid="finish-service-btn"
-        >
-          Finalizar servicio (Demo)
-        </button>
+        {/* Solo modo demo (Continuar sin tarjeta): atajo para llegar hasta el final */}
+        {(localStorage.getItem('currentServiceId') || '').startsWith('demo-') && (
+          <button 
+            className="maqgo-btn-primary"
+            onClick={handleFinish}
+            data-testid="finish-service-btn"
+          >
+            Finalizar servicio (Demo)
+          </button>
+        )}
 
         <style>{`
           @keyframes pulse {

@@ -130,6 +130,8 @@ function WelcomeScreen() {
           }}>
             Maquinaria pesada{' '}
             <span style={{ color: '#EC6819' }}>donde la necesitas</span>
+            {' con '}
+            <span style={{ color: '#fff' }}>operador incluído</span>
           </h1>
           <p style={{
             fontSize: isDesktop ? 15 : 14,
@@ -138,7 +140,7 @@ function WelcomeScreen() {
             lineHeight: 1.55,
             maxWidth: isDesktop ? '36ch' : '28ch'
           }}>
-            Arriendo inmediato o programado con operador incluido.
+            Arriendo inmediato o programado.
           </p>
         </header>
 

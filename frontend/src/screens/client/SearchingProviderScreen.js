@@ -106,14 +106,20 @@ function SearchingProviderScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // Segundero en modo real: decrementar cada segundo para que avance en pantalla
+  // Segundero en modo real: decrementar cada segundo; si llega a 0 sin respuesta, mostrar not_found
   useEffect(() => {
     const serviceId = localStorage.getItem('currentServiceId') || '';
     if (!serviceId || serviceId.startsWith('demo-')) return;
     if (status !== 'searching') return;
 
     const tick = setInterval(() => {
-      setSecondsLeft((prev) => Math.max(0, prev - 1));
+      setSecondsLeft((prev) => {
+        const next = Math.max(0, prev - 1);
+        if (next <= 0) {
+          setTimeout(() => setStatus('not_found'), 0);
+        }
+        return next;
+      });
     }, 1000);
     return () => clearInterval(tick);
   }, [status]);
@@ -176,11 +182,21 @@ function SearchingProviderScreen() {
     });
 
     // Limitar a 5 proveedores máximo
-    const limitedEligible = eligible.slice(0, 5);
+    let limitedEligible = eligible.slice(0, 5);
 
+    // Modo demo: si el filtro deja vacío, usar proveedores demo para garantizar asignación
     if (limitedEligible.length === 0) {
-      setStatus('no_eligible');
-      return;
+      const prices = getDemoPriceList(machinery);
+      const transportFee = getDemoTransportFee(machinery);
+      const transportFees = transportFee > 0 ? [25000, 30000, 22000, 28000, 24000] : [0, 0, 0, 0, 0];
+      const providerIds = getArray('selectedProviderIds', []);
+      const n = Math.min(providerIds.length || 5, 5) || 1;
+      const demoProviders = [
+        { id: 'demo-1', name: 'Transportes Silva', price_per_hour: prices[0], transport_fee: transportFees[0], eta_minutes: 45, rating: 4.8, license_plate: 'BGKL-45', operator_name: 'Carlos Silva' },
+        { id: 'demo-2', name: 'Maquinarias del Sur', price_per_hour: prices[1], transport_fee: transportFees[1], eta_minutes: 54, rating: 4.6, license_plate: 'HJKL-78', operator_name: 'Pedro González' },
+        { id: 'demo-3', name: 'Constructora Norte', price_per_hour: prices[2], transport_fee: transportFees[2], eta_minutes: 50, rating: 4.9, license_plate: 'MNOP-12', operator_name: 'Juan Martínez' },
+      ];
+      limitedEligible = demoProviders.slice(0, n);
     }
 
     setEligibleProviders(limitedEligible);
@@ -193,9 +209,25 @@ function SearchingProviderScreen() {
     localStorage.setItem('serviceStatus', 'pending');
   }, []);
 
-  // Lógica de timer y secuencia
+  // Demo: asignación directa y fiable (efecto dedicado, sin depender del timer complejo)
   useEffect(() => {
-    // En solicitudes reales, la aceptación viene del backend; no simular
+    const serviceId = localStorage.getItem('currentServiceId') || '';
+    if (!serviceId.startsWith('demo-')) return;
+    if (status !== 'searching' || eligibleProviders.length === 0) return;
+
+    const accepted = eligibleProviders[currentAttempt - 1] || eligibleProviders[0];
+    const demoDelay = 1800; // ~2s para que se vea la búsqueda
+    const t = setTimeout(() => {
+      if (accepted) {
+        localStorage.setItem('acceptedProvider', JSON.stringify(accepted));
+      }
+      setStatus('found');
+    }, demoDelay);
+    return () => clearTimeout(t);
+  }, [status, currentAttempt, eligibleProviders]);
+
+  // Lógica de timer y secuencia (solo para animar el segundero en demo; la asignación va en el efecto anterior)
+  useEffect(() => {
     const serviceId = localStorage.getItem('currentServiceId') || '';
     const isRealRequest = serviceId && !serviceId.startsWith('demo-');
     if (isRealRequest) return;
@@ -203,46 +235,24 @@ function SearchingProviderScreen() {
     if (status !== 'searching' || eligibleProviders.length === 0) return;
 
     const maxAttempts = eligibleProviders.length;
-
     const timer = setInterval(() => {
       setSecondsLeft(prev => {
         if (prev <= 1) {
-          // Tiempo agotado para este proveedor
           if (currentAttempt >= maxAttempts) {
-            // No hay más proveedores elegibles
             setStatus('not_found');
             return 0;
-          } else {
-            // Pasar al siguiente proveedor elegible
-            const nextAttempt = currentAttempt + 1;
-            setCurrentAttempt(nextAttempt);
-            setCurrentProvider(eligibleProviders[nextAttempt - 1] || null);
-            return SECONDS_PER_ATTEMPT;
           }
+          const nextAttempt = currentAttempt + 1;
+          setCurrentAttempt(nextAttempt);
+          setCurrentProvider(eligibleProviders[nextAttempt - 1] || null);
+          return SECONDS_PER_ATTEMPT;
         }
         return prev - 1;
       });
-
       setTotalElapsed(prev => prev + 1);
     }, 1000);
-
-    // Demo: Simular aceptación (1.5-3 s para no parecer pegado)
-    const demoDelay = 1500 + Math.floor(Math.random() * 1500);
-    const attemptRef = currentAttempt;
-    const providersRef = eligibleProviders;
-    const demoTimer = setTimeout(() => {
-      const acceptedProvider = providersRef[attemptRef - 1] || providersRef[0];
-      if (acceptedProvider) {
-        localStorage.setItem('acceptedProvider', JSON.stringify(acceptedProvider));
-      }
-      setStatus('found');
-    }, demoDelay);
-
-    return () => {
-      clearInterval(timer);
-      clearTimeout(demoTimer);
-    };
-  }, [status, currentAttempt, eligibleProviders, currentProvider, selectedProvider]);
+    return () => clearInterval(timer);
+  }, [status, currentAttempt, eligibleProviders, currentProvider]);
 
   // Navegar cuando el operador acepta: tarjeta ya registrada → resultado de pago
   useEffect(() => {
@@ -414,7 +424,7 @@ function SearchingProviderScreen() {
               ))}
             </div>
 
-            {/* Spinner con timer */}
+            {/* Spinner: proveedor actual */}
             <div style={{
               position: 'relative',
               width: 140,
@@ -448,7 +458,10 @@ function SearchingProviderScreen() {
                   color: '#fff',
                   fontFamily: 'monospace'
                 }}>
-                  {secondsLeft}s
+                  {formatTime(secondsLeft)}
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                  {isRealRequest ? 'Proveedor actual' : `Proveedor ${currentAttempt} de ${maxAttempts}`}
                 </div>
               </div>
             </div>
@@ -502,7 +515,7 @@ function SearchingProviderScreen() {
               </span>
             </div>
 
-            {/* Temporizador visual grande */}
+            {/* Temporizador: tiempo total restante */}
             <div style={{
               background: '#363636',
               borderRadius: 12,
@@ -517,7 +530,7 @@ function SearchingProviderScreen() {
                 textTransform: 'uppercase',
                 letterSpacing: 1
               }}>
-                {isRealRequest ? 'Tiempo de respuesta del proveedor' : 'Tiempo máximo de búsqueda'}
+                Tiempo total
               </p>
               <div style={{
                 display: 'flex',
@@ -540,7 +553,7 @@ function SearchingProviderScreen() {
                   restantes
                 </span>
               </div>
-              {/* Barra de progreso */}
+              {/* Barra de progreso tiempo total */}
               <div style={{
                 background: 'rgba(255,255,255,0.1)',
                 borderRadius: 4,
@@ -689,12 +702,31 @@ function SearchingProviderScreen() {
               <button 
                 className="maqgo-btn-primary"
                 onClick={() => {
+                  localStorage.removeItem('currentServiceId');
+                  navigate('/client/providers');
+                }}
+                style={{ width: '100%', marginBottom: 12 }}
+              >
+                Reintentar búsqueda
+              </button>
+
+              <button 
+                className="maqgo-btn-primary"
+                onClick={() => {
                   localStorage.setItem('reservationType', 'scheduled');
                   navigate('/client/calendar');
                 }}
                 style={{ width: '100%', marginBottom: 12 }}
               >
                 Buscar para otro día
+              </button>
+
+              <button 
+                onClick={() => window.location.reload()}
+                className="maqgo-btn-secondary"
+                style={{ width: '100%', marginBottom: 12 }}
+              >
+                Refrescar página
               </button>
 
               <button 

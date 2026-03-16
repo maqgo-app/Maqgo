@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { getObject, getArray } from '../../utils/safeStorage';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import { getDemoPriceList, getDemoTransportFee } from '../../utils/pricing';
 
 import BACKEND_URL from '../../utils/api';
 
@@ -10,28 +11,62 @@ import BACKEND_URL from '../../utils/api';
  * Pantalla de retorno tras completar inscripción OneClick en Transbank.
  * Recibe tbk_user por query, lo guarda, crea la solicitud de servicio en backend
  * y redirige a la búsqueda de proveedores.
+ *
+ * Modo demo (tbk_user empieza con "demo-"): no llama al backend; usa flujo local
+ * con proveedor simulado para vivir la experiencia completa hasta el final.
  */
 function OneClickCompleteScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const tbk_user = searchParams.get('tbk_user');
+  const tbk_user = searchParams.get('tbk_user') || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tbk_user') : null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!tbk_user) {
+    const demoFlag = localStorage.getItem('oneclickDemoMode') === 'true';
+    const effectiveTbk = tbk_user || (demoFlag ? `demo-${Date.now()}` : null);
+
+    if (!effectiveTbk) {
       navigate('/client/card');
       return;
     }
 
     const email = localStorage.getItem('clientEmail') || '';
-    // Mismo formato que CardPaymentScreen (Transbank requiere consistencia)
     const username = email
       ? email.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60)
       : `user_${Date.now()}`;
 
-    // Guardar en localStorage para el flujo de cobro
-    localStorage.setItem('tbk_user', tbk_user);
+    localStorage.setItem('tbk_user', effectiveTbk);
     localStorage.setItem('oneclick_username', username);
+
+    const isDemoMode = (effectiveTbk && effectiveTbk.startsWith('demo-')) || demoFlag;
+
+    // Modo demo: flujo local sin backend — asignar proveedor simulado para vivir la experiencia completa
+    if (isDemoMode) {
+      localStorage.removeItem('oneclickDemoMode');
+      const clientId = localStorage.getItem('userId') || `client_${Date.now()}`;
+      if (!localStorage.getItem('userId')) {
+        localStorage.setItem('userId', clientId);
+      }
+
+      const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
+      const prices = getDemoPriceList(machinery);
+      const transportFee = getDemoTransportFee(machinery);
+      const transportFees = transportFee > 0 ? [25000, 30000, 22000, 28000, 24000] : [0, 0, 0, 0, 0];
+      const demoProviders = [
+        { id: 'demo-1', name: 'Transportes Silva', price_per_hour: prices[0], transport_fee: transportFees[0], eta_minutes: 45, rating: 4.8, license_plate: 'BGKL-45', operator_name: 'Carlos Silva' },
+        { id: 'demo-2', name: 'Maquinarias del Sur', price_per_hour: prices[1], transport_fee: transportFees[1], eta_minutes: 54, rating: 4.6, license_plate: 'HJKL-78', operator_name: 'Pedro González' },
+        { id: 'demo-3', name: 'Constructora Norte', price_per_hour: prices[2], transport_fee: transportFees[2], eta_minutes: 50, rating: 4.9, license_plate: 'MNOP-12', operator_name: 'Juan Martínez' },
+      ];
+
+      // Siempre usar proveedores demo en modo tarjeta de prueba para garantizar asignación
+      localStorage.setItem('matchedProviders', JSON.stringify(demoProviders));
+      localStorage.setItem('selectedProviderIds', JSON.stringify(['demo-1']));
+      localStorage.setItem('selectedProvider', JSON.stringify(demoProviders[0]));
+      localStorage.setItem('currentServiceId', `demo-${Date.now()}`);
+
+      navigate('/client/searching', { replace: true });
+      return;
+    }
 
     // Persistir OneClick en backend
     const saveOneClick = async () => {

@@ -70,7 +70,8 @@ function ServiceLocationScreen() {
 
   const formatDateShort = (dateStr) => {
     if (!dateStr) return 'Programado';
-    const date = new Date(dateStr + 'T12:00:00');
+    const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
+    if (isNaN(date.getTime())) return 'Programado';
     return date.toLocaleDateString('es-CL', { 
       weekday: 'short', 
       day: 'numeric', 
@@ -83,7 +84,7 @@ function ServiceLocationScreen() {
 
   /** Resumen de fechas: una sola fecha o rango de días cuando hay varias seleccionadas. No devolver "Inicio HOY" si hay fechas. */
   const getDateSummary = () => {
-    const dates = selectedDates
+    const dates = (selectedDates || [])
       .map(d => typeof d === 'string' ? new Date(d + (d.includes('T') ? '' : 'T12:00:00')) : d)
       .filter(d => d && !isNaN(d.getTime()))
       .sort((a, b) => a.getTime() - b.getTime());
