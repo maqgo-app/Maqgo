@@ -182,8 +182,8 @@ Las "variables" son datos que la app usa (URL de la base de datos, etc.) sin que
      **Valor:** `maqgo_db`
 
    - **Nombre:** `CORS_ORIGINS`  
-     **Valor:** `https://www.maqgo.cl,https://maqgo.cl`  
-     (Sin espacios. Son los dominios desde los que se puede llamar a tu API.)
+     **Valor:** `https://www.maqgo.cl,https://maqgo.cl,https://maqgo.vercel.app`  
+     (Sin espacios. Incluye maqgo.vercel.app para que funcione desde la URL de Vercel.)
 
    - **Nombre:** `FRONTEND_URL`  
      **Valor:** `https://www.maqgo.cl`
