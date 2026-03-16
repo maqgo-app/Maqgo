@@ -50,8 +50,9 @@ function WelcomeScreen() {
 
   const hasSession = !!localStorage.getItem('userId');
 
+  const iconSize = 24;
   const IconExcavator = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }}>
       <path d="M4 19h16" />
       <path d="M8 19V10l4-5 4 5v9" />
       <path d="M8 10h8" />
@@ -60,13 +61,13 @@ function WelcomeScreen() {
     </svg>
   );
   const IconBuilding = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }}>
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
       <polyline points="9 22 9 12 15 12 15 22" />
     </svg>
   );
   const IconUser = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }}>
       <circle cx="12" cy="8" r="4" />
       <path d="M4 20c0-3 3-6 8-6s8 3 8 6" />
     </svg>
@@ -77,7 +78,7 @@ function WelcomeScreen() {
   };
 
   const pad = isDesktop ? 40 : (isNarrowMobile ? 16 : 20);
-  const logoSize = isDesktop ? 200 : (isNarrowMobile ? 120 : 145);
+  const logoSize = isDesktop ? 200 : 145;
 
   return (
     <div className={`maqgo-app ${isDesktop ? 'welcome-desktop' : ''}`}>
@@ -91,7 +92,9 @@ function WelcomeScreen() {
           height: isDesktop ? '100vh' : 'auto',
           boxSizing: 'border-box',
           background: '#0F0F12',
-          padding: `max(16px, env(safe-area-inset-top)) ${pad}px max(16px, env(safe-area-inset-bottom))`,
+          padding: isDesktop
+            ? `max(16px, env(safe-area-inset-top)) ${pad}px max(16px, env(safe-area-inset-bottom))`
+            : `max(20px, env(safe-area-inset-top, 20px)) ${pad}px max(20px, env(safe-area-inset-bottom, 20px))`,
           overflowX: 'hidden',
           overflowY: isDesktop ? 'hidden' : 'auto',
           WebkitOverflowScrolling: 'touch',
@@ -216,18 +219,6 @@ function WelcomeScreen() {
           </div>
         )}
 
-        {/* Nota de confianza */}
-        <p style={{
-          flexShrink: 0,
-          color: 'rgba(255,255,255,0.5)',
-          fontSize: 11,
-          textAlign: 'center',
-          marginBottom: 4,
-          fontFamily: "'Inter', sans-serif"
-        }}>
-          Tu progreso se guarda en cada paso
-        </p>
-
         {/* CTAs - en móvil sin flex:1 para evitar superposición con footer */}
         <main style={{
           flex: isDesktop ? 1 : '0 0 auto',
@@ -334,6 +325,7 @@ function WelcomeScreen() {
         .maqgo-screen.welcome-screen {
           min-height: 100vh;
           min-height: 100dvh;
+          min-height: -webkit-fill-available;
         }
         @media (max-width: 767px) {
           .maqgo-screen.welcome-screen {
@@ -387,10 +379,16 @@ function WelcomeScreen() {
           height: 40px;
           min-width: 40px;
           min-height: 40px;
+          flex: 0 0 40px;
           border-radius: 10px;
           display: flex;
           align-items: center;
           justify-content: center;
+          flex-shrink: 0;
+        }
+        .welcome-cta-icon svg {
+          width: 24px;
+          height: 24px;
           flex-shrink: 0;
         }
       `}</style>

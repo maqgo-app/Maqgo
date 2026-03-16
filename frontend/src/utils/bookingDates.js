@@ -18,33 +18,45 @@ export function parseAndSortDates(selectedDates) {
 }
 
 /**
- * Rango corto "12 mar – 14 mar" o una sola fecha "12 mar".
+ * Rango corto "12 mar – 14 mar" o "12 mar – 14 mar 2025" (con año).
  * @param {string[]|Date[]} selectedDates
  * @param {string} [selectedDate] - fallback si selectedDates está vacío
- * @param {Object} [opts] - { locale: 'es-CL' }
+ * @param {Object} [opts] - { locale: 'es-CL', includeYear: true }
  * @returns {string}
  */
 export function getDateRangeShort(selectedDates, selectedDate = '', opts = {}) {
   const dates = parseAndSortDates(selectedDates);
   const locale = opts.locale || 'es-CL';
-  const short = { day: 'numeric', month: 'short' };
+  const includeYear = opts.includeYear === true;
+  const short = includeYear ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'short' };
   if (dates.length === 0) {
     if (!selectedDate) return '';
     const d = new Date(selectedDate + (selectedDate.includes('T') ? '' : 'T12:00:00'));
     return isNaN(d.getTime()) ? '' : d.toLocaleDateString(locale, short);
   }
   if (dates.length === 1) return dates[0].toLocaleDateString(locale, short);
-  const first = dates[0].toLocaleDateString(locale, short);
-  const last = dates[dates.length - 1].toLocaleDateString(locale, short);
-  return `${first} – ${last}`;
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  const sameYear = first.getFullYear() === last.getFullYear();
+  if (includeYear && sameYear) {
+    const firstStr = first.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+    const lastStr = last.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
+    return `${firstStr} – ${lastStr}`;
+  }
+  if (includeYear && !sameYear) {
+    return `${first.toLocaleDateString(locale, short)} – ${last.toLocaleDateString(locale, short)}`;
+  }
+  const firstStr = first.toLocaleDateString(locale, short);
+  const lastStr = last.toLocaleDateString(locale, short);
+  return `${firstStr} – ${lastStr}`;
 }
 
 /**
- * Para pluma/aljibe/tolva: "3 viajes (1 por día) · 12 mar – 14 mar" o "Valor viaje · 12 mar" (una fecha).
+ * Para pluma/aljibe/tolva: "3 viajes (1 por día) · 12 mar – 14 mar 2025" o "Valor viaje · 12 mar 2025".
  * Usar en tarjetas de resumen, confirmación y resultado de pago.
  * @param {string[]|Date[]} selectedDates
  * @param {string} [selectedDate]
- * @param {Object} [opts] - { prefix: 'Valor viaje ·' } para incluir prefijo en resultado
+ * @param {Object} [opts] - { prefix: 'Valor viaje ·', includeYear: true }
  * @returns {string}
  */
 export function getPerTripDateLabel(selectedDates, selectedDate = '', opts = {}) {

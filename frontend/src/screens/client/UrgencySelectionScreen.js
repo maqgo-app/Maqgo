@@ -282,6 +282,7 @@ function UrgencySelectionScreen() {
                       color: isCapSelected ? '#EC6819' : 'rgba(255,255,255,0.95)',
                       fontSize: 14,
                       fontWeight: 600,
+                      fontVariantNumeric: 'tabular-nums',
                       cursor: 'pointer'
                     }}
                   >
@@ -323,6 +324,7 @@ function UrgencySelectionScreen() {
                       color: isSel ? '#EC6819' : 'rgba(255,255,255,0.95)',
                       fontSize: 14,
                       fontWeight: 600,
+                      fontVariantNumeric: 'tabular-nums',
                       cursor: 'pointer'
                     }}
                   >
@@ -364,6 +366,7 @@ function UrgencySelectionScreen() {
                       color: isSel ? '#EC6819' : 'rgba(255,255,255,0.95)',
                       fontSize: 14,
                       fontWeight: 600,
+                      fontVariantNumeric: 'tabular-nums',
                       cursor: 'pointer'
                     }}
                   >

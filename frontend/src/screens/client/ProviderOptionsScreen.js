@@ -513,7 +513,7 @@ function ProviderOptionsScreen() {
               marginBottom: 12,
               textAlign: 'center'
             }}>
-              <span style={{ color: '#90BDD3', fontSize: 13, fontWeight: 600 }}>
+              <span style={{ color: '#90BDD3', fontSize: 14, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                 Buscas {MACHINERY_NAMES[selectedMachinery] || selectedMachinery}: {label}
               </span>
             </div>
@@ -623,7 +623,7 @@ function ProviderOptionsScreen() {
                     <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, display: 'block', marginBottom: 2 }}>
                       {spec.label}
                     </span>
-                    <span style={{ color: '#fff', fontSize: 15, fontWeight: 600 }}>
+                    <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                       {spec.valueFormatted}
                     </span>
                   </div>
