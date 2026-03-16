@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
+import { useToast } from '../../components/Toast';
 import { MACHINERY_NAMES as MACHINE_NAMES } from '../../utils/machineryNames';
 
 function AdminPricingScreen() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [prices, setPrices] = useState({ per_hour: {}, per_service: {} });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -71,13 +73,13 @@ function AdminPricingScreen() {
       });
       const data = await res.json();
       if (data.ok) {
-        alert('✅ Precios guardados correctamente');
+        toast.success('Precios guardados correctamente');
       } else {
-        alert('Error al guardar');
+        toast.error('Error al guardar');
       }
     } catch (e) {
       console.error(e);
-      alert('Error al guardar');
+      toast.error('Error al guardar');
     }
     setSaving(false);
   };

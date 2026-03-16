@@ -77,7 +77,7 @@ function RegisterScreen() {
     <div className="maqgo-app">
       <div className="maqgo-screen">
         {/* Logo */}
-        <MaqgoLogo size="small" style={{ marginBottom: 30 }} />
+        <MaqgoLogo size="medium" style={{ marginBottom: 40 }} />
 
         {/* Título */}
         <h2 style={{

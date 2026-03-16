@@ -19,11 +19,15 @@ function ProviderHistoryScreen() {
   }, []);
 
   const fetchServices = async () => {
+    const FAST_FALLBACK_MS = 2500;
+    const providerId = localStorage.getItem('providerId') || localStorage.getItem('userId') || 'demo-provider-001';
     try {
-      const providerId = localStorage.getItem('providerId') || localStorage.getItem('userId') || 'demo-provider-001';
-      const response = await fetchWithTimeout(`${BACKEND_URL}/api/services/provider/${providerId}`, {}, 6000);
-      const data = await response.json();
-      setServices(data.services || []);
+      const fetchPromise = fetchWithTimeout(`${BACKEND_URL}/api/services/provider/${providerId}`, {}, 6000)
+        .then(r => r.json())
+        .then(d => d.services || []);
+      const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
+      const servicesData = await Promise.race([fetchPromise, timeoutPromise]);
+      setServices(servicesData);
     } catch (error) {
       setServices([
         {

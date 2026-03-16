@@ -60,7 +60,7 @@ function ProviderSelectChannelScreen() {
       <div className="maqgo-screen">
         {/* Logo */}
         <div style={{ marginBottom: 24 }}>
-          <MaqgoLogo size="small" />
+          <MaqgoLogo size="medium" style={{ marginBottom: 32 }} />
         </div>
 
         {/* Contenido */}

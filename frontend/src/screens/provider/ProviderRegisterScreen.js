@@ -69,7 +69,7 @@ function ProviderRegisterScreen() {
       <div className="maqgo-screen">
         {/* Logo y propuesta de valor */}
         <div style={{ marginBottom: 24 }}>
-          <MaqgoLogo size="small" style={{ marginBottom: 16 }} />
+          <MaqgoLogo size="medium" style={{ marginBottom: 40 }} />
           <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 600, marginBottom: 6, textAlign: 'center' }}>
             Ofrecer mi maquinaria
           </h1>

@@ -231,7 +231,7 @@ function ServiceFinishedScreen() {
         <div className="maqgo-screen" style={{ padding: '24px' }}>
           {/* Header */}
           <div style={{ marginBottom: 20, textAlign: 'center' }}>
-            <MaqgoLogo size="medium" />
+            <MaqgoLogo size="small" />
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 8, letterSpacing: '0.5px' }}>
               Paso 1 de 2
             </p>
@@ -402,7 +402,7 @@ function ServiceFinishedScreen() {
         <div className="maqgo-screen" style={{ padding: '24px' }}>
           {/* Header */}
           <div style={{ marginBottom: 20, textAlign: 'center' }}>
-            <MaqgoLogo size="medium" />
+            <MaqgoLogo size="small" />
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 8, letterSpacing: '0.5px' }}>
               Paso 2 de 2
             </p>

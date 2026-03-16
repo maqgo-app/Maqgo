@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { MACHINERY_LIST } from '../../components/MachineryIcons';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import { useToast } from '../../components/Toast';
 import { playNewRequestSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
 
@@ -14,6 +15,7 @@ import BACKEND_URL from '../../utils/api';
  */
 function ProviderAvailability({ userId }) {
   const navigate = useNavigate();
+  const toast = useToast();
   const [isAvailable, setIsAvailable] = useState(false);
   const [selectedMachinery, setSelectedMachinery] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -38,7 +40,7 @@ function ProviderAvailability({ userId }) {
             navigate('/provider/request-received');
           }
         } catch (error) {
-          console.log('Buscando solicitudes...');
+          // Silenciar errores de polling
         }
       }, 2000);
       return () => clearInterval(interval);
@@ -47,7 +49,7 @@ function ProviderAvailability({ userId }) {
 
   const handleToggleAvailability = async () => {
     if (!selectedMachinery) {
-      alert('Por favor selecciona tu tipo de maquinaria');
+      toast.warning('Por favor selecciona tu tipo de maquinaria');
       return;
     }
     
@@ -72,7 +74,7 @@ function ProviderAvailability({ userId }) {
       });
       setIsAvailable(!isAvailable);
     } catch (error) {
-      console.error('Error:', error);
+      toast.error('Error al actualizar disponibilidad. Revisa tu conexión.');
       setIsAvailable(!isAvailable);
     }
     setLoading(false);

@@ -26,54 +26,29 @@ function ConfirmServiceScreen() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const backRoute = getBookingBackRoute(pathname);
-  const [location, setLocation] = useState('');
-  const [provider, setProvider] = useState(null);
-  const [hoursToday, setHoursToday] = useState(4);
-  const [additionalDays, setAdditionalDays] = useState(0);
-  const [reservationType, setReservationType] = useState('immediate');
-  const [machinery, setMachinery] = useState('');
-  const [selectedDate, setSelectedDate] = useState('');
-  const [selectedDates, setSelectedDates] = useState([]);
-  const [showBreakdown, setShowBreakdown] = useState(true); // Abierto por defecto para que el cliente vea cómo cambia con/sin factura
+  // Inicializar desde localStorage en el primer render para evitar flash "No hay proveedor"
+  const [location, setLocation] = useState(() => localStorage.getItem('serviceLocation') || '');
+  const [provider, setProvider] = useState(() => getObject('selectedProvider', {}));
+  const [hoursToday, setHoursToday] = useState(() => {
+    const type = localStorage.getItem('reservationType') || 'immediate';
+    const saved = parseInt(localStorage.getItem('selectedHours') || '4');
+    return type === 'scheduled' ? 8 : Math.max(MIN_HOURS_IMMEDIATE, Math.min(MAX_HOURS_IMMEDIATE, saved));
+  });
+  const [additionalDays, setAdditionalDays] = useState(() => parseInt(localStorage.getItem('additionalDays') || '0'));
+  const [reservationType, setReservationType] = useState(() => localStorage.getItem('reservationType') || 'immediate');
+  const [machinery, setMachinery] = useState(() => localStorage.getItem('selectedMachinery') || 'retroexcavadora');
+  const [selectedDate, setSelectedDate] = useState(() => localStorage.getItem('selectedDate') || '');
+  const [selectedDates, setSelectedDates] = useState(() => getArray('selectedDates', []));
+  const [showBreakdown, setShowBreakdown] = useState(true);
   const [pricing, setPricing] = useState(null);
   const [loadingPrice, setLoadingPrice] = useState(true);
-  const [priceError, setPriceError] = useState(null); // Error de conexión al obtener precio
+  const [priceError, setPriceError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
-  const [needsInvoice, setNeedsInvoice] = useState(false);
-  const [urgencyType, setUrgencyType] = useState(null);
-  const [selectedProviderIds, setSelectedProviderIds] = useState([]);
-  const [matchedProviders, setMatchedProviders] = useState([]);
+  const [needsInvoice, setNeedsInvoice] = useState(() => localStorage.getItem('needsInvoice') === 'true');
+  const [urgencyType, setUrgencyType] = useState(() => localStorage.getItem('urgencyType') || null);
+  const [selectedProviderIds, setSelectedProviderIds] = useState(() => getArray('selectedProviderIds', []));
+  const [matchedProviders, setMatchedProviders] = useState(() => getArray('matchedProviders', []));
   const [isConfirming, setIsConfirming] = useState(false);
-
-  useEffect(() => {
-    const savedProvider = getObject('selectedProvider', {});
-    const savedProviderIds = getArray('selectedProviderIds', []);
-    const savedMatched = getArray('matchedProviders', []);
-    const savedHoursToday = parseInt(localStorage.getItem('selectedHours') || '4');
-    const savedAdditionalDays = parseInt(localStorage.getItem('additionalDays') || '0');
-    const savedType = localStorage.getItem('reservationType') || 'immediate';
-    const savedMachinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
-    const savedLocation = localStorage.getItem('serviceLocation') || '';
-    const savedDate = localStorage.getItem('selectedDate') || '';
-    const savedDates = getArray('selectedDates', []);
-    const savedNeedsInvoice = localStorage.getItem('needsInvoice') === 'true';
-    const savedUrgencyType = localStorage.getItem('urgencyType') || null;
-    
-    setProvider(savedProvider);
-    setSelectedProviderIds(savedProviderIds);
-    setMatchedProviders(savedMatched);
-    // Regla de negocio: reserva inmediata exige horas 4-8 (backend IMMEDIATE_MULTIPLIERS)
-    const clampedHours = savedType === 'scheduled' ? 8 : Math.max(MIN_HOURS_IMMEDIATE, Math.min(MAX_HOURS_IMMEDIATE, savedHoursToday));
-    setHoursToday(clampedHours);
-    setAdditionalDays(savedAdditionalDays);
-    setReservationType(savedType);
-    setMachinery(savedMachinery);
-    setLocation(savedLocation);
-    setSelectedDate(savedDate);
-    setSelectedDates(savedDates);
-    setNeedsInvoice(savedNeedsInvoice);
-    setUrgencyType(savedUrgencyType);
-  }, []);
 
   const isPerTrip = MACHINERY_PER_TRIP.includes(machinery);
   const isHybrid = reservationType === 'immediate' && additionalDays > 0;
@@ -136,40 +111,44 @@ function ConfirmServiceScreen() {
       const isInitialLoad = !pricing;
       if (isInitialLoad) setLoadingPrice(true);
       const transportCost = needsTransport ? (effectiveProvider.transport_fee || 0) : 0;
+      const FAST_FALLBACK_MS = 2500;
+      const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
       try {
+        let apiPromise;
         if (isHybrid) {
-          const response = await axios.post(`${BACKEND_URL}/api/pricing/hybrid`, {
+          apiPromise = axios.post(`${BACKEND_URL}/api/pricing/hybrid`, {
             machinery_type: machinery,
             base_price_hr: effectiveProvider.price_per_hour,
             hours_today: hoursToday,
             additional_days: additionalDays,
             transport_cost: transportCost,
             needs_invoice: needsInvoice
-          }, { timeout: 6000 });
-          setPricing(response.data);
+          }, { timeout: 5000 });
         } else if (reservationType === 'immediate') {
-          const response = await axios.post(`${BACKEND_URL}/api/pricing/immediate`, {
+          apiPromise = axios.post(`${BACKEND_URL}/api/pricing/immediate`, {
             machinery_type: machinery,
             base_price_hr: effectiveProvider.price_per_hour,
             hours: hoursToday,
             transport_cost: transportCost,
             is_immediate: true,
             needs_invoice: needsInvoice
-          }, { timeout: 6000 });
-          setPricing(response.data);
+          }, { timeout: 5000 });
         } else {
-          const response = await axios.post(`${BACKEND_URL}/api/pricing/scheduled`, {
+          apiPromise = axios.post(`${BACKEND_URL}/api/pricing/scheduled`, {
             machinery_type: machinery,
             base_price: effectiveProvider.price_per_hour,
             days: totalDays,
             transport_cost: transportCost,
             needs_invoice: needsInvoice
-          }, { timeout: 6000 });
-          setPricing(response.data);
+          }, { timeout: 5000 });
         }
+        const response = await Promise.race([apiPromise, timeoutPromise]);
+        setPricing(response.data);
       } catch (error) {
         console.error('Error fetching pricing:', error);
-        const isNetworkError = !error.response && (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error') || error.message?.includes('timeout'));
+        // Fast fallback: usar precio local para no bloquear; ConnectionError solo si fallo real
+        const isFastTimeout = error?.message === 'timeout';
+        const isNetworkError = !isFastTimeout && !error.response && (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error') || error.message?.includes('timeout'));
         if (isNetworkError) {
           setPriceError('connection');
           setLoadingPrice(false);

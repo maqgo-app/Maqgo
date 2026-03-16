@@ -60,7 +60,7 @@ function SelectChannelScreen() {
     <div className="maqgo-app">
       <div className="maqgo-screen">
         {/* Logo */}
-        <MaqgoLogo size="small" style={{ marginBottom: 30 }} />
+        <MaqgoLogo size="medium" style={{ marginBottom: 32 }} />
 
         {/* Contenido */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

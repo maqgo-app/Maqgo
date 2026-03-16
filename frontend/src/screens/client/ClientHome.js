@@ -42,13 +42,17 @@ function ClientHome() {
       navigate(pendingRoute);
       setPendingRoute(null);
     } else {
-      // Nueva reserva: limpiar todo el flujo
-      localStorage.removeItem('clientBookingStep');
-      localStorage.removeItem('selectedMachinery');
-      localStorage.removeItem('selectedMachineryList');
-      localStorage.removeItem('selectedHours');
-      localStorage.removeItem('reservationType');
-      localStorage.removeItem('priceType');
+      // Nueva reserva: limpiar todo el flujo de reserva
+      const BOOKING_KEYS = [
+        'clientBookingStep', 'selectedMachinery', 'selectedMachineryList', 'selectedHours',
+        'reservationType', 'priceType', 'serviceLocation', 'serviceLat', 'serviceLng',
+        'selectedProviderIds', 'matchedProviders', 'selectedProvider', 'billingData',
+        'selectedDates', 'selectedDate', 'serviceBasePrice', 'serviceTransportFee',
+        'totalAmount', 'maxTotalAmount', 'needsInvoice', 'currentServiceId', 'matchingResult',
+        'clientRequiredM3List', 'clientRequiredM3', 'providerSelectionMachinery', 'acceptedProvider',
+        'servicePricing', 'urgencyType', 'additionalDays'
+      ];
+      BOOKING_KEYS.forEach((k) => localStorage.removeItem(k));
       setPendingRoute(null);
     }
   };

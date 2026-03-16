@@ -14,6 +14,10 @@ export const BOOKING_BACK_ROUTES = {
   '/client/billing': '/client/confirm',
   '/client/card': '/client/billing',
   '/client/card-input': '/client/card',
+  '/client/searching': '/client/card',
+  '/client/payment-result': '/client/home',
+  '/client/assigned': '/client/searching',
+  '/oneclick/complete': '/client/card',
 };
 
 /**
@@ -58,6 +62,10 @@ export const PROVIDER_ONBOARDING_BACK_ROUTES = {
 export function getBookingBackRoute(pathname) {
   if (pathname === '/client/reservation-data') return getReservationDataBackRoute();
   if (pathname === '/client/service-location') return getServiceLocationBackRoute();
+  // Programada: machinery → calendar (no home)
+  if (pathname === '/client/machinery' && localStorage.getItem('reservationType') === 'scheduled') {
+    return '/client/calendar';
+  }
   // Si llegó a /client/card sin factura, volver a confirm (no pasó por billing)
   if (pathname === '/client/card' && localStorage.getItem('needsInvoice') !== 'true') {
     return '/client/confirm';

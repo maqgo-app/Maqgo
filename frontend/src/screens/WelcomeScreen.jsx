@@ -12,12 +12,21 @@ function WelcomeScreen() {
   const navigate = useNavigate();
   const [adminPending, setAdminPending] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [isNarrowMobile, setIsNarrowMobile] = useState(false);
   const [abandonedBooking, setAbandonedBooking] = useState(null);
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
     setIsDesktop(mq.matches);
     const handler = () => setIsDesktop(mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 380px)');
+    setIsNarrowMobile(mq.matches);
+    const handler = () => setIsNarrowMobile(mq.matches);
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
@@ -67,10 +76,8 @@ function WelcomeScreen() {
     navigate('/login');
   };
 
-  const g = 8;
-  const pad = isDesktop ? 40 : 20;
-
-  const logoSize = isDesktop ? 200 : 145;
+  const pad = isDesktop ? 40 : (isNarrowMobile ? 16 : 20);
+  const logoSize = isDesktop ? 200 : (isNarrowMobile ? 120 : 145);
 
   return (
     <div className={`maqgo-app ${isDesktop ? 'welcome-desktop' : ''}`}>
@@ -79,12 +86,16 @@ function WelcomeScreen() {
         style={{
           display: 'flex',
           flexDirection: 'column',
-          height: '100vh',
-          maxHeight: '100dvh',
+          width: '100%',
+          maxWidth: '100%',
+          height: isDesktop ? '100vh' : 'auto',
           boxSizing: 'border-box',
-          background: 'linear-gradient(180deg, #121318 0%, #0F0F12 40%, #0D0D10 100%)',
+          background: '#0F0F12',
           padding: `max(16px, env(safe-area-inset-top)) ${pad}px max(16px, env(safe-area-inset-bottom))`,
-          overflow: 'hidden'
+          overflowX: 'hidden',
+          overflowY: isDesktop ? 'hidden' : 'auto',
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y'
         }}
       >
         {/* Hero compacto */}
@@ -94,22 +105,22 @@ function WelcomeScreen() {
           flexDirection: 'column',
           alignItems: 'center',
           textAlign: 'center',
-          paddingBottom: 24,
+          paddingBottom: isNarrowMobile ? 16 : 24,
           width: '100%'
         }}>
-          <MaqgoLogo customSize={logoSize} style={{ marginBottom: 28 }} />
+          <MaqgoLogo customSize={logoSize} transparent style={{ marginBottom: isNarrowMobile ? 18 : 28 }} />
           <div style={{
             display: 'inline-block',
             background: 'linear-gradient(135deg, rgba(236, 104, 25, 0.25) 0%, rgba(236, 104, 25, 0.15) 100%)',
             border: '1.5px solid rgba(236, 104, 25, 0.6)',
             borderRadius: 24,
-            padding: isDesktop ? '8px 18px' : '7px 16px',
-            marginBottom: 26,
+            padding: isDesktop ? '8px 18px' : (isNarrowMobile ? '6px 12px' : '7px 16px'),
+            marginBottom: isNarrowMobile ? 16 : 26,
             boxShadow: '0 2px 12px rgba(236, 104, 25, 0.2)'
           }}>
             <span style={{
               color: '#EC6819',
-              fontSize: isDesktop ? 12 : 11,
+              fontSize: isDesktop ? 12 : (isNarrowMobile ? 10 : 11),
               fontWeight: 700,
               letterSpacing: 0.8
             }}>
@@ -118,10 +129,10 @@ function WelcomeScreen() {
           </div>
           <h1 style={{
             fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: isDesktop ? 26 : 22,
+            fontSize: isDesktop ? 26 : (isNarrowMobile ? 18 : 22),
             fontWeight: 600,
             color: '#FAFAFA',
-            margin: '0 0 20px',
+            margin: '0 0 ' + (isNarrowMobile ? 12 : 20) + 'px',
             lineHeight: 1.3,
             letterSpacing: '-0.02em',
             maxWidth: '100%',
@@ -134,7 +145,7 @@ function WelcomeScreen() {
             <span style={{ color: '#fff' }}>operador incluído</span>
           </h1>
           <p style={{
-            fontSize: isDesktop ? 15 : 14,
+            fontSize: isDesktop ? 15 : (isNarrowMobile ? 13 : 14),
             color: '#B0B0B8',
             margin: 0,
             lineHeight: 1.55,
@@ -217,13 +228,13 @@ function WelcomeScreen() {
           Tu progreso se guarda en cada paso
         </p>
 
-        {/* CTAs */}
+        {/* CTAs - en móvil sin flex:1 para evitar superposición con footer */}
         <main style={{
-          flex: 1,
+          flex: isDesktop ? 1 : '0 0 auto',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'center',
-          gap: 12,
+          justifyContent: isDesktop ? 'center' : 'flex-start',
+          gap: isNarrowMobile ? 8 : 12,
           minHeight: 0
         }}>
           <button
@@ -276,7 +287,7 @@ function WelcomeScreen() {
           </button>
         </main>
 
-        {/* Footer */}
+        {/* Footer - compacto en móvil, sin marginTop auto para evitar superposición */}
         <footer
           style={{
             flexShrink: 0,
@@ -284,16 +295,16 @@ function WelcomeScreen() {
             flexWrap: 'wrap',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '12px 20px',
-            paddingTop: 24,
+            gap: isNarrowMobile ? '8px 12px' : '12px 20px',
+            paddingTop: isNarrowMobile ? 16 : 24,
             paddingBottom: 12,
-            marginTop: 'auto',
+            marginTop: isDesktop ? 'auto' : 16,
             borderTop: '1px solid rgba(255,255,255,0.06)'
           }}
         >
           <span
             onClick={handleAccount}
-            style={{ color: '#EC6819', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            style={{ color: '#EC6819', fontSize: isNarrowMobile ? 12 : 13, fontWeight: 600, cursor: 'pointer' }}
             data-testid="login-btn"
           >
             Iniciar sesión
@@ -301,18 +312,18 @@ function WelcomeScreen() {
           <span style={{ color: '#404040', fontSize: 9 }}>·</span>
           <span
             onClick={() => navigate('/register')}
-            style={{ color: '#A0A0A0', fontSize: 12, cursor: 'pointer' }}
+            style={{ color: '#A0A0A0', fontSize: isNarrowMobile ? 11 : 12, cursor: 'pointer' }}
           >
             ¿No tienes cuenta? Regístrate
           </span>
           <span style={{ color: '#404040', fontSize: 9 }}>·</span>
-          <span onClick={() => navigate('/faq')} style={{ color: '#7a7a7a', fontSize: 12, cursor: 'pointer' }}>FAQ</span>
-          <span onClick={() => navigate('/terms')} style={{ color: '#7a7a7a', fontSize: 12, cursor: 'pointer' }}>Términos y Condiciones</span>
-          <span onClick={() => navigate('/privacy')} style={{ color: '#7a7a7a', fontSize: 12, cursor: 'pointer' }}>Política de Privacidad</span>
+          <span onClick={() => navigate('/faq')} style={{ color: '#7a7a7a', fontSize: isNarrowMobile ? 11 : 12, cursor: 'pointer' }}>FAQ</span>
+          <span onClick={() => navigate('/terms')} style={{ color: '#7a7a7a', fontSize: isNarrowMobile ? 11 : 12, cursor: 'pointer' }}>Términos</span>
+          <span onClick={() => navigate('/privacy')} style={{ color: '#7a7a7a', fontSize: isNarrowMobile ? 11 : 12, cursor: 'pointer' }}>Privacidad</span>
           <span style={{ color: '#404040', fontSize: 10 }}>·</span>
           <span
             onClick={() => navigate('/admin')}
-            style={{ color: adminPending > 0 ? '#EC6819' : '#7a7a7a', fontSize: 12, cursor: 'pointer' }}
+            style={{ color: adminPending > 0 ? '#EC6819' : '#7a7a7a', fontSize: isNarrowMobile ? 11 : 12, cursor: 'pointer' }}
           >
             Admin{adminPending > 0 ? ` (${adminPending})` : ''}
           </span>
@@ -320,6 +331,15 @@ function WelcomeScreen() {
       </div>
 
       <style>{`
+        .maqgo-screen.welcome-screen {
+          min-height: 100vh;
+          min-height: 100dvh;
+        }
+        @media (max-width: 767px) {
+          .maqgo-screen.welcome-screen {
+            -webkit-tap-highlight-color: transparent;
+          }
+        }
         .welcome-cta-primary {
           width: 100%;
           padding: 14px 16px;

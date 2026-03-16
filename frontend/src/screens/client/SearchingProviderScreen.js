@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { getObject, getArray } from '../../utils/safeStorage';
-import { MACHINERY_PER_TRIP, IMMEDIATE_MULTIPLIERS, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, getDemoPriceList, getDemoTransportFee } from '../../utils/pricing';
+import { MACHINERY_PER_TRIP, IMMEDIATE_MULTIPLIERS, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, getDemoProviders } from '../../utils/pricing';
 import BACKEND_URL from '../../utils/api';
 
 /**
@@ -145,18 +145,8 @@ function SearchingProviderScreen() {
 
     if (!selected.id || allProviders.length === 0) {
       const providerIds = getArray('selectedProviderIds', []);
-      const n = Math.min(providerIds.length || 5, 5);
-      const prices = getDemoPriceList(machinery);
-      const transportFee = getDemoTransportFee(machinery);
-      const transportFees = transportFee > 0 ? [25000, 30000, 22000, 28000, 24000] : [0, 0, 0, 0, 0];
-      const demoProviders = [
-        { id: 'demo-1', name: 'Transportes Silva', price_per_hour: prices[0], transport_fee: transportFees[0], eta_minutes: 45, rating: 4.8, license_plate: 'BGKL-45', operator_name: 'Carlos Silva' },
-        { id: 'demo-2', name: 'Maquinarias del Sur', price_per_hour: prices[1], transport_fee: transportFees[1], eta_minutes: 54, rating: 4.6, license_plate: 'HJKL-78', operator_name: 'Pedro González' },
-        { id: 'demo-3', name: 'Constructora Norte', price_per_hour: prices[2], transport_fee: transportFees[2], eta_minutes: 50, rating: 4.9, license_plate: 'MNOP-12', operator_name: 'Juan Martínez' },
-        { id: 'demo-4', name: 'Arriendos Maipo', price_per_hour: prices[3], transport_fee: transportFees[3], eta_minutes: 58, rating: 4.7, license_plate: 'PQRS-33', operator_name: 'Luis Fernández' },
-        { id: 'demo-5', name: 'Maquinarias Andes', price_per_hour: prices[4], transport_fee: transportFees[4], eta_minutes: 52, rating: 4.5, license_plate: 'TUVW-55', operator_name: 'Roberto Díaz' },
-      ];
-      const toShow = n > 0 ? demoProviders.slice(0, n) : demoProviders.slice(0, 1);
+      const n = Math.min(providerIds.length || 5, 5) || 1;
+      const toShow = getDemoProviders(machinery, n);
       setEligibleProviders(toShow);
       setCurrentProvider(toShow[0]);
       setStatus('searching');
@@ -186,17 +176,9 @@ function SearchingProviderScreen() {
 
     // Modo demo: si el filtro deja vacío, usar proveedores demo para garantizar asignación
     if (limitedEligible.length === 0) {
-      const prices = getDemoPriceList(machinery);
-      const transportFee = getDemoTransportFee(machinery);
-      const transportFees = transportFee > 0 ? [25000, 30000, 22000, 28000, 24000] : [0, 0, 0, 0, 0];
       const providerIds = getArray('selectedProviderIds', []);
       const n = Math.min(providerIds.length || 5, 5) || 1;
-      const demoProviders = [
-        { id: 'demo-1', name: 'Transportes Silva', price_per_hour: prices[0], transport_fee: transportFees[0], eta_minutes: 45, rating: 4.8, license_plate: 'BGKL-45', operator_name: 'Carlos Silva' },
-        { id: 'demo-2', name: 'Maquinarias del Sur', price_per_hour: prices[1], transport_fee: transportFees[1], eta_minutes: 54, rating: 4.6, license_plate: 'HJKL-78', operator_name: 'Pedro González' },
-        { id: 'demo-3', name: 'Constructora Norte', price_per_hour: prices[2], transport_fee: transportFees[2], eta_minutes: 50, rating: 4.9, license_plate: 'MNOP-12', operator_name: 'Juan Martínez' },
-      ];
-      limitedEligible = demoProviders.slice(0, n);
+      limitedEligible = getDemoProviders(machinery, n);
     }
 
     setEligibleProviders(limitedEligible);

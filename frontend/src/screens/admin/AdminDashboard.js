@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../../utils/api';
+import { useToast } from '../../components/Toast';
 
 import BACKEND_URL from '../../utils/api';
 import { getMachineryId } from '../../utils/machineryNames';
@@ -17,6 +18,7 @@ const STATUS_CONFIG = {
 
 function AdminDashboard() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [services, setServices] = useState([]);
   const [stats, setStats] = useState({});
   const [finances, setFinances] = useState({
@@ -139,9 +141,9 @@ function AdminDashboard() {
         body: JSON.stringify({ status: newStatus })
       });
       fetchServices();
-      alert(`✅ Estado actualizado a "${STATUS_CONFIG[newStatus]?.label || newStatus}"`);
+      toast.success(`Estado actualizado a "${STATUS_CONFIG[newStatus]?.label || newStatus}"`);
     } catch (error) {
-      alert('Error actualizando estado');
+      toast.error('Error actualizando estado');
     }
   };
 
@@ -151,9 +153,9 @@ function AdminDashboard() {
         method: 'PATCH'
       });
       fetchServices();
-      alert('✅ Cliente facturado por MAQGO');
+      toast.success('Cliente facturado por MAQGO');
     } catch (error) {
-      alert('Error al marcar cliente facturado');
+      toast.error('Error al marcar cliente facturado');
     }
   };
 
@@ -166,9 +168,9 @@ function AdminDashboard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Error');
       fetchServices();
-      alert(`✅ ${data.message}`);
+      toast.success(data.message);
     } catch (error) {
-      alert(error.message || 'Error al pagar sin factura');
+      toast.error(error.message || 'Error al pagar sin factura');
     }
   };
 
@@ -186,7 +188,7 @@ function AdminDashboard() {
       setShowWeeklyReport(true);
     } catch (error) {
       console.error('Error:', error);
-      alert('Error al cargar el informe');
+      toast.error('Error al cargar el informe');
     }
     setLoadingReport(false);
   };
@@ -204,7 +206,7 @@ function AdminDashboard() {
       URL.revokeObjectURL(a.href);
     } catch (e) {
       console.error(e);
-      alert('Error al descargar planilla');
+      toast.error('Error al descargar planilla');
     }
   };
 

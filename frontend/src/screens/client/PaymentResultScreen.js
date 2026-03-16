@@ -174,14 +174,17 @@ function PaymentResultScreen() {
 
       // Obtener pricing del backend (o fallback local)
       let pricingToShow = null;
+      const FAST_FALLBACK_MS = 3000;
+      const pricingPromise = axios.post(`${BACKEND_URL}/api/pricing/immediate`, {
+        base_price_hr: savedProvider.price_per_hour || 45000,
+        hours: hours,
+        transport_cost: transportCost,
+        is_immediate: reservationType === 'immediate',
+        machinery_type: machinery
+      }, { timeout: 5000 });
+      const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
       try {
-        const pricingResponse = await axios.post(`${BACKEND_URL}/api/pricing/immediate`, {
-          base_price_hr: savedProvider.price_per_hour || 45000,
-          hours: hours,
-          transport_cost: transportCost,
-          is_immediate: reservationType === 'immediate',
-          machinery_type: machinery
-        });
+        const pricingResponse = await Promise.race([pricingPromise, timeoutPromise]);
         pricingToShow = pricingResponse.data;
       } catch (e) {
         const basePrice = savedProvider.price_per_hour || 45000;
@@ -421,7 +424,7 @@ function PaymentResultScreen() {
 
         {/* Header compacto: Logo + Estado + Título */}
         <div style={{ textAlign: 'center', marginBottom: 12 }}>
-          <MaqgoLogo size="medium" />
+          <MaqgoLogo size="small" />
           <div style={{
             width: 50,
             height: 50,

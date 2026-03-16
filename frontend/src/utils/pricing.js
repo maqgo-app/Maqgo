@@ -105,6 +105,39 @@ export function getDemoPriceList(machinery) {
   return [...DEMO_HOURLY_PRICES];
 }
 
+/** Transport fees por proveedor demo (5 valores). 0 si maquinaria no lleva traslado. */
+const DEMO_TRANSPORT_FEES = [25000, 30000, 22000, 28000, 24000];
+
+/**
+ * Proveedores demo compartidos (fuente única de verdad).
+ * @param {string} machinery - Tipo de maquinaria
+ * @param {number} count - Cantidad (1-5). Default 5.
+ * @param {Object} opts - { extended: true } para ProviderOptionsScreen (emits_invoice, distance, closing_time)
+ */
+export function getDemoProviders(machinery = 'retroexcavadora', count = 5, opts = {}) {
+  const prices = getDemoPriceList(machinery);
+  const transportFee = getDemoTransportFee(machinery);
+  const transportFees = transportFee > 0 ? DEMO_TRANSPORT_FEES : [0, 0, 0, 0, 0];
+  const base = [
+    { id: 'demo-1', name: 'Transportes Silva', price_per_hour: prices[0], transport_fee: transportFees[0], eta_minutes: 45, rating: 4.8, license_plate: 'BGKL-45', operator_name: 'Carlos Silva' },
+    { id: 'demo-2', name: 'Maquinarias del Sur', price_per_hour: prices[1], transport_fee: transportFees[1], eta_minutes: 54, rating: 4.6, license_plate: 'HJKL-78', operator_name: 'Pedro González' },
+    { id: 'demo-3', name: 'Constructora Norte', price_per_hour: prices[2], transport_fee: transportFees[2], eta_minutes: 50, rating: 4.9, license_plate: 'MNOP-12', operator_name: 'Juan Martínez' },
+    { id: 'demo-4', name: 'Arriendos Maipo', price_per_hour: prices[3], transport_fee: transportFees[3], eta_minutes: 58, rating: 4.7, license_plate: 'PQRS-33', operator_name: 'Luis Fernández' },
+    { id: 'demo-5', name: 'Maquinarias Andes', price_per_hour: prices[4], transport_fee: transportFees[4], eta_minutes: 52, rating: 4.5, license_plate: 'TUVW-55', operator_name: 'Roberto Díaz' },
+  ];
+  if (opts.extended) {
+    const ext = [
+      { distance: 5.2, eta_minutes: 45, closing_time: '20:00', emits_invoice: true },
+      { distance: 8.1, eta_minutes: 54, closing_time: '21:00', emits_invoice: true },
+      { distance: 12.5, eta_minutes: 66, closing_time: '19:00', emits_invoice: true },
+      { distance: 15.3, eta_minutes: 75, closing_time: '20:00', emits_invoice: false, name: 'Excavaciones Rápidas', operator_name: 'Roberto Díaz', license_plate: 'QRST-34' },
+      { distance: 6.8, eta_minutes: 50, closing_time: '18:30', emits_invoice: true, name: 'Movitierras SpA', operator_name: 'Miguel Torres', license_plate: 'UVWX-56' },
+    ];
+    return base.slice(0, count).map((p, i) => ({ ...p, ...ext[i] }));
+  }
+  return base.slice(0, Math.min(count, 5));
+}
+
 // ===========================================
 // ALERTAS DE PRECIO (fuera de rango mercado)
 // Lógica tracción: nudges según % sobre referencia

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { CancellationSuccess, CancellationWithCharge } from '../../components/ErrorStates';
 import { getObject } from '../../utils/safeStorage';
 import { CANCELLATION_PERCENTAGES, NON_CANCELLABLE_STATUSES, getCancellationWindowText } from '../../utils/cancellationPolicy';
+import BACKEND_URL from '../../utils/api';
 
 /**
  * Pantalla: Cancelar Servicio (CLIENTE)
@@ -22,6 +24,7 @@ function CancelServiceScreen() {
   const [confirmed, setConfirmed] = useState(false);
   const [chargeAmount, setChargeAmount] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [apiError, setApiError] = useState('');
 
   // Obtener valor del servicio desde localStorage (totalAmount es el que se guarda en Confirm)
   const serviceTotal = parseInt(
@@ -82,24 +85,38 @@ function CancelServiceScreen() {
   const handleConfirmCancel = async () => {
     setShowConfirmModal(false);
     setLoading(true);
-    
-    // Simular llamada API
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Guardar monto de cargo para mostrar en confirmación
-    setChargeAmount(cancellationFee);
-    
-    // Limpiar datos del servicio
-    localStorage.removeItem('currentServiceId');
-    localStorage.removeItem('selectedProvider');
-    localStorage.removeItem('serviceStatus');
-    localStorage.removeItem('serviceTotal');
-    
-    setLoading(false);
-    setConfirmed(true);
-    
-    // Redirigir después de 3 segundos
-    setTimeout(() => navigate('/client/home'), 3000);
+    setApiError('');
+
+    const serviceId = localStorage.getItem('currentServiceId');
+
+    const clearLocalAndConfirm = (fee = 0) => {
+      setChargeAmount(fee);
+      localStorage.removeItem('currentServiceId');
+      localStorage.removeItem('selectedProvider');
+      localStorage.removeItem('serviceStatus');
+      localStorage.removeItem('serviceTotal');
+      setLoading(false);
+      setConfirmed(true);
+      setTimeout(() => navigate('/client/home'), 3000);
+    };
+
+    if (serviceId) {
+      try {
+        const { data } = await axios.put(
+          `${BACKEND_URL}/api/service-requests/${serviceId}/cancel`,
+          { reason: reason.trim() || undefined },
+          { timeout: 10000 }
+        );
+        clearLocalAndConfirm(data.late_fee_amount || 0);
+      } catch (err) {
+        setLoading(false);
+        const msg = err.response?.data?.detail || err.message || 'No se pudo cancelar. Intenta de nuevo.';
+        setApiError(Array.isArray(msg) ? msg[0]?.msg || msg : msg);
+      }
+    } else {
+      // Demo o sin serviceId: comportamiento anterior (limpiar y confirmar)
+      clearLocalAndConfirm(cancellationFee);
+    }
   };
 
   // Pantalla de confirmación final
@@ -309,6 +326,20 @@ function CancelServiceScreen() {
         >
           Continuar con mi reserva
         </button>
+
+        {apiError && (
+          <div style={{
+            background: 'rgba(244, 67, 54, 0.15)',
+            border: '1px solid rgba(244, 67, 54, 0.4)',
+            borderRadius: 10,
+            padding: 12,
+            marginBottom: 16,
+            color: '#F44336',
+            fontSize: 13
+          }}>
+            {apiError}
+          </div>
+        )}
 
         {/* Cancelar: acción secundaria */}
         {!cannotCancel && (

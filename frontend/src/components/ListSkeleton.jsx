@@ -18,6 +18,7 @@ function SkeletonBar({ width = '100%', height = 12, style = {} }) {
         borderRadius: 6,
         background: '#444',
         animation: 'skeleton-pulse 1.2s ease-in-out infinite',
+        willChange: 'opacity',
         ...style
       }}
     />
@@ -44,7 +45,8 @@ export function ProviderCardSkeleton() {
           height: 55,
           borderRadius: 8,
           background: '#444',
-          animation: 'skeleton-pulse 1.2s ease-in-out infinite'
+          animation: 'skeleton-pulse 1.2s ease-in-out infinite',
+          willChange: 'opacity'
         }} />
         <div style={{ flex: 1 }}>
           <SkeletonBar width="60%" height={22} style={{ marginBottom: 8 }} />

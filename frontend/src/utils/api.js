@@ -13,7 +13,7 @@ const DEFAULT_TIMEOUT_MS = 8000;
 // Timeout global para todas las peticiones axios
 axios.defaults.timeout = DEFAULT_TIMEOUT_MS;
 
-if (process.env.NODE_ENV === 'development' && !process.env.REACT_APP_BACKEND_URL) {
+if (import.meta.env.DEV && !process.env.REACT_APP_BACKEND_URL) {
   console.warn('⚠️ REACT_APP_BACKEND_URL no definido. Usando:', BACKEND_URL);
 }
 
@@ -28,6 +28,7 @@ function handle401() {
   localStorage.removeItem('userId');
   localStorage.removeItem('userRole');
   localStorage.removeItem('providerRole');
+  localStorage.removeItem('ownerId');
   if (window.location.pathname !== '/login' && !window.location.pathname.startsWith('/register')) {
     window.location.href = '/login?expired=1';
   }

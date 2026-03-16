@@ -6,6 +6,15 @@ import BookingProgress from '../../components/BookingProgress';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { MACHINERY_PER_TRIP } from '../../utils/pricing';
 import { getPerTripCountLabel } from '../../utils/bookingDates';
+import { getArray } from '../../utils/safeStorage';
+
+function parseDatesFromStorage() {
+  const raw = getArray('selectedDates', []);
+  return raw
+    .map(d => typeof d === 'string' ? new Date(d + (d.includes('T') ? '' : 'T12:00:00')) : d)
+    .filter(d => d && !isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+}
 
 /**
  * Calendario multi-día para reserva programada
@@ -19,8 +28,15 @@ function CalendarMultiDayScreen() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const backRoute = getBookingBackRoute(pathname);
-  const [selectedDates, setSelectedDates] = useState([]);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDates, setSelectedDates] = useState(parseDatesFromStorage);
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const dates = parseDatesFromStorage();
+    if (dates.length > 0 && dates[0]) {
+      const d = new Date(dates[0]);
+      return !isNaN(d.getTime()) ? d : new Date();
+    }
+    return new Date();
+  });
   
   // Obtener tipo de maquinaria seleccionada
   const machinery = localStorage.getItem('selectedMachinery') || '';

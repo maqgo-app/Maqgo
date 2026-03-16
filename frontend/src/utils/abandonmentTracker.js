@@ -84,30 +84,26 @@ const trackAbandonmentRisk = async (progress) => {
   }
 };
 
+import { getObject } from './safeStorage';
+
 // Detectar si hay una reserva abandonada
 export const checkAbandonedBooking = () => {
-  const progress = localStorage.getItem('bookingProgress');
-  if (!progress) return null;
-  
-  try {
-    const data = JSON.parse(progress);
-    const timeSinceAbandonment = Date.now() - data.timestamp;
-    const thirtyMinutes = 30 * 60 * 1000;
-    
-    // Solo mostrar si pasaron más de 5 minutos pero menos de 24 horas
-    if (timeSinceAbandonment > 5 * 60 * 1000 && timeSinceAbandonment < 24 * 60 * 60 * 1000) {
-      return data;
-    }
-    
-    // Si pasaron más de 24 horas, limpiar
-    if (timeSinceAbandonment > 24 * 60 * 60 * 1000) {
-      clearBookingProgress();
-    }
-    
-    return null;
-  } catch {
-    return null;
+  const data = getObject('bookingProgress', null);
+  if (!data || typeof data !== 'object') return null;
+
+  const timeSinceAbandonment = Date.now() - data.timestamp;
+
+  // Solo mostrar si pasaron más de 5 minutos pero menos de 24 horas
+  if (timeSinceAbandonment > 5 * 60 * 1000 && timeSinceAbandonment < 24 * 60 * 60 * 1000) {
+    return data;
   }
+
+  // Si pasaron más de 24 horas, limpiar
+  if (timeSinceAbandonment > 24 * 60 * 60 * 1000) {
+    clearBookingProgress();
+  }
+
+  return null;
 };
 
 // Hook para detectar cuando el usuario va a salir de la página
@@ -124,15 +120,10 @@ export const setupAbandonmentDetection = () => {
   // Detectar cuando la app pierde el foco (usuario cambia de tab)
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      const progress = localStorage.getItem('bookingProgress');
-      if (progress) {
-        try {
-          const data = JSON.parse(progress);
-          data.lastSeen = Date.now();
-          localStorage.setItem('bookingProgress', JSON.stringify(data));
-        } catch (_) {
-          // localStorage corrupto: no actualizar
-        }
+      const data = getObject('bookingProgress', null);
+      if (data && typeof data === 'object') {
+        data.lastSeen = Date.now();
+        localStorage.setItem('bookingProgress', JSON.stringify(data));
       }
     }
   });

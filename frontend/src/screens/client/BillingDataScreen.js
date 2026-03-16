@@ -187,10 +187,11 @@ function BillingDataScreen() {
         <div style={{ flex: 1 }}>
           {billingType === 'persona' ? (
             <>
-              <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+              <label htmlFor="billing-nombre" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
                 Nombre <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
               </label>
               <input
+                id="billing-nombre"
                 className="maqgo-input"
                 placeholder="Tu nombre"
                 value={form.nombre}
@@ -198,10 +199,11 @@ function BillingDataScreen() {
                 style={{ marginBottom: 12 }}
                 data-testid="billing-nombre"
               />
-              <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+              <label htmlFor="billing-apellido" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
                 Apellido <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
               </label>
               <input
+                id="billing-apellido"
                 className="maqgo-input"
                 placeholder="Tu apellido"
                 value={form.apellido}
@@ -209,10 +211,11 @@ function BillingDataScreen() {
                 style={{ marginBottom: 12 }}
                 data-testid="billing-apellido"
               />
-              <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+              <label htmlFor="billing-rut" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
                 RUT <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
               </label>
               <input
+                id="billing-rut"
                 className="maqgo-input"
                 placeholder="12.345.678-9"
                 value={formatRut(form.rut)}
@@ -226,10 +229,11 @@ function BillingDataScreen() {
             </>
           ) : (
             <>
-              <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+              <label htmlFor="billing-razon-social" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
                 Razón Social <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
               </label>
               <input
+                id="billing-razon-social"
                 className="maqgo-input"
                 placeholder="Nombre de la empresa"
                 value={form.razonSocial}
@@ -238,10 +242,11 @@ function BillingDataScreen() {
                 data-testid="billing-razon-social"
               />
               
-              <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+              <label htmlFor="billing-rut-empresa" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
                 RUT Empresa <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
               </label>
               <input
+                id="billing-rut-empresa"
                 className="maqgo-input"
                 placeholder="76.123.456-7"
                 value={formatRut(form.rut)}
@@ -253,10 +258,11 @@ function BillingDataScreen() {
               />
               {rutError && <p id="billing-rut-error" style={{ color: 'var(--maqgo-orange)', fontSize: 12, margin: '0 0 12px' }}>{rutError}</p>}
               
-              <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+              <label htmlFor="billing-giro" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
                 Giro <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
               </label>
               <input
+                id="billing-giro"
                 className="maqgo-input"
                 placeholder="Giro comercial"
                 value={form.giro}
@@ -265,10 +271,11 @@ function BillingDataScreen() {
                 data-testid="billing-giro"
               />
               
-              <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+              <label htmlFor="billing-direccion" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
                 Dirección comercial <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
               </label>
               <input
+                id="billing-direccion"
                 className="maqgo-input"
                 placeholder="Dirección comercial"
                 value={form.direccion}

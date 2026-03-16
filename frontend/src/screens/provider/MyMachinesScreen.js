@@ -534,7 +534,10 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
   // Cargar equipo al abrir (mejor práctica: mostrar opción más probable primero)
   useEffect(() => {
     const ownerId = localStorage.getItem('ownerId') || localStorage.getItem('userId');
-    axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`)
+    const FAST_FALLBACK_MS = 2500;
+    const apiPromise = axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 5000 });
+    const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
+    Promise.race([apiPromise, timeoutPromise])
       .then(r => {
         const ops = r.data.operators || [];
         setTeamOperators(ops);

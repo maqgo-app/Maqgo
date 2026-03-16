@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import { useToast } from '../../components/Toast';
 import { MAQGO_BILLING } from '../../utils/commissions';
 import { fetchWithTimeout } from '../../utils/api';
 
@@ -20,6 +21,7 @@ import { MACHINERY_PER_TRIP } from '../../utils/pricing';
 function UploadInvoiceScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const toast = useToast();
   const { serviceId } = useParams();
   const fileInputRef = useRef(null);
   const serviceFromState = location.state?.service;
@@ -45,9 +47,13 @@ function UploadInvoiceScreen() {
     try {
       if (serviceId) {
         try {
-          const response = await fetchWithTimeout(`${BACKEND_URL}/api/services/${serviceId}`, {}, 6000);
-          const data = await response.json();
-          setService(normalizeServiceFromApi(data));
+          const FAST_FALLBACK_MS = 2500;
+          const fetchPromise = fetchWithTimeout(`${BACKEND_URL}/api/services/${serviceId}`, {}, 6000)
+            .then(r => r.json())
+            .then(d => normalizeServiceFromApi(d));
+          const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
+          const serviceData = await Promise.race([fetchPromise, timeoutPromise]);
+          setService(serviceData);
         } catch (error) {
           setService(getDemoService(serviceId));
         }
@@ -132,7 +138,7 @@ function UploadInvoiceScreen() {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert('La imagen no debe superar 5MB');
+        toast.warning('La imagen no debe superar 5MB');
         return;
       }
       setInvoiceImage(file);
@@ -144,11 +150,11 @@ function UploadInvoiceScreen() {
 
   const handleSubmit = async () => {
     if (!invoiceNumber.trim()) {
-      alert('Ingresa el número de factura');
+      toast.warning('Ingresa el número de factura');
       return;
     }
     if (!invoiceImage) {
-      alert('Debes adjuntar la imagen de la factura');
+      toast.warning('Debes adjuntar la imagen de la factura');
       return;
     }
 
@@ -168,20 +174,20 @@ function UploadInvoiceScreen() {
             })
           });
           if (response.ok) {
-            alert('✅ Factura registrada. Pago en 2 días hábiles.');
+            toast.success('Factura registrada. Pago en 2 días hábiles.');
             navigate('/provider/cobros');
           } else {
-            alert('Error al registrar factura');
+            toast.error('Error al registrar factura');
           }
         } else {
-          alert('✅ Factura registrada (demo). Pago en 2 días hábiles.');
+          toast.success('Factura registrada (demo). Pago en 2 días hábiles.');
           navigate('/provider/cobros');
         }
         setSubmitting(false);
       };
       reader.readAsDataURL(invoiceImage);
     } catch (error) {
-      alert('✅ Factura registrada (demo). Pago en 2 días hábiles.');
+      toast.success('Factura registrada (demo). Pago en 2 días hábiles.');
       navigate('/provider/cobros');
       setSubmitting(false);
     }

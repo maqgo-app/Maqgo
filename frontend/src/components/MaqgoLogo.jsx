@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import logoImg from '../assets/maqgo-logo.png';
 
+/** Logo transparente (public) - evita parche de fondo distinto al #0F0F12 */
+const LOGO_TRANSPARENT = '/maqgo-logo-transparent.png';
+
 /**
  * Logo MAQGO estandarizado
  * 
@@ -18,9 +21,10 @@ const SIZES = {
   mini: 80      // Espacios reducidos
 };
 
-const MaqgoLogo = ({ size = 'small', customSize = null, style = {} }) => {
+const MaqgoLogo = ({ size = 'small', customSize = null, style = {}, transparent = false }) => {
   const [imgError, setImgError] = useState(false);
   const logoSize = customSize || SIZES[size] || SIZES.small;
+  const logoSrc = transparent ? LOGO_TRANSPARENT : logoImg;
   
   return (
     <div 
@@ -29,6 +33,7 @@ const MaqgoLogo = ({ size = 'small', customSize = null, style = {} }) => {
         display: 'flex', 
         justifyContent: 'center',
         alignItems: 'center',
+        background: 'transparent',
         ...style 
       }}
     >
@@ -44,7 +49,7 @@ const MaqgoLogo = ({ size = 'small', customSize = null, style = {} }) => {
         </span>
       ) : (
         <img 
-          src={logoImg} 
+          src={logoSrc} 
           alt="MAQGO" 
           onError={() => setImgError(true)}
           style={{ 

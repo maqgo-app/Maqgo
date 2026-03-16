@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ConfirmModal from '../../components/ConfirmModal';
+import { useToast } from '../../components/Toast';
 import { getObject, getArray, getObjectFirst } from '../../utils/safeStorage';
 
 /**
@@ -14,6 +15,7 @@ const STORAGE_KEY_DEFAULT_BY_MACHINERY = 'defaultOperatorByMachinery';
 
 function SelectOperatorScreen() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [operators, setOperators] = useState([]);
   const [selectedOperator, setSelectedOperator] = useState(null);
   const [operatorPhone, setOperatorPhone] = useState('');
@@ -79,7 +81,7 @@ function SelectOperatorScreen() {
     
     // Validar celular del operador si no es el propietario
     if (!selectedOperator.isOwner && !operatorPhone) {
-      alert('Ingresa el celular del operador para continuar');
+      toast.warning('Ingresa el celular del operador para continuar');
       return;
     }
     

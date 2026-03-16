@@ -2,15 +2,17 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { MaqgoButton } from '../../components/base';
+import { useToast } from '../../components/Toast';
 
 function WorkdayConfirmation() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [accepted, setAccepted] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
 
   const handleConfirm = () => {
     if (!accepted) {
-      alert('Debes aceptar la jornada para continuar');
+      toast.warning('Debes aceptar la jornada para continuar');
       return;
     }
     setIsConfirming(true);

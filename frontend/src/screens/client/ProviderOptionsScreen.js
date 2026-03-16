@@ -13,7 +13,7 @@ import { ProviderOptionsSkeleton } from '../../components/ListSkeleton';
 import BACKEND_URL from '../../utils/api';
 
 // MACHINERY_NO_TRANSPORT, MACHINERY_PER_TRIP y REFERENCE_PRICES desde pricing.js
-import { MACHINERY_NO_TRANSPORT, MACHINERY_PER_TRIP, REFERENCE_PRICES, getDemoPriceList, getDemoTransportFee } from '../../utils/pricing';
+import { MACHINERY_NO_TRANSPORT, MACHINERY_PER_TRIP, REFERENCE_PRICES, getDemoProviders } from '../../utils/pricing';
 import { getPerTripDateLabel } from '../../utils/bookingDates';
 import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions } from '../../utils/machineryNames';
 
@@ -142,8 +142,6 @@ function ProviderOptionsScreen() {
   const perTripScheduledLabel = getPerTripDateLabel(selectedDatesRaw, localStorage.getItem('selectedDate') || '', { prefix: 'Valor viaje ·' });
 
   const getDemoProvidersFallback = () => {
-    const prices = getDemoPriceList(selectedMachinery);
-    const transportFee = getDemoTransportFee(selectedMachinery);
     const capOpts = getMachineryCapacityOptions(selectedMachinery);
     const specValues = capOpts?.options ? [...capOpts.options].slice(0, 5) : null;
     const providerFieldToSnake = {
@@ -158,14 +156,7 @@ function ProviderOptionsScreen() {
       rollerTon: 'roller_ton'
     };
     const specKey = capOpts?.providerField ? providerFieldToSnake[capOpts.providerField] : null;
-    const transportFees = transportFee > 0 ? [25000, 30000, 22000, 35000, 20000] : [0, 0, 0, 0, 0];
-    const baseProviders = [
-      { id: 'demo-1', name: 'Transportes Silva', emits_invoice: true, price_per_hour: prices[0], transport_fee: transportFees[0], distance: 5.2, eta_minutes: 45, rating: 4.8, closing_time: '20:00', operator_name: 'Carlos Silva', license_plate: 'BGKL-45' },
-      { id: 'demo-2', name: 'Maquinarias del Sur', emits_invoice: true, price_per_hour: prices[1], transport_fee: transportFees[1], distance: 8.1, eta_minutes: 54, rating: 4.6, closing_time: '21:00', operator_name: 'Pedro González', license_plate: 'HJKL-78' },
-      { id: 'demo-3', name: 'Constructora Norte', emits_invoice: true, price_per_hour: prices[2], transport_fee: transportFees[2], distance: 12.5, eta_minutes: 66, rating: 4.9, closing_time: '19:00', operator_name: 'Juan Martínez', license_plate: 'MNOP-12' },
-      { id: 'demo-4', name: 'Excavaciones Rápidas', emits_invoice: false, price_per_hour: prices[3], transport_fee: transportFees[3], distance: 15.3, eta_minutes: 75, rating: 4.7, closing_time: '20:00', operator_name: 'Roberto Díaz', license_plate: 'QRST-34' },
-      { id: 'demo-5', name: 'Movitierras SpA', emits_invoice: true, price_per_hour: prices[4], transport_fee: transportFees[4], distance: 6.8, eta_minutes: 50, rating: 4.5, closing_time: '18:30', operator_name: 'Miguel Torres', license_plate: 'UVWX-56' }
-    ];
+    const baseProviders = getDemoProviders(selectedMachinery, 5, { extended: true });
     const all = specKey && specValues
       ? baseProviders.map((p, i) => ({ ...p, [specKey]: specValues[i % specValues.length] }))
       : baseProviders;
@@ -192,15 +183,22 @@ function ProviderOptionsScreen() {
   };
 
   const fetchProviders = async () => {
+    const clientLat = -33.4489;
+    const clientLng = -70.6693;
+    const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
+    const FAST_FALLBACK_MS = 2500; // Si la API tarda más, mostrar opciones de inmediato
+
+    const apiCall = axios.get(`${BACKEND_URL}/api/providers/match`, {
+      params: { machinery_type: selectedMachinery, client_lat: clientLat, client_lng: clientLng, max_radius: 30, limit: 5, needs_invoice: needsInvoice },
+      timeout: 5000
+    });
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), FAST_FALLBACK_MS)
+    );
+
     try {
-      const clientLat = -33.4489; // Santiago
-      const clientLng = -70.6693;
-      
-      const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
-      const response = await axios.get(`${BACKEND_URL}/api/providers/match`, {
-        params: { machinery_type: selectedMachinery, client_lat: clientLat, client_lng: clientLng, max_radius: 30, limit: 5, needs_invoice: needsInvoice },
-        timeout: 6000
-      });
+      const response = await Promise.race([apiCall, timeoutPromise]);
       
       // Guardar flags de la API para mensaje "reservar mañana"
       setIsDemoProviders(response.data?.is_demo ?? false);
@@ -498,15 +496,10 @@ function ProviderOptionsScreen() {
 
         {/* Camión tolva: recordatorio de m³ que busca el cliente (puede ser uno o varios) */}
         {selectedMachinery === 'camion_tolva' && (() => {
-          const listRaw = localStorage.getItem('clientRequiredM3List');
+          const arr = getArray('clientRequiredM3List', []);
           let label = null;
-          if (listRaw) {
-            try {
-              const arr = JSON.parse(listRaw);
-              if (Array.isArray(arr) && arr.length) {
-                label = arr.length === 1 ? `${arr[0]} m³` : `${arr.join(', ')} m³`;
-              }
-            } catch (_) { }
+          if (Array.isArray(arr) && arr.length) {
+            label = arr.length === 1 ? `${arr[0]} m³` : `${arr.join(', ')} m³`;
           }
           if (!label) {
             const single = localStorage.getItem('clientRequiredM3');

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ChatFloatingButton from '../../components/ChatFloatingButton';
+import { useToast } from '../../components/Toast';
 
 // Radio máximo para validar llegada (en metros)
 const ARRIVAL_RADIUS_METERS = 150;
@@ -29,6 +30,7 @@ import { MACHINERY_PER_TRIP } from '../../utils/pricing';
  */
 function EnRouteScreen() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [eta, setEta] = useState(15);
   const [serviceData, setServiceData] = useState({});
   const [assignedOperator, setAssignedOperator] = useState(null);
@@ -241,13 +243,13 @@ function EnRouteScreen() {
     // Cerrar modal y mostrar confirmación
     setShowIncidentModal(false);
     setIncidentReason('');
-    alert('Incidente reportado. El cliente ha sido notificado.');
+    toast.success('Incidente reportado. El cliente ha sido notificado.');
   };
 
   const handleOpenMaps = () => {
     setShowIncidentModal(false);
     setIncidentReason('');
-    alert('Incidente reportado. El cliente ha sido notificado.');
+    toast.success('Incidente reportado. El cliente ha sido notificado.');
   };
 
   // Navegación: Waze o Google Maps - priorizar coordenadas (exactas) cuando el cliente eligió dirección con mapa

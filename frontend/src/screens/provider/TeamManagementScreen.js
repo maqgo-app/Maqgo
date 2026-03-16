@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../components/Toast';
 
 import BACKEND_URL from '../../utils/api';
 
@@ -17,6 +18,7 @@ import BACKEND_URL from '../../utils/api';
 function TeamManagementScreen() {
   const navigate = useNavigate();
   const { isSuperMaster } = useAuth();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState('team'); // 'team' | 'invite'
   const [inviteType, setInviteType] = useState('operator'); // 'operator' | 'master'
   const [team, setTeam] = useState({ masters: [], operators: [], pending_invitations: [] });
@@ -31,11 +33,13 @@ function TeamManagementScreen() {
 
   useEffect(() => {
     const fetchTeam = async () => {
+      const FAST_FALLBACK_MS = 2500;
+      const userId = localStorage.getItem('userId');
+      const ownerId = localStorage.getItem('ownerId') || userId;
       try {
-        const userId = localStorage.getItem('userId');
-        const ownerId = localStorage.getItem('ownerId') || userId;
-        
-        const response = await axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`);
+        const apiPromise = axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 5000 });
+        const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
+        const response = await Promise.race([apiPromise, timeoutPromise]);
         setTeam(response.data);
       } catch (e) {
         console.error('Error loading team:', e);
@@ -49,7 +53,6 @@ function TeamManagementScreen() {
       }
       setLoading(false);
     };
-    
     fetchTeam();
   }, [refreshKey]);
 
@@ -69,7 +72,7 @@ function TeamManagementScreen() {
       let payload = { owner_id: ownerId };
       if (inviteType === 'operator') {
         if (!operatorName.trim() || !operatorRut.trim()) {
-          alert('Ingresa nombre y RUT del operador antes de generar el código.');
+          toast.warning('Ingresa nombre y RUT del operador antes de generar el código.');
           setInviting(false);
           return;
         }
@@ -92,14 +95,14 @@ function TeamManagementScreen() {
       loadTeam(); // Recargar para ver la invitación pendiente
     } catch (e) {
       console.error('Error generating invite:', e);
-      alert(e.response?.data?.detail || 'Error al generar código');
+      toast.error(e.response?.data?.detail || 'Error al generar código');
     }
     setInviting(false);
   };
 
   const copyCode = () => {
     navigator.clipboard.writeText(inviteCode);
-    alert('Código copiado al portapapeles');
+    toast.success('Código copiado al portapapeles');
   };
 
   const cancelInvitation = async (code) => {

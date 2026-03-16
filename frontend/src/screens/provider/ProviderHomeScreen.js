@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import { useToast } from '../../components/Toast';
 import { getObject } from '../../utils/safeStorage';
 import { playNewRequestSound, playTapSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
@@ -15,6 +16,7 @@ import { MACHINERY_NAMES } from '../../utils/machineryNames';
  */
 function ProviderHomeScreen() {
   const navigate = useNavigate();
+  const toast = useToast();
   // Persistir estado de disponibilidad en localStorage
   const [available, setAvailable] = useState(() => {
     return localStorage.getItem('providerAvailable') === 'true';
@@ -108,13 +110,15 @@ function ProviderHomeScreen() {
       });
     } catch (e) {
       console.error(e);
+      toast.error('Error al actualizar disponibilidad. Revisa tu conexión.');
+      setAvailable(!newStatus); // Revertir toggle
     }
   };
 
   // Demo: simular solicitud entrante
   const simulateRequest = () => {
     if (!onboardingCompleted) {
-      alert('Debes completar el registro de tu maquinaria primero');
+      toast.warning('Debes completar el registro de tu maquinaria primero');
       return;
     }
     
@@ -157,7 +161,7 @@ function ProviderHomeScreen() {
     <div className="maqgo-app">
       <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
         {/* Header - Solo logo centrado */}
-        <MaqgoLogo size="medium" style={{ marginBottom: 50, marginTop: 20 }} />
+        <MaqgoLogo size="medium" style={{ marginBottom: 40 }} />
 
         {/* Alerta si no complet? onboarding */}
         {!onboardingCompleted && (

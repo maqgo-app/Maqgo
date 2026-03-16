@@ -72,11 +72,14 @@ function OnTheWayMap({ operatorLocation, serviceLocation }) {
       <MapContainer
         center={[centerLat, centerLng]}
         zoom={13}
-        minZoom={10}
-        maxZoom={17}
+        minZoom={11}
+        maxZoom={15}
         style={{ width: '100%', height: '100%' }}
         zoomControl={false}
         attributionControl={false}
+        scrollWheelZoom={false}
+        doubleClickZoom={false}
+        touchZoom={false}
       >
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"

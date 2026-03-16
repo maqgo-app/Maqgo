@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getObject } from '../../utils/safeStorage';
+import { validateEmail } from '../../utils/chileanValidation';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
@@ -60,20 +61,6 @@ function CardPaymentScreen() {
     const location = localStorage.getItem('serviceLocation') || '';
     saveBookingProgress('payment', { machinery, location });
   }, []);
-
-  const validateEmail = (emailValue) => {
-    if (!emailValue) {
-      return 'El correo es requerido';
-    }
-    if (!emailValue.includes('@') || !emailValue.includes('.')) {
-      return 'Por favor ingresa un correo válido';
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailValue)) {
-      return 'Formato de correo inválido';
-    }
-    return '';
-  };
 
   const handleEmailChange = (e) => {
     const value = e.target.value;
@@ -331,7 +318,7 @@ function CardPaymentScreen() {
           padding: 16,
           marginBottom: 20
         }}>
-          <label style={{ 
+          <label htmlFor="card-email" style={{ 
             color: 'rgba(255,255,255,0.8)', 
             fontSize: 14, 
             display: 'block',
@@ -341,6 +328,7 @@ function CardPaymentScreen() {
             📧 Correo para tu comprobante <span style={{ color: '#EC6819' }}>*</span>
           </label>
           <input
+            id="card-email"
             className="maqgo-input"
             type="email"
             placeholder="correo@ejemplo.com"

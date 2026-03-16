@@ -273,17 +273,50 @@ async def update_service_status(service_id: str, update: ServiceUpdate, _: dict 
             # Cuando se aprueba → Notificar para facturar a MAQGO (neto, menos tarifa)
             if update.status == 'approved' and current_service.get('status') == 'pending_review':
                 net_amount = current_service.get('net_total', 0)
-                # TODO: Obtener teléfono del proveedor de la BD y llamar notify_service_approved_for_invoice
-                import logging
-                logging.info(f"GATILLO: Servicio {service_id} aprobado. Notificar proveedor para facturar a MAQGO ${net_amount}")
+                provider_id = current_service.get('provider_id') or current_service.get('owner_id')
+                provider_phone = None
+                if provider_id:
+                    provider = users_collection.find_one({"id": provider_id}, {"phone": 1, "owner_id": 1})
+                    if provider:
+                        if provider.get('owner_id'):
+                            owner = users_collection.find_one({"id": provider["owner_id"]}, {"phone": 1})
+                            provider_phone = owner.get('phone') if owner else provider.get('phone')
+                        else:
+                            provider_phone = provider.get('phone')
+                if provider_phone:
+                    try:
+                        notify_service_approved_for_invoice(
+                            provider_phone,
+                            str(int(net_amount)) if net_amount else "0"
+                        )
+                    except Exception as notify_err:
+                        import logging
+                        logging.warning(f"Notificación aprobado/factura no enviada: {notify_err}")
             
             # Cuando se paga → Notificar pago realizado
             if update.status == 'paid' and current_service.get('status') == 'invoiced':
                 invoice_number = current_service.get('invoice_number', 'N/A')
                 net_amount = current_service.get('net_total', 0)
-                
-                import logging
-                logging.info(f"GATILLO: Servicio {service_id} pagado. Notificar proveedor: ${net_amount}")
+                provider_id = current_service.get('provider_id') or current_service.get('owner_id')
+                provider_phone = None
+                if provider_id:
+                    provider = users_collection.find_one({"id": provider_id}, {"phone": 1, "owner_id": 1})
+                    if provider:
+                        if provider.get('owner_id'):
+                            owner = users_collection.find_one({"id": provider["owner_id"]}, {"phone": 1})
+                            provider_phone = owner.get('phone') if owner else provider.get('phone')
+                        else:
+                            provider_phone = provider.get('phone')
+                if provider_phone:
+                    try:
+                        notify_payment_sent(
+                            provider_phone,
+                            str(invoice_number),
+                            str(int(net_amount)) if net_amount else "0"
+                        )
+                    except Exception as notify_err:
+                        import logging
+                        logging.warning(f"Notificación pago enviado no enviada: {notify_err}")
                 
         except Exception as e:
             import logging

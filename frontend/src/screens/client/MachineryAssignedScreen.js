@@ -294,7 +294,7 @@ function MachineryAssignedScreen() {
       <div className="maqgo-screen" style={{ padding: 24 }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <MaqgoLogo size="medium" />
+          <MaqgoLogo size="small" />
         </div>
 
         {/* Banner de alerta: Operador cerca */}

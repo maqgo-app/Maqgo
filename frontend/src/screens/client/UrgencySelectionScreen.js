@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
+import { getArray } from '../../utils/safeStorage';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import BookingProgress from '../../components/BookingProgress';
@@ -98,13 +99,8 @@ function UrgencySelectionScreen() {
   const [machinery, setMachinery] = useState('');
   /** m³: selección múltiple (ej. 10, 12 y 14) para ver proveedores con cualquiera de esas capacidades */
   const [selectedCapacityM3List, setSelectedCapacityM3List] = useState(() => {
-    const saved = localStorage.getItem('clientRequiredM3List');
-    if (saved) {
-      try {
-        const arr = JSON.parse(saved);
-        return Array.isArray(arr) ? arr : [];
-      } catch (_) { }
-    }
+    const arr = getArray('clientRequiredM3List', []);
+    if (arr.length) return arr;
     const single = localStorage.getItem('clientRequiredM3');
     return single ? [parseInt(single, 10)] : [];
   });
@@ -116,43 +112,24 @@ function UrgencySelectionScreen() {
   const capacityConfig = getMachineryCapacityOptions(machinery);
 
   /** Aljibe: selección múltiple de litros (como m³ en tolva) */
-  const [selectedLitersList, setSelectedLitersList] = useState(() => {
-    try {
-      const s = localStorage.getItem('clientRequiredLitersList');
-      if (s) { const arr = JSON.parse(s); return Array.isArray(arr) ? arr : []; }
-    } catch (_) {}
-    return [];
-  });
+  const [selectedLitersList, setSelectedLitersList] = useState(() => getArray('clientRequiredLitersList', []));
   /** Pluma: selección múltiple de ton·m */
-  const [selectedTonMList, setSelectedTonMList] = useState(() => {
-    try {
-      const s = localStorage.getItem('clientRequiredTonMList');
-      if (s) { const arr = JSON.parse(s); return Array.isArray(arr) ? arr : []; }
-    } catch (_) {}
-    return [];
-  });
+  const [selectedTonMList, setSelectedTonMList] = useState(() => getArray('clientRequiredTonMList', []));
 
   useEffect(() => {
     const savedMachinery = localStorage.getItem('selectedMachinery') || '';
     setMachinery(savedMachinery);
-    const savedList = localStorage.getItem('clientRequiredM3List');
-    if (savedList) {
-      try {
-        const arr = JSON.parse(savedList);
-        if (Array.isArray(arr) && arr.length) setSelectedCapacityM3List(arr);
-      } catch (_) { }
+    const arrM3 = getArray('clientRequiredM3List', []);
+    if (arrM3.length) {
+      setSelectedCapacityM3List(arrM3);
     } else {
       const savedM3 = localStorage.getItem('clientRequiredM3');
       if (savedM3) setSelectedCapacityM3List([parseInt(savedM3, 10)].filter((n) => !Number.isNaN(n)));
     }
-    try {
-      const liters = localStorage.getItem('clientRequiredLitersList');
-      if (liters) { const arr = JSON.parse(liters); if (Array.isArray(arr) && arr.length) setSelectedLitersList(arr); }
-    } catch (_) {}
-    try {
-      const tonM = localStorage.getItem('clientRequiredTonMList');
-      if (tonM) { const arr = JSON.parse(tonM); if (Array.isArray(arr) && arr.length) setSelectedTonMList(arr); }
-    } catch (_) {}
+    const arrLiters = getArray('clientRequiredLitersList', []);
+    if (arrLiters.length) setSelectedLitersList(arrLiters);
+    const arrTonM = getArray('clientRequiredTonMList', []);
+    if (arrTonM.length) setSelectedTonMList(arrTonM);
     saveBookingProgress('urgency', { machinery: savedMachinery });
   }, []);
 
