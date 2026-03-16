@@ -15,6 +15,7 @@ function OneClickCompleteScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tbk_user = searchParams.get('tbk_user');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!tbk_user) {
@@ -48,17 +49,9 @@ function OneClickCompleteScreen() {
 
     // Crear solicitud de servicio en backend y continuar
     const createServiceAndContinue = async () => {
-      const isDemo = tbk_user.startsWith('demo-');
       const clientId = localStorage.getItem('userId') || `client_${Date.now()}`;
       if (!localStorage.getItem('userId')) {
         localStorage.setItem('userId', clientId);
-      }
-
-      // Modo demo: ir directo a searching sin llamar API (evita CORS si no está configurado)
-      if (isDemo) {
-        localStorage.setItem('currentServiceId', `demo-${Date.now()}`);
-        navigate('/client/searching', { replace: true });
-        return;
       }
 
       const billingData = getObject('billingData', {});
@@ -116,9 +109,7 @@ function OneClickCompleteScreen() {
         navigate('/client/searching', { replace: true });
       } catch (e) {
         console.error('Error creando solicitud:', e);
-        // Fallback: continuar en demo sin mostrar error al usuario
-        localStorage.setItem('currentServiceId', `demo-${Date.now()}`);
-        navigate('/client/searching', { replace: true });
+        setError(e?.response?.data?.detail || e?.message || 'Error al crear la solicitud');
       }
     };
 
@@ -141,6 +132,11 @@ function OneClickCompleteScreen() {
         <p style={{ color: '#fff', marginTop: 20, textAlign: 'center' }}>
           Tarjeta registrada. Buscando proveedores disponibles...
         </p>
+        {error && (
+          <p style={{ color: '#EF4444', fontSize: 14, marginTop: 12, textAlign: 'center' }}>
+            {error}
+          </p>
+        )}
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     </div>

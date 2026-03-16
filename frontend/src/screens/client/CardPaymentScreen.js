@@ -136,10 +136,8 @@ function CardPaymentScreen() {
       throw new Error('No se recibió url_webpay o token de Transbank');
     } catch (err) {
       console.error('Error OneClick:', err);
-      // Fallback: continuar en modo demo para no bloquear al usuario (ej. CORS, API caída)
-      const demoTbk = `demo-${Date.now()}`;
-      window.location.href = `${window.location.origin}/oneclick/complete?tbk_user=${encodeURIComponent(demoTbk)}`;
-      return;
+      setError('card_error');
+      setLoading(false);
     }
   };
 
