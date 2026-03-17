@@ -77,6 +77,8 @@ npm run start
 
 Ejecutar **`./scripts/pre-deploy.sh`** (tests + build). Ver **`CORRER.md`** para setup detallado y **`docs/`** para guías de integración.
 
+**Producción:** Ver **`docs/PRODUCCION.md`** para checklist (REACT_APP_BACKEND_URL, CORS, etc.).
+
 ---
 
 ## 🏗️ Estructura del Proyecto

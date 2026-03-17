@@ -140,14 +140,14 @@ function ServiceFinishedScreen() {
       const serviceEndIso = finishedIso ?? localStorage.getItem('serviceEndTime');
       const { startTime, endTime, hasRealEnd } = getRealStartAndEnd(serviceStartIso, serviceEndIso);
 
-      const service = pricing.service_amount ?? pricing.breakdown?.service_cost ?? (provider.price_per_hour || 45000) * hours;
-      const transport = pricing.transport_cost ?? pricing.breakdown?.transport_cost ?? provider.transport_fee ?? 0;
-      const bonus = pricing.immediate_bonus ?? pricing.breakdown?.immediate_bonus ?? 0;
-      const maqgoFeeStored = pricing.client_commission ?? pricing.breakdown?.client_commission ?? Math.round((service + transport + bonus) * 0.10);
-      const maqgoFeeIvaStored = pricing.client_commission_iva ?? pricing.breakdown?.client_commission_iva ?? Math.round(maqgoFeeStored * 0.19);
+      const service = pricing?.service_amount ?? pricing?.breakdown?.service_cost ?? (provider?.price_per_hour || 45000) * hours;
+      const transport = pricing?.transport_cost ?? pricing?.breakdown?.transport_cost ?? provider?.transport_fee ?? 0;
+      const bonus = pricing?.immediate_bonus ?? pricing?.breakdown?.immediate_bonus ?? 0;
+      const maqgoFeeStored = pricing?.client_commission ?? pricing?.breakdown?.client_commission ?? Math.round((service + transport + bonus) * 0.10);
+      const maqgoFeeIvaStored = pricing?.client_commission_iva ?? pricing?.breakdown?.client_commission_iva ?? Math.round(maqgoFeeStored * 0.19);
       const subtotal = service + transport + bonus;
       const ivaProveedorStored = needsInvoice ? Math.round(subtotal * 0.19) : 0;
-      const totalStored = (totalAmount || pricing.final_price) ?? Math.round(subtotal + ivaProveedorStored + maqgoFeeStored + maqgoFeeIvaStored);
+      const totalStored = (totalAmount || pricing?.final_price) ?? Math.round(subtotal + ivaProveedorStored + maqgoFeeStored + maqgoFeeIvaStored);
 
       // Con factura: si el desglose guardado no cuadra con el total pagado, derivar desglose desde total
       const totalToShow = totalAmount || totalStored;
@@ -386,7 +386,7 @@ function ServiceFinishedScreen() {
             marginBottom: 20
           }}>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: 0, textAlign: 'center' }}>
-              {serviceData.pricing.needsInvoice 
+              {serviceData.pricing?.needsInvoice 
                 ? 'Tu factura se emite dentro de los plazos legales del mes en que fue contratada y pagada la reserva, y se envía al correo que indicaste.'
                 : 'Tu resumen de servicio será enviado a tu correo electrónico en los próximos días'
               }

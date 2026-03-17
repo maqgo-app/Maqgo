@@ -106,13 +106,6 @@ function MachinePhotosScreen() {
     navigate('/provider/pricing');
   };
 
-  const handleSkipDemo = () => {
-    // Modo demo: permitir continuar sin fotos
-    localStorage.setItem('demoMode', 'true');
-    localStorage.setItem('providerOnboardingStep', '4'); // Guardar paso actual
-    navigate('/provider/pricing');
-  };
-
   const handleBack = () => navigate('/provider/machine-data');
 
   const canContinue = true; // Fotos opcionales desde día cero
@@ -356,25 +349,6 @@ function MachinePhotosScreen() {
         >
           Siguiente
         </button>
-
-        {/* Link para modo demo - solo en desarrollo */}
-        {import.meta.env.DEV && (
-          <button
-            onClick={handleSkipDemo}
-            style={{
-              width: '100%',
-              background: 'transparent',
-              border: 'none',
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: 13,
-              padding: 10,
-              cursor: 'pointer',
-              textDecoration: 'underline'
-            }}
-          >
-            Saltar para pruebas (modo demo)
-          </button>
-        )}
       </div>
     </div>
   );

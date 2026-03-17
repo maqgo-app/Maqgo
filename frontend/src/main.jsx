@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter, useLocation } from "react-router-dom";
 import "./styles/maqgo.css";
 import App from "./App.jsx";
 
@@ -13,9 +13,10 @@ class ErrorBoundary extends React.Component {
     console.error("App error:", error, info);
   }
   handleReload = () => {
-    // Recarga forzada sin caché: evita "Failed to fetch dynamically imported module"
-    // (ocurre cuando hay deploy nuevo y el navegador tiene chunks viejos cacheados)
     window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
+  };
+  handleVolver = () => {
+    window.history.back();
   };
 
   render() {
@@ -30,9 +31,14 @@ class ErrorBoundary extends React.Component {
             {isChunkError ? "La app se actualizó. Recarga la página para obtener la versión más reciente." : "Hubo un error inesperado. Intenta recargar la página."}
           </p>
           {message && !isChunkError && <pre style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", maxWidth: "100%", overflow: "auto", marginBottom: 24 }}>{message}</pre>}
-          <button onClick={this.handleReload} style={{ padding: "14px 28px", background: "#EC6819", border: "none", borderRadius: 12, color: "#fff", cursor: "pointer", fontWeight: 600 }} aria-label="Recargar la página">
-            Recargar
-          </button>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+            <button onClick={this.handleVolver} style={{ padding: "14px 28px", background: "transparent", border: "2px solid #EC6819", borderRadius: 12, color: "#EC6819", cursor: "pointer", fontWeight: 600 }} aria-label="Volver atrás">
+              Volver
+            </button>
+            <button onClick={this.handleReload} style={{ padding: "14px 28px", background: "#EC6819", border: "none", borderRadius: 12, color: "#fff", cursor: "pointer", fontWeight: 600 }} aria-label="Recargar la página">
+              Recargar
+            </button>
+          </div>
         </div>
       );
     }
@@ -40,10 +46,18 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <ErrorBoundary>
-    <BrowserRouter>
+/** ErrorBoundary que se resetea al cambiar de ruta: permite volver atrás sin quedar atrapado */
+function AppWithErrorBoundary() {
+  const location = useLocation();
+  return (
+    <ErrorBoundary key={location.pathname}>
       <App />
-    </BrowserRouter>
-  </ErrorBoundary>
+    </ErrorBoundary>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <BrowserRouter>
+    <AppWithErrorBoundary />
+  </BrowserRouter>
 );

@@ -9,7 +9,8 @@ import {
   calculateClientPrice,
   calculateWithInvoice,
   totalConFactura,
-  CON_FACTURA_FACTOR
+  CON_FACTURA_FACTOR,
+  buildPricingFallback
 } from './pricing.js';
 
 describe('pricing constants', () => {
@@ -96,5 +97,53 @@ describe('totalConFactura', () => {
     const sinFactura = 100000;
     const conFactura = totalConFactura(sinFactura);
     expect(conFactura).toBe(Math.round(sinFactura * CON_FACTURA_FACTOR));
+  });
+});
+
+describe('volver atrás (pricing null)', () => {
+  it('getClientBreakdown no lanza con pricing null o undefined', () => {
+    expect(() => getClientBreakdown(null)).not.toThrow();
+    expect(() => getClientBreakdown(undefined)).not.toThrow();
+    const b = getClientBreakdown(null);
+    expect(b.service).toBe(0);
+    expect(b.total).toBe(0);
+  });
+
+  it('displayPricing (fallback) permite acceso seguro a breakdown cuando pricing es null', () => {
+    const pricing = null;
+    const fallbackPricing = buildPricingFallback({
+      machineryType: 'retroexcavadora',
+      basePrice: 50000,
+      transportFee: 25000,
+      hours: 4,
+      days: 1,
+      reservationType: 'immediate',
+      isHybrid: false,
+      additionalDays: 0
+    });
+    const displayPricing = pricing ?? fallbackPricing;
+    expect(displayPricing).toBe(fallbackPricing);
+    expect(() => displayPricing.breakdown?.service_cost).not.toThrow();
+    expect(displayPricing.breakdown?.service_cost).toBeGreaterThan(0);
+    expect(displayPricing.breakdown?.transport_cost).toBe(25000);
+    expect(displayPricing.service_amount).toBeGreaterThan(0);
+    expect(displayPricing.final_price).toBeGreaterThan(0);
+  });
+
+  it('camion tolva: fallback con REFERENCE_PRICES cuando price_per_hour es 0', () => {
+    const fallbackPricing = buildPricingFallback({
+      machineryType: 'camion_tolva',
+      basePrice: 240000,
+      transportFee: 0,
+      hours: 4,
+      days: 1,
+      reservationType: 'immediate',
+      isHybrid: false,
+      additionalDays: 0
+    });
+    expect(fallbackPricing).not.toBeNull();
+    expect(fallbackPricing.final_price).toBeGreaterThan(0);
+    expect(fallbackPricing.breakdown?.service_cost).toBeGreaterThan(0);
+    expect(fallbackPricing.breakdown?.transport_cost).toBe(0);
   });
 });

@@ -9,10 +9,11 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 function OperatorScreen() {
   const navigate = useNavigate();
   const [isOperator, setIsOperator] = useState(false);
-  const [form, setForm] = useState({ nombre: '', telefono: '', licencia: '' });
+  const [form, setForm] = useState({ nombre: '', apellido: '', telefono: '', licencia: '' });
 
   const handleFinish = () => {
-    localStorage.setItem('operatorData', JSON.stringify(isOperator ? 'self' : form));
+    const data = isOperator ? 'self' : { ...form, name: `${form.nombre} ${form.apellido}`.trim() };
+    localStorage.setItem('operatorData', JSON.stringify(data));
     navigate('/provider/availability');
   };
 
@@ -50,9 +51,15 @@ function OperatorScreen() {
           <>
             <input
               style={styles.input}
-              placeholder="Nombre completo del operador"
+              placeholder="Nombre"
               value={form.nombre}
               onChange={e => setForm({...form, nombre: e.target.value})}
+            />
+            <input
+              style={styles.input}
+              placeholder="Apellido"
+              value={form.apellido}
+              onChange={e => setForm({...form, apellido: e.target.value})}
             />
             <input
               style={styles.input}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { validateRut, formatRut, searchComunas } from '../../utils/chileanValidation';
+import { validateRut, formatRut, searchComunas, ALL_COMUNAS } from '../../utils/chileanValidation';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import { MAQGO_BILLING } from '../../utils/commissions';
@@ -19,7 +19,8 @@ function ProviderDataScreen() {
   const comunaInputRef = useRef(null);
   
   const [form, setForm] = useState({
-    businessName: '',
+    ownerNombre: '',
+    ownerApellido: '',
     rut: '',
     giro: '',
     comuna: '',
@@ -30,7 +31,17 @@ function ProviderDataScreen() {
 
   useEffect(() => {
     const saved = getObject('providerData', {});
-    if (saved.businessName) setForm(prev => ({ ...prev, ...saved }));
+    if (saved.ownerNombre !== undefined || saved.ownerApellido !== undefined) {
+      setForm(prev => ({ ...prev, ...saved }));
+    } else if (saved.businessName) {
+      const parts = (saved.businessName || '').trim().split(/\s+/);
+      setForm(prev => ({
+        ...prev,
+        ...saved,
+        ownerNombre: parts[0] || '',
+        ownerApellido: parts.slice(1).join(' ') || ''
+      }));
+    }
   }, []);
 
   // Close suggestions when clicking outside
@@ -87,8 +98,10 @@ function ProviderDataScreen() {
     
     // Combinar con datos del registro inicial
     const registerData = getObject('registerData', {});
+    const businessName = `${(form.ownerNombre || '').trim()} ${(form.ownerApellido || '').trim()}`.trim();
     localStorage.setItem('providerData', JSON.stringify({ 
-      ...form, 
+      ...form,
+      businessName,
       // Datos del registro inicial
       phone: registerData.celular,
       email: registerData.email 
@@ -102,7 +115,9 @@ function ProviderDataScreen() {
     navigate(cameFromWelcome ? '/' : '/select-role');
   };
 
-  const isValid = form.businessName && form.rut && validateRut(form.rut) && form.giro && form.comuna && form.address;
+  const comunaTrimmed = form.comuna?.trim();
+  const comunaValida = comunaTrimmed && ALL_COMUNAS.some(c => c.toLowerCase() === comunaTrimmed.toLowerCase());
+  const isValid = form.ownerNombre?.trim() && form.rut && validateRut(form.rut) && form.giro?.trim() && comunaValida && form.address?.trim();
 
   return (
     <div className="maqgo-app">
@@ -144,14 +159,24 @@ function ProviderDataScreen() {
         {/* Formulario */}
         <div style={{ flex: 1 }}>
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, display: 'block' }}>
-            Nombre propietario o empresa <span style={{ color: '#EC6819' }}>*</span>
+            Nombre o Razón Social <span style={{ color: '#EC6819' }}>*</span>
           </label>
           <input
             className="maqgo-input"
-            placeholder="Nombre propietario o empresa"
-            value={form.businessName}
-            onChange={e => update('businessName', e.target.value)}
-            data-testid="provider-business-name"
+            placeholder="Ej: Juan Pérez o Transportes Silva SpA"
+            value={form.ownerNombre}
+            onChange={e => update('ownerNombre', e.target.value)}
+            data-testid="provider-owner-nombre"
+          />
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
+            Apellido del propietario <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>(opcional)</span>
+          </label>
+          <input
+            className="maqgo-input"
+            placeholder="Ej: Pérez"
+            value={form.ownerApellido}
+            onChange={e => update('ownerApellido', e.target.value)}
+            data-testid="provider-owner-apellido"
           />
           
           {/* RUT con validación */}
@@ -185,7 +210,7 @@ function ProviderDataScreen() {
               value={form.comuna}
               onChange={handleComunaChange}
               onFocus={() => {
-                if (form.comuna.length >= 2) {
+                if ((form.comuna || '').length >= 2) {
                   const suggestions = searchComunas(form.comuna, 6);
                   setComunaSuggestions(suggestions);
                   setShowComunaSuggestions(suggestions.length > 0);
@@ -235,6 +260,11 @@ function ProviderDataScreen() {
               </div>
             )}
           </div>
+          {comunaTrimmed && !comunaValida && (
+            <p style={{ color: '#FFA726', fontSize: 12, marginTop: 4, marginBottom: 0 }}>
+              Selecciona una comuna de la lista que aparece al escribir.
+            </p>
+          )}
           
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
             Giro comercial <span style={{ color: '#EC6819' }}>*</span>
@@ -274,26 +304,10 @@ function ProviderDataScreen() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, margin: 0 }}>
-                  ¿Emites factura electrónica?
+                  ¿Emites factura electrónica afecta a IVA?
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => update('emitsInvoice', false)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 20,
-                    border: 'none',
-                    background: !form.emitsInvoice ? '#EC6819' : '#444',
-                    color: '#fff',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  No
-                </button>
                 <button
                   type="button"
                   onClick={() => update('emitsInvoice', true)}
@@ -301,7 +315,7 @@ function ProviderDataScreen() {
                     padding: '8px 16px',
                     borderRadius: 20,
                     border: 'none',
-                    background: form.emitsInvoice ? '#EC6819' : '#444',
+                    background: form.emitsInvoice === true ? '#EC6819' : '#444',
                     color: '#fff',
                     fontSize: 13,
                     fontWeight: 600,
@@ -309,6 +323,22 @@ function ProviderDataScreen() {
                   }}
                 >
                   Sí
+                </button>
+                <button
+                  type="button"
+                  onClick={() => update('emitsInvoice', false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 20,
+                    border: 'none',
+                    background: form.emitsInvoice === false ? '#EC6819' : '#444',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  No
                 </button>
               </div>
             </div>

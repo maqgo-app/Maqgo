@@ -11,6 +11,7 @@ function ProviderProfileScreen() {
   const navigate = useNavigate();
   const [providerData, setProviderData] = useState({});
   const [bankComplete, setBankComplete] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const providerRole = localStorage.getItem('providerRole') || 'super_master';
   const isOperator = providerRole === 'operator';
   const operatorName = localStorage.getItem('operatorName') || 'Operador';
@@ -199,7 +200,7 @@ function ProviderProfileScreen() {
 
         {/* Cerrar sesión */}
         <button
-          onClick={handleLogout}
+          onClick={() => setShowLogoutConfirm(true)}
           style={{
             width: '100%',
             padding: 16,
@@ -223,6 +224,73 @@ function ProviderProfileScreen() {
         }}>
           MAQGO v1.0
         </p>
+
+        {/* Modal de confirmación de logout */}
+        {showLogoutConfirm && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 24
+          }}>
+            <div style={{
+              background: '#2A2A2A',
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 320,
+              width: '100%',
+              textAlign: 'center'
+            }}>
+              <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 600, margin: '0 0 12px' }}>
+                ¿Cerrar sesión?
+              </h3>
+              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, margin: '0 0 24px' }}>
+                Tendrás que volver a iniciar sesión para continuar.
+              </p>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  style={{
+                    flex: 1,
+                    padding: 12,
+                    background: '#444',
+                    border: 'none',
+                    borderRadius: 25,
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    flex: 1,
+                    padding: 12,
+                    background: '#ff6b6b',
+                    border: 'none',
+                    borderRadius: 25,
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cerrar sesión
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -38,10 +38,13 @@ function ProviderRegisterScreen() {
     setLoading(true);
     
     try {
-      await axios.post(`${BACKEND_URL}/api/auth/register`, {
+      const res = await axios.post(`${BACKEND_URL}/api/auth/register`, {
         ...form,
         role: 'provider'
       });
+      if (res.data?.id) {
+        localStorage.setItem('userId', res.data.id);
+      }
     } catch (e) {
       const msg = e.response?.data?.detail;
       if (Array.isArray(msg)) {
@@ -80,17 +83,25 @@ function ProviderRegisterScreen() {
 
         {/* Formulario */}
         <div style={{ flex: 1 }}>
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+            Nombre <span style={{ color: '#EC6819' }}>*</span>
+          </label>
           <input
             className="maqgo-input"
-            placeholder="Nombre"
+            placeholder="Ej: Juan"
             value={form.nombre}
             onChange={e => update('nombre', e.target.value)}
+            style={{ marginBottom: 12 }}
           />
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+            Apellido <span style={{ color: '#EC6819' }}>*</span>
+          </label>
           <input
             className="maqgo-input"
-            placeholder="Apellido"
+            placeholder="Ej: Pérez"
             value={form.apellido}
             onChange={e => update('apellido', e.target.value)}
+            style={{ marginBottom: 12 }}
           />
           <input
             className="maqgo-input"

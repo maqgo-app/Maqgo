@@ -23,7 +23,8 @@ function VerifySMSScreen() {
 
   const registerData = getObject('registerData', {});
   const channel = localStorage.getItem('verificationChannel') || 'sms';
-  const phone = registerData.celular ? `+56${registerData.celular.replace(/\D/g, '')}` : '';
+  const digits = registerData.celular ? String(registerData.celular).replace(/\D/g, '').slice(-9) : '';
+  const phone = digits.length >= 9 ? `+56${digits}` : '';
 
   // Timer de expiración
   useEffect(() => {
@@ -105,6 +106,10 @@ function VerifySMSScreen() {
   const handleVerify = async () => {
     const fullCode = code.join('');
     if (fullCode.length !== 6) return;
+    if (!phone) {
+      setError('No se encontró el número de celular. Vuelve al registro.');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -123,9 +128,13 @@ function VerifySMSScreen() {
 
       if (data.valid) {
         localStorage.setItem('phoneVerified', 'true');
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+          if (data.userId) localStorage.setItem('userId', data.userId);
+        }
         navigate('/verified');
       } else {
-        setError('Código incorrecto. Intenta nuevamente.');
+        setError(data.error || 'Código incorrecto. Intenta nuevamente.');
         setCode(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
       }
@@ -161,7 +170,7 @@ function VerifySMSScreen() {
         setCode(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
       } else {
-        setError(data.error || 'Error al reenviar el código');
+        setError(data.error || data.detail || 'Error al reenviar el código');
       }
     } catch (err) {
       setError('Error de conexión');
@@ -193,7 +202,7 @@ function VerifySMSScreen() {
             marginBottom: 10,
             fontFamily: "'Space Grotesk', sans-serif"
           }}>
-            💬 Ingresa el código SMS
+            💬 Ingresa el código
           </h2>
           
           <p style={{
@@ -203,7 +212,7 @@ function VerifySMSScreen() {
             marginBottom: 6,
             fontFamily: "'Inter', sans-serif"
           }}>
-            Ingresa el código de 6 dígitos que recibiste por SMS en tu celular.
+            Ingresa el código de 6 dígitos que enviamos a tu celular.
           </p>
 
           {/* Timer de expiración */}

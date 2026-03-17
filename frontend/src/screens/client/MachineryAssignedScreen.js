@@ -691,8 +691,8 @@ function MachineryAssignedScreen() {
           </div>
         </div>
 
-        {/* Solo modo demo (Continuar sin tarjeta): atajo para llegar hasta el final */}
-        {(localStorage.getItem('currentServiceId') || '').startsWith('demo-') && (
+        {/* Solo modo demo: atajo para llegar hasta el final (oculto en producción) */}
+        {import.meta.env.VITE_IS_PRODUCTION !== 'true' && (localStorage.getItem('currentServiceId') || '').startsWith('demo-') && (
           <button
             onClick={() => navigate('/client/provider-arrived')}
             style={{

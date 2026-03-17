@@ -96,10 +96,11 @@ async def register(request: Request, body: RegisterRequest):
         # Agregar el otro rol a la misma cuenta (cliente + proveedor)
         user_id = existing["id"]
         new_roles = list(dict.fromkeys(roles + [body.role]))
+        phone_e164 = _format_phone(body.celular)
         update = {
             "roles": new_roles,
             "name": f"{body.nombre} {body.apellido}",
-            "phone": body.celular,
+            "phone": phone_e164 or body.celular,
             "password": hash_password(body.password),
         }
         if body.role == "provider":
@@ -131,11 +132,12 @@ async def register(request: Request, body: RegisterRequest):
         }
 
     user_id = f"user_{secrets.token_hex(8)}"
+    phone_e164 = _format_phone(body.celular)
     user = {
         "id": user_id,
         "name": f"{body.nombre} {body.apellido}",
         "email": body.email,
-        "phone": body.celular,
+        "phone": phone_e164 or body.celular,
         "password": hash_password(body.password),
         "role": body.role,
         "roles": [body.role],
@@ -145,7 +147,6 @@ async def register(request: Request, body: RegisterRequest):
     }
     await db.users.insert_one(user)
 
-    phone_e164 = _format_phone(body.celular)
     sms_result = send_sms_otp(phone_e164, channel='sms')
     if DEMO_MODE or sms_result.get('demo_mode'):
         sms_code = DEMO_OTP_CODE

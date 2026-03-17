@@ -2,25 +2,29 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TermsModal } from '../components/MaqgoComponents';
 import MaqgoLogo from '../components/MaqgoLogo';
-import { validateEmail, validateCelularChile } from '../utils/chileanValidation';
+import { useToast } from '../components/Toast';
+import { validateEmail, validateCelularChile, validateRut, formatRut, sanitizeRutInput } from '../utils/chileanValidation';
 import BACKEND_URL from '../utils/api';
 
 /**
- * C03 - Registro Cliente SIMPLIFICADO
- * Solo datos básicos: nombre, celular, email
- * Datos de facturación se piden al momento del pago
+ * C03 - Registro Cliente
+ * Datos: nombre, apellido, correo, celular, RUT
+ * Datos de facturación empresa se piden al momento del pago (si necesita factura)
  */
 function RegisterScreen() {
   const navigate = useNavigate();
+  const toast = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
-    nombre: '',      // Usado como "Nombre completo"
-    apellido: '',    // Se deja para compatibilidad interna (vacío)
+    nombre: '',
+    apellido: '',
     email: '',
-    celular: ''
+    celular: '',
+    rut: ''          // Para boleta electrónica (cuando no necesita factura)
   });
   const [accepted, setAccepted] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
-  const [errors, setErrors] = useState({ email: '', celular: '' });
+  const [errors, setErrors] = useState({ email: '', celular: '', rut: '' });
 
   const update = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -28,23 +32,24 @@ function RegisterScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!accepted) return;
+    if (!accepted || isSubmitting) return;
     const emailErr = validateEmail(form.email);
     const celularErr = validateCelularChile(form.celular);
-    if (emailErr || celularErr) {
-      setErrors({ email: emailErr, celular: celularErr });
+    const rutErr = !form.rut ? 'Ingresa tu RUT' : !validateRut(form.rut) ? 'RUT inválido' : '';
+    if (emailErr || celularErr || rutErr) {
+      setErrors({ email: emailErr, celular: celularErr, rut: rutErr });
       return;
     }
-    setErrors({ email: '', celular: '' });
+    setErrors({ email: '', celular: '', rut: '' });
     localStorage.setItem('registerData', JSON.stringify(form));
 
-    // Enviar código SMS directamente (sin pantalla intermedia)
     const phone = form.celular ? `+56${form.celular.replace(/\D/g, '')}` : '';
     if (!phone) {
       setErrors(prev => ({ ...prev, celular: 'Número de celular inválido' }));
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const response = await fetch(`${BACKEND_URL}/api/communications/sms/send-otp`, {
         method: 'POST',
@@ -59,19 +64,22 @@ function RegisterScreen() {
         localStorage.setItem('verificationChannel', 'sms');
         navigate('/verify-sms');
       } else {
-        setErrors(prev => ({ ...prev, celular: data.detail || data.error || 'Error al enviar el código SMS' }));
+        const msg = data.detail || data.error || 'Error al enviar el código SMS';
+        setErrors(prev => ({ ...prev, celular: msg }));
+        toast.error(msg);
       }
     } catch (err) {
-      setErrors(prev => ({
-        ...prev,
-        celular: err.message?.includes('Failed to fetch')
-          ? 'No se pudo conectar al servidor. ¿Está el backend en marcha?'
-          : 'Error de conexión. Intenta nuevamente.'
-      }));
+      const msg = err.message?.includes('Failed to fetch')
+        ? 'No se pudo conectar al servidor. Intenta nuevamente.'
+        : 'Error de conexión. Intenta nuevamente.';
+      setErrors(prev => ({ ...prev, celular: msg }));
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const isValid = form.nombre && form.email && form.celular && accepted;
+  const isValid = form.nombre && form.apellido && form.email && form.celular && form.rut && validateRut(form.rut) && accepted;
 
   return (
     <div className="maqgo-app">
@@ -93,16 +101,29 @@ function RegisterScreen() {
         {/* Formulario */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-            Nombre completo <span style={{ color: '#EC6819' }}>*</span>
+            Nombre <span style={{ color: '#EC6819' }}>*</span>
           </label>
           <input
             className="maqgo-input"
-            placeholder="Ej: Juan Pérez"
+            placeholder="Ej: Juan"
             value={form.nombre}
             onChange={e => update('nombre', e.target.value)}
             style={{ marginBottom: 12 }}
             data-testid="register-nombre"
-            aria-label="Nombre completo"
+            aria-label="Nombre"
+          />
+
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+            Apellido <span style={{ color: '#EC6819' }}>*</span>
+          </label>
+          <input
+            className="maqgo-input"
+            placeholder="Ej: Pérez"
+            value={form.apellido}
+            onChange={e => update('apellido', e.target.value)}
+            style={{ marginBottom: 12 }}
+            data-testid="register-apellido"
+            aria-label="Apellido"
           />
           
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
@@ -158,6 +179,21 @@ function RegisterScreen() {
           </div>
           {errors.celular ? <p style={{ color: '#f44336', fontSize: 12, marginBottom: 12 }}>{errors.celular}</p> : null}
 
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+            RUT <span style={{ color: '#EC6819' }}>*</span>
+          </label>
+          <input
+            className="maqgo-input"
+            placeholder="12.345.678-9"
+            value={formatRut(form.rut)}
+            onChange={e => update('rut', sanitizeRutInput(e.target.value))}
+            maxLength={12}
+            style={{ marginBottom: errors.rut ? 4 : 16, borderColor: errors.rut ? '#f44336' : undefined }}
+            data-testid="register-rut"
+            aria-label="RUT"
+          />
+          {errors.rut ? <p style={{ color: '#f44336', fontSize: 12, marginBottom: 12 }}>{errors.rut}</p> : null}
+
           {/* Checkbox T&C */}
           <div style={{ 
             display: 'flex', 
@@ -211,12 +247,12 @@ function RegisterScreen() {
         <button 
           className="maqgo-btn-primary"
           onClick={handleSubmit}
-          disabled={!isValid}
-          style={{ opacity: isValid ? 1 : 0.5 }}
+          disabled={!isValid || isSubmitting}
+          style={{ opacity: isValid && !isSubmitting ? 1 : 0.5 }}
           data-testid="register-submit"
           aria-label="Continuar con el registro"
         >
-          Continuar
+          {isSubmitting ? 'Enviando...' : 'Continuar'}
         </button>
 
         {/* Link a login */}

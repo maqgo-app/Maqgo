@@ -1,7 +1,7 @@
 /**
  * MAQGO Design Tokens
- * Variables centralizadas para mantener consistencia y facilitar cambios.
- * Usar: var(--maqgo-orange), var(--maqgo-spacing-md), etc.
+ * Variables centralizadas para consistencia y mantenibilidad.
+ * Usar: var(--maqgo-orange), var(--maqgo-bg), etc.
  */
 
 :root {
@@ -9,10 +9,13 @@
   --maqgo-orange: #EC6819;
   --maqgo-orange-dark: #D45A10;
   --maqgo-cyan: #90BDD3;
-  --maqgo-bg: #0E0E12;
+
+  /* Fondos: mobile-first. Desktop override más abajo. */
+  --maqgo-bg: #101014;
   --maqgo-bg-outer: #000000;
   --maqgo-bg-card: #1A1A1F;
   --maqgo-bg-input: #2A2A2A;
+
   --maqgo-text: #FAFAFA;
   --maqgo-text-secondary: #E0E0E0;
   --maqgo-text-muted: rgba(255, 255, 255, 0.6);
@@ -28,7 +31,6 @@
   --maqgo-space-lg: 24px;
   --maqgo-space-xl: 32px;
 
-  /* Padding superior consistente para pantallas con header (logo pequeño) */
   --maqgo-screen-padding-top: max(50px, env(safe-area-inset-top, 0px) + 24px);
 
   /* === BORDES === */
@@ -49,7 +51,7 @@
   --maqgo-breakpoint-mobile: 768px;
   --maqgo-breakpoint-narrow: 380px;
 
-  /* === Z-INDEX (escala: base 100, overlays 1000, modales 10000) === */
+  /* === Z-INDEX === */
   --maqgo-z-base: 1;
   --maqgo-z-sticky: 10;
   --maqgo-z-dropdown: 100;
@@ -61,4 +63,11 @@
   --maqgo-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
   --maqgo-shadow-md: 0 4px 20px rgba(0, 0, 0, 0.3);
   --maqgo-shadow-orange: 0 4px 16px rgba(236, 104, 25, 0.3);
+}
+
+/* Desktop: fondo más oscuro */
+@media (min-width: 768px) {
+  :root {
+    --maqgo-bg: #0A0A0E;
+  }
 }

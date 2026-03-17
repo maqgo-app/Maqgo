@@ -1,0 +1,22 @@
+---
+description: Paleta y fondos MAQGO - mantener consistencia visual
+globs: "**/*.css,**/tokens.css,**/maqgo.css,**/*.jsx,**/*.js"
+alwaysApply: false
+---
+
+# MAQGO Design Tokens
+
+## Fondos de pantalla (NO modificar)
+
+- **Mobile:** `--maqgo-bg: #101014` (gris muy oscuro)
+- **Desktop:** `--maqgo-bg: #0A0A0E` (override en media 768px+)
+- **Exterior:** `--maqgo-bg-outer: #000000`
+
+**Regla:** Mantener estos valores. El modo oscuro es la identidad de MAQGO y favorece el contraste con el naranja (#EC6819) y la lectura en entornos de obra.
+
+## Paleta cerrada
+
+- Acción: `#EC6819` (naranja MAQGO)
+- Info pasiva: `#90BDD3` (azul, nunca para botones)
+- Cards: `#1A1A1F`
+- Inputs: `#2A2A2A`

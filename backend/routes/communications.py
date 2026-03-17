@@ -113,16 +113,16 @@ class NotifyOwnerAlertRequest(BaseModel):
 @limiter.limit("5/minute")
 async def api_send_otp(request: Request, body: SendOTPRequest):
     """
-    Send 6-digit OTP via SMS or WhatsApp.
-    - OTP valid for 5 minutes
-    - Max 3 attempts
+    Send 6-digit OTP via SMS (OTP SNS / Twilio / Demo).
+    - OTP valid for 5 minutes, max 3 attempts, rate limit 3/10min
     - In demo mode, use code: 123456
-    - channel: 'sms' or 'whatsapp'
     """
     result = send_sms_otp(body.phone_number, body.channel)
     
     if not result['success'] and not result.get('demo_mode'):
-        raise HTTPException(status_code=400, detail=result.get('error', 'Failed to send OTP'))
+        err = result.get('error', 'Failed to send OTP')
+        status = 429 if 'Demasiados intentos' in (err or '') else 400
+        raise HTTPException(status_code=status, detail=err)
     
     channel_name = 'WhatsApp' if body.channel == 'whatsapp' else 'SMS'
     
@@ -140,17 +140,47 @@ async def api_verify_otp(request: Request, body: VerifyOTPRequest):
     """
     Verify OTP code.
     - In demo mode, accepts 123456
+    - Returns valid + error (for invalid/expired/too many attempts)
+    - Si OTP válido y existe usuario con ese teléfono: crea sesión y retorna token
     """
+    from auth_dependency import create_session_for_user, _normalize_phone
+    from motor.motor_asyncio import AsyncIOMotorClient
+    import os
+
     result = verify_sms_otp(body.phone_number, body.code)
-    
-    if not result['success']:
-        raise HTTPException(status_code=400, detail=result.get('error', 'Verification failed'))
-    
-    return {
-        'success': True,
-        'valid': result['valid'],
-        'demo_mode': result.get('demo_mode', False)
+
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Verification failed"))
+
+    response = {
+        "success": True,
+        "valid": result.get("valid", False),
+        "error": result.get("error"),
+        "demo_mode": result.get("demo_mode", False),
     }
+
+    # Si OTP válido: buscar usuario por teléfono y crear sesión si existe
+    if result.get("valid") and body.phone_number:
+        digits = "".join(c for c in body.phone_number if c.isdigit())
+        if len(digits) >= 9:
+            digits = digits[-9:]
+            mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+            db_client = AsyncIOMotorClient(mongo_url)
+            db = db_client[os.environ.get("DB_NAME", "maqgo_db")]
+            phone_norm = _normalize_phone(body.phone_number)
+            # Buscar usuario por teléfono (auth guarda en E.164 o 9 dígitos)
+            user = await db.users.find_one(
+                {"$or": [{"phone": phone_norm}, {"phone": body.phone_number}, {"phone": digits}]},
+                {"_id": 0, "id": 1},
+            )
+        else:
+            user = None
+        if user:
+            token = await create_session_for_user(user["id"])
+            response["token"] = token
+            response["userId"] = user["id"]
+
+    return response
 
 
 # ==================== WHATSAPP ENDPOINTS ====================
@@ -609,9 +639,16 @@ async def api_communications_status():
     Check communications module status.
     """
     import os
-    
+    otp_sns = False
+    try:
+        from services.otp_service import is_otp_configured
+        otp_sns = is_otp_configured()
+    except ImportError:
+        pass
+
     return {
         'demo_mode': DEMO_MODE,
+        'otp_sns_configured': otp_sns,
         'twilio_configured': bool(os.environ.get('TWILIO_ACCOUNT_SID')),
         'whatsapp_configured': bool(os.environ.get('TWILIO_WHATSAPP_FROM')),
         'sms_configured': bool(os.environ.get('TWILIO_SMS_FROM')),

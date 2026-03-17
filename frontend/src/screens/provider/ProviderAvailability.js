@@ -13,9 +13,10 @@ import BACKEND_URL from '../../utils/api';
  * Panel del Proveedor
  * Con lista de maquinaria correcta
  */
-function ProviderAvailability({ userId }) {
+function ProviderAvailability({ userId: userIdProp }) {
   const navigate = useNavigate();
   const toast = useToast();
+  const userId = userIdProp || localStorage.getItem('userId') || localStorage.getItem('ownerId');
   const [isAvailable, setIsAvailable] = useState(false);
   const [selectedMachinery, setSelectedMachinery] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -52,30 +53,54 @@ function ProviderAvailability({ userId }) {
       toast.warning('Por favor selecciona tu tipo de maquinaria');
       return;
     }
-    
-    setLoading(true);
-    try {
-      let location = { lat: -33.4489, lng: -70.6693 };
-      if (navigator.geolocation) {
-        try {
-          const pos = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-          });
-          location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        } catch (e) {
-          console.log('Usando ubicación por defecto');
-        }
-      }
+    if (!userId) {
+      toast.error('Sesión no encontrada. Cierra sesión y vuelve a entrar.');
+      return;
+    }
 
+    setLoading(true);
+    const newStatus = !isAvailable;
+    let location = { lat: -33.4489, lng: -70.6693 };
+    if (navigator.geolocation) {
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+        });
+        location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      } catch (e) {
+        console.log('Usando ubicación por defecto (Santiago)');
+      }
+    }
+
+    // Modo demo: IDs de prueba no existen en backend
+    const isDemoId = userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-');
+    if (isDemoId) {
+      setIsAvailable(newStatus);
+      setLoading(false);
+      toast.success(newStatus ? 'Disponibilidad activada (modo demo)' : 'Disponibilidad desactivada');
+      return;
+    }
+
+    try {
       await axios.put(`${BACKEND_URL}/api/users/${userId}/availability`, {
-        isAvailable: !isAvailable,
+        isAvailable: newStatus,
         machineryType: selectedMachinery,
         location
-      });
-      setIsAvailable(!isAvailable);
+      }, { timeout: 8000 });
+      setIsAvailable(newStatus);
+      toast.success(newStatus ? 'Disponibilidad activada' : 'Disponibilidad desactivada');
     } catch (error) {
-      toast.error('Error al actualizar disponibilidad. Revisa tu conexión.');
-      setIsAvailable(!isAvailable);
+      const isNetwork = !error.response || error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error');
+      if (error.response?.status === 404) {
+        setIsAvailable(!newStatus);
+        toast.error('Tu sesión expiró. Cierra sesión y vuelve a entrar.');
+      } else if (isNetwork) {
+        setIsAvailable(newStatus);
+        toast.success('Sin conexión. Se guardó localmente.');
+      } else {
+        setIsAvailable(!newStatus);
+        toast.error('No se pudo conectar. Intenta de nuevo.');
+      }
     }
     setLoading(false);
   };

@@ -295,15 +295,15 @@ export function calculateWithInvoice(baseAmount, commissionNeto) {
  * @returns {{ service: number, transport: number, bonus: number, tarifaNeta: number, tarifaConIva: number, ivaTotal: number, total: number, needsInvoice: boolean }}
  */
 export function getClientBreakdown(pricing) {
-  if (!pricing) {
+  if (!pricing || typeof pricing !== 'object') {
     return { service: 0, transport: 0, bonus: 0, tarifaNeta: 0, tarifaConIva: 0, ivaTotal: 0, total: 0, needsInvoice: false };
   }
-  const service = pricing.service_amount ?? pricing.breakdown?.service_cost ?? pricing.service ?? 0;
-  const transport = pricing.transport_cost ?? pricing.breakdown?.transport_cost ?? pricing.transport ?? 0;
-  const bonus = pricing.immediate_bonus ?? pricing.breakdown?.immediate_bonus ?? pricing.bonus ?? 0;
+  const service = pricing.service_amount ?? pricing?.breakdown?.service_cost ?? pricing.service ?? 0;
+  const transport = pricing.transport_cost ?? pricing?.breakdown?.transport_cost ?? pricing.transport ?? 0;
+  const bonus = pricing.immediate_bonus ?? pricing?.breakdown?.immediate_bonus ?? pricing.bonus ?? 0;
   const subtotalServicio = service + transport + bonus;
-  const tarifaNeta = pricing.client_commission ?? pricing.breakdown?.client_commission ?? pricing.maqgoFee ?? 0;
-  const tarifaIva = pricing.client_commission_iva ?? pricing.breakdown?.client_commission_iva ?? pricing.maqgoFeeIva ?? Math.round(tarifaNeta * IVA_RATE);
+  const tarifaNeta = pricing.client_commission ?? pricing?.breakdown?.client_commission ?? pricing.maqgoFee ?? 0;
+  const tarifaIva = pricing.client_commission_iva ?? pricing?.breakdown?.client_commission_iva ?? pricing.maqgoFeeIva ?? Math.round(tarifaNeta * IVA_RATE);
   const tarifaConIva = tarifaNeta + tarifaIva;
   const hasStoredIva = pricing.ivaProveedor != null || pricing.maqgoFeeIva != null;
   const ivaTotal = hasStoredIva

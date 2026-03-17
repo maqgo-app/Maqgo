@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import { useToast } from '../../components/Toast';
 import { playNewRequestSound, playTapSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
 
@@ -21,6 +22,7 @@ import { getObject, getJSON } from '../../utils/safeStorage';
  */
 function OperatorHomeScreen() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [available, setAvailable] = useState(() => {
     return localStorage.getItem('providerAvailable') === 'true';
   });
@@ -37,7 +39,8 @@ function OperatorHomeScreen() {
     try {
       const userId = localStorage.getItem('userId');
       const ownerId = localStorage.getItem('ownerId');
-      
+      const isDemoId = userId && (userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-'));
+
       // Obtener nombre del dueño
       if (ownerId) {
         try {
@@ -46,13 +49,28 @@ function OperatorHomeScreen() {
             setOwnerName(ownerRes.data.name || ownerRes.data.providerData?.businessName || 'Mi Empresa');
           }
         } catch (e) {
-          // Usar nombre guardado
           const savedProvider = getObject('providerData', {});
           setOwnerName(savedProvider.businessName || 'Transportes Silva SpA');
         }
       } else {
         const savedProvider = getObject('providerData', {});
         setOwnerName(savedProvider.businessName || 'Transportes Silva SpA');
+      }
+
+      // Sincronizar disponibilidad desde backend (fuente de verdad) al montar
+      if (userId && !isDemoId) {
+        try {
+          const userRes = await axios.get(`${BACKEND_URL}/api/users/${userId}`, { timeout: 5000 });
+          const avail = userRes.data?.isAvailable ?? userRes.data?.available ?? false;
+          setAvailable(!!avail);
+          localStorage.setItem('providerAvailable', (!!avail).toString());
+        } catch (e) {
+          const saved = localStorage.getItem('providerAvailable') === 'true';
+          setAvailable(saved);
+        }
+      } else {
+        const saved = localStorage.getItem('providerAvailable') === 'true';
+        setAvailable(saved);
       }
       
       // Obtener estadísticas del operador
@@ -68,12 +86,10 @@ function OperatorHomeScreen() {
             });
           }
         } catch (e) {
-          // Datos demo
           setStats({ completed: 12, pending: 1, rating: 4.8, hoursWorked: 48 });
         }
       }
       
-      // Simular próximo trabajo si hay pendiente
       const savedJob = getJSON('activeServiceRequest', null);
       if (savedJob) setNextJob(savedJob);
     } catch (e) {
@@ -110,6 +126,12 @@ function OperatorHomeScreen() {
   }, [available, navigate]);
 
   const toggleAvailability = async () => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      toast.error('Sesión no encontrada. Vuelve a ingresar con tu código.');
+      return;
+    }
+
     const newStatus = !available;
     setAvailable(newStatus);
     localStorage.setItem('providerAvailable', newStatus.toString());
@@ -119,13 +141,32 @@ function OperatorHomeScreen() {
     playTapSound();
     vibrate(newStatus ? 'accepted' : 'tap');
     
+    // Modo demo: IDs de fallback cuando el backend no responde
+    const isDemoId = userId.startsWith('provider-') || userId.startsWith('demo-');
+    if (isDemoId) {
+      toast.success(newStatus ? 'Te conectaste (modo demo)' : 'Te desconectaste');
+      return;
+    }
+
     try {
-      const userId = localStorage.getItem('userId');
       await axios.patch(`${BACKEND_URL}/api/users/${userId}`, {
         available: newStatus
-      });
+      }, { timeout: 8000 });
+      toast.success(newStatus ? 'Te conectaste' : 'Te desconectaste');
     } catch (e) {
       console.error(e);
+      const isNetwork = !e.response || e.code === 'ECONNABORTED' || e.code === 'ERR_NETWORK' || e.message?.includes('Network Error');
+      if (e.response?.status === 404) {
+        setAvailable(!newStatus);
+        localStorage.setItem('providerAvailable', (!newStatus).toString());
+        toast.error('Tu sesión expiró. Vuelve a ingresar con tu código.');
+      } else if (isNetwork) {
+        toast.error('Sin conexión. La disponibilidad se guardó localmente.');
+      } else {
+        setAvailable(!newStatus);
+        localStorage.setItem('providerAvailable', (!newStatus).toString());
+        toast.error('No se pudo conectar. Intenta de nuevo.');
+      }
     }
   };
 
@@ -398,15 +439,17 @@ function OperatorHomeScreen() {
 
         <div style={{ flex: 1 }}></div>
 
-        {/* Botones de acción */}
-        <button 
-          className="maqgo-btn-primary"
-          onClick={simulateRequest}
-          style={{ marginBottom: 12 }}
-          data-testid="simulate-request-operator"
-        >
-          Simular solicitud (Demo)
-        </button>
+        {/* Botón demo: oculto en producción live */}
+        {import.meta.env.VITE_IS_PRODUCTION !== 'true' && (
+          <button 
+            className="maqgo-btn-primary"
+            onClick={simulateRequest}
+            style={{ marginBottom: 12 }}
+            data-testid="simulate-request-operator"
+          >
+            Simular solicitud (Demo)
+          </button>
+        )}
 
         <button 
           onClick={() => navigate('/operator/history')}

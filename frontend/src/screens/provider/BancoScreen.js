@@ -27,7 +27,8 @@ function BancoScreen() {
     bank: '',
     accountType: '',
     accountNumber: '',
-    holderName: '',
+    holderNombre: '',
+    holderApellido: '',
     holderRut: ''
   });
 
@@ -36,11 +37,20 @@ function BancoScreen() {
     const provider = getObject('providerData', {});
     
     if (savedBank.bank) {
-      setData(savedBank);
+      const parts = (savedBank.holderName || '').trim().split(/\s+/);
+      setData(prev => ({
+        ...savedBank,
+        holderNombre: parts[0] || '',
+        holderApellido: parts.slice(1).join(' ') || '',
+        holderRut: savedBank.holderRut || prev.holderRut
+      }));
     } else {
+      const biz = (provider.businessName || '').trim();
+      const parts = biz.split(/\s+/);
       setData(prev => ({
         ...prev,
-        holderName: provider.businessName || '',
+        holderNombre: parts[0] || '',
+        holderApellido: parts.slice(1).join(' ') || '',
         holderRut: provider.rut || ''
       }));
     }
@@ -70,13 +80,21 @@ function BancoScreen() {
       return;
     }
     
-    localStorage.setItem('bankData', JSON.stringify(data));
+    const toSave = {
+      bank: data.bank,
+      accountType: data.accountType,
+      accountNumber: data.accountNumber,
+      holderName: `${(data.holderNombre || '').trim()} ${(data.holderApellido || '').trim()}`.trim(),
+      holderRut: data.holderRut
+    };
+    localStorage.setItem('bankData', JSON.stringify(toSave));
     setSaved(true);
     setTimeout(() => navigate('/provider/profile'), 1000);
   };
 
   const isValid = data.bank && data.accountType && data.accountNumber && 
-                  data.holderName && data.holderRut && validateRut(data.holderRut);
+                  data.holderNombre?.trim() && 
+                  data.holderRut && validateRut(data.holderRut);
 
   const inputStyle = {
     width: '100%',
@@ -212,11 +230,24 @@ function BancoScreen() {
             </label>
             <input
               type="text"
-              value={data.holderName}
-              onChange={(e) => setData(p => ({ ...p, holderName: e.target.value }))}
-              placeholder="Nombre completo o razón social"
+              value={data.holderNombre}
+              onChange={(e) => setData(p => ({ ...p, holderNombre: e.target.value }))}
+              placeholder="Ej: Juan"
               style={inputStyle}
-              data-testid="holder-name-input"
+              data-testid="holder-nombre-input"
+            />
+          </div>
+          <div>
+            <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: 6, display: 'block' }}>
+              Apellido del titular <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 400 }}>(opcional si es empresa)</span>
+            </label>
+            <input
+              type="text"
+              value={data.holderApellido}
+              onChange={(e) => setData(p => ({ ...p, holderApellido: e.target.value }))}
+              placeholder="Ej: Pérez"
+              style={inputStyle}
+              data-testid="holder-apellido-input"
             />
           </div>
 

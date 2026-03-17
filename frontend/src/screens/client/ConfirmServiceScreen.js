@@ -49,12 +49,13 @@ function ConfirmServiceScreen() {
   const [matchedProviders, setMatchedProviders] = useState(() => getArray('matchedProviders', []));
   const [isConfirming, setIsConfirming] = useState(false);
 
-  const isPerTrip = MACHINERY_PER_TRIP.includes(machinery);
+  const machineryKey = (machinery || '').toLowerCase().replace(/\s+/g, '_');
+  const isPerTrip = MACHINERY_PER_TRIP.includes(machineryKey) || MACHINERY_PER_TRIP.includes(machinery);
   const isHybrid = reservationType === 'immediate' && additionalDays > 0;
   const totalDays = selectedDates.length || 1;
-  const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machinery);
+  const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machineryKey) && !MACHINERY_NO_TRANSPORT.includes(machinery);
 
-  const refTrip = isPerTrip ? REFERENCE_PRICES[machinery] : null;
+  const refTrip = isPerTrip ? (REFERENCE_PRICES[machineryKey] ?? REFERENCE_PRICES[machinery]) : null;
   const tripSpread = [0.85, 0.92, 1, 1.08, 1.15];
   const hoursForPricing = reservationType === 'scheduled' ? 8 : hoursToday;
 
@@ -71,7 +72,7 @@ function ConfirmServiceScreen() {
       let base = p.price_per_hour || 0;
       if (refTrip && base > 0 && base < 100000) base = Math.round(refTrip * (tripSpread[Math.min(idx, 4)] || 1));
       return calculateClientPrice({
-        machineryType: machinery,
+        machineryType: machineryKey || machinery,
         basePrice: base,
         transportFee: needsTransport ? (p.transport_fee || 0) : 0,
         hours: hoursForPricing,
@@ -101,19 +102,26 @@ function ConfirmServiceScreen() {
   }, [providerForMax, machinery, isPerTrip, refTrip]);
 
   // Fallback local para mostrar desde el primer render (evita flash "Calculando precio..." → desglose)
+  // Para per-trip (tolva, pluma, aljibe): si price_per_hour es 0, usar REFERENCE_PRICES
   const fallbackPricing = useMemo(() => {
-    if (!effectiveProvider?.price_per_hour) return null;
-    return buildPricingFallback({
-      machineryType: machinery,
-      basePrice: effectiveProvider.price_per_hour,
-      transportFee: needsTransport ? (effectiveProvider.transport_fee || 0) : 0,
-      hours: hoursToday,
-      days: totalDays,
-      reservationType,
-      isHybrid,
-      additionalDays
-    });
-  }, [effectiveProvider, machinery, hoursToday, totalDays, reservationType, isHybrid, additionalDays, needsTransport]);
+    const basePrice = effectiveProvider?.price_per_hour ?? 0;
+    const priceToUse = (basePrice > 0) ? basePrice : (isPerTrip && refTrip ? refTrip : 0);
+    if (!priceToUse) return null;
+    try {
+      return buildPricingFallback({
+        machineryType: machineryKey || machinery,
+        basePrice: priceToUse,
+        transportFee: needsTransport ? (effectiveProvider?.transport_fee || 0) : 0,
+        hours: hoursToday,
+        days: totalDays,
+        reservationType,
+        isHybrid,
+        additionalDays
+      });
+    } catch {
+      return null;
+    }
+  }, [effectiveProvider, machinery, machineryKey, hoursToday, totalDays, reservationType, isHybrid, additionalDays, needsTransport, isPerTrip, refTrip]);
 
   // Preload paso 6 para evitar flash al navegar
   useEffect(() => {
@@ -123,7 +131,9 @@ function ConfirmServiceScreen() {
 
   useEffect(() => {
     const fetchPricing = async () => {
-      if (!effectiveProvider?.price_per_hour) return;
+      const basePrice = effectiveProvider?.price_per_hour ?? 0;
+      const priceToUse = basePrice > 0 ? basePrice : (isPerTrip && refTrip ? refTrip : 0);
+      if (!priceToUse) return;
       const transportCost = needsTransport ? (effectiveProvider.transport_fee || 0) : 0;
       const FAST_FALLBACK_MS = 2500;
       const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
@@ -131,8 +141,8 @@ function ConfirmServiceScreen() {
         let apiPromise;
         if (isHybrid) {
           apiPromise = axios.post(`${BACKEND_URL}/api/pricing/hybrid`, {
-            machinery_type: machinery,
-            base_price_hr: effectiveProvider.price_per_hour,
+            machinery_type: machineryKey || machinery,
+            base_price_hr: priceToUse,
             hours_today: hoursToday,
             additional_days: additionalDays,
             transport_cost: transportCost,
@@ -140,8 +150,8 @@ function ConfirmServiceScreen() {
           }, { timeout: 5000 });
         } else if (reservationType === 'immediate') {
           apiPromise = axios.post(`${BACKEND_URL}/api/pricing/immediate`, {
-            machinery_type: machinery,
-            base_price_hr: effectiveProvider.price_per_hour,
+            machinery_type: machineryKey || machinery,
+            base_price_hr: priceToUse,
             hours: hoursToday,
             transport_cost: transportCost,
             is_immediate: true,
@@ -149,15 +159,18 @@ function ConfirmServiceScreen() {
           }, { timeout: 5000 });
         } else {
           apiPromise = axios.post(`${BACKEND_URL}/api/pricing/scheduled`, {
-            machinery_type: machinery,
-            base_price: effectiveProvider.price_per_hour,
+            machinery_type: machineryKey || machinery,
+            base_price: priceToUse,
             days: totalDays,
             transport_cost: transportCost,
             needs_invoice: needsInvoice
           }, { timeout: 5000 });
         }
         const response = await Promise.race([apiPromise, timeoutPromise]);
-        setPricing(response.data);
+        const data = response?.data;
+        if (data && typeof data === 'object' && (data.final_price != null || data.breakdown)) {
+          setPricing(data);
+        }
       } catch (error) {
         console.error('Error fetching pricing:', error);
         // Fast fallback: usar precio local para no bloquear; ConnectionError solo si fallo real
@@ -168,8 +181,8 @@ function ConfirmServiceScreen() {
           return;
         }
         setPricing(buildPricingFallback({
-          machineryType: machinery,
-          basePrice: effectiveProvider.price_per_hour,
+          machineryType: machineryKey || machinery,
+          basePrice: priceToUse,
           transportFee: needsTransport ? (effectiveProvider.transport_fee || 0) : 0,
           hours: hoursToday,
           days: totalDays,
@@ -180,10 +193,8 @@ function ConfirmServiceScreen() {
       }
     };
 
-    if (effectiveProvider?.price_per_hour) {
-      fetchPricing();
-    }
-  }, [effectiveProvider, hoursToday, additionalDays, reservationType, machinery, totalDays, isHybrid, retryCount, needsInvoice]);
+    fetchPricing();
+  }, [effectiveProvider, hoursToday, additionalDays, reservationType, machinery, machineryKey, totalDays, isHybrid, retryCount, needsInvoice, isPerTrip, refTrip, needsTransport]);
 
   // Mostrar fallback desde el primer render para evitar flash (layout estable)
   const displayPricing = pricing ?? fallbackPricing;
@@ -248,8 +259,14 @@ function ConfirmServiceScreen() {
   };
 
   const handleConfirm = () => {
+    if (!displayPricing) return;
     setIsConfirming(true);
-    doConfirm();
+    try {
+      doConfirm();
+    } catch (err) {
+      console.error('Error en confirmación:', err);
+      setIsConfirming(false);
+    }
   };
 
   const handleInvoiceToggle = (value) => {
@@ -265,16 +282,16 @@ function ConfirmServiceScreen() {
     let subtotal = 0;
     
     if (isHybrid && p.today) {
-      subtotal += p.today.total_cost || 0;
+      subtotal += p.today?.total_cost || 0;
       subtotal += p.additional_days?.total_cost || 0;
     } else if (reservationType === 'immediate') {
-      subtotal += p.service_amount || p.breakdown?.service_cost || 0;
-      subtotal += p.breakdown?.immediate_bonus || p.immediate_bonus || 0;
+      subtotal += p.service_amount || p?.breakdown?.service_cost || 0;
+      subtotal += p?.breakdown?.immediate_bonus || p.immediate_bonus || 0;
     } else {
-      subtotal += p.breakdown?.service_cost || 0;
+      subtotal += p?.breakdown?.service_cost || 0;
     }
     
-    subtotal += p.transport_cost || p.breakdown?.transport_cost || 0;
+    subtotal += p.transport_cost || p?.breakdown?.transport_cost || 0;
     
     return subtotal;
   };
@@ -436,58 +453,67 @@ function ConfirmServiceScreen() {
                 </p>
               )}
 
-              {/* Con / Sin factura - mismo bloque que el precio */}
+              {/* ¿Necesitas factura con RUT empresa? */}
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 4,
+                gap: 10,
                 padding: '12px 0',
                 borderTop: '1px solid rgba(255,255,255,0.1)',
                 borderBottom: '1px solid rgba(255,255,255,0.1)',
                 marginBottom: 14
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: 500 }}>
-                    Necesitas factura:
-                  </span>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      onClick={() => handleInvoiceToggle(false)}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: 20,
-                        border: 'none',
-                        background: !needsInvoice ? 'var(--maqgo-orange)' : '#444',
-                        color: '#fff',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                      data-testid="no-invoice-btn"
-                    >
-                      No
-                    </button>
-                    <button
-                      onClick={() => handleInvoiceToggle(true)}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: 20,
-                        border: 'none',
-                        background: needsInvoice ? 'var(--maqgo-orange)' : '#444',
-                        color: '#fff',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                      data-testid="yes-invoice-btn"
-                    >
-                      Sí
-                    </button>
-                  </div>
+                <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: 500 }}>
+                  ¿Necesitas factura con RUT empresa?
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleInvoiceToggle(true)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      padding: 12,
+                      borderRadius: 10,
+                      border: `2px solid ${needsInvoice ? 'var(--maqgo-orange)' : 'rgba(255,255,255,0.2)'}`,
+                      background: needsInvoice ? 'rgba(236, 104, 25, 0.12)' : 'transparent',
+                      color: '#fff',
+                      fontSize: 13,
+                      textAlign: 'left',
+                      cursor: 'pointer'
+                    }}
+                    data-testid="yes-invoice-btn"
+                  >
+                    <span style={{ flexShrink: 0, fontSize: 16 }}>{needsInvoice ? '☑' : '☐'}</span>
+                    <span>
+                      <strong>Sí</strong> → Ingresar RUT empresa + Razón social
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleInvoiceToggle(false)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      padding: 12,
+                      borderRadius: 10,
+                      border: `2px solid ${!needsInvoice ? 'var(--maqgo-orange)' : 'rgba(255,255,255,0.2)'}`,
+                      background: !needsInvoice ? 'rgba(236, 104, 25, 0.12)' : 'transparent',
+                      color: '#fff',
+                      fontSize: 13,
+                      textAlign: 'left',
+                      cursor: 'pointer'
+                    }}
+                    data-testid="no-invoice-btn"
+                  >
+                    <span style={{ flexShrink: 0, fontSize: 16 }}>{!needsInvoice ? '☑' : '☐'}</span>
+                    <span>
+                      <strong>No</strong> → Se emitirá boleta electrónica automáticamente con los datos que ingresaste
+                    </span>
+                  </button>
                 </div>
-                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, margin: 0 }}>
-                  Si eliges factura, el total incluye IVA y emitiremos la factura a nombre de los datos de facturación que ingreses.
-                </p>
               </div>
 
             </>
@@ -545,34 +571,34 @@ function ConfirmServiceScreen() {
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                     <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>{isPerTrip ? 'Valor viaje' : `Servicio (${hoursToday}h)`}</span>
-                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(pricing.service_amount ?? pricing.breakdown?.base_service ?? (isPerTrip ? effectiveProvider.price_per_hour : effectiveProvider.price_per_hour * hoursToday))}</span>
+                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.service_amount ?? displayPricing?.breakdown?.base_service ?? (isPerTrip ? (effectiveProvider?.price_per_hour ?? refTrip) : (effectiveProvider?.price_per_hour ?? refTrip) * hoursToday))}</span>
                   </div>
-                  {(pricing.breakdown?.immediate_bonus || pricing.immediate_bonus || 0) > 0 && (
+                  {((displayPricing?.breakdown?.immediate_bonus || displayPricing?.immediate_bonus || 0) > 0) && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                       <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, minWidth: 0 }}>Alta demanda</span>
-                      <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(pricing.breakdown?.immediate_bonus || pricing.immediate_bonus || 0)}</span>
+                      <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.breakdown?.immediate_bonus || displayPricing?.immediate_bonus || 0)}</span>
                     </div>
                   )}
                 </>
               )}
 
               {/* CASO 2: Híbrido (hoy + días adicionales) */}
-              {isHybrid && pricing.today && (
+              {isHybrid && displayPricing?.today && (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
-                    <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>{isPerTrip ? 'Hoy (viaje)' : `Hoy (${pricing.today.hours}h)`}</span>
-                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(pricing.today.base_cost ?? (isPerTrip ? effectiveProvider.price_per_hour : effectiveProvider.price_per_hour * pricing.today.hours))}</span>
+                    <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>{isPerTrip ? 'Hoy (viaje)' : `Hoy (${displayPricing.today.hours}h)`}</span>
+                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing.today.base_cost ?? (isPerTrip ? (effectiveProvider?.price_per_hour ?? refTrip) : (effectiveProvider?.price_per_hour ?? refTrip) * displayPricing.today.hours))}</span>
                   </div>
-                  {(pricing.today.surcharge_amount || 0) > 0 && (
+                  {((displayPricing.today.surcharge_amount || 0) > 0) && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                       <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, minWidth: 0 }}>Alta demanda</span>
-                      <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(pricing.today.surcharge_amount || 0)}</span>
+                      <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing.today.surcharge_amount || 0)}</span>
                     </div>
                   )}
-                  {pricing.additional_days?.days > 0 && (
+                  {(displayPricing?.additional_days?.days > 0) && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
-                      <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>{isPerTrip ? `${pricing.additional_days.days} viaje${pricing.additional_days.days > 1 ? 's' : ''} (1 por día) adicional${pricing.additional_days.days > 1 ? 'es' : ''}` : `${pricing.additional_days.days} día${pricing.additional_days.days > 1 ? 's' : ''} adicional${pricing.additional_days.days > 1 ? 'es' : ''} (8h/día)`}</span>
-                      <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(pricing.additional_days.total_cost || 0)}</span>
+                      <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>{isPerTrip ? `${displayPricing?.additional_days?.days} viaje${(displayPricing?.additional_days?.days || 0) > 1 ? 's' : ''} (1 por día) adicional${(displayPricing?.additional_days?.days || 0) > 1 ? 'es' : ''}` : `${displayPricing?.additional_days?.days} día${(displayPricing?.additional_days?.days || 0) > 1 ? 's' : ''} adicional${(displayPricing?.additional_days?.days || 0) > 1 ? 'es' : ''} (8h/día)`}</span>
+                      <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.additional_days?.total_cost || 0)}</span>
                     </div>
                   )}
                 </>
@@ -582,7 +608,7 @@ function ConfirmServiceScreen() {
               {reservationType === 'scheduled' && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                   <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>{isPerTrip ? (totalDays > 1 ? `${totalDays} viajes (1 por día)` : 'Valor viaje') : (totalDays > 1 ? `${totalDays} días (8h/día)` : 'Jornada (8h)')}</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(pricing.breakdown?.service_cost ?? pricing.service_amount ?? 0)}</span>
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.breakdown?.service_cost ?? displayPricing?.service_amount ?? 0)}</span>
                 </div>
               )}
 
@@ -590,21 +616,21 @@ function ConfirmServiceScreen() {
               {!reservationType && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                   <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>Servicio</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(pricing.service_amount ?? pricing.breakdown?.service_cost ?? subtotalNeto)}</span>
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.service_amount ?? displayPricing?.breakdown?.service_cost ?? subtotalNeto)}</span>
                 </div>
               )}
-              {reservationType === 'immediate' && isHybrid && !pricing?.today && (
+              {reservationType === 'immediate' && isHybrid && !displayPricing?.today && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                   <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>Servicio</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(pricing.service_amount ?? pricing.breakdown?.service_cost ?? subtotalNeto)}</span>
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.service_amount ?? displayPricing?.breakdown?.service_cost ?? subtotalNeto)}</span>
                 </div>
               )}
 
               {/* Traslado: solo si la maquinaria lleva traslado (no camión tolva/pluma/aljibe) */}
-              {!isPerTrip && (pricing.transport_cost || pricing.breakdown?.transport_cost || 0) > 0 && (
+              {!isPerTrip && (displayPricing?.transport_cost || displayPricing?.breakdown?.transport_cost || 0) > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                   <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>Traslado</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(pricing.transport_cost || pricing.breakdown?.transport_cost || 0)}</span>
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.transport_cost || displayPricing?.breakdown?.transport_cost || 0)}</span>
                 </div>
               )}
 

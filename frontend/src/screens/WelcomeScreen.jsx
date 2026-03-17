@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../components/MaqgoLogo';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 import { checkAbandonedBooking } from '../utils/abandonmentTracker';
+import { getClientBookingRoute } from '../utils/bookingFlow';
 import { BREAKPOINT_MOBILE, BREAKPOINT_NARROW } from '../constants/breakpoints';
 import { Z_INDEX } from '../constants/zIndex';
 
@@ -146,7 +147,7 @@ function WelcomeScreen() {
           paddingBottom: isShortViewport ? 12 : (isNarrowMobile ? 20 : (isDesktop ? 40 : 28)),
           width: '100%'
         }}>
-          <MaqgoLogo customSize={logoSize} transparent style={{ marginBottom: isShortViewport ? 4 : (isNarrowMobile ? 10 : (isDesktop ? 36 : 16)) }} />
+          <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? 4 : (isNarrowMobile ? 10 : (isDesktop ? 36 : 16)) }} />
           <div style={{
             display: 'inline-block',
             flexShrink: 0,
@@ -224,17 +225,7 @@ function WelcomeScreen() {
             <button
               onClick={() => {
                 const step = abandonedBooking?.step || localStorage.getItem('clientBookingStep');
-                const STEP_ROUTES = {
-                  machinery: '/client/machinery',
-                  hours: '/client/hours-selection',
-                  urgency: '/client/urgency',
-                  calendar: '/client/calendar',
-                  location: '/client/service-location',
-                  providers: '/client/providers',
-                  confirm: '/client/confirm'
-                };
-                const route = STEP_ROUTES[step] || '/client/home';
-                navigate(route);
+                navigate(getClientBookingRoute(step));
                 setAbandonedBooking(null);
               }}
               style={{

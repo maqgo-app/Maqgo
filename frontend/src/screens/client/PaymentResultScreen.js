@@ -216,14 +216,14 @@ function PaymentResultScreen() {
       const storedPricing = getObject('servicePricing', {});
       if (chargedTotal > 0 && pricingToShow) {
         pricingToShow = { ...pricingToShow, final_price: chargedTotal, needsInvoice };
-        if (storedPricing && (storedPricing.service_amount != null || storedPricing.breakdown?.service_cost != null)) {
+        if (storedPricing && (storedPricing.service_amount != null || storedPricing?.breakdown?.service_cost != null)) {
           pricingToShow = {
             ...pricingToShow,
-            service_amount: storedPricing.service_amount ?? storedPricing.breakdown?.service_cost ?? pricingToShow.service_amount,
-            transport_cost: storedPricing.transport_cost ?? storedPricing.breakdown?.transport_cost ?? pricingToShow.transport_cost,
-            immediate_bonus: storedPricing.immediate_bonus ?? storedPricing.breakdown?.immediate_bonus ?? pricingToShow.immediate_bonus ?? 0,
-            client_commission: storedPricing.client_commission ?? storedPricing.breakdown?.client_commission ?? pricingToShow.client_commission,
-            client_commission_iva: storedPricing.client_commission_iva ?? storedPricing.breakdown?.client_commission_iva ?? pricingToShow.client_commission_iva
+            service_amount: storedPricing.service_amount ?? storedPricing?.breakdown?.service_cost ?? pricingToShow.service_amount,
+            transport_cost: storedPricing.transport_cost ?? storedPricing?.breakdown?.transport_cost ?? pricingToShow.transport_cost,
+            immediate_bonus: storedPricing.immediate_bonus ?? storedPricing?.breakdown?.immediate_bonus ?? pricingToShow.immediate_bonus ?? 0,
+            client_commission: storedPricing.client_commission ?? storedPricing?.breakdown?.client_commission ?? pricingToShow.client_commission,
+            client_commission_iva: storedPricing.client_commission_iva ?? storedPricing?.breakdown?.client_commission_iva ?? pricingToShow.client_commission_iva
           };
         }
       }

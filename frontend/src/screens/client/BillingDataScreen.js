@@ -9,40 +9,24 @@ import { MaqgoButton } from '../../components/base';
 
 /**
  * Pantalla de Datos de Facturación (Cliente)
- * Se muestra antes de registrar tarjeta para obtener datos de facturación
+ * Solo cuando el cliente eligió "Sí" a factura con RUT empresa.
+ * Se piden RUT empresa + Razón social.
  */
 function BillingDataScreen() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const backRoute = getBookingBackRoute(pathname);
-  const [billingType, setBillingType] = useState('persona');
   const [form, setForm] = useState({
-    nombre: '',
-    apellido: '',
     rut: '',
-    razonSocial: '',
-    giro: '',
-    direccion: ''
+    razonSocial: ''
   });
   const [rutError, setRutError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // Cargar datos del registro (nombre y apellido siempre separados)
-    const registerData = getObject('registerData', {});
-    if (registerData.nombre || registerData.apellido) {
-      setForm(prev => ({
-        ...prev,
-        nombre: registerData.nombre || prev.nombre,
-        apellido: registerData.apellido || prev.apellido
-      }));
-    }
-
-    // Cargar datos de facturación guardados
     const savedBilling = getObject('billingData', {});
-    if (savedBilling.billingType) {
-      setBillingType(savedBilling.billingType);
-      setForm(prev => ({ ...prev, ...savedBilling }));
+    if (savedBilling.rut || savedBilling.razonSocial) {
+      setForm(prev => ({ ...prev, rut: savedBilling.rut || prev.rut, razonSocial: savedBilling.razonSocial || prev.razonSocial }));
     }
   }, []);
 
@@ -64,18 +48,14 @@ function BillingDataScreen() {
     }
     setRutError('');
     setIsSubmitting(true);
-    const billingData = billingType === 'empresa'
-      ? { billingType, razonSocial: form.razonSocial, rut: form.rut, giro: form.giro, direccion: form.direccion || '' }
-      : { billingType, nombre: form.nombre, apellido: form.apellido || '', rut: form.rut };
+    const billingData = { billingType: 'empresa', razonSocial: form.razonSocial, rut: form.rut };
     localStorage.setItem('billingData', JSON.stringify(billingData));
     const registerData = getObject('registerData', {});
     localStorage.setItem('registerData', JSON.stringify({ ...registerData, ...billingData }));
     navigate('/client/card');
   };
 
-  const isValid = billingType === 'persona'
-    ? form.nombre && form.apellido && form.rut && validateRut(form.rut)
-    : form.razonSocial && form.rut && form.giro && form.direccion?.trim() && validateRut(form.rut);
+  const isValid = form.razonSocial?.trim() && form.rut && validateRut(form.rut);
 
   return (
     <div className="maqgo-app">
@@ -103,7 +83,7 @@ function BillingDataScreen() {
           Datos de Facturación
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', marginBottom: 24 }}>
-          Necesarios para emitir tu factura
+          RUT empresa + Razón social para emitir tu factura
         </p>
 
         {/* Trust signal */}
@@ -136,155 +116,36 @@ function BillingDataScreen() {
           </div>
         </div>
 
-        {/* Selector de tipo */}
-        <p style={{ 
-          color: 'rgba(255,255,255,0.95)', 
-          fontSize: 14, 
-          marginBottom: 12,
-          fontFamily: "'Inter', sans-serif"
-        }}>
-          ¿Cómo quieres que facturemos?
-        </p>
-        
-        <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-          <button
-            onClick={() => setBillingType('persona')}
-            style={{
-              flex: 1,
-              padding: '14px',
-              background: billingType === 'persona' ? 'var(--maqgo-orange)' : '#2A2A2A',
-              border: 'none',
-              borderRadius: 10,
-              color: '#fff',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-            data-testid="billing-persona"
-          >
-            👤 Persona
-          </button>
-          <button
-            onClick={() => setBillingType('empresa')}
-            style={{
-              flex: 1,
-              padding: '14px',
-              background: billingType === 'empresa' ? 'var(--maqgo-orange)' : '#2A2A2A',
-              border: 'none',
-              borderRadius: 10,
-              color: '#fff',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-            data-testid="billing-empresa"
-          >
-            🏢 Empresa
-          </button>
-        </div>
-
-        {/* Formulario */}
+        {/* Formulario: RUT empresa + Razón social */}
         <div style={{ flex: 1 }}>
-          {billingType === 'persona' ? (
-            <>
-              <label htmlFor="billing-nombre" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-                Nombre <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
-              </label>
-              <input
-                id="billing-nombre"
-                className="maqgo-input"
-                placeholder="Tu nombre"
-                value={form.nombre}
-                onChange={e => update('nombre', e.target.value)}
-                style={{ marginBottom: 12 }}
-                data-testid="billing-nombre"
-              />
-              <label htmlFor="billing-apellido" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-                Apellido <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
-              </label>
-              <input
-                id="billing-apellido"
-                className="maqgo-input"
-                placeholder="Tu apellido"
-                value={form.apellido}
-                onChange={e => update('apellido', e.target.value)}
-                style={{ marginBottom: 12 }}
-                data-testid="billing-apellido"
-              />
-              <label htmlFor="billing-rut" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-                RUT <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
-              </label>
-              <input
-                id="billing-rut"
-                className="maqgo-input"
-                placeholder="12.345.678-9"
-                value={formatRut(form.rut)}
-                onChange={e => update('rut', sanitizeRutInput(e.target.value))}
-                maxLength={12}
-                style={{ marginBottom: rutError ? 4 : 12, borderColor: rutError ? 'var(--maqgo-orange)' : undefined }}
-                data-testid="billing-rut"
-                aria-describedby={rutError ? 'billing-rut-error' : undefined}
-              />
-              {rutError && <p id="billing-rut-error" style={{ color: 'var(--maqgo-orange)', fontSize: 12, margin: '0 0 12px' }}>{rutError}</p>}
-            </>
-          ) : (
-            <>
-              <label htmlFor="billing-razon-social" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-                Razón Social <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
-              </label>
-              <input
-                id="billing-razon-social"
-                className="maqgo-input"
-                placeholder="Nombre de la empresa"
-                value={form.razonSocial}
-                onChange={e => update('razonSocial', e.target.value)}
-                style={{ marginBottom: 12 }}
-                data-testid="billing-razon-social"
-              />
-              
-              <label htmlFor="billing-rut-empresa" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-                RUT Empresa <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
-              </label>
-              <input
-                id="billing-rut-empresa"
-                className="maqgo-input"
-                placeholder="76.123.456-7"
-                value={formatRut(form.rut)}
-                onChange={e => update('rut', sanitizeRutInput(e.target.value))}
-                maxLength={12}
-                style={{ marginBottom: rutError ? 4 : 12, borderColor: rutError ? 'var(--maqgo-orange)' : undefined }}
-                data-testid="billing-rut-empresa"
-                aria-describedby={rutError ? 'billing-rut-error' : undefined}
-              />
-              {rutError && <p id="billing-rut-error" style={{ color: 'var(--maqgo-orange)', fontSize: 12, margin: '0 0 12px' }}>{rutError}</p>}
-              
-              <label htmlFor="billing-giro" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-                Giro <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
-              </label>
-              <input
-                id="billing-giro"
-                className="maqgo-input"
-                placeholder="Giro comercial"
-                value={form.giro}
-                onChange={e => update('giro', e.target.value)}
-                style={{ marginBottom: 12 }}
-                data-testid="billing-giro"
-              />
-              
-              <label htmlFor="billing-direccion" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-                Dirección comercial <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
-              </label>
-              <input
-                id="billing-direccion"
-                className="maqgo-input"
-                placeholder="Dirección comercial"
-                value={form.direccion}
-                onChange={e => update('direccion', e.target.value)}
-                style={{ marginBottom: 12 }}
-                data-testid="billing-direccion"
-              />
-            </>
-          )}
+          <label htmlFor="billing-razon-social" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+            Razón Social <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
+          </label>
+          <input
+            id="billing-razon-social"
+            className="maqgo-input"
+            placeholder="Nombre de la empresa"
+            value={form.razonSocial}
+            onChange={e => update('razonSocial', e.target.value)}
+            style={{ marginBottom: 12 }}
+            data-testid="billing-razon-social"
+          />
+          
+          <label htmlFor="billing-rut-empresa" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+            RUT Empresa <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
+          </label>
+          <input
+            id="billing-rut-empresa"
+            className="maqgo-input"
+            placeholder="76.123.456-7"
+            value={formatRut(form.rut)}
+            onChange={e => update('rut', sanitizeRutInput(e.target.value))}
+            maxLength={12}
+            style={{ marginBottom: rutError ? 4 : 12, borderColor: rutError ? 'var(--maqgo-orange)' : undefined }}
+            data-testid="billing-rut-empresa"
+            aria-describedby={rutError ? 'billing-rut-error' : undefined}
+          />
+          {rutError && <p id="billing-rut-error" style={{ color: 'var(--maqgo-orange)', fontSize: 12, margin: '0 0 12px' }}>{rutError}</p>}
         </div>
 
         {/* Info */}

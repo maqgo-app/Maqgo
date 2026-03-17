@@ -42,6 +42,14 @@ function ReviewScreen() {
     
     try {
       const userId = localStorage.getItem('userId');
+      if (!userId) {
+        console.warn('ReviewScreen: userId no encontrado, continuando en modo demo');
+        localStorage.setItem('providerOnboardingCompleted', 'true');
+        localStorage.removeItem('providerOnboardingStep');
+        navigate('/provider/home');
+        setLoading(false);
+        return;
+      }
       
       // Guardar datos del proveedor en backend
       let primaryPhoto = null;
@@ -54,10 +62,14 @@ function ReviewScreen() {
         primaryPhoto
       };
 
+      // No enviar fotos base64 de operadores al backend (evita payload enorme y timeouts)
+      const operatorsPayload = Array.isArray(operators)
+        ? operators.map(op => ({ ...op, photo: undefined }))
+        : [];
       const payload = {
         providerData,
         machineData: machinePayload,
-        operators,
+        operators: operatorsPayload,
         onboarding_completed: true
       };
       if (machineData?.machineryType) payload.machineryType = machineData.machineryType;
@@ -188,7 +200,7 @@ function ReviewScreen() {
             <span style={styles.value}>{providerData.closingTime || '21:00'}</span>
           </div>
           <div style={styles.row}>
-            <span style={styles.label}>Emite factura:</span>
+            <span style={styles.label}>Factura electrónica afecta a IVA:</span>
             <span style={styles.value}>{providerData.emitsInvoice !== false ? 'Sí' : 'No'}</span>
           </div>
         </div>
@@ -233,14 +245,18 @@ function ReviewScreen() {
           <div style={styles.section}>
             <h3 style={styles.sectionTitle}>Fotos ({photos.length})</h3>
             <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
-              {photos.map((photo, i) => (
-                <img 
-                  key={i}
-                  src={photo} 
-                  alt={`Foto ${i+1}`}
-                  style={{ width: 60, height: 45, borderRadius: 8, objectFit: 'cover' }}
-                />
-              ))}
+              {photos.map((photo, i) => {
+                const src = typeof photo === 'string' ? photo : (photo?.url || '');
+                if (!src) return null;
+                return (
+                  <img 
+                    key={i}
+                    src={src} 
+                    alt={`Foto ${i+1}`}
+                    style={{ width: 60, height: 45, borderRadius: 8, objectFit: 'cover' }}
+                  />
+                );
+              })}
             </div>
           </div>
         )}
@@ -259,7 +275,7 @@ function ReviewScreen() {
               <div style={styles.row}>
                 <span style={styles.label}>Nombre:</span>
                 <span style={styles.value}>
-                  {op.nombre} {op.apellido} {op.isOwner && '(Propietario)'}
+                  {[op.nombre, op.apellido].filter(Boolean).join(' ').trim() || '-'} {op.isOwner && '(Propietario)'}
                 </span>
               </div>
               <div style={styles.row}>

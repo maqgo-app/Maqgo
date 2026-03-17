@@ -20,6 +20,8 @@ function BookingFlowFallback() {
     );
   }
 
+  // Skeleton que imita la tarjeta de precio (evita flash desglose→vacío→P5)
+  const isConfirm = path === '/client/confirm';
   return (
     <div className="maqgo-app">
       <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 120px', overflowY: 'auto' }}>
@@ -29,9 +31,23 @@ function BookingFlowFallback() {
           <div style={{ width: 24 }} />
         </div>
         <BookingProgress />
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 120, padding: 24 }}>
-          <span style={{ width: 28, height: 28, border: '2px solid rgba(236,104,25,0.3)', borderTopColor: 'var(--maqgo-orange)', borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
-        </div>
+        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 16 }}>
+          Confirma tu reserva
+        </h1>
+        {isConfirm && (
+          <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 16, marginBottom: 14 }}>
+            <div style={{ height: 12, background: 'rgba(255,255,255,0.2)', borderRadius: 4, marginBottom: 12, width: '40%' }} />
+            <div style={{ height: 28, background: 'rgba(255,255,255,0.15)', borderRadius: 4, marginBottom: 16, width: '60%' }} />
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 12 }}>
+              <span style={{ width: 24, height: 24, border: '2px solid rgba(236,104,25,0.3)', borderTopColor: 'var(--maqgo-orange)', borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
+            </div>
+          </div>
+        )}
+        {!isConfirm && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 120, padding: 24 }}>
+            <span style={{ width: 28, height: 28, border: '2px solid rgba(236,104,25,0.3)', borderTopColor: 'var(--maqgo-orange)', borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
+          </div>
+        )}
       </div>
     </div>
   );

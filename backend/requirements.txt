@@ -76,6 +76,7 @@ s5cmd==0.2.0
 shellingham==1.5.4
 six==1.17.0
 starlette==0.37.2
+redis>=5.0.0
 twilio==9.9.0
 typer==0.20.1
 typing-inspection==0.4.2

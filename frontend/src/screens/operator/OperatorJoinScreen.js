@@ -45,6 +45,7 @@ function OperatorJoinScreen() {
         localStorage.setItem('userRole', 'provider');
         localStorage.setItem('providerRole', 'operator');
         localStorage.setItem('ownerId', response.data.owner_id);
+        if (response.data.token) localStorage.setItem('token', response.data.token);
         localStorage.setItem('operatorName', 'Operador');
         if (photo) localStorage.setItem('operatorPhoto', photo);
         

@@ -21,7 +21,7 @@ function VerifiedScreen() {
     }
     const timer = setTimeout(() => {
       navigate('/select-role', preselect ? { state: { preselect } } : {});
-    }, 2500);
+    }, 1500);
     return () => clearTimeout(timer);
   }, [navigate]);
 
@@ -55,9 +55,17 @@ function VerifiedScreen() {
           color: 'rgba(255,255,255,0.9)',
           fontSize: 15,
           textAlign: 'center',
-          marginBottom: 40
+          marginBottom: 8
         }}>
           Ya puedes continuar con tu registro.
+        </p>
+        <p style={{
+          color: 'rgba(255,255,255,0.6)',
+          fontSize: 13,
+          textAlign: 'center',
+          marginBottom: 24
+        }}>
+          Redirigiendo en unos segundos...
         </p>
 
         <button 

@@ -146,28 +146,14 @@ function PricingScreen() {
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 6 }}>
           Define tus tarifas
         </h1>
-        <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>
+        <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, textAlign: 'center', marginBottom: 20 }}>
           {machineName}
         </p>
-        {/* Caja de incentivo eliminada para evitar reglas visibles; solo se muestran alertas contextuales */}
-
-        {/* Badge tipo de cobro */}
-        <div style={{
-          background: '#2A2A2A',
-          borderRadius: 10,
-          padding: '10px 14px',
-          marginBottom: 20,
-          textAlign: 'center'
-        }}>
-          <p style={{ color: isPerHour ? '#EC6819' : '#90BDD3', fontSize: 13, fontWeight: 600, margin: 0 }}>
-            {isPerHour ? 'Cobro por HORA' : 'Cobro por SERVICIO (tarifa plana)'}
-          </p>
-        </div>
 
         {/* Input precio base */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, display: 'block', marginBottom: 8, fontWeight: 500 }}>
-            {isPerHour ? 'Precio por hora' : 'Precio por servicio'}
+            {isPerHour ? 'Precio por hora (sin IVA)' : 'Precio por servicio (sin IVA)'}
           </label>
           <div style={{ position: 'relative' }}>
             <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: 16 }}>$</span>
@@ -203,7 +189,7 @@ function PricingScreen() {
         {needsTransport && (
           <div style={{ marginBottom: 20 }}>
             <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, display: 'block', marginBottom: 8, fontWeight: 500 }}>
-              Costo de traslado
+              Costo de traslado (sin IVA)
             </label>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: 16 }}>$</span>

@@ -7,14 +7,16 @@
 
 import axios from 'axios';
 
+// vite.config define: process.env.REACT_APP_BACKEND_URL (desde .env o .env.production)
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 const DEFAULT_TIMEOUT_MS = 8000;
 
 // Timeout global para todas las peticiones axios
 axios.defaults.timeout = DEFAULT_TIMEOUT_MS;
 
-if (import.meta.env.DEV && !process.env.REACT_APP_BACKEND_URL) {
-  console.warn('⚠️ REACT_APP_BACKEND_URL no definido. Usando:', BACKEND_URL);
+// Advertencia: producción con localhost = configuración incorrecta
+if (typeof window !== 'undefined' && window.location?.hostname !== 'localhost' && BACKEND_URL.includes('localhost')) {
+  console.error('⚠️ PRODUCCIÓN: BACKEND_URL apunta a localhost. Define REACT_APP_BACKEND_URL o VITE_BACKEND_URL en el build.');
 }
 
 function getAuthHeaders() {

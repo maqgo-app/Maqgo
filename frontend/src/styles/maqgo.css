@@ -80,7 +80,8 @@ html, body, #root {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
-  background: #000000;
+  /* Mismo fondo que la app para evitar recuadro negro alrededor del logo en desktop (phone mockup) */
+  background: var(--maqgo-bg);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -213,7 +214,7 @@ html, body, #root {
     min-height: calc(100vh - 48px);
     margin: 24px auto;
     border-radius: 20px;
-    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
   }
 }
 
@@ -733,26 +734,17 @@ a:focus-visible,
   }
 }
 
-/* Logo MAQGO - SVG nativo, sin fondo (transparente por defecto) */
-.maqgo-logo-cropped {
+/* Logo MAQGO - imagen PNG transparente */
+.maqgo-logo {
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 100%;
-  padding: 0;
-}
-
-.maqgo-logo-cropped img {
-  display: block;
+  width: fit-content;
   max-width: 100%;
-  height: auto;
-  object-fit: contain;
-  object-position: center;
-}
-
-/* Para logos más pequeños en headers */
-.maqgo-logo-small {
-  display: block;
-  text-align: center;
+  margin: 0 auto;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 

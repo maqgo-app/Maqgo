@@ -1,11 +1,25 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
 from typing import List, Optional
+from auth_dependency import verify_user_access
 from models.user import User, UserCreate, ProviderAvailabilityUpdate
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+async def _add_session_token(result: dict) -> None:
+    """Añade token de sesión al resultado (para flujos de registro/creación)."""
+    try:
+        from auth_dependency import create_session_for_user
+        user_id = result.get("id")
+        if user_id:
+            token = await create_session_for_user(user_id)
+            result["token"] = token
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("No se pudo crear sesión para usuario: %s", e)
 
 mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 client = AsyncIOMotorClient(mongo_url)
@@ -34,6 +48,7 @@ async def create_user(user: UserCreate):
             result = dict(existing)
             result.pop("_id", None)
             result.pop("password", None)
+            await _add_session_token(result)
             return result
         new_roles = list(dict.fromkeys(roles + [new_role]))
         update = {"roles": new_roles}
@@ -50,6 +65,7 @@ async def create_user(user: UserCreate):
             {"$set": update}
         )
         result = await db.users.find_one({"email": user_data["email"]}, {"_id": 0, "password": 0})
+        await _add_session_token(result)
         return result
 
     if user_data.get('hourlyRate') is None:
@@ -61,6 +77,7 @@ async def create_user(user: UserCreate):
     await db.users.insert_one(doc)
     result = doc.copy()
     result.pop('_id', None)
+    await _add_session_token(result)
     return result
 
 @router.get("", response_model=List[dict])
@@ -76,8 +93,11 @@ async def get_users(role: Optional[str] = None, isAvailable: Optional[bool] = No
     return users
 
 @router.get("/{user_id}", response_model=dict)
-async def get_user(user_id: str):
-    """Obtener un usuario específico"""
+async def get_user(
+    user_id: str,
+    _: dict = Depends(verify_user_access),
+):
+    """Obtener un usuario específico (requiere auth y que sea el propio usuario o admin)"""
     user = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0})
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -86,7 +106,8 @@ async def get_user(user_id: str):
 @router.put("/{user_id}/availability", response_model=dict)
 async def update_availability(
     user_id: str,
-    body: dict = Body(...)
+    body: dict = Body(...),
+    _: dict = Depends(verify_user_access),
 ):
     """
     Actualizar disponibilidad del proveedor.
@@ -118,7 +139,8 @@ async def update_availability(
 @router.put("/{user_id}/profile", response_model=dict)
 async def update_profile(
     user_id: str,
-    body: dict = Body(...)
+    body: dict = Body(...),
+    _: dict = Depends(verify_user_access),
 ):
     """Actualizar perfil del usuario"""
     allowed_fields = ['name', 'phone', 'hourlyRate', 'machinery', 'location']
@@ -141,7 +163,8 @@ async def update_profile(
 @router.patch("/{user_id}", response_model=dict)
 async def patch_user(
     user_id: str,
-    body: dict = Body(...)
+    body: dict = Body(...),
+    _: dict = Depends(verify_user_access),
 ):
     """
     Actualizar campos específicos del usuario (uso flexible para onboarding proveedor).

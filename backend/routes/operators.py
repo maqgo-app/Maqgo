@@ -173,14 +173,26 @@ async def use_invitation(data: InvitationUse):
     
     # Obtener datos del dueño
     owner = await db.users.find_one({"id": invitation["owner_id"]}, {"_id": 0, "name": 1})
-    
-    return {
+
+    # Crear sesión para el operador
+    token = None
+    try:
+        from auth_dependency import create_session_for_user
+        token = await create_session_for_user(operator_id)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("No se pudo crear sesión para operador %s: %s", operator_id, e)
+
+    response = {
         "success": True,
         "operator_id": operator_id,
         "owner_id": invitation["owner_id"],
         "owner_name": owner.get("name", "Tu empresa") if owner else "Tu empresa",
         "message": f"¡Bienvenido! Ya estás vinculado a {owner.get('name', 'tu empresa') if owner else 'tu empresa'}"
     }
+    if token:
+        response["token"] = token
+    return response
 
 
 @router.get("/invitations/{owner_id}")

@@ -1,4 +1,5 @@
 import React from 'react';
+import MaqgoLogo from './MaqgoLogo';
 
 /**
  * Componentes reutilizables MAQGO
@@ -321,13 +322,7 @@ export function HeaderWithProfile({ showBack = true, onBack, onProfile }) {
         <div style={{ width: 24 }} />
       )}
       
-      <div style={{ flex: 1, textAlign: 'center' }}>
-        <img 
-          src="/maqgo-logo-transparent.png" 
-          alt="MAQGO" 
-          style={{ width: 100, height: 'auto' }}
-        />
-      </div>
+      <div style={{ flex: 1 }}><MaqgoLogo size="small" /></div>
       
       <button 
         onClick={onProfile}

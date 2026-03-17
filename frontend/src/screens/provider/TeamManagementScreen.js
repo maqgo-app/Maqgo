@@ -27,7 +27,8 @@ function TeamManagementScreen() {
   const [showCode, setShowCode] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [operatorName, setOperatorName] = useState('');
+  const [operatorNombre, setOperatorNombre] = useState('');
+  const [operatorApellido, setOperatorApellido] = useState('');
   const [operatorRut, setOperatorRut] = useState('');
   const [operatorPhone, setOperatorPhone] = useState('');
 
@@ -71,14 +72,16 @@ function TeamManagementScreen() {
       // Validaciones básicas para operador: nombre y RUT obligatorios
       let payload = { owner_id: ownerId };
       if (inviteType === 'operator') {
-        if (!operatorName.trim() || !operatorRut.trim()) {
-          toast.warning('Ingresa nombre y RUT del operador antes de generar el código.');
+        const nom = operatorNombre.trim();
+        const ape = operatorApellido.trim();
+        if (!nom || !ape || !operatorRut.trim()) {
+          toast.warning('Ingresa nombre, apellido y RUT del operador antes de generar el código.');
           setInviting(false);
           return;
         }
         payload = {
           owner_id: ownerId,
-          operator_name: operatorName.trim(),
+          operator_name: `${nom} ${ape}`.trim(),
           operator_rut: operatorRut.trim(),
           operator_phone: operatorPhone.trim() || null,
         };
@@ -89,7 +92,8 @@ function TeamManagementScreen() {
       setInviteCode(response.data.code);
       setShowCode(true);
       // Limpiar formulario de datos de operador
-      setOperatorName('');
+      setOperatorNombre('');
+      setOperatorApellido('');
       setOperatorRut('');
       setOperatorPhone('');
       loadTeam(); // Recargar para ver la invitación pendiente
@@ -553,13 +557,34 @@ function TeamManagementScreen() {
                     </p>
                     <div style={{ marginBottom: 10 }}>
                       <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        Nombre completo *
+                        Nombre *
                       </label>
                       <input
                         type="text"
-                        value={operatorName}
-                        onChange={(e) => setOperatorName(e.target.value)}
-                        placeholder="Ej: Tomás Leiva"
+                        value={operatorNombre}
+                        onChange={(e) => setOperatorNombre(e.target.value)}
+                        placeholder="Ej: Tomás"
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #444',
+                          background: '#1F1F1F',
+                          color: '#fff',
+                          fontSize: 14,
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                        Apellido *
+                      </label>
+                      <input
+                        type="text"
+                        value={operatorApellido}
+                        onChange={(e) => setOperatorApellido(e.target.value)}
+                        placeholder="Ej: Leiva"
                         style={{
                           width: '100%',
                           padding: '10px 12px',

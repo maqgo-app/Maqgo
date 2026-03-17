@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import { getClientBookingRoute, clearClientBookingStorage } from '../../utils/bookingFlow';
 
 /**
  * C10 - Tipo de Reserva - Diseño Premium
@@ -19,17 +20,8 @@ function ClientHome() {
     const selectedMachinery = localStorage.getItem('selectedMachinery');
     
     if (bookingStep && selectedMachinery) {
-      const STEP_ROUTES = {
-        'machinery': '/client/machinery',
-        'hours': '/client/hours-selection',
-        'urgency': '/client/urgency',
-        'calendar': '/client/calendar',
-        'location': '/client/service-location',
-        'providers': '/client/providers',
-        'confirm': '/client/confirm'
-      };
-      const route = STEP_ROUTES[bookingStep];
-      if (route) {
+      const route = getClientBookingRoute(bookingStep);
+      if (route && route !== '/client/home') {
         setPendingRoute(route);
         setShowResumeModal(true);
       }
@@ -43,16 +35,7 @@ function ClientHome() {
       setPendingRoute(null);
     } else {
       // Nueva reserva: limpiar todo el flujo de reserva
-      const BOOKING_KEYS = [
-        'clientBookingStep', 'selectedMachinery', 'selectedMachineryList', 'selectedHours',
-        'reservationType', 'priceType', 'serviceLocation', 'serviceLat', 'serviceLng',
-        'selectedProviderIds', 'matchedProviders', 'selectedProvider', 'billingData',
-        'selectedDates', 'selectedDate', 'serviceBasePrice', 'serviceTransportFee',
-        'totalAmount', 'maxTotalAmount', 'needsInvoice', 'currentServiceId', 'matchingResult',
-        'clientRequiredM3List', 'clientRequiredM3', 'providerSelectionMachinery', 'acceptedProvider',
-        'servicePricing', 'urgencyType', 'additionalDays'
-      ];
-      BOOKING_KEYS.forEach((k) => localStorage.removeItem(k));
+      clearClientBookingStorage();
       setPendingRoute(null);
     }
   };

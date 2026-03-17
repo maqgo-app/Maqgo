@@ -19,17 +19,20 @@ export const useToast = () => {
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
-  const showToast = (message, type = 'info', duration = 3000) => {
+  const showToast = (message, type = 'info', duration = 3000, replaceId = null) => {
     const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type }]);
+    setToasts(prev => {
+      const filtered = replaceId ? prev.filter(t => t.replaceId !== replaceId) : prev;
+      return [...filtered, { id, message, type, replaceId }];
+    });
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration);
   };
 
   const toast = {
-    success: (msg) => showToast(msg, 'success'),
-    error: (msg) => showToast(msg, 'error'),
-    warning: (msg) => showToast(msg, 'warning'),
-    info: (msg) => showToast(msg, 'info')
+    success: (msg, replaceId) => showToast(msg, 'success', 3000, replaceId),
+    error: (msg, replaceId) => showToast(msg, 'error', 3000, replaceId),
+    warning: (msg, replaceId) => showToast(msg, 'warning', 3000, replaceId),
+    info: (msg, replaceId) => showToast(msg, 'info', 3000, replaceId)
   };
 
   return (

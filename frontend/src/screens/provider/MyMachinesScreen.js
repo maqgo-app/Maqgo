@@ -525,7 +525,8 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
   const [inviting, setInviting] = useState(false);
-  const [name, setName] = useState('');
+  const [nombre, setNombre] = useState('');
+  const [apellido, setApellido] = useState('');
   const [phone, setPhone] = useState('');
   const [rut, setRut] = useState('');
   const [error, setError] = useState('');
@@ -550,9 +551,12 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
 
   const handleInviteNew = async () => {
     setError('');
-    const n = name.trim();
+    const nom = nombre.trim();
+    const ape = apellido.trim();
+    const fullName = `${nom} ${ape}`.trim();
     const p = phone.replace(/\D/g, '');
-    if (!n) { setError('Ingresa el nombre del operador'); return; }
+    if (!nom) { setError('Ingresa el nombre del operador'); return; }
+    if (!ape) { setError('Ingresa el apellido del operador'); return; }
     if (!p || p.length < 9) { setError('Ingresa el celular del operador'); return; }
     if (rut.trim() && !validateRut(rut)) { setError('RUT inválido'); return; }
     setInviting(true);
@@ -560,7 +564,7 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
       const ownerId = localStorage.getItem('ownerId') || localStorage.getItem('userId');
       const r = await axios.post(`${BACKEND_URL}/api/operators/invite`, {
         owner_id: ownerId,
-        operator_name: n,
+        operator_name: fullName,
         operator_phone: phone.startsWith('+56') ? phone : `+56${p}`,
         operator_rut: rut.trim() || null
       });
@@ -633,8 +637,12 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
               Inscribe al operador. Solo necesitará el código para enrolarse.
             </p>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>Nombre completo *</label>
-              <input type="text" placeholder="Ej: Juan Pérez" value={name} onChange={e => setName(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
+              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>Nombre *</label>
+              <input type="text" placeholder="Ej: Juan" value={nombre} onChange={e => setNombre(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>Apellido *</label>
+              <input type="text" placeholder="Ej: Pérez" value={apellido} onChange={e => setApellido(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
             </div>
             <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>Celular *</label>
@@ -736,9 +744,13 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
         {mode === 'manual' && (
           <>
             <button type="button" className="maqgo-btn-secondary" onClick={() => setMode('choice')} style={{ marginBottom: 16, width: '100%' }}>← Volver</button>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Nombre completo</label>
-              <input type="text" placeholder="Ej: Juan Pérez" value={name} onChange={e => setName(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Nombre *</label>
+              <input type="text" placeholder="Ej: Juan" value={nombre} onChange={e => setNombre(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Apellido *</label>
+              <input type="text" placeholder="Ej: Pérez" value={apellido} onChange={e => setApellido(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
             </div>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Teléfono</label>
@@ -747,7 +759,7 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
             {error && <p style={{ color: '#F44336', fontSize: 12, margin: '0 0 12px' }}>{error}</p>}
             <div style={{ display: 'flex', gap: 12 }}>
               <button type="button" className="maqgo-btn-secondary" onClick={() => setMode('choice')} style={{ flex: 1 }}>Cancelar</button>
-              <button onClick={() => { setError(''); const t = name.trim(); if (!t) { setError('El nombre es obligatorio'); return; } onSaveManual({ name: t, phone: phone.trim() }); }} style={btnPrimary}>Guardar</button>
+              <button onClick={() => { setError(''); const nom = nombre.trim(); const ape = apellido.trim(); if (!nom) { setError('El nombre es obligatorio'); return; } if (!ape) { setError('El apellido es obligatorio'); return; } onSaveManual({ name: `${nom} ${ape}`.trim(), phone: phone.trim() }); }} style={btnPrimary}>Guardar</button>
             </div>
           </>
         )}
@@ -757,15 +769,19 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
 }
 
 function OperatorModal({ machine, operator, onSave, onClose }) {
-  const [name, setName] = useState(operator?.name || '');
+  const parts = (operator?.name || '').trim().split(/\s+/);
+  const [nombre, setNombre] = useState(parts[0] || '');
+  const [apellido, setApellido] = useState(parts.slice(1).join(' ') || '');
   const [phone, setPhone] = useState(operator?.phone || '');
   const [error, setError] = useState('');
 
   const handleSave = () => {
     setError('');
-    const trimmed = name.trim();
-    if (!trimmed) { setError('El nombre es obligatorio'); return; }
-    onSave({ id: operator?.id, name: trimmed, phone: phone.trim() });
+    const nom = nombre.trim();
+    const ape = apellido.trim();
+    if (!nom) { setError('El nombre es obligatorio'); return; }
+    if (!ape) { setError('El apellido es obligatorio'); return; }
+    onSave({ id: operator?.id, name: `${nom} ${ape}`.trim(), phone: phone.trim() });
   };
 
   return (
@@ -775,9 +791,13 @@ function OperatorModal({ machine, operator, onSave, onClose }) {
           {operator ? 'Editar operador' : 'Agregar operador'}
         </h3>
         <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '0 0 20px' }}>{machine.type}</p>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Nombre *</label>
+          <input type="text" placeholder="Ej: Juan" value={nombre} onChange={e => setNombre(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
+        </div>
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Nombre completo</label>
-          <input type="text" placeholder="Ej: Juan Pérez" value={name} onChange={e => setName(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
+          <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Apellido *</label>
+          <input type="text" placeholder="Ej: Pérez" value={apellido} onChange={e => setApellido(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
         </div>
         <div style={{ marginBottom: 20 }}>
           <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Teléfono</label>

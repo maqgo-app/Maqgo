@@ -11,11 +11,14 @@ import { getObject } from '../utils/safeStorage';
  * C09 - Seleccion de Rol
  * Soporta returnUrl para volver a la pantalla original después del registro
  */
+const DOUBLE_TAP_MS = 400;
+
 function RoleSelection({ setUserRole, setUserId }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
+  const lastTapRef = React.useRef({ role: null, time: 0 });
   
   // Get returnUrl from navigation state or localStorage
   const [returnUrl, setReturnUrl] = useState(null);
@@ -39,38 +42,60 @@ function RoleSelection({ setUserRole, setUserId }) {
     }
   }, [preselect]);
 
+  const handleOptionClick = (role) => {
+    const now = Date.now();
+    const last = lastTapRef.current;
+    const isDoubleTap = last.role === role && (now - last.time) <= DOUBLE_TAP_MS;
+    lastTapRef.current = { role, time: now };
+
+    setSelected(role);
+    if (isDoubleTap) {
+      handleContinueWithRole(role);
+    }
+  };
+
   const handleContinue = async () => {
     if (!selected) return;
+    handleContinueWithRole(selected);
+  };
+
+  const handleContinueWithRole = async (roleToUse) => {
+    if (!roleToUse) return;
     setLoading(true);
+    setSelected(roleToUse);
     try {
       const data = getObject('registerData', {});
+      const celDigits = data.celular ? String(data.celular).replace(/\D/g, '').slice(-9) : '';
+      const phone = celDigits.length >= 9 ? `+56${celDigits}` : undefined;
       const apiCall = axios.post(
         `${BACKEND_URL}/api/users`,
         {
-          role: selected,
+          role: roleToUse,
           name: `${data.nombre || 'Usuario'} ${data.apellido || ''}`.trim(),
-          email: data.email || `${selected}_${Date.now()}@maqgo.cl`,
+          email: data.email || `${roleToUse}_${Date.now()}@maqgo.cl`,
+          ...(phone && { phone }),
         },
         { timeout: 4000 }
       );
-      // Si el backend no responde en 1.5s, continuar en modo demo sin esperar
+      // Si el backend no responde en 5s, continuar en modo demo sin esperar
       const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
       try {
-        const res = await Promise.race([apiCall, timeout(1500)]);
-        setUserRole(selected);
+        const res = await Promise.race([apiCall, timeout(5000)]);
+        setUserRole(roleToUse);
         setUserId(res.data.id);
         localStorage.setItem('userId', res.data.id);
-        localStorage.setItem('userRole', selected);
+        localStorage.setItem('userRole', roleToUse);
+        if (res.data.token) localStorage.setItem('token', res.data.token);
       } catch (e) {
         // Backend lento o no disponible → demo inmediato
         const id = `demo-${Date.now()}`;
-        setUserRole(selected);
+        setUserRole(roleToUse);
         setUserId(id);
         localStorage.setItem('userId', id);
-        localStorage.setItem('userRole', selected);
+        localStorage.setItem('userRole', roleToUse);
       }
       const savedReturnUrl = getAndClearReturnUrl() || returnUrl;
-      if (selected === 'client') {
+      if (roleToUse === 'client') {
         if (savedReturnUrl && savedReturnUrl.startsWith('/client/')) {
           navigate(savedReturnUrl);
         } else {
@@ -102,16 +127,24 @@ function RoleSelection({ setUserRole, setUserId }) {
           fontSize: 24,
           fontWeight: 600,
           textAlign: 'center',
-          marginBottom: 35
+          marginBottom: 8
         }}>
           ¿Cómo usarás la app?
         </h2>
+        <p style={{
+          color: 'rgba(255,255,255,0.6)',
+          fontSize: 13,
+          textAlign: 'center',
+          marginBottom: 28
+        }}>
+          Toca para elegir o haz doble toque para continuar
+        </p>
 
         {/* Opciones */}
         <div style={{ flex: 1 }}>
           <button 
             className={`maqgo-option-card ${selected === 'client' ? 'selected' : ''}`}
-            onClick={() => setSelected('client')}
+            onClick={() => handleOptionClick('client')}
           >
             <span className="maqgo-option-title">Soy Cliente</span>
             <span className="maqgo-option-desc">Necesito maquinaria</span>
@@ -119,7 +152,7 @@ function RoleSelection({ setUserRole, setUserId }) {
 
           <button 
             className={`maqgo-option-card ${selected === 'provider' ? 'selected' : ''}`}
-            onClick={() => setSelected('provider')}
+            onClick={() => handleOptionClick('provider')}
           >
             <span className="maqgo-option-title">Soy Proveedor</span>
             <span className="maqgo-option-desc">Tengo maquinaria</span>

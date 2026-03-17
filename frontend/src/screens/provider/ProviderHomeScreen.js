@@ -9,59 +9,57 @@ import { vibrate } from '../../utils/uberUX';
 
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
+import { getProviderOnboardingRoute } from '../../utils/providerOnboarding';
 
 /**
  * Pantalla P09 - Home Proveedor con Toggle Disponibilidad
- * El toggle est? bloqueado hasta completar el onboarding
+ * El toggle está bloqueado hasta completar el onboarding.
+ * Disponibilidad: backend es fuente de verdad; localStorage es fallback (offline/demo).
  */
 function ProviderHomeScreen() {
   const navigate = useNavigate();
   const toast = useToast();
-  // Persistir estado de disponibilidad en localStorage
-  const [available, setAvailable] = useState(() => {
-    return localStorage.getItem('providerAvailable') === 'true';
-  });
+  const [available, setAvailable] = useState(() => localStorage.getItem('providerAvailable') === 'true');
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [pendingRequest, setPendingRequest] = useState(null);
   const [bankDataComplete, setBankDataComplete] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
 
   useEffect(() => {
-    // Verificar si complet? el onboarding
     const completed = localStorage.getItem('providerOnboardingCompleted') === 'true';
     setOnboardingCompleted(completed);
-    
-    // Si no complet? onboarding, verificar si tiene progreso guardado
+
     if (!completed) {
       const savedStep = localStorage.getItem('providerOnboardingStep');
-      if (savedStep && parseInt(savedStep) > 0) {
-        // Tiene progreso - mostrar opci?n de continuar
-        const STEP_ROUTES = {
-          '1': '/provider/data',
-          '2': '/provider/machine-data',
-          '3': '/provider/machine-photos',
-          '4': '/provider/pricing',
-          '5': '/provider/operator-data',
-          '6': '/provider/review'
-        };
-        const route = STEP_ROUTES[savedStep];
-        if (route) {
-          // Auto-redirigir al ?ltimo paso
-          navigate(route);
-          return;
-        }
+      const route = getProviderOnboardingRoute(savedStep);
+      if (route) {
+        navigate(route);
+        return;
       }
     }
-    
-    // Cargar estado de disponibilidad guardado
-    const savedAvailable = localStorage.getItem('providerAvailable') === 'true';
-    if (completed && savedAvailable !== available) {
-      setAvailable(savedAvailable);
-    }
-    
-    // Verificar si datos bancarios est?n completos
+
     const bankData = getObject('bankData', {});
-    const isBankComplete = bankData.bank && bankData.accountType && bankData.accountNumber && bankData.holderName && bankData.holderRut;
-    setBankDataComplete(!!isBankComplete);
+    const isBankComplete = !!bankData.bank && !!bankData.accountType && !!bankData.accountNumber && !!bankData.holderName && !!bankData.holderRut;
+    setBankDataComplete(isBankComplete);
+
+    // Sincronizar disponibilidad desde backend (fuente de verdad) al montar
+    const userId = localStorage.getItem('userId');
+    const isDemoId = userId && (userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-'));
+    if (userId && !isDemoId) {
+      axios.get(`${BACKEND_URL}/api/users/${userId}`, { timeout: 5000 })
+        .then((res) => {
+          const avail = res.data?.isAvailable ?? res.data?.available ?? false;
+          setAvailable(!!avail);
+          localStorage.setItem('providerAvailable', (!!avail).toString());
+        })
+        .catch(() => {
+          const saved = localStorage.getItem('providerAvailable') === 'true';
+          setAvailable(saved);
+        });
+    } else {
+      const saved = localStorage.getItem('providerAvailable') === 'true';
+      setAvailable(saved);
+    }
   }, [navigate]);
 
   useEffect(() => {
@@ -90,28 +88,72 @@ function ProviderHomeScreen() {
   }, [available, onboardingCompleted, navigate]);
 
   const toggleAvailability = async () => {
-    if (!onboardingCompleted) return; // Bloquear si no complet? onboarding
-    
+    if (!onboardingCompleted || isToggling) return;
+
+    setIsToggling(true);
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      setIsToggling(false);
+      toast.error('Debes iniciar sesión para conectarte. Cierra sesión y vuelve a entrar.');
+      return;
+    }
+
     const newStatus = !available;
     setAvailable(newStatus);
-    
-    // Desbloquear audio y feedback t?ctil (como en operadores)
+
+    // Desbloquear audio y feedback táctil (como en operadores)
     unlockAudio();
     playTapSound();
     vibrate(newStatus ? 'accepted' : 'tap');
-    
+
     // Persistir en localStorage
     localStorage.setItem('providerAvailable', newStatus.toString());
-    
+
+    // Modo demo: IDs de fallback no existen en backend, no llamar API
+    const isDemoId = userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-');
+    if (isDemoId) {
+      toast.success(newStatus ? 'Te conectaste (modo demo)' : 'Te desconectaste', 'availability');
+      setIsToggling(false);
+      return;
+    }
+
+    const doPatch = () => axios.patch(`${BACKEND_URL}/api/users/${userId}`, {
+      available: newStatus
+    }, { timeout: 8000 });
+
     try {
-      const userId = localStorage.getItem('userId');
-      await axios.patch(`${BACKEND_URL}/api/users/${userId}`, {
-        available: newStatus
-      });
+      await doPatch();
+      toast.success(newStatus ? 'Te conectaste' : 'Te desconectaste', 'availability');
     } catch (e) {
-      console.error(e);
-      toast.error('Error al actualizar disponibilidad. Revisa tu conexión.');
-      setAvailable(!newStatus); // Revertir toggle
+      // Un reintento en fallo de red (producción: conexiones transitorias)
+      const isRetryable = !e.response || e.code === 'ECONNABORTED' || e.code === 'ERR_NETWORK' || e.message?.includes('Network Error');
+      if (isRetryable) {
+        try {
+          await doPatch();
+          toast.success(newStatus ? 'Te conectaste' : 'Te desconectaste', 'availability');
+          return;
+        } catch (e2) {
+          console.error('Reintento fallido:', e2);
+        }
+      }
+      const status = e.response?.status;
+      const detail = e.response?.data?.detail;
+      const detailStr = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map(d => d?.msg || d).join(' ') : '');
+      const isNetworkError = !e.response || e.code === 'ECONNREFUSED' || e.code === 'ERR_NETWORK' || e.code === 'ECONNABORTED' || e.message?.includes('Network Error') || e.message?.includes('timeout');
+
+      if (status === 404 || (detailStr && detailStr.toLowerCase().includes('no encontrado'))) {
+        setAvailable(!newStatus);
+        localStorage.setItem('providerAvailable', (!newStatus).toString());
+        toast.error('Tu sesión expiró. Cierra sesión e inicia sesión nuevamente.');
+      } else if (isNetworkError) {
+        toast.success(newStatus ? 'Te conectaste. No se pudo sincronizar (sin conexión).' : 'Te desconectaste. No se pudo sincronizar (sin conexión).', 'availability');
+      } else {
+        setAvailable(!newStatus);
+        localStorage.setItem('providerAvailable', (!newStatus).toString());
+        toast.error('No se pudo conectar. Intenta de nuevo.');
+      }
+    } finally {
+      setIsToggling(false);
     }
   };
 
@@ -209,14 +251,15 @@ function ProviderHomeScreen() {
           {/* Toggle grande central - SIN gradientes */}
           <button
             onClick={toggleAvailability}
-            disabled={!onboardingCompleted}
+            disabled={!onboardingCompleted || isToggling}
             style={{
               width: 100,
               height: 100,
               borderRadius: '50%',
               border: 'none',
               background: available && onboardingCompleted ? '#90BDD3' : '#444',
-              cursor: onboardingCompleted ? 'pointer' : 'not-allowed',
+              cursor: onboardingCompleted && !isToggling ? 'pointer' : 'not-allowed',
+              opacity: isToggling ? 0.7 : 1,
               transition: 'background 0.3s',
               display: 'flex',
               alignItems: 'center',
@@ -268,22 +311,24 @@ function ProviderHomeScreen() {
               Listo para recibir solicitudes
             </p>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0, textAlign: 'center' }}>
-              Las solicitudes inmediatas pagan hasta <strong style={{ color: '#EC6819' }}>+20% m?s</strong>
+              Las solicitudes inmediatas pagan hasta <strong style={{ color: '#EC6819' }}>+20% más</strong>
             </p>
           </div>
         )}
 
         <div className="maqgo-spacer"></div>
 
-        {/* Bot?n demo para simular solicitud */}
-        <button 
-          className="maqgo-btn-primary"
-          onClick={simulateRequest}
-          disabled={!onboardingCompleted}
-          style={{ marginBottom: 15, opacity: onboardingCompleted ? 1 : 0.5 }}
-        >
-          Simular solicitud entrante (Demo)
-        </button>
+        {/* Botón demo: solo en desarrollo, oculto en producción live */}
+        {import.meta.env.VITE_IS_PRODUCTION !== 'true' && (
+          <button 
+            className="maqgo-btn-primary"
+            onClick={simulateRequest}
+            disabled={!onboardingCompleted}
+            style={{ marginBottom: 15, opacity: onboardingCompleted ? 1 : 0.5 }}
+          >
+            Simular solicitud entrante (Demo)
+          </button>
+        )}
 
         {/* Indicador de configuraci?n pendiente */}
         {!bankDataComplete && (

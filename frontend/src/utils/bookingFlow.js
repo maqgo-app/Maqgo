@@ -1,7 +1,63 @@
 /**
- * Rutas de retroceso para el flujo de reserva cliente.
- * Evita navigate(-1) que puede fallar si el usuario llega por URL directa o refresca.
+ * MAQGO - Rutas y flujos centralizados
+ * Fuente única de verdad para step→route y back routes.
+ * Evita duplicación y parches en ProviderHomeScreen, WelcomeScreen, ClientHome.
  */
+
+// ===========================================
+// CLIENT BOOKING - Step → Route (reanudar reserva)
+// ===========================================
+export const CLIENT_BOOKING_STEP_ROUTES = {
+  machinery: '/client/machinery',
+  hours: '/client/hours-selection',
+  urgency: '/client/urgency',
+  calendar: '/client/calendar',
+  location: '/client/service-location',
+  providers: '/client/providers',
+  confirm: '/client/confirm',
+};
+
+/**
+ * Obtiene la ruta para reanudar el flujo de reserva cliente.
+ * @param {string} step - clientBookingStep (machinery, hours, urgency, etc.)
+ * @returns {string} Ruta o /client/home si no hay match
+ */
+export function getClientBookingRoute(step) {
+  return CLIENT_BOOKING_STEP_ROUTES[step] || '/client/home';
+}
+
+// ===========================================
+// PROVIDER ONBOARDING - Step (1-6) → Route
+// Re-export desde providerOnboarding (módulo independiente para evitar errores en chunks lazy)
+// ===========================================
+export {
+  PROVIDER_ONBOARDING_STEP_ROUTES,
+  getProviderOnboardingRoute,
+} from './providerOnboarding';
+
+// ===========================================
+// CLIENT BOOKING - Keys para limpiar al cancelar/nueva reserva
+// ===========================================
+export const CLIENT_BOOKING_STORAGE_KEYS = [
+  'clientBookingStep', 'bookingProgress', 'selectedMachinery', 'selectedMachineryList', 'selectedHours',
+  'reservationType', 'priceType', 'serviceLocation', 'serviceLat', 'serviceLng',
+  'selectedProviderIds', 'matchedProviders', 'selectedProvider', 'billingData',
+  'selectedDates', 'selectedDate', 'serviceBasePrice', 'serviceTransportFee',
+  'totalAmount', 'maxTotalAmount', 'needsInvoice', 'currentServiceId', 'matchingResult',
+  'clientRequiredM3List', 'clientRequiredM3', 'providerSelectionMachinery', 'acceptedProvider',
+  'servicePricing', 'urgencyType', 'additionalDays',
+];
+
+/**
+ * Limpia todo el estado de reserva cliente en localStorage.
+ */
+export function clearClientBookingStorage() {
+  CLIENT_BOOKING_STORAGE_KEYS.forEach((k) => localStorage.removeItem(k));
+}
+
+// ===========================================
+// RUTAS DE RETROCESO (back button)
+// ===========================================
 export const BOOKING_BACK_ROUTES = {
   '/client/machinery': '/client/home',
   '/client/calendar': '/client/home',

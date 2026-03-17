@@ -167,8 +167,8 @@ function ProviderOptionsScreen() {
     const all = specKey && specValues
       ? baseProviders.map((p, i) => ({ ...p, [specKey]: specValues[i % specValues.length] }))
       : baseProviders;
-    const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
-    return needsInvoice ? all.filter(p => p.emits_invoice) : all;
+    // Cliente ve todos los proveedores: MAQGO factura siempre al cliente; a proveedores sin factura MAQGO emite factura de compra
+    return all;
   };
 
   /** Horas máximas: HorasCierre - HoraActual - ETA - 1hr almuerzo + 30min elasticidad */

@@ -28,10 +28,13 @@ function jsxInJs() {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const backendUrl = env.REACT_APP_BACKEND_URL || env.VITE_BACKEND_URL || 'http://localhost:8000'
+  const isProduction = mode === 'production' && !backendUrl.includes('localhost')
   return {
     plugins: [jsxInJs(), react()],
     define: {
       'process.env.REACT_APP_BACKEND_URL': JSON.stringify(backendUrl),
+      'import.meta.env.VITE_BACKEND_URL': JSON.stringify(backendUrl),
+      'import.meta.env.VITE_IS_PRODUCTION': JSON.stringify(isProduction),
     },
     optimizeDeps: {
       esbuildOptions: {

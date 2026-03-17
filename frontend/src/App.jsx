@@ -1,6 +1,8 @@
 import React, { useState, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import './utils/api'; // Configura timeout global axios (evita esperas indefinidas)
+import { ROUTES } from './constants';
+import ProviderHomeScreen from './screens/provider/ProviderHomeScreen'; // Import directo: evita errores de chunks lazy al confirmar onboarding
 import { AuthProvider } from './context/AuthContext';
 import ToastProvider from './components/Toast';
 import BottomNavigation from './components/BottomNavigation';
@@ -8,6 +10,7 @@ import ChatBot from './components/ChatBot';
 import ScrollToTop from './components/ScrollToTop';
 import OfflineBanner from './components/OfflineBanner';
 import AdminRoute from './components/AdminRoute';
+import ProtectedRoute from './components/ProtectedRoute';
 import BookingFlowFallback from './components/BookingFlowFallback';
 
 // Code-splitting: pantallas se cargan bajo demanda (menor bundle inicial, carga más rápida)
@@ -65,7 +68,6 @@ const MachinePhotosScreen = lazy(() => import('./screens/provider/MachinePhotosS
 const PricingScreen = lazy(() => import('./screens/provider/PricingScreen'));
 const OperatorDataScreen = lazy(() => import('./screens/provider/OperatorDataScreen'));
 const ReviewScreen = lazy(() => import('./screens/provider/ReviewScreen'));
-const ProviderHomeScreen = lazy(() => import('./screens/provider/ProviderHomeScreen'));
 const ProviderAvailability = lazy(() => import('./screens/provider/ProviderAvailability'));
 const RequestReceivedScreen = lazy(() => import('./screens/provider/RequestReceivedScreen'));
 const ServiceAccepted = lazy(() => import('./screens/provider/ServiceAccepted'));
@@ -138,31 +140,25 @@ function AppContent() {
   const [userId, setUserId] = useState(() => localStorage.getItem('userId') || null);
 
   const path = location.pathname;
-  // NUNCA mostrar nav en estas rutas (formularios, onboarding) → botón naranja visible
+  // NUNCA mostrar nav: formularios, onboarding, flujos de reserva/pago
   const noNavPaths = [
     '/provider/data', '/provider/machine-data', '/provider/machine-photos',
     '/provider/pricing', '/provider/operator-data', '/provider/review',
-    '/provider/upload-invoice', '/provider/profile/empresa', '/provider/profile/banco',
+    '/provider/upload-invoice',
     '/client/confirm', '/client/billing', '/client/card-input', '/client/service-location',
     '/client/providers', '/client/hours-selection', '/client/searching', '/client/waiting-confirmation'
   ];
   const hideNav = noNavPaths.some(p => path === p || path.startsWith(p + '/'));
-  // MOSTRAR nav solo en pantallas principales (y no en blacklist)
-  const showBottomNav = !hideNav && (
-    path === '/client/home' ||
-    path === '/client/history' ||
-    path === '/client/machinery' ||
-    path === '/provider/home' ||
-    path === '/provider/machines' ||
-    path === '/provider/profile' ||
-    path === '/provider/history' ||
-    path === '/provider/cobros' ||
-    path === '/provider/dashboard' ||
-    path === '/provider/my-services' ||
-    path === '/operator/home' ||
-    path === '/operator/history' ||
-    path === '/profile'
-  );
+  // MOSTRAR footer en pantallas principales: home, máquinas, perfil, historial (incluye subrutas)
+  const mainPathsWithNav = [
+    '/client/home', '/client/history', '/client/machinery', '/client/detalle-servicio',
+    '/provider/home', '/provider/machines', '/provider/add-machine', '/provider/edit-machine',
+    '/provider/profile', '/provider/history', '/provider/cobros', '/provider/dashboard', '/provider/my-services',
+    '/provider/operator', '/provider/team', '/provider/tariffs',
+    '/operator/home', '/operator/history', '/operator/completed',
+    '/profile', '/faq', '/terms', '/privacy'
+  ];
+  const showBottomNav = !hideNav && mainPathsWithNav.some(p => path === p || path.startsWith(p + '/'));
 
   return (
     <div className={showBottomNav ? 'maqgo-with-bottom-nav' : ''} style={{ minHeight: '100vh' }}>
@@ -170,6 +166,7 @@ function AppContent() {
       <ScrollToTop />
       <Suspense fallback={<BookingFlowFallback />}>
       <Routes>
+        <Route element={<ProtectedRoute />}>
         <Route path="/" element={<WelcomeScreen />} />
         <Route path="/welcome" element={<WelcomeScreen />} />
         <Route path="/register" element={<RegisterScreen />} />
@@ -228,7 +225,7 @@ function AppContent() {
         <Route path="/provider/pricing" element={<PricingScreen />} />
         <Route path="/provider/operator-data" element={<OperatorDataScreen />} />
         <Route path="/provider/review" element={<ReviewScreen />} />
-        <Route path="/provider/home" element={<ProviderHomeScreen />} />
+        <Route path={ROUTES.PROVIDER_HOME} element={<ProviderHomeScreen />} />
         <Route path="/provider/availability" element={<ProviderAvailability />} />
         <Route path="/provider/request" element={<RequestReceivedScreen />} />
         <Route path="/provider/request-received" element={<RequestReceivedScreen />} />
@@ -278,6 +275,7 @@ function AppContent() {
         <Route path="/privacy" element={<PrivacyScreen />} />
         {/* Catch-all: cualquier ruta no definida redirige a Welcome */}
         <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
       </Routes>
       </Suspense>
       {showBottomNav && <BottomNavigation />}
