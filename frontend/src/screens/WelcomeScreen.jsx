@@ -23,7 +23,7 @@ function WelcomeScreen() {
   useEffect(() => {
     const check = () => {
       const h = window.innerHeight;
-      setIsShortViewport(h < 640);
+      setIsShortViewport(h < 680);
       setViewportHeight(h);
     };
     check();
@@ -103,16 +103,16 @@ function WelcomeScreen() {
   const pad = isDesktop ? 40 : (isNarrowMobile ? 16 : 20);
   // Logo escala progresivamente según altura del viewport (p2→p6): más grande en pantallas altas
   const logoSize = isDesktop
-    ? 220
+    ? 160
     : viewportHeight < 500
-      ? 110
+      ? 90
       : viewportHeight < 560
-        ? 130
+        ? 105
         : viewportHeight < 620
-          ? 150
+          ? 118
           : viewportHeight < 680
-            ? 165
-            : 180;
+            ? 130
+            : 142;
 
   return (
     <div className={`maqgo-app ${isDesktop ? 'welcome-desktop' : ''} ${isShortViewport ? 'welcome-short' : ''}`}>
@@ -127,10 +127,10 @@ function WelcomeScreen() {
           minHeight: isDesktop ? undefined : '100dvh',
           maxHeight: isDesktop ? undefined : '100dvh',
           boxSizing: 'border-box',
-          background: '#0F0F12',
+          background: '#18181C',
           padding: isDesktop
-            ? `max(16px, env(safe-area-inset-top)) ${pad}px max(16px, env(safe-area-inset-bottom))`
-            : `max(${isShortViewport ? 12 : 20}px, env(safe-area-inset-top, 20px)) ${pad}px max(${isShortViewport ? 12 : 20}px, env(safe-area-inset-bottom, 20px))`,
+            ? `max(56px, env(safe-area-inset-top)) ${pad}px max(16px, env(safe-area-inset-bottom))`
+            : `max(${isShortViewport ? 6 : 12}px, env(safe-area-inset-top, 12px)) ${pad}px max(${isShortViewport ? 6 : 10}px, env(safe-area-inset-bottom, 10px))`,
           overflow: 'hidden',
           opacity: mounted ? 1 : 0,
           transition: 'opacity 0.3s ease-out'
@@ -143,10 +143,10 @@ function WelcomeScreen() {
           flexDirection: 'column',
           alignItems: 'center',
           textAlign: 'center',
-          paddingBottom: isShortViewport ? 8 : (isNarrowMobile ? 16 : 24),
+          paddingBottom: isShortViewport ? 4 : (isNarrowMobile ? 10 : (isDesktop ? 32 : 14)),
           width: '100%'
         }}>
-          <MaqgoLogo customSize={logoSize} transparent style={{ marginBottom: isShortViewport ? 8 : (isNarrowMobile ? 18 : 28) }} />
+          <MaqgoLogo customSize={logoSize} transparent style={{ marginBottom: isShortViewport ? 4 : (isNarrowMobile ? 10 : (isDesktop ? 36 : 16)) }} />
           <div style={{
             display: 'inline-block',
             flexShrink: 0,
@@ -154,7 +154,7 @@ function WelcomeScreen() {
             border: '1.5px solid rgba(236, 104, 25, 0.6)',
             borderRadius: 24,
             padding: isShortViewport ? '4px 10px' : (isDesktop ? '8px 18px' : (isNarrowMobile ? '6px 12px' : '7px 16px')),
-            marginBottom: isShortViewport ? 8 : (isNarrowMobile ? 16 : 26),
+            marginBottom: isShortViewport ? 4 : (isNarrowMobile ? 10 : 14),
             boxShadow: '0 2px 12px rgba(236, 104, 25, 0.2)'
           }}>
             <span style={{
@@ -171,7 +171,7 @@ function WelcomeScreen() {
             fontSize: isShortViewport ? 16 : (isDesktop ? 26 : (isNarrowMobile ? 18 : 22)),
             fontWeight: 600,
             color: '#FAFAFA',
-            margin: '0 0 ' + (isShortViewport ? 6 : (isNarrowMobile ? 12 : 20)) + 'px',
+            margin: '0 0 ' + (isShortViewport ? 3 : (isNarrowMobile ? 6 : 10)) + 'px',
             lineHeight: 1.3,
             letterSpacing: '-0.02em',
             maxWidth: '100%',
@@ -199,7 +199,7 @@ function WelcomeScreen() {
           <div
             style={{
               flexShrink: 0,
-              marginBottom: isShortViewport ? 8 : 16,
+              marginBottom: isShortViewport ? 4 : 10,
               padding: isShortViewport ? 10 : 14,
               background: 'linear-gradient(135deg, rgba(236, 104, 25, 0.2) 0%, rgba(236, 104, 25, 0.1) 100%)',
               border: '1px solid rgba(236, 104, 25, 0.5)',
@@ -263,7 +263,7 @@ function WelcomeScreen() {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: isDesktop ? 'center' : (isShortViewport ? 'center' : 'flex-start'),
-          gap: isShortViewport ? 6 : (isNarrowMobile ? 8 : 12),
+          gap: isShortViewport ? 3 : (isNarrowMobile ? 5 : 8),
           overflow: 'hidden'
         }}>
           <button
@@ -382,29 +382,44 @@ function WelcomeScreen() {
           .maqgo-screen.welcome-screen {
             -webkit-tap-highlight-color: transparent;
           }
+          .welcome-cta-primary,
+          .welcome-cta-secondary {
+            padding: 12px 14px;
+          }
+          .welcome-cta-icon {
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            min-height: 36px;
+            flex: 0 0 36px;
+          }
+          .welcome-cta-icon svg {
+            width: 20px;
+            height: 20px;
+          }
         }
         .welcome-short .welcome-cta-primary,
         .welcome-short .welcome-cta-secondary {
-          padding: 10px 14px;
+          padding: 8px 12px;
         }
         .welcome-short .welcome-cta-icon {
-          width: 36px;
-          height: 36px;
-          min-width: 36px;
-          min-height: 36px;
-          flex: 0 0 36px;
+          width: 32px;
+          height: 32px;
+          min-width: 32px;
+          min-height: 32px;
+          flex: 0 0 32px;
         }
         .welcome-short .welcome-cta-icon svg {
-          width: 20px;
-          height: 20px;
+          width: 18px;
+          height: 18px;
         }
         .welcome-short .welcome-cta-primary > div:last-child > div:first-child,
         .welcome-short .welcome-cta-secondary > div:last-child > div:first-child {
-          font-size: 14px;
+          font-size: 13px;
         }
         .welcome-short .welcome-cta-primary > div:last-child > div:last-child,
         .welcome-short .welcome-cta-secondary > div:last-child > div:last-child {
-          font-size: 11px;
+          font-size: 10px;
         }
         .welcome-cta-primary {
           width: 100%;

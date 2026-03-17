@@ -19,7 +19,7 @@ function AdminRoute({ children }) {
     return (
       <div style={{
         minHeight: '100vh',
-        background: '#0F0F12',
+        background: '#18181C',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',

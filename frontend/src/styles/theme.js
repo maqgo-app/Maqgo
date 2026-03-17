@@ -10,7 +10,7 @@
 export const MAQGO = {
   colors: {
     // Fondos - Premium Dark
-    bgDark: '#0F0F12',        // Fondo principal
+    bgDark: '#18181C',        // Fondo principal
     bgCard: '#1A1A1F',        // Cards
     bgCardHover: '#242429',   // Hover
     

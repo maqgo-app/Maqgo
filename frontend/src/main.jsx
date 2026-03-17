@@ -24,7 +24,7 @@ class ErrorBoundary extends React.Component {
       const message = err?.message || String(err);
       const isChunkError = /Failed to fetch dynamically imported module|Loading chunk|ChunkLoadError/i.test(message);
       return (
-        <div style={{ padding: 24, background: "#0F0F12", minHeight: "100vh", color: "#fff", fontFamily: "sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} role="alert">
+        <div style={{ padding: 24, background: "#18181C", minHeight: "100vh", color: "#fff", fontFamily: "sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} role="alert">
           <h1 style={{ color: "#EC6819", marginBottom: 12 }}>Algo salió mal</h1>
           <p style={{ color: "rgba(255,255,255,0.85)", marginBottom: 8 }}>
             {isChunkError ? "La app se actualizó. Recarga la página para obtener la versión más reciente." : "Hubo un error inesperado. Intenta recargar la página."}

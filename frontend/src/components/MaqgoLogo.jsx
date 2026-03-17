@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import logoImg from '../assets/maqgo-logo.png';
 
-/** Logo transparente (public) - evita parche de fondo distinto al #0F0F12 */
+/** Logo transparente (public) - evita parche de fondo distinto al #18181C */
 const LOGO_TRANSPARENT = '/maqgo-logo-transparent.png';
 
 /**

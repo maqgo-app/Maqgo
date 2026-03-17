@@ -72,7 +72,7 @@ function ProviderDashboardSimple() {
   if (selectedService) {
     return (
       <div style={{ 
-        background: '#0F0F12', 
+        background: '#18181C', 
         minHeight: '100vh',
         padding: '20px'
       }}>
@@ -111,7 +111,7 @@ function ProviderDashboardSimple() {
 
   return (
     <div style={{ 
-      background: '#0F0F12', 
+      background: '#18181C', 
       minHeight: '100vh',
       padding: '20px'
     }}>

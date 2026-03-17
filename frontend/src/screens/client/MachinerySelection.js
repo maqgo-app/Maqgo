@@ -289,7 +289,7 @@ function MachinerySelection() {
         </div>
 
         {/* Botón fijo abajo - siempre visible (90px para barra inferior) */}
-        <div style={{ flexShrink: 0, padding: '16px 0 56px', background: '#0F0F12' }}>
+        <div style={{ flexShrink: 0, padding: '16px 0 56px', background: '#18181C' }}>
           <button
             className="maqgo-btn-primary"
             onClick={handleContinue}

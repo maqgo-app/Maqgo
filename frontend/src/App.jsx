@@ -109,7 +109,7 @@ const PrivacyScreen = lazy(() => import('./screens/PrivacyScreen'));
 
 function PageFallback() {
   return (
-    <div className="maqgo-app" style={{ minHeight: '100vh', background: '#0F0F12', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-hidden="true">
+    <div className="maqgo-app" style={{ minHeight: '100vh', background: '#18181C', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-hidden="true">
       <span style={{ width: 32, height: 32, border: '3px solid rgba(236,104,25,0.3)', borderTopColor: 'var(--maqgo-orange)', borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
     </div>
   );
@@ -287,7 +287,7 @@ function AppContent() {
 
 export default function App() {
   return (
-    <div style={{ minHeight: '100vh', width: '100%', background: '#0F0F12' }}>
+    <div style={{ minHeight: '100vh', width: '100%', background: '#000000' }}>
       <AuthProvider>
         <ToastProvider>
           <AppContent />
