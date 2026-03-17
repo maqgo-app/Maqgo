@@ -4,7 +4,7 @@
   "description": "Arriendo de maquinaria pesada en horas, no días. Sin contratos. Paga solo al confirmar.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#18181C",
+  "background_color": "#141418",
   "theme_color": "#EC6819",
   "orientation": "portrait-primary",
   "icons": [

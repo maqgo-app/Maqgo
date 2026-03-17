@@ -118,7 +118,7 @@ function MyMachinesScreen() {
     new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(price || 0);
 
   return (
-    <div style={{ background: '#18181C', minHeight: '100vh', padding: '20px', paddingBottom: 80 }}>
+    <div style={{ background: 'var(--maqgo-bg)', minHeight: '100vh', padding: '20px', paddingBottom: 80 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>

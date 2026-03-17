@@ -1,69 +1,54 @@
-import React, { useState } from 'react';
-import logoImg from '../assets/maqgo-logo.png';
-
-/** Logo transparente (public) - evita parche de fondo distinto al #18181C */
-const LOGO_TRANSPARENT = '/maqgo-logo-transparent.png';
+import React from 'react';
 
 /**
- * Logo MAQGO estandarizado
- * 
- * Tamaños predefinidos para consistencia visual:
- * - large: Solo para WelcomeScreen (onboarding inicial) - 260px
- * - medium: Para pantallas principales (Home) - 160px
- * - small: Para headers de pantallas internas - 100px
- * - mini: Para espacios muy reducidos - 80px
+ * Logo MAQGO - SVG nativo
+ * Transparencia perfecta, sin dependencia de imágenes. Escala en cualquier tamaño.
+ *
+ * Tamaños: large (180) | medium (160) | small (100) | mini (80)
  */
-
 const SIZES = {
-  large: 260,   // Welcome screen única
-  medium: 160,  // Home screens
-  small: 100,   // Headers internos (default)
-  mini: 80      // Espacios reducidos
+  large: 180,
+  medium: 160,
+  small: 100,
+  mini: 80
 };
 
-const MaqgoLogo = ({ size = 'small', customSize = null, style = {}, transparent = false }) => {
-  const [imgError, setImgError] = useState(false);
+function MaqgoLogo({ size = 'small', customSize = null, style = {}, transparent }) {
   const logoSize = customSize || SIZES[size] || SIZES.small;
-  const logoSrc = transparent ? LOGO_TRANSPARENT : logoImg;
-  
+
   return (
-    <div 
-      className="maqgo-logo-cropped" 
-      style={{ 
-        display: 'flex', 
+    <div
+      className="maqgo-logo-cropped"
+      style={{
+        display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        background: 'transparent',
-        ...style 
+        ...style
       }}
+      aria-hidden="true"
     >
-      {imgError ? (
-        <span style={{ 
-          fontSize: logoSize * 0.4, 
-          fontWeight: 700, 
-          color: '#EC6819', 
-          fontFamily: "'Space Grotesk', sans-serif",
-          letterSpacing: '-0.03em'
-        }}>
+      <svg
+        width={logoSize}
+        height={logoSize * 0.4}
+        viewBox="0 0 120 48"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{ display: 'block' }}
+      >
+        <text
+          x="0"
+          y="36"
+          fill="var(--maqgo-orange)"
+          fontFamily="'Space Grotesk', 'Inter', sans-serif"
+          fontSize="40"
+          fontWeight="700"
+          letterSpacing="-0.03em"
+        >
           MAQGO
-        </span>
-      ) : (
-        <img 
-          src={logoSrc} 
-          alt="MAQGO" 
-          onError={() => setImgError(true)}
-          style={{ 
-            width: logoSize, 
-            maxWidth: logoSize,
-            height: 'auto', 
-            objectFit: 'contain',
-            objectPosition: 'center',
-            display: 'block'
-          }} 
-        />
-      )}
+        </text>
+      </svg>
     </div>
   );
-};
+}
 
 export default MaqgoLogo;

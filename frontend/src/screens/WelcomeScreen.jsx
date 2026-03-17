@@ -103,7 +103,7 @@ function WelcomeScreen() {
   const pad = isDesktop ? 40 : (isNarrowMobile ? 16 : 20);
   // Logo escala progresivamente según altura del viewport (p2→p6): más grande en pantallas altas
   const logoSize = isDesktop
-    ? 160
+    ? 180
     : viewportHeight < 500
       ? 90
       : viewportHeight < 560
@@ -127,9 +127,9 @@ function WelcomeScreen() {
           minHeight: isDesktop ? undefined : '100dvh',
           maxHeight: isDesktop ? undefined : '100dvh',
           boxSizing: 'border-box',
-          background: '#18181C',
+          background: 'var(--maqgo-bg)',
           padding: isDesktop
-            ? `max(56px, env(safe-area-inset-top)) ${pad}px max(16px, env(safe-area-inset-bottom))`
+            ? `max(72px, env(safe-area-inset-top)) ${pad}px max(16px, env(safe-area-inset-bottom))`
             : `max(${isShortViewport ? 6 : 12}px, env(safe-area-inset-top, 12px)) ${pad}px max(${isShortViewport ? 6 : 10}px, env(safe-area-inset-bottom, 10px))`,
           overflow: 'hidden',
           opacity: mounted ? 1 : 0,
@@ -143,7 +143,7 @@ function WelcomeScreen() {
           flexDirection: 'column',
           alignItems: 'center',
           textAlign: 'center',
-          paddingBottom: isShortViewport ? 4 : (isNarrowMobile ? 10 : (isDesktop ? 32 : 14)),
+          paddingBottom: isShortViewport ? 12 : (isNarrowMobile ? 20 : (isDesktop ? 40 : 28)),
           width: '100%'
         }}>
           <MaqgoLogo customSize={logoSize} transparent style={{ marginBottom: isShortViewport ? 4 : (isNarrowMobile ? 10 : (isDesktop ? 36 : 16)) }} />
@@ -257,14 +257,18 @@ function WelcomeScreen() {
         )}
 
         {/* CTAs - flex:1 para ocupar espacio y centrar en desktop; en móvil también flex para distribuir */}
+        {/* Sin banner "Continuar": más espacio entre header y botones para buena UX de navegación */}
         <main style={{
           flex: 1,
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: isDesktop ? 'center' : (isShortViewport ? 'center' : 'flex-start'),
-          gap: isShortViewport ? 3 : (isNarrowMobile ? 5 : 8),
-          overflow: 'hidden'
+          gap: isShortViewport ? 8 : (isNarrowMobile ? 12 : 16),
+          overflow: 'hidden',
+          marginTop: abandonedBooking
+            ? (isDesktop ? 16 : (isShortViewport ? 8 : 12))
+            : (isDesktop ? 48 : (isShortViewport ? 28 : (isNarrowMobile ? 36 : 44)))
         }}>
           <button
             onClick={() => navigate('/client/home')}

@@ -209,7 +209,7 @@ function UploadInvoiceScreen() {
   const isDesktop = window.innerWidth >= 768;
 
   return (
-    <div className="maqgo-app" style={{ background: '#18181C', minHeight: '100vh' }}>
+    <div className="maqgo-app" style={{ background: 'var(--maqgo-bg)', minHeight: '100vh' }}>
       <div style={{ maxWidth: isDesktop ? 600 : 500, margin: '0 auto', padding: isDesktop ? '24px 40px' : '20px', paddingBottom: 120, overflowY: 'auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>

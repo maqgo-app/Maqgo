@@ -95,9 +95,11 @@ function ServiceFinishedScreen() {
     const serviceId = localStorage.getItem('currentServiceId');
 
     const loadData = async () => {
-      // Total y proveedor: prioridad API (lo que realmente se cobró) sobre localStorage
+      // Total, proveedor y horarios: prioridad API (datos reales del servicio) sobre localStorage
       let totalFromApi = null;
       let providerFromApi = null;
+      let arrivalIso = null;
+      let finishedIso = null;
       if (serviceId && !serviceId.startsWith('demo')) {
         try {
           const res = await axios.get(`${BACKEND_URL}/api/service-requests/${serviceId}`);
@@ -110,6 +112,13 @@ function ServiceFinishedScreen() {
                 operator_name: res.data.providerOperatorName || res.data.provider?.operator_name
               };
             }
+            // Horarios reales conforme a lo arrendado:
+            // - Ingreso: si hubo inicio automático (cliente no dejó entrar), usar autoStartedAt; si no, arrivalDetectedAt
+            // - Salida: finishedAt
+            const autoStartedIso = res.data.autoStartedAt || null;
+            const arrivalDetectedIso = res.data.arrivalDetectedAt || null;
+            arrivalIso = autoStartedIso ?? arrivalDetectedIso;
+            finishedIso = res.data.finishedAt || null;
           }
         } catch (e) {
           console.warn('No se pudo cargar servicio para desglose:', e?.message);
@@ -126,8 +135,9 @@ function ServiceFinishedScreen() {
       const totalAmount = totalFromApi ?? parseInt(localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0');
       const isPerTrip = MACHINERY_PER_TRIP.includes(machinery);
       const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
-      const serviceStartIso = localStorage.getItem('serviceStartTime');
-      const serviceEndIso = localStorage.getItem('serviceEndTime');
+      // Prioridad: API (arrivalDetectedAt, finishedAt) > localStorage (solo demo o fallback)
+      const serviceStartIso = arrivalIso ?? localStorage.getItem('serviceStartTime');
+      const serviceEndIso = finishedIso ?? localStorage.getItem('serviceEndTime');
       const { startTime, endTime, hasRealEnd } = getRealStartAndEnd(serviceStartIso, serviceEndIso);
 
       const service = pricing.service_amount ?? pricing.breakdown?.service_cost ?? (provider.price_per_hour || 45000) * hours;

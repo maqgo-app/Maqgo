@@ -8,6 +8,7 @@ import ChatBot from './components/ChatBot';
 import ScrollToTop from './components/ScrollToTop';
 import OfflineBanner from './components/OfflineBanner';
 import AdminRoute from './components/AdminRoute';
+import BookingFlowFallback from './components/BookingFlowFallback';
 
 // Code-splitting: pantallas se cargan bajo demanda (menor bundle inicial, carga más rápida)
 // Públicas
@@ -109,7 +110,7 @@ const PrivacyScreen = lazy(() => import('./screens/PrivacyScreen'));
 
 function PageFallback() {
   return (
-    <div className="maqgo-app" style={{ minHeight: '100vh', background: '#18181C', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-hidden="true">
+    <div className="maqgo-app" style={{ minHeight: '100vh', background: 'var(--maqgo-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-hidden="true">
       <span style={{ width: 32, height: 32, border: '3px solid rgba(236,104,25,0.3)', borderTopColor: 'var(--maqgo-orange)', borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
     </div>
   );
@@ -167,7 +168,7 @@ function AppContent() {
     <div className={showBottomNav ? 'maqgo-with-bottom-nav' : ''} style={{ minHeight: '100vh' }}>
       <OfflineBanner />
       <ScrollToTop />
-      <Suspense fallback={<PageFallback />}>
+      <Suspense fallback={<BookingFlowFallback />}>
       <Routes>
         <Route path="/" element={<WelcomeScreen />} />
         <Route path="/welcome" element={<WelcomeScreen />} />

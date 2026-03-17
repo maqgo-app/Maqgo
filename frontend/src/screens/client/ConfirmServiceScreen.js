@@ -41,7 +41,6 @@ function ConfirmServiceScreen() {
   const [selectedDates, setSelectedDates] = useState(() => getArray('selectedDates', []));
   const [showBreakdown, setShowBreakdown] = useState(true);
   const [pricing, setPricing] = useState(null);
-  const [loadingPrice, setLoadingPrice] = useState(true);
   const [priceError, setPriceError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
   const [needsInvoice, setNeedsInvoice] = useState(() => localStorage.getItem('needsInvoice') === 'true');
@@ -101,15 +100,30 @@ function ConfirmServiceScreen() {
     return base;
   }, [providerForMax, machinery, isPerTrip, refTrip]);
 
+  // Fallback local para mostrar desde el primer render (evita flash "Calculando precio..." → desglose)
+  const fallbackPricing = useMemo(() => {
+    if (!effectiveProvider?.price_per_hour) return null;
+    return buildPricingFallback({
+      machineryType: machinery,
+      basePrice: effectiveProvider.price_per_hour,
+      transportFee: needsTransport ? (effectiveProvider.transport_fee || 0) : 0,
+      hours: hoursToday,
+      days: totalDays,
+      reservationType,
+      isHybrid,
+      additionalDays
+    });
+  }, [effectiveProvider, machinery, hoursToday, totalDays, reservationType, isHybrid, additionalDays, needsTransport]);
+
+  // Preload paso 6 para evitar flash al navegar
+  useEffect(() => {
+    import('./BillingDataScreen');
+    import('./CardPaymentScreen');
+  }, []);
+
   useEffect(() => {
     const fetchPricing = async () => {
-      if (!effectiveProvider?.price_per_hour) {
-        setLoadingPrice(false);
-        return;
-      }
-      // Solo mostrar "Calculando precio..." en carga inicial; al cambiar con/sin factura mantener el desglose visible para evitar parpadeo
-      const isInitialLoad = !pricing;
-      if (isInitialLoad) setLoadingPrice(true);
+      if (!effectiveProvider?.price_per_hour) return;
       const transportCost = needsTransport ? (effectiveProvider.transport_fee || 0) : 0;
       const FAST_FALLBACK_MS = 2500;
       const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
@@ -151,7 +165,6 @@ function ConfirmServiceScreen() {
         const isNetworkError = !isFastTimeout && !error.response && (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error') || error.message?.includes('timeout'));
         if (isNetworkError) {
           setPriceError('connection');
-          setLoadingPrice(false);
           return;
         }
         setPricing(buildPricingFallback({
@@ -164,8 +177,6 @@ function ConfirmServiceScreen() {
           isHybrid,
           additionalDays
         }));
-      } finally {
-        setLoadingPrice(false);
       }
     };
 
@@ -174,8 +185,11 @@ function ConfirmServiceScreen() {
     }
   }, [effectiveProvider, hoursToday, additionalDays, reservationType, machinery, totalDays, isHybrid, retryCount, needsInvoice]);
 
+  // Mostrar fallback desde el primer render para evitar flash (layout estable)
+  const displayPricing = pricing ?? fallbackPricing;
+
   // El total base sin considerar factura
-  const totalBase = pricing?.final_price || 0;
+  const totalBase = displayPricing?.final_price || 0;
 
   const formatPrice = (price) => {
     const n = price != null && !Number.isNaN(Number(price)) ? Number(price) : 0;
@@ -210,19 +224,20 @@ function ConfirmServiceScreen() {
     localStorage.setItem('totalAmount', totalFinal.toString());
     localStorage.setItem('maxTotalAmount', totalFinal.toString());
     localStorage.setItem('needsInvoice', needsInvoice.toString());
-    // Guardar pricing completo para desglose en Servicio Finalizado
+    // Guardar pricing completo para desglose en Servicio Finalizado (usa displayPricing por si confirmó con fallback)
+    const p = displayPricing || pricing;
     const pricingToStore = {
-      service_amount: pricing?.breakdown?.service_cost ?? pricing?.service_amount,
-      transport_cost: pricing?.transport_cost ?? pricing?.breakdown?.transport_cost ?? 0,
-      immediate_bonus: pricing?.immediate_bonus ?? pricing?.breakdown?.immediate_bonus ?? 0,
-      client_commission: pricing?.client_commission ?? pricing?.breakdown?.client_commission ?? 0,
-      client_commission_iva: pricing?.client_commission_iva ?? pricing?.breakdown?.client_commission_iva ?? 0,
+      service_amount: p?.breakdown?.service_cost ?? p?.service_amount,
+      transport_cost: p?.transport_cost ?? p?.breakdown?.transport_cost ?? 0,
+      immediate_bonus: p?.immediate_bonus ?? p?.breakdown?.immediate_bonus ?? 0,
+      client_commission: p?.client_commission ?? p?.breakdown?.client_commission ?? 0,
+      client_commission_iva: p?.client_commission_iva ?? p?.breakdown?.client_commission_iva ?? 0,
       final_price: totalFinal,
-      breakdown: pricing?.breakdown
+      breakdown: p?.breakdown
     };
     localStorage.setItem('servicePricing', JSON.stringify(pricingToStore));
     // Para crear service request tras OneClick
-    const transportCost = pricing?.transport_cost || pricing?.breakdown?.transport_cost || 0;
+    const transportCost = (displayPricing || pricing)?.transport_cost || (displayPricing || pricing)?.breakdown?.transport_cost || 0;
     localStorage.setItem('serviceBasePrice', Math.round(subtotalNeto - transportCost).toString());
     localStorage.setItem('serviceTransportFee', Math.round(transportCost).toString());
     if (needsInvoice) {
@@ -242,23 +257,24 @@ function ConfirmServiceScreen() {
     localStorage.setItem('needsInvoice', value.toString());
   };
 
-  // Calcular subtotal neto del proveedor (sin IVA)
+  // Calcular subtotal neto del proveedor (sin IVA) - usa displayPricing para render estable
   const getSubtotalNeto = () => {
-    if (!pricing) return 0;
+    const p = displayPricing;
+    if (!p) return 0;
     
     let subtotal = 0;
     
-    if (isHybrid && pricing.today) {
-      subtotal += pricing.today.total_cost || 0;
-      subtotal += pricing.additional_days?.total_cost || 0;
+    if (isHybrid && p.today) {
+      subtotal += p.today.total_cost || 0;
+      subtotal += p.additional_days?.total_cost || 0;
     } else if (reservationType === 'immediate') {
-      subtotal += pricing.service_amount || pricing.breakdown?.service_cost || 0;
-      subtotal += pricing.breakdown?.immediate_bonus || pricing.immediate_bonus || 0;
+      subtotal += p.service_amount || p.breakdown?.service_cost || 0;
+      subtotal += p.breakdown?.immediate_bonus || p.immediate_bonus || 0;
     } else {
-      subtotal += pricing.breakdown?.service_cost || 0;
+      subtotal += p.breakdown?.service_cost || 0;
     }
     
-    subtotal += pricing.transport_cost || pricing.breakdown?.transport_cost || 0;
+    subtotal += p.transport_cost || p.breakdown?.transport_cost || 0;
     
     return subtotal;
   };
@@ -266,18 +282,18 @@ function ConfirmServiceScreen() {
   const subtotalNeto = getSubtotalNeto();
   
   // Tarifa MAQGO: 10% sobre subtotal neto (API o fallback local)
-  const maqgoFeeNeto = pricing?.breakdown?.client_commission ?? pricing?.client_commission ?? Math.round(subtotalNeto * MAQGO_CLIENT_COMMISSION_RATE);
+  const maqgoFeeNeto = displayPricing?.breakdown?.client_commission ?? displayPricing?.client_commission ?? Math.round(subtotalNeto * MAQGO_CLIENT_COMMISSION_RATE);
   // IVA sobre Tarifa: siempre 19% de la Tarifa por Servicio (para que el desglose y la etiqueta coincidan)
   const maqgoFeeIva = Math.round(maqgoFeeNeto * IVA_RATE);
   const maqgoFeeConIva = maqgoFeeNeto + maqgoFeeIva;
   
   // Total sin factura (base para fallback)
-  const totalSinFactura = pricing?.final_price ?? Math.round(subtotalNeto + maqgoFeeConIva);
+  const totalSinFactura = displayPricing?.final_price ?? Math.round(subtotalNeto + maqgoFeeConIva);
   // Total a pagar: API devuelve ya el correcto (con o sin factura) porque enviamos needs_invoice; fallback lo calculamos
   let totalFinal;
   let ivaTotal;
-  if (pricing?.final_price != null && pricing.final_price > 0) {
-    totalFinal = pricing.final_price;
+  if (displayPricing?.final_price != null && displayPricing.final_price > 0) {
+    totalFinal = displayPricing.final_price;
     ivaTotal = needsInvoice ? Math.max(0, totalFinal - subtotalNeto - maqgoFeeNeto) : 0;
   } else {
     if (needsInvoice) {
@@ -388,24 +404,12 @@ function ConfirmServiceScreen() {
           >
             {hasMultipleProviders ? 'Rango estimado' : 'Total a pagar'}
           </p>
-          {hasMultipleProviders && !loadingPrice && pricing && (
+          {hasMultipleProviders && displayPricing && (
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, marginTop: 0, marginBottom: 10 }}>
               Nunca pagarás más que el valor máximo que ves aquí. El monto final puede ser menor según quién acepte primero tu reserva.
             </p>
           )}
-          {loadingPrice ? (
-            <div style={{ height: 36, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <div style={{
-                width: 20,
-                height: 20,
-                border: '2px solid rgba(236,104,25,0.3)',
-                borderTopColor: 'var(--maqgo-orange)',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }} />
-              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>Calculando precio...</span>
-            </div>
-          ) : !pricing ? (
+          {!displayPricing ? (
             <div style={{ textAlign: 'center' }}>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 12px' }}>
                 No pudimos calcular el precio
@@ -491,7 +495,7 @@ function ConfirmServiceScreen() {
         </div>
 
         {/* Desglose de precio (misma tarjeta visual: abrir por defecto cuando hay pricing) */}
-        {pricing && (
+        {displayPricing && (
         <div style={{
           background: '#2A2A2A',
           borderRadius: 12,
@@ -528,7 +532,7 @@ function ConfirmServiceScreen() {
           </button>
 
           {/* Desglose expandido */}
-          {showBreakdown && pricing && (
+          {showBreakdown && displayPricing && (
             <div id="price-breakdown" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
               {hasMultipleProviders && (
                 <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, marginBottom: 12 }}>
@@ -853,11 +857,11 @@ function ConfirmServiceScreen() {
       <div className="maqgo-fixed-bottom-bar">
         <MaqgoButton
           onClick={handleConfirm}
-          disabled={loadingPrice}
-          loading={loadingPrice || isConfirming}
+          disabled={!displayPricing}
+          loading={isConfirming}
           style={{ fontSize: 15, fontWeight: 600, borderRadius: 30, width: '100%' }}
           data-testid="confirm-btn"
-          aria-label={loadingPrice ? 'Calculando precio' : 'Enviar solicitud de reserva'}
+          aria-label={displayPricing ? 'Enviar solicitud de reserva' : 'Calculando precio'}
         >
           Enviar solicitud (sin cobro aún)
         </MaqgoButton>

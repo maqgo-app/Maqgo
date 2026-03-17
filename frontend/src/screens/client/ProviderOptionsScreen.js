@@ -52,6 +52,13 @@ function ProviderOptionsScreen() {
     saveBookingProgress('providers', { machinery: selectedMachinery });
   }, []);
 
+  // Preload pasos 5 y 6 para evitar flash al navegar
+  useEffect(() => {
+    import('./ConfirmServiceScreen');
+    import('./BillingDataScreen');
+    import('./CardPaymentScreen');
+  }, []);
+
   // Sincronizar horas y tipo desde localStorage al montar/volver (evita mostrar 8h cuando se eligieron 4h)
   useEffect(() => {
     const type = localStorage.getItem('reservationType') || 'immediate';

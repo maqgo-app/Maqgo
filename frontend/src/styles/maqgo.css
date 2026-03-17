@@ -11,7 +11,7 @@
  * 
  * PALETA CERRADA:
  * Fondo exterior: #000000 (espacio alrededor de la app)
- * Background app:  #18181C (pantallas Maqgo, contraste con #000 exterior)
+ * Background app:  #141418 (pantallas Maqgo, contraste con #000 exterior)
  * Cards:       #1A1A1F
  * Text main:   #FAFAFA
  * Text second: #E0E0E0
@@ -173,7 +173,7 @@ html, body, #root {
   max-width: 430px;
   min-height: 100vh;
   margin: 0 auto;
-  background: #18181C;
+  background: var(--maqgo-bg);
   position: relative;
   overflow-x: hidden;
 }
@@ -181,7 +181,7 @@ html, body, #root {
 /* Pantalla base. Respeta safe area (notch/isla). Contenido interno: preferir padding 24px. */
 .maqgo-screen {
   min-height: 100vh;
-  background: #18181C;
+  background: var(--maqgo-bg);
   display: flex;
   flex-direction: column;
   padding: 50px 24px 40px;
@@ -459,7 +459,7 @@ a:focus-visible,
   padding-left: max(24px, env(safe-area-inset-left, 24px));
   padding-right: max(24px, env(safe-area-inset-right, 24px));
   padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
-  background: #18181C;
+  background: var(--maqgo-bg);
   border-top: 1px solid #2A2A2A;
   z-index: var(--maqgo-z-fixed-bar);
   box-sizing: border-box;
@@ -733,7 +733,7 @@ a:focus-visible,
   }
 }
 
-/* Logo MAQGO - centrado con márgenes equilibrados */
+/* Logo MAQGO - SVG nativo, sin fondo (transparente por defecto) */
 .maqgo-logo-cropped {
   display: flex;
   justify-content: center;
