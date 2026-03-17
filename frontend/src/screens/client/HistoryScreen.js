@@ -160,7 +160,7 @@ function HistoryScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: '30px 20px', paddingBottom: 90 }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 90px' }}>
         {/* Header */}
         <div style={{ 
           display: 'flex', 

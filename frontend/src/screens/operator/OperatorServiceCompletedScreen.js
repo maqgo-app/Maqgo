@@ -123,7 +123,7 @@ function OperatorServiceCompletedScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ justifyContent: 'center', padding: 24 }}>
+      <div className="maqgo-screen" style={{ justifyContent: 'center', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
         
         {/* PASO 1: Felicitaciones */}
         {step === 'congrats' && (

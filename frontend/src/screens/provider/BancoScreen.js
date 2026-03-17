@@ -103,7 +103,7 @@ function BancoScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: 24, paddingBottom: 120, overflowY: 'auto' }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 120px', overflowY: 'auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
           <button 

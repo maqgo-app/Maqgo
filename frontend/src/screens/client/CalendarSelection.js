@@ -88,10 +88,10 @@ function CalendarSelection() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: '40px 24px 30px' }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 30px' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 25 }}>
-          <button onClick={() => navigate(backRoute || -1)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} aria-label="Volver">
+          <button onClick={() => navigate(backRoute || '/client/home')} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} aria-label="Volver">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <path d="M15 18L9 12L15 6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -113,16 +113,16 @@ function CalendarSelection() {
 
         {/* Navegación de meses */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-          <button onClick={prevMonth} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 8 }}>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <button type="button" onClick={prevMonth} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 8 }} aria-label="Mes anterior">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <path d="M12 15L7 10L12 5" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
             </svg>
           </button>
           <span style={{ color: '#fff', fontSize: 16, fontWeight: 600 }}>
             {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
           </span>
-          <button onClick={nextMonth} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 8 }}>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <button type="button" onClick={nextMonth} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 8 }} aria-label="Mes siguiente">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <path d="M8 5L13 10L8 15" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
             </svg>
           </button>

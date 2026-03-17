@@ -66,7 +66,7 @@ function ProviderOptionsScreen() {
       // Para reservas programadas, volver al calendario multi-día para ajustar fechas (ej. quitar sábado)
       navigate('/client/calendar-multi');
     } else {
-      navigate(backRoute || -1);
+      navigate(backRoute || '/client/home');
     }
   };
 
@@ -289,7 +289,16 @@ function ProviderOptionsScreen() {
       <div className="maqgo-app">
         <div className="maqgo-screen" style={{ paddingBottom: 30 }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
-            <div style={{ width: 24 }} />
+            <button
+              type="button"
+              onClick={() => navigate(backRoute || '/client/home')}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+              aria-label="Volver"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M15 18L9 12L15 6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
             <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
               <MaqgoLogo size="small" />
             </div>
@@ -330,7 +339,7 @@ function ProviderOptionsScreen() {
     if (reservationType === 'scheduled' && hasSaturday) {
       return (
         <div className="maqgo-app">
-          <div className="maqgo-screen" style={{ padding: 24, justifyContent: 'center' }}>
+          <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px', justifyContent: 'center' }}>
             <div
               style={{
                 background: '#2A2A2A',
@@ -416,7 +425,8 @@ function ProviderOptionsScreen() {
         <div style={{ 
           display: 'flex', 
           alignItems: 'center',
-          marginBottom: 20
+          marginBottom: 20,
+          gap: 12
         }}>
           <button 
             onClick={handleBack}
@@ -531,6 +541,7 @@ function ProviderOptionsScreen() {
               tabIndex={0}
               onClick={() => toggleProvider(provider.id)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleProvider(provider.id); } }}
+              aria-label={`Proveedor ${index + 1}, ${formatPrice(calculateTotalPrice(provider, selectedMachinery))}, ${provider.eta_minutes || '?'} min, ${provider.distance || '?'} km${isSelected ? ', seleccionado' : ''}`}
               style={{
                 background: isSelected ? 'rgba(236, 104, 25, 0.15)' : '#363636',
                 border: isSelected ? '2px solid #EC6819' : '2px solid transparent',
@@ -563,7 +574,7 @@ function ProviderOptionsScreen() {
                   {provider.primaryPhoto ? (
                     <img
                       src={provider.primaryPhoto}
-                      alt="Foto maquinaria"
+                      alt={`${MACHINERY_NAMES[selectedMachinery] || 'Maquinaria'} - Opción ${index + 1}`}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                   ) : (
@@ -597,12 +608,12 @@ function ProviderOptionsScreen() {
                         )}
                       </div>
                     </div>
-                    {/* Valoración */}
+                    {/* Calificación */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                         <path d="M6 1L7.2 4.2H10.6L7.9 6.3L8.8 9.8L6 7.8L3.2 9.8L4.1 6.3L1.4 4.2H4.8L6 1Z" fill="#EC6819"/>
                       </svg>
-                      <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>Valoración</span>
+                      <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>Calificación</span>
                       <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, fontWeight: 600 }}>{(provider.rating ?? 0).toFixed(1)}</span>
                     </div>
                   </div>

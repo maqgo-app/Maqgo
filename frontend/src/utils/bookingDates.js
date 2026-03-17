@@ -4,6 +4,25 @@
  * Usar en todas las pantallas que muestren resumen de fechas o "viajes".
  */
 
+const DEFAULT_LOCALE = 'es-CL';
+
+/**
+ * Formatea una fecha única para mostrar (ej: "lun 12 mar").
+ * @param {string|Date} dateStr
+ * @param {Object} [opts] - { locale: 'es-CL', includeYear: false }
+ * @returns {string}
+ */
+export function formatDateSingle(dateStr, opts = {}) {
+  if (!dateStr) return '';
+  const date = typeof dateStr === 'string' ? new Date(dateStr + (dateStr.includes('T') ? '' : 'T12:00:00')) : dateStr;
+  if (isNaN(date.getTime())) return '';
+  const locale = opts.locale || DEFAULT_LOCALE;
+  const options = opts.includeYear
+    ? { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }
+    : { weekday: 'short', day: 'numeric', month: 'short' };
+  return date.toLocaleDateString(locale, options);
+}
+
 /**
  * Parsea selectedDates (array de ISO o YYYY-MM-DD) y devuelve fechas ordenadas.
  * @param {string[]|Date[]} selectedDates

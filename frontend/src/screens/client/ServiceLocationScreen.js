@@ -143,15 +143,16 @@ function ServiceLocationScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: '30px 24px', paddingBottom: 120, overflowY: 'auto' }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 120px', overflowY: 'auto' }}>
         {/* Header */}
         <div style={{ 
           display: 'flex', 
           alignItems: 'center',
-          marginBottom: 16
+          marginBottom: 20,
+          gap: 12
         }}>
           <button 
-            onClick={() => navigate(backRoute || -1)}
+            onClick={() => navigate(backRoute || '/client/home')}
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
             aria-label="Volver"
           >
@@ -286,7 +287,7 @@ function ServiceLocationScreen() {
 
         {/* Input Referencia */}
         <div style={{ marginBottom: 24 }}>
-          <label style={{ 
+          <label htmlFor="service-reference-input" style={{ 
             color: 'rgba(255,255,255,0.8)', 
             fontSize: 14,
             display: 'block',
@@ -296,6 +297,7 @@ function ServiceLocationScreen() {
             Referencia (opcional)
           </label>
           <input
+            id="service-reference-input"
             type="text"
             value={reference}
             onChange={(e) => setReference(e.target.value)}
@@ -305,6 +307,7 @@ function ServiceLocationScreen() {
               fontSize: 16
             }}
             data-testid="service-reference-input"
+            aria-label="Referencia de ubicación (opcional)"
           />
         </div>
 

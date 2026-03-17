@@ -159,7 +159,7 @@ function OneClickCompleteScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+      <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
         <MaqgoLogo size="small" />
         {error ? (
           <>

@@ -59,7 +59,7 @@ function HoursSelectionScreen() {
           marginBottom: 16
         }}>
           <button 
-            onClick={() => navigate(backRoute || -1)}
+            onClick={() => navigate(backRoute || '/client/home')}
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
             data-testid="back-button"
             aria-label="Volver"
@@ -142,8 +142,10 @@ function HoursSelectionScreen() {
             gap: 25
           }}>
             <button
+              type="button"
               onClick={decreaseHours}
               disabled={hoursToday <= MIN_HOURS}
+              aria-label="Reducir horas"
               style={{
                 width: 50,
                 height: 50,
@@ -168,8 +170,10 @@ function HoursSelectionScreen() {
             </div>
             
             <button
+              type="button"
               onClick={increaseHours}
               disabled={hoursToday >= MAX_HOURS}
+              aria-label="Aumentar horas"
               style={{
                 width: 50,
                 height: 50,

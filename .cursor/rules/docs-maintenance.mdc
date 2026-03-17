@@ -1,0 +1,21 @@
+---
+description: Mantener documentación al día al cambiar código
+globs: "**/*.js,**/*.jsx,**/*.ts,**/*.tsx,backend/**/*.py"
+alwaysApply: false
+---
+
+# Mantenimiento de documentación
+
+Cuando modifiques flujos, rutas, APIs o configuraciones que afecten a la documentación:
+
+1. **Actualiza** el doc correspondiente en `docs/` o raíz:
+   - Flujo cliente → `docs/FLUJO_RESERVA_ACTUAL.md`
+   - Setup/run → `CORRER.md`, `README.md`
+   - Integraciones → `docs/GOOGLE_MAPS_SETUP.md`, `docs/ONECLICK.md`
+   - UX/patrones → `docs/UX_GUIDE.md`
+
+2. Añade o actualiza la fecha en cabecera: `> Última actualización: mes año`
+
+3. **Elimina** el doc si ya no aplica (flujo deprecado, feature removida).
+
+4. No dejes docs obsoletos. Si un doc describe "problemas a corregir" que ya se resolvieron, reescríbelo como referencia actual o elimínalo.

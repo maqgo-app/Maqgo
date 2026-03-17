@@ -13,7 +13,7 @@ function MaqgoBillingScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: 24, paddingBottom: 120 }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 120px' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
           <button
             onClick={() => navigate(-1)}

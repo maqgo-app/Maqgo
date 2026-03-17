@@ -108,9 +108,15 @@ function LoginScreen({ setUserRole, setUserId }) {
             textAlign: 'center',
             marginTop: 20
           }}>
-            <span className="maqgo-link" onClick={() => navigate('/forgot-password')}>
+            <button
+              type="button"
+              className="maqgo-link"
+              onClick={() => navigate('/forgot-password')}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
+              aria-label="Recuperar contraseña"
+            >
               ¿Olvidaste tu contraseña?
-            </span>
+            </button>
           </p>
         </div>
 
@@ -133,9 +139,15 @@ function LoginScreen({ setUserRole, setUserId }) {
           }}
         >
           ¿No tienes cuenta?{' '}
-          <span className="maqgo-link" onClick={() => navigate('/register')}>
+          <button
+            type="button"
+            className="maqgo-link"
+            onClick={() => navigate('/register')}
+            style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
+            aria-label="Crear cuenta"
+          >
             Regístrate
-          </span>
+          </button>
         </p>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Z_INDEX } from '../constants/zIndex';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 /**
@@ -115,7 +116,7 @@ export function ClientNavigation() {
       alignItems: 'center',
       padding: '4px 0',
       paddingBottom: 'max(4px, env(safe-area-inset-bottom))',
-      zIndex: 1000
+      zIndex: Z_INDEX.overlay
     }}>
       <NavItem
         active={isActive('/client/home') || location.pathname === '/client/machinery'}
@@ -174,7 +175,7 @@ export function ProviderNavigation() {
         alignItems: 'center',
       padding: '4px 0',
       paddingBottom: 'max(4px, env(safe-area-inset-bottom))',
-      zIndex: 1000
+      zIndex: Z_INDEX.overlay
     }}>
         <NavItem
           active={isActive('/operator/home')}
@@ -213,7 +214,7 @@ export function ProviderNavigation() {
       alignItems: 'center',
       padding: '4px 0',
       paddingBottom: 'max(4px, env(safe-area-inset-bottom))',
-      zIndex: 1000
+      zIndex: Z_INDEX.overlay
     }}>
       <NavItem
         active={isActive('/provider/home')}

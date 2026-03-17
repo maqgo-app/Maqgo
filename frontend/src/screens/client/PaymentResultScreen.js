@@ -390,7 +390,7 @@ function PaymentResultScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ paddingTop: 16, paddingBottom: 120, paddingLeft: 20, paddingRight: 20, overflowY: 'auto' }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 120px', overflowY: 'auto' }}>
         {/* Botones de navegación */}
         <div style={{ 
           display: 'flex', 

@@ -2,7 +2,6 @@
 
 Aplicación móvil (PWA) para arriendo de maquinaria pesada con operador en Chile.
 
-> **MVP cerrado** — Ver `CHECKLIST_MVP_CERRADO.md` para el alcance entregado.
 
 ## 🚀 Correr Localmente
 
@@ -76,7 +75,7 @@ npm run start
 
 ## 🚀 Antes de producción / Lanzamiento
 
-Ejecutar **`./scripts/pre-deploy.sh`** (tests + build) y seguir la guía **`LANZAMIENTO_MAQGO.md`** (env, CORS, checklist y deploy).
+Ejecutar **`./scripts/pre-deploy.sh`** (tests + build). Ver **`CORRER.md`** para setup detallado y **`docs/`** para guías de integración.
 
 ---
 

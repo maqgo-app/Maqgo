@@ -291,7 +291,7 @@ function MachineryAssignedScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: 24 }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <MaqgoLogo size="small" />

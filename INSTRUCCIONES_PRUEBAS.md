@@ -1,12 +1,13 @@
 # MAQGO – Instrucciones para probar (Admin, Cliente, Proveedor)
 
+> Última actualización: marzo 2025
+
 ## Ubicación del proyecto
 
 ```
-Respaldo Maqgo1-main4/          ← Raíz del workspace
-└── Maqgo1-main/
-    ├── backend/     ← Backend (puerto 8002)
-    └── frontend/    ← Frontend (puerto 5174)
+Maqgo1-main/
+├── backend/     ← Backend (puerto 8000 u 8002)
+└── frontend/    ← Frontend (puerto 5174)
 ```
 
 ---

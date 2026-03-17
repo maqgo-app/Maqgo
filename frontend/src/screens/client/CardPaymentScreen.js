@@ -169,7 +169,7 @@ function CardPaymentScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: '20px' }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 20px' }}>
         <BookingProgress />
         {/* Header */}
         <div style={{ 
@@ -178,7 +178,7 @@ function CardPaymentScreen() {
           marginBottom: 16
         }}>
           <button 
-            onClick={() => navigate(backRoute || -1)}
+            onClick={() => navigate(backRoute || '/client/home')}
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
             aria-label="Volver"
           >

@@ -228,7 +228,7 @@ function ServiceFinishedScreen() {
   if (step === 'report') {
     return (
       <div className="maqgo-app">
-        <div className="maqgo-screen" style={{ padding: '24px' }}>
+        <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
           {/* Header */}
           <div style={{ marginBottom: 20, textAlign: 'center' }}>
             <MaqgoLogo size="small" />
@@ -399,7 +399,7 @@ function ServiceFinishedScreen() {
   if (step === 'rating') {
     return (
       <div className="maqgo-app">
-        <div className="maqgo-screen" style={{ padding: '24px' }}>
+        <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
           {/* Header */}
           <div style={{ marginBottom: 20, textAlign: 'center' }}>
             <MaqgoLogo size="small" />
@@ -541,7 +541,7 @@ function ServiceFinishedScreen() {
   // PASO 3: Confirmación final
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: '24px' }}>
+      <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
         <div style={{
           width: 90,
           height: 90,

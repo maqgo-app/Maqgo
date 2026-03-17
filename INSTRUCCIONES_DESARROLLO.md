@@ -1,5 +1,7 @@
 # MAQGO – Instrucciones de desarrollo
 
+> Última actualización: marzo 2025
+
 Guía para correr backend, frontend y avanzar en modo prueba.
 
 ---
@@ -18,7 +20,7 @@ Guía para correr backend, frontend y avanzar en modo prueba.
 ### Iniciar
 
 ```bash
-cd "/Users/tomasvillalta/Desktop/Repositorios Github/Respaldo Maqgo1-main4/Maqgo1-main/backend"
+cd backend
 source venv/bin/activate
 uvicorn server:app --port 8000
 ```
@@ -26,7 +28,7 @@ uvicorn server:app --port 8000
 ### Cargar datos demo (primera vez o al resetear)
 
 ```bash
-cd "/Users/tomasvillalta/Desktop/Repositorios Github/Respaldo Maqgo1-main4/Maqgo1-main/backend"
+cd backend
 source venv/bin/activate
 python seed_demo_users.py
 ```
@@ -36,7 +38,7 @@ python seed_demo_users.py
 ## 3. Frontend
 
 ```bash
-cd "/Users/tomasvillalta/Desktop/Repositorios Github/Respaldo Maqgo1-main4/Maqgo1-main/frontend"
+cd frontend
 npm install
 npm run dev
 ```

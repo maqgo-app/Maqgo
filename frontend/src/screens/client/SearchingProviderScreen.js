@@ -5,6 +5,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import { getObject, getArray } from '../../utils/safeStorage';
 import { MACHINERY_PER_TRIP, IMMEDIATE_MULTIPLIERS, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, getDemoProviders } from '../../utils/pricing';
 import BACKEND_URL from '../../utils/api';
+import { Z_INDEX } from '../../constants/zIndex';
 
 /**
  * Pantalla de Búsqueda Secuencial de Proveedor
@@ -294,7 +295,7 @@ function SearchingProviderScreen() {
   if (status === 'no_eligible') {
     return (
       <div className="maqgo-app">
-        <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: 30 }}>
+        <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: 'var(--maqgo-screen-padding-top) 30px 30px' }}>
           <div style={{
             width: 90,
             height: 90,
@@ -357,7 +358,7 @@ function SearchingProviderScreen() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          zIndex: 10
+          zIndex: Z_INDEX.sticky
         }}>
           <button 
             onClick={() => navigate('/client/confirm')}

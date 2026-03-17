@@ -176,16 +176,16 @@ function UrgencySelectionScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: '30px 24px' }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 30px' }}>
         {/* Header */}
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
-          marginBottom: 30,
+          marginBottom: 20,
           gap: 12
         }}>
           <button 
-            onClick={() => navigate(backRoute || -1)}
+            onClick={() => navigate(backRoute || '/client/home')}
             style={{ 
               background: 'none', 
               border: 'none', 
@@ -328,7 +328,7 @@ function UrgencySelectionScreen() {
                       cursor: 'pointer'
                     }}
                   >
-                    {val >= 1000 ? `${(val / 1000).toFixed(val % 1000 ? 1 : 0)}.000` : val} L
+                    {val >= 1000 ? `${(val / 1000).toFixed(0)}.000` : val} L
                   </button>
                 );
               })}
@@ -391,7 +391,10 @@ function UrgencySelectionScreen() {
           {URGENCY_OPTIONS.map(option => (
             <button
               key={option.id}
+              type="button"
               onClick={() => setSelected(option.id)}
+              aria-label={option.label}
+              aria-pressed={selected === option.id}
               style={{
                 width: '100%',
                 background: selected === option.id ? 'rgba(236, 104, 25, 0.1)' : '#2A2A2A',

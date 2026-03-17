@@ -141,7 +141,7 @@ function CancelServiceScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: 24 }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
         {/* Header */}
         <div style={{ marginBottom: 16, textAlign: 'center' }}>
           <MaqgoLogo size="small" />

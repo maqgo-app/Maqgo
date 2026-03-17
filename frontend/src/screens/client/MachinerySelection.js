@@ -219,10 +219,10 @@ function MachinerySelection() {
 
   return (
     <div className="maqgo-app" style={{ overflowY: 'auto' }}>
-      <div className="maqgo-screen" style={{ padding: '40px 24px 0', flexDirection: 'column', minHeight: '100vh' }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 0', flexDirection: 'column', minHeight: '100vh' }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20, flexShrink: 0 }}>
-          <button onClick={() => navigate(backRoute || -1)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} aria-label="Volver">
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20, gap: 12, flexShrink: 0 }}>
+          <button onClick={() => navigate(backRoute || '/client/home')} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} aria-label="Volver">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <path d="M15 18L9 12L15 6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>

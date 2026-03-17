@@ -27,6 +27,9 @@
   --maqgo-space-lg: 24px;
   --maqgo-space-xl: 32px;
 
+  /* Padding superior consistente para pantallas con header (logo pequeño) */
+  --maqgo-screen-padding-top: max(50px, env(safe-area-inset-top, 0px) + 24px);
+
   /* === BORDES === */
   --maqgo-radius-sm: 8px;
   --maqgo-radius-md: 12px;
@@ -40,6 +43,18 @@
   --maqgo-text-base: 16px;
   --maqgo-text-lg: 18px;
   --maqgo-text-xl: 22px;
+
+  /* === BREAKPOINTS === */
+  --maqgo-breakpoint-mobile: 768px;
+  --maqgo-breakpoint-narrow: 380px;
+
+  /* === Z-INDEX (escala: base 100, overlays 1000, modales 10000) === */
+  --maqgo-z-base: 1;
+  --maqgo-z-sticky: 10;
+  --maqgo-z-dropdown: 100;
+  --maqgo-z-overlay: 1000;
+  --maqgo-z-fixed-bar: 9999;
+  --maqgo-z-modal: 10000;
 
   /* === SOMBRAS === */
   --maqgo-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);

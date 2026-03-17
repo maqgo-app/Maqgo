@@ -11,6 +11,7 @@ export const BOOKING_BACK_ROUTES = {
   '/client/urgency': '/client/machinery',
   '/client/providers': '/client/service-location',
   '/client/confirm': '/client/providers',
+  '/client/workday-confirmation': '/client/confirm',
   '/client/billing': '/client/confirm',
   '/client/card': '/client/billing',
   '/client/card-input': '/client/card',
@@ -58,19 +59,25 @@ export const PROVIDER_ONBOARDING_BACK_ROUTES = {
 /**
  * Obtiene la ruta de "volver" para el flujo de reserva cliente.
  * reservation-data usa back dinámico según flujo (scheduled/calendar, immediate/hour/hours-selection, immediate/trip/urgency).
+ * Nunca devuelve null para rutas /client/*: usa /client/home como fallback para evitar navigate(-1) que falla sin historial.
  */
 export function getBookingBackRoute(pathname) {
-  if (pathname === '/client/reservation-data') return getReservationDataBackRoute();
-  if (pathname === '/client/service-location') return getServiceLocationBackRoute();
+  const path = (pathname || '').replace(/\/$/, '') || '/';
+  if (path === '/client/reservation-data') return getReservationDataBackRoute();
+  if (path === '/client/service-location') return getServiceLocationBackRoute();
   // Programada: machinery → calendar (no home)
-  if (pathname === '/client/machinery' && localStorage.getItem('reservationType') === 'scheduled') {
+  if (path === '/client/machinery' && localStorage.getItem('reservationType') === 'scheduled') {
     return '/client/calendar';
   }
   // Si llegó a /client/card sin factura, volver a confirm (no pasó por billing)
-  if (pathname === '/client/card' && localStorage.getItem('needsInvoice') !== 'true') {
+  if (path === '/client/card' && localStorage.getItem('needsInvoice') !== 'true') {
     return '/client/confirm';
   }
-  return BOOKING_BACK_ROUTES[pathname] || null;
+  const route = BOOKING_BACK_ROUTES[path];
+  if (route) return route;
+  // Fallback seguro: evita navigate(-1) que falla si el usuario llegó por URL directa o refrescó
+  if (path.startsWith('/client/')) return '/client/home';
+  return null;
 }
 
 /**

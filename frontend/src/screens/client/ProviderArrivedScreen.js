@@ -135,7 +135,7 @@ function ProviderArrivedScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: '30px 20px' }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 30px' }}>
         {/* Logo */}
         <div style={{ marginBottom: 20 }}>
           <MaqgoLogo size="small" />

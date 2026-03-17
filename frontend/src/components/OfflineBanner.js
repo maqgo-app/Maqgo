@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Z_INDEX } from '../constants/zIndex';
 
 /**
  * Banner que se muestra cuando el usuario está sin conexión a internet.
@@ -31,7 +32,7 @@ function OfflineBanner() {
         top: 0,
         left: 0,
         right: 0,
-        zIndex: 9999,
+        zIndex: Z_INDEX.modal,
         background: '#ff6b6b',
         color: '#fff',
         padding: '12px 16px',

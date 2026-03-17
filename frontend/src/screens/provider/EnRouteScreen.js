@@ -285,7 +285,7 @@ function EnRouteScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: '20px' }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 20px' }}>
         {/* Header */}
         <div style={{ marginBottom: 16, textAlign: 'center' }}>
           <MaqgoLogo size="small" />

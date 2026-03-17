@@ -212,7 +212,7 @@ function CalendarMultiDayScreen() {
           marginBottom: 20
         }}>
           <button 
-            onClick={() => navigate(backRoute || -1)}
+            onClick={() => navigate(backRoute || '/client/home')}
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
             aria-label="Volver"
           >

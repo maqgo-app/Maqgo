@@ -78,7 +78,7 @@ function OperatorJoinScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ justifyContent: 'flex-start', paddingTop: 40 }}>
+      <div className="maqgo-screen" style={{ justifyContent: 'flex-start', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
         <MaqgoLogo size="small" style={{ marginBottom: 30 }} />
 
         {step === 'code' && (

@@ -79,7 +79,7 @@ function BillingDataScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: '20px', paddingBottom: 120, overflowY: 'auto' }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 120px', overflowY: 'auto' }}>
         <BookingProgress />
         {/* Header */}
         <div style={{ 
@@ -88,7 +88,7 @@ function BillingDataScreen() {
           marginBottom: 8
         }}>
           <button 
-            onClick={() => navigate(backRoute || -1)}
+            onClick={() => navigate(backRoute || '/client/home')}
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
             aria-label="Volver"
           >

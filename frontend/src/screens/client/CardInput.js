@@ -52,7 +52,7 @@ function CardInput() {
     <div style={styles.screen}>
       {/* Header */}
       <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => navigate(backRoute || -1)} aria-label="Volver">
+        <button style={styles.backBtn} onClick={() => navigate(backRoute || '/client/home')} aria-label="Volver">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
             <path d="M15 18l-6-6 6-6"/>
           </svg>

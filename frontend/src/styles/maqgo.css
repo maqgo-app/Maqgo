@@ -38,7 +38,7 @@
   padding: 12px 20px;
   border-radius: 8px;
   font-weight: 600;
-  z-index: 10000;
+  z-index: var(--maqgo-z-modal);
   transition: top 0.2s;
 }
 .skip-link:focus,
@@ -184,7 +184,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   padding: 50px 24px 40px;
-  padding-top: max(50px, env(safe-area-inset-top, 0px) + 24px);
+  padding-top: var(--maqgo-screen-padding-top);
   padding-left: max(24px, env(safe-area-inset-left, 0px));
   padding-right: max(24px, env(safe-area-inset-right, 0px));
   color: #FAFAFA;
@@ -202,7 +202,7 @@ html, body, #root {
 }
 
 /* WelcomeScreen en desktop: contenedor más ancho, layout limpio */
-@media (min-width: 768px) {
+@media (min-width: var(--maqgo-breakpoint-mobile)) {
   .maqgo-app.welcome-desktop {
     max-width: 520px;
     overflow: visible;
@@ -422,7 +422,7 @@ a:focus-visible,
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.85);
-  z-index: 1000;
+  z-index: var(--maqgo-z-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -457,7 +457,7 @@ a:focus-visible,
   padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
   background: #0F0F12;
   border-top: 1px solid #2A2A2A;
-  z-index: 9999;
+  z-index: var(--maqgo-z-fixed-bar);
   box-sizing: border-box;
 }
 
@@ -719,7 +719,7 @@ a:focus-visible,
 }
 
 /* Responsive para desktop */
-@media (min-width: 768px) {
+@media (min-width: var(--maqgo-breakpoint-mobile)) {
   .maqgo-app {
     box-shadow: 0 0 80px rgba(0, 0, 0, 0.6);
     border-radius: 45px;

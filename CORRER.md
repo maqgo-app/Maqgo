@@ -1,14 +1,13 @@
-# Cómo correr MAQGO (tu carpeta)
+# Cómo correr MAQGO
 
-Tu proyecto está en:
-`Desktop/Repositorios Github/Respaldo Maqgo1-main4/Maqgo1-main`
+> Última actualización: marzo 2025
 
 ---
 
 ## Paso 1: Abrir terminal e ir al proyecto
 
 ```bash
-cd "/Users/tomasvillalta/Desktop/Repositorios Github/Respaldo Maqgo1-main4/Maqgo1-main"
+cd /ruta/a/tu/Maqgo1-main
 ```
 
 ---
@@ -66,7 +65,7 @@ Luego iniciar el servidor:
 **Primero** vuelve a la carpeta del proyecto (no dentro de `backend`):
 
 ```bash
-cd "/Users/tomasvillalta/Desktop/Repositorios Github/Respaldo Maqgo1-main4/Maqgo1-main/frontend"
+cd frontend
 npm install
 npm run start
 ```
@@ -98,7 +97,7 @@ lsof -ti:5174 | xargs kill -9
 
 1. **Reinstalar dependencias:**
    ```bash
-   cd "/Users/tomasvillalta/Desktop/Repositorios Github/Respaldo Maqgo1-main4/Maqgo1-main/frontend"
+   cd frontend
    rm -rf node_modules package-lock.json
    npm install
    npm run start

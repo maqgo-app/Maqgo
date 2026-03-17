@@ -9,7 +9,7 @@ import { buildPricingFallback, calculateClientPrice, MACHINERY_NO_TRANSPORT, tot
 import BACKEND_URL from '../../utils/api';
 import { ConnectionError } from '../../components/ErrorStates';
 import { MACHINERY_NAMES, getProviderSpecDisplay } from '../../utils/machineryNames';
-import { getPerTripDateLabel, getDateRangeShort as getDateRangeShortUtil } from '../../utils/bookingDates';
+import { getPerTripDateLabel, getDateRangeShort as getDateRangeShortUtil, formatDateSingle } from '../../utils/bookingDates';
 import { MaqgoButton } from '../../components/base';
 
 const MIN_HOURS_IMMEDIATE = 4;
@@ -186,21 +186,13 @@ function ConfirmServiceScreen() {
     }).format(n);
   };
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('es-CL', { 
-      weekday: 'short', 
-      day: 'numeric', 
-      month: 'short' 
-    });
-  };
+  const formatDate = (dateStr) => formatDateSingle(dateStr);
 
   // Mostrar ConnectionError cuando falló la conexión al obtener precio
   if (priceError === 'connection') {
     return (
       <div className="maqgo-app">
-        <div className="maqgo-screen" style={{ justifyContent: 'center', padding: 24 }}>
+        <div className="maqgo-screen" style={{ justifyContent: 'center', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
           <ConnectionError onRetry={() => {
             setPriceError(null);
             setRetryCount(c => c + 1);
@@ -322,7 +314,7 @@ function ConfirmServiceScreen() {
   if (!provider?.id) {
     return (
       <div className="maqgo-app">
-        <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+        <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
           <p style={{ color: '#fff', marginBottom: 20, textAlign: 'center' }}>
             No hay proveedor seleccionado
           </p>
@@ -343,9 +335,9 @@ function ConfirmServiceScreen() {
     <div className="maqgo-app">
       <div className="maqgo-screen" style={{ paddingBottom: 120, overflowY: 'auto' }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20, gap: 12 }}>
           <button 
-            onClick={() => navigate(backRoute || -1)}
+            onClick={() => navigate(backRoute || '/client/home')}
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
             data-testid="back-button"
             aria-label="Volver"
@@ -508,7 +500,10 @@ function ConfirmServiceScreen() {
           marginBottom: 14
         }}>
           <button
+            type="button"
             onClick={() => setShowBreakdown(!showBreakdown)}
+            aria-expanded={showBreakdown}
+            aria-controls="price-breakdown"
             style={{
               background: 'transparent',
               border: 'none',
@@ -534,7 +529,7 @@ function ConfirmServiceScreen() {
 
           {/* Desglose expandido */}
           {showBreakdown && pricing && (
-            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <div id="price-breakdown" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
               {hasMultipleProviders && (
                 <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, marginBottom: 12 }}>
                   Este desglose se basa en el valor máximo. Pagarás ese monto o menos, según quién acepte primero tu solicitud.
@@ -786,18 +781,24 @@ function ConfirmServiceScreen() {
           </p>
           
           {/* Tarjeta guardada o agregar nueva */}
-          <div 
+          <button
+            type="button"
             onClick={handleConfirm}
             style={{
+              width: '100%',
               background: '#2A2A2A',
               borderRadius: 10,
               padding: 14,
               display: 'flex',
               alignItems: 'center',
               gap: 12,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              border: 'none',
+              textAlign: 'left',
+              fontFamily: 'inherit'
             }}
             data-testid="payment-method"
+            aria-label="Pagar con Webpay OneClick"
           >
             <div style={{
               width: 40,
@@ -825,7 +826,7 @@ function ConfirmServiceScreen() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="M9 6L15 12L9 18" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round"/>
             </svg>
-          </div>
+          </button>
           
           {/* Mensaje de seguridad Transbank */}
           <div style={{ 

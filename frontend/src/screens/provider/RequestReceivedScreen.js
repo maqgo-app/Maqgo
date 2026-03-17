@@ -219,7 +219,7 @@ function RequestReceivedScreen() {
 
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: '25px 20px', overflowY: 'auto' }}>
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 25px', overflowY: 'auto' }}>
         <style>{`
           @keyframes alertPulse {
             0%, 100% { opacity: 1; transform: scale(1); }

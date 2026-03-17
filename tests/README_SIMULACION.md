@@ -3,7 +3,7 @@
 ## Cómo ejecutar los tests
 
 ```bash
-cd "/Users/tomasvillalta/Desktop/Repositorios Github/Respaldo Maqgo1-main4/Maqgo1-main"
+cd /ruta/a/tu/Maqgo1-main
 source backend/venv/bin/activate
 REACT_APP_BACKEND_URL=http://localhost:8000 python -m pytest tests/test_scenarios_simulation.py tests/test_pricing_unit.py -v
 ```

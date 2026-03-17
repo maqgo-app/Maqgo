@@ -1,4 +1,5 @@
 import React, { useState, createContext, useContext } from 'react';
+import { Z_INDEX } from '../constants/zIndex';
 
 const ToastContext = createContext();
 
@@ -58,7 +59,7 @@ function ToastContainer({ toasts }) {
         top: 'max(20px, env(safe-area-inset-top, 0px) + 12px)',
         left: '50%',
         transform: 'translateX(-50%)',
-        zIndex: 9999,
+        zIndex: Z_INDEX.modal,
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
