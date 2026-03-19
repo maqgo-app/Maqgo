@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 /**
  * Indicador de progreso del flujo de reserva cliente
@@ -41,11 +41,38 @@ const CheckIcon = ({ size = 10 }) => (
 );
 
 function BookingProgress() {
+  const navigate = useNavigate();
   const location = useLocation();
   const path = location.pathname.replace(/\/$/, '') || '/';
   const currentStep = ROUTE_TO_STEP[path] || 0;
 
   if (currentStep === 0) return null;
+
+  const persisted = localStorage.getItem('bookingProgress');
+  let persistedStepNumber = 0;
+  if (persisted) {
+    try {
+      const parsed = JSON.parse(persisted);
+      const ageMs = Date.now() - Number(parsed?.timestamp || 0);
+      const within24h = ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000;
+      if (within24h) persistedStepNumber = Number(parsed?.stepNumber || 0);
+    } catch {
+      // Ignore malformed storage.
+    }
+  }
+
+  const maxVisitedStep = Math.max(currentStep, persistedStepNumber);
+  const reservationType = localStorage.getItem('reservationType') || 'immediate';
+  const stepToPath = {
+    1: path === '/client/calendar-multi'
+      ? '/client/calendar-multi'
+      : (reservationType === 'scheduled' ? '/client/calendar' : '/client/machinery'),
+    2: '/client/hours-selection',
+    3: '/client/service-location',
+    4: '/client/providers',
+    5: '/client/confirm',
+    6: '/client/card'
+  };
 
   return (
     <div style={{
@@ -75,6 +102,11 @@ function BookingProgress() {
         const stepNum = index + 1;
         const isActive = stepNum === currentStep;
         const isPast = stepNum < currentStep;
+        const isReachable = stepNum <= maxVisitedStep;
+        // UX estable: bolitas solo permiten "volver" (pasados), el avance lo controla el botón inferior.
+        const canNavigate = isReachable && !isActive && isPast;
+        const isDoneOrReachable = isPast || (isReachable && !isActive);
+        const goTo = stepToPath[stepNum] || '/client/machinery';
         return (
           <div
             key={step.label}
@@ -92,15 +124,26 @@ function BookingProgress() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: '50%',
-                background: isPast ? '#EC6819' : isActive ? '#EC6819' : 'rgba(255,255,255,0.12)',
-                color: isPast ? '#fff' : isActive ? '#fff' : 'transparent',
+                background: isDoneOrReachable ? '#EC6819' : isActive ? '#EC6819' : 'rgba(255,255,255,0.12)',
+                color: isDoneOrReachable ? '#fff' : isActive ? '#fff' : 'transparent',
                 transition: 'all 0.2s ease',
                 flexShrink: 0,
-                boxShadow: isActive ? '0 0 0 2px rgba(236,104,25,0.4)' : 'none'
+                boxShadow: isActive ? '0 0 0 2px rgba(236,104,25,0.4)' : 'none',
+                cursor: canNavigate ? 'pointer' : 'default'
               }}
               title={step.label}
+              role={canNavigate ? 'button' : undefined}
+              tabIndex={canNavigate ? 0 : -1}
+              onClick={() => {
+                if (!canNavigate) return;
+                navigate(goTo);
+              }}
+              onKeyDown={(e) => {
+                if (!canNavigate) return;
+                if (e.key === 'Enter' || e.key === ' ') navigate(goTo);
+              }}
             >
-              {isPast ? (
+              {isDoneOrReachable ? (
                 <CheckIcon size={10} />
               ) : isActive ? (
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
@@ -113,7 +156,7 @@ function BookingProgress() {
                 style={{
                   width: 20,
                   height: 2,
-                  background: isPast ? '#EC6819' : 'rgba(255,255,255,0.15)',
+                  background: stepNum < maxVisitedStep ? '#EC6819' : 'rgba(255,255,255,0.15)',
                   margin: '0 2px'
                 }}
               />

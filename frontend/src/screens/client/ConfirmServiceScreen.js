@@ -5,6 +5,7 @@ import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
 import { getObject, getArray } from '../../utils/safeStorage';
+import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import { buildPricingFallback, calculateClientPrice, MACHINERY_NO_TRANSPORT, totalConFactura, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, MACHINERY_PER_TRIP, REFERENCE_PRICES } from '../../utils/pricing';
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, getProviderSpecDisplay } from '../../utils/machineryNames';
@@ -47,6 +48,12 @@ function ConfirmServiceScreen() {
   const [selectedProviderIds, setSelectedProviderIds] = useState(() => getArray('selectedProviderIds', []));
   const [matchedProviders, setMatchedProviders] = useState(() => getArray('matchedProviders', []));
   const [isConfirming, setIsConfirming] = useState(false);
+
+  // Actualiza el "tope" de navegación de la app en la bolita del paso 5.
+  // Esto permite "adelantar/retroceder hasta donde llegaste" manteniendo el dato vigente por 24h.
+  useEffect(() => {
+    saveBookingProgress('confirm');
+  }, [saveBookingProgress]);
 
   const machineryKey = (machinery || '').toLowerCase().replace(/\s+/g, '_');
   const isPerTrip = MACHINERY_PER_TRIP.includes(machineryKey) || MACHINERY_PER_TRIP.includes(machinery);
