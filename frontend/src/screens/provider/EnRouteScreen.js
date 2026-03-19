@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ChatFloatingButton from '../../components/ChatFloatingButton';
+import OpenServiceChatButton from '../../components/OpenServiceChatButton';
 import { useToast } from '../../components/Toast';
 
 // Radio máximo para validar llegada (en metros)
@@ -276,12 +277,8 @@ function EnRouteScreen() {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${param}`, '_blank');
   };
 
-  const handleCallClient = () => {
-    // En producción: Twilio proxy number que conecta proveedor ↔ cliente
-    // Los números reales nunca se exponen
-    const maqgoProxyNumber = '+56227654321'; // Número MAQGO central
-    window.open(`tel:${maqgoProxyNumber}`);
-  };
+  // Regla: chat es el único canal entre cliente y proveedor.
+  // Se elimina el botón de llamada directa.
 
   return (
     <div className="maqgo-app">
@@ -443,25 +440,7 @@ function EnRouteScreen() {
                 Contacto protegido por MAQGO
               </div>
             </div>
-            <button
-              onClick={handleCallClient}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: '50%',
-                background: 'rgba(144, 189, 211, 0.15)',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title="Llamar a través de MAQGO"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M22 16.92V19.92C22 20.48 21.56 20.93 21 20.98C20.83 21 20.64 21 20.45 21C10.94 21 3.04 13.1 3 3.56C3 3.37 3 3.17 3.02 3C3.07 2.44 3.52 2 4.08 2H7.08C7.57 2 7.99 2.38 8.05 2.87C8.11 3.36 8.23 3.85 8.4 4.32L7.07 5.65C7.07 5.65 8 8.65 11 11.65C14 14.65 17 15.58 17 15.58L18.33 14.25C18.8 14.42 19.29 14.54 19.78 14.6C20.27 14.66 20.65 15.08 20.65 15.57V18.57" stroke="#90BDD3" strokeWidth="2" fill="none"/>
-              </svg>
-            </button>
+            {/* Sin llamada directa; se usa el chat de MAQGO */}
           </div>
           <div style={{
             marginTop: 10,
@@ -471,8 +450,14 @@ function EnRouteScreen() {
             fontSize: 11,
             color: 'rgba(255,255,255,0.9)'
           }}>
-            La llamada se realiza a través de MAQGO para proteger tu privacidad y la del cliente.
+            El chat es el único canal para coordinar entre cliente y proveedor.
           </div>
+
+          <OpenServiceChatButton
+            serviceId={serviceId}
+            otherName={serviceData.clientName || 'Cliente'}
+            label="Abrir chat"
+          />
         </div>
 
         {/* Servicio */}

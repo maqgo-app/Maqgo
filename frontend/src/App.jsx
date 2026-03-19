@@ -24,6 +24,7 @@ const VerifiedScreen = lazy(() => import('./screens/VerifiedScreen'));
 const RoleSelection = lazy(() => import('./screens/RoleSelection'));
 const CodeExpiredScreen = lazy(() => import('./screens/CodeExpiredScreen'));
 const CodeIncorrectScreen = lazy(() => import('./screens/CodeIncorrectScreen'));
+const ServiceChatScreen = lazy(() => import('./screens/ServiceChatScreen.jsx'));
 
 // Cliente
 const ClientHome = lazy(() => import('./screens/client/ClientHome'));
@@ -184,6 +185,9 @@ function AppContent() {
         <Route path="/select-role" element={<RoleSelection setUserRole={setUserRole} setUserId={setUserId} />} />
         <Route path="/code-expired" element={<CodeExpiredScreen />} />
         <Route path="/code-incorrect" element={<CodeIncorrectScreen />} />
+
+        {/* Chat por servicio (canal obligatorio cliente ↔ proveedor) */}
+        <Route path="/chat/:serviceId" element={<ServiceChatScreen />} />
 
         {/* Cliente */}
         <Route path="/client/home" element={<ClientHome />} />

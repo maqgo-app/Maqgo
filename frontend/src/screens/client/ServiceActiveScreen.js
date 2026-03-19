@@ -6,6 +6,7 @@ import { getMachineryDisplayName } from '../../utils/machineryNames';
 
 import BACKEND_URL from '../../utils/api';
 import { getObjectFirst } from '../../utils/safeStorage';
+import OpenServiceChatButton from '../../components/OpenServiceChatButton';
 
 /**
  * Pantalla C14 - Servicio en Curso
@@ -13,6 +14,7 @@ import { getObjectFirst } from '../../utils/safeStorage';
 function ServiceActiveScreen() {
   const navigate = useNavigate();
   const [service, setService] = useState(null);
+  const serviceId = localStorage.getItem('currentServiceId');
 
   useEffect(() => {
     const loadService = async () => {
@@ -32,7 +34,8 @@ function ServiceActiveScreen() {
           setService({
             machineryType: getMachineryDisplayName(localStorage.getItem('selectedMachinery') || 'retroexcavadora'),
             status: 'in_progress',
-            providerName: savedProvider.operator_name || savedProvider.providerOperatorName || 'Operador asignado'
+            // Privacidad: el cliente no debe ver el nombre del operador/proveedor
+            providerName: 'Proveedor MAQGO'
           });
         }
       } catch (e) {
@@ -53,7 +56,8 @@ function ServiceActiveScreen() {
 
   const providerDisplayName = service?.providerName || (() => {
     const p = getObjectFirst(['acceptedProvider', 'selectedProvider'], {});
-    return p.operator_name || p.providerOperatorName || 'Operador asignado';
+    // Privacidad: el cliente siempre ve un nombre genérico
+    return 'Proveedor MAQGO';
   })();
 
   return (
@@ -132,6 +136,13 @@ function ServiceActiveScreen() {
         </div>
 
         <div className="maqgo-spacer"></div>
+
+        <OpenServiceChatButton
+          serviceId={serviceId || service?.id}
+          otherName="Operador"
+          label="Abrir chat"
+          style={{ width: '100%', marginTop: 16, background: '#2A2A2A' }}
+        />
 
         {/* Solo modo demo (Continuar sin tarjeta): atajo para llegar hasta el final */}
         {(localStorage.getItem('currentServiceId') || '').startsWith('demo-') && (

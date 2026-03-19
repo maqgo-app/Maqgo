@@ -4,6 +4,7 @@ import axios from 'axios';
 import { MAQGO } from '../../styles/theme';
 import { calculatePriceBreakdown, formatCLP } from '../../utils/commissions';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import OpenServiceChatButton from '../../components/OpenServiceChatButton';
 
 import BACKEND_URL from '../../utils/api';
 
@@ -14,6 +15,7 @@ import BACKEND_URL from '../../utils/api';
 function ServiceConfirmed() {
   const navigate = useNavigate();
   const [service, setService] = useState(null);
+  const serviceId = localStorage.getItem('currentServiceId');
 
   useEffect(() => {
     const loadService = async () => {
@@ -106,6 +108,13 @@ function ServiceConfirmed() {
         >
           VER SERVICIO EN CURSO
         </button>
+
+        <OpenServiceChatButton
+          serviceId={serviceId || service?.id}
+          otherName="Operador"
+          label="Abrir chat"
+          style={{ width: '100%', marginTop: 12, background: '#2A2A2A' }}
+        />
       </div>
     </div>
   );

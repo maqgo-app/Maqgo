@@ -2,25 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
 import BACKEND_URL from '../utils/api';
+import { CHAT_CONTACT_BLOCKED_MESSAGE, messageContainsPhoneOrContact } from '../utils/chatSecurity';
+import { showSystemNotification } from '../utils/uberUX';
+import { playChatIncomingSound, unlockAudio } from '../utils/notificationSounds';
 
 // Mensajes rápidos por rol - Optimizados para uso mientras se maneja
 const QUICK_MESSAGES = {
   client: [
-    { id: 1, text: '¿Dónde estás?', icon: '📍' },
-    { id: 2, text: 'Ya estoy en el lugar', icon: '✅' },
-    { id: 3, text: 'Dame 5 minutos', icon: '⏱️' },
-    { id: 4, text: 'Te espero en la entrada', icon: '🚪' },
-    { id: 5, text: 'Voy saliendo', icon: '🚶' },
-    { id: 6, text: 'OK, gracias', icon: '👍' }
+    { id: 1, text: 'Estoy disponible', icon: '✅' },
+    { id: 2, text: '¿Dónde estás?', icon: '📍' },
+    { id: 3, text: 'Estoy en camino', icon: '🚗' }
   ],
   operator: [
     { id: 1, text: 'Voy en camino', icon: '🚗' },
-    { id: 2, text: 'Llegando en 5 min', icon: '⏱️' },
-    { id: 3, text: 'Ya llegué', icon: '📍' },
-    { id: 4, text: '¿Dónde te encuentro?', icon: '❓' },
-    { id: 5, text: 'Estoy en la entrada', icon: '🚪' },
-    { id: 6, text: 'Hay tráfico, me atraso', icon: '🚧' },
-    { id: 7, text: 'OK, entendido', icon: '👍' }
+    { id: 2, text: 'Llegaré en unos minutos', icon: '⏱️' },
+    { id: 3, text: 'Estoy retrasado', icon: '🚧' },
+    { id: 4, text: 'Ya estoy en el lugar', icon: '✅' }
   ]
 };
 
@@ -34,13 +31,63 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [justSent, setJustSent] = useState(false); // Para feedback visual
+  const [sendError, setSendError] = useState('');
   const messagesEndRef = useRef(null);
   const userId = localStorage.getItem('userId') || 'user-1';
+  const knownMessageIdsRef = useRef(new Set());
+  const didInitRef = useRef(false);
+  const notifRequestedRef = useRef(false);
+  const otherSideLabel = userType === 'client' ? 'Operador' : 'Cliente';
+
+  // Best practice: pedir permiso solo 1 vez al abrir el chat (si está soportado).
+  useEffect(() => {
+    try {
+      if (notifRequestedRef.current) return;
+      notifRequestedRef.current = true;
+
+      if (!('Notification' in window)) return;
+      if (Notification.permission !== 'default') return;
+
+      Notification.requestPermission().catch(() => {});
+    } catch {
+      // No bloqueamos el chat si falla el permiso.
+    }
+  }, [serviceId]);
 
   const fetchMessages = async () => {
     try {
+      const prevIds = knownMessageIdsRef.current;
       const res = await axios.get(`${BACKEND_URL}/api/messages/service/${serviceId}`);
-      setMessages(res.data);
+
+      const incomingMessages = res.data || [];
+
+      // Notificar sólo nuevos mensajes entrantes del otro participante
+      const newIncoming = incomingMessages.filter((m) => {
+        if (!m?.id) return false;
+        if (prevIds.has(m.id)) return false;
+        return m.sender_type !== userType;
+      });
+
+      setMessages(incomingMessages);
+
+      // Actualiza el set de IDs conocidos
+      const nextIds = new Set();
+      incomingMessages.forEach((m) => m?.id && nextIds.add(m.id));
+      knownMessageIdsRef.current = nextIds;
+
+      // Best practice: no notificar los mensajes existentes al abrir el chat.
+      if (didInitRef.current && newIncoming.length > 0) {
+        await unlockAudio();
+        playChatIncomingSound();
+        showSystemNotification(
+          'Nuevo mensaje',
+          // No exponer contenido ni identidad del otro lado.
+          // Mantiene la regla de privacidad: el chat es el único canal.
+          'Tienes un mensaje nuevo en MAQGO'
+        );
+      }
+
+      didInitRef.current = true;
       // Marcar como leídos
       await axios.patch(`${BACKEND_URL}/api/messages/read/${serviceId}?reader_type=${userType}`);
     } catch (e) {
@@ -67,15 +114,22 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
   const sendMessage = async () => {
     if (!newMessage.trim() || sending) return;
 
+    const content = newMessage.trim();
+    if (messageContainsPhoneOrContact(content)) {
+      setSendError(CHAT_CONTACT_BLOCKED_MESSAGE);
+      return;
+    }
+
     setSending(true);
     try {
       await axios.post(`${BACKEND_URL}/api/messages/send`, {
         service_id: serviceId,
         sender_type: userType,
         sender_id: userId,
-        content: newMessage.trim()
+        content
       });
       setNewMessage('');
+      setSendError('');
       fetchMessages();
     } catch (e) {
       console.error('Error sending message:', e);
@@ -86,6 +140,12 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
   // Enviar mensaje rápido (auto-envía sin escribir) con feedback visual
   const sendQuickMessage = async (text) => {
     if (sending) return;
+
+    if (messageContainsPhoneOrContact(text)) {
+      setSendError(CHAT_CONTACT_BLOCKED_MESSAGE);
+      return;
+    }
+
     setSending(true);
     setJustSent(true);
     
@@ -97,6 +157,7 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
         content: text
       });
       setNewMessage('');
+      setSendError('');
       fetchMessages();
       
       // Vibración de confirmación (si está disponible)
@@ -185,6 +246,19 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
         flexDirection: 'column',
         gap: 8
       }}>
+        {sendError && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            padding: '10px 12px',
+            borderRadius: 12,
+            color: '#fff',
+            fontSize: 13,
+            marginBottom: 8
+          }}>
+            {sendError}
+          </div>
+        )}
         {loading ? (
           <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', paddingTop: 40 }}>
             Cargando mensajes...
