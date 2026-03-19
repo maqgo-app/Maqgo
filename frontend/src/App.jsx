@@ -123,11 +123,17 @@ function ForgotPasswordPlaceholder() {
   return (
     <div className="maqgo-app">
       <div className="maqgo-screen" style={{ justifyContent: 'center', padding: 24 }}>
-        <p style={{ color: '#fff', marginBottom: 20, textAlign: 'center' }}>
-          Recuperación de contraseña próximamente.
+        <p style={{ color: '#fff', marginBottom: 16, textAlign: 'center', lineHeight: 1.5 }}>
+          Aún no tenemos recuperación automática de contraseña por correo.
         </p>
-        <button className="maqgo-btn-primary" onClick={() => navigate('/login')}>
+        <p style={{ color: 'rgba(255,255,255,0.75)', marginBottom: 20, textAlign: 'center', fontSize: 14, lineHeight: 1.5 }}>
+          Si no puedes entrar, vuelve a <strong>Regístrate</strong> con el mismo correo y celular (OTP en demo: <strong>123456</strong>) o usa una cuenta demo si la tienes en tu entorno.
+        </p>
+        <button className="maqgo-btn-primary" onClick={() => navigate('/login')} style={{ marginBottom: 12 }}>
           Volver al inicio de sesión
+        </button>
+        <button type="button" className="maqgo-btn-secondary" onClick={() => navigate('/register')}>
+          Ir a registro
         </button>
       </div>
     </div>

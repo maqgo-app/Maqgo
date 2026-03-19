@@ -11,14 +11,11 @@ import { getObject } from '../utils/safeStorage';
  * C09 - Seleccion de Rol
  * Soporta returnUrl para volver a la pantalla original después del registro
  */
-const DOUBLE_TAP_MS = 400;
-
 function RoleSelection({ setUserRole, setUserId }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
-  const lastTapRef = React.useRef({ role: null, time: 0 });
   
   // Get returnUrl from navigation state or localStorage
   const [returnUrl, setReturnUrl] = useState(null);
@@ -42,16 +39,28 @@ function RoleSelection({ setUserRole, setUserId }) {
     }
   }, [preselect]);
 
-  const handleOptionClick = (role) => {
-    const now = Date.now();
-    const last = lastTapRef.current;
-    const isDoubleTap = last.role === role && (now - last.time) <= DOUBLE_TAP_MS;
-    lastTapRef.current = { role, time: now };
+  // Seguridad UX: este screen debe usarse después de registro/verificación.
+  // Si el usuario llega sin sesión/verificación, lo enviamos a registro (OTP).
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    const phoneVerified = localStorage.getItem('phoneVerified') === 'true';
+    const registerData = getObject('registerData', {});
+    const pwd = registerData.password ? String(registerData.password) : '';
 
-    setSelected(role);
-    if (isDoubleTap) {
-      handleContinueWithRole(role);
+    if (!userId && !phoneVerified && !registerData?.celular) {
+      navigate('/register', { replace: true });
+      return;
     }
+    // Tras OTP: debe existir contraseña en registerData para poder usar /login después.
+    if (phoneVerified && pwd.length < 8) {
+      navigate('/register', { replace: true });
+    }
+  }, [navigate]);
+
+  const handleOptionClick = (role) => {
+    setSelected(role);
+    // UX estable: un toque avanza, sin requerir doble toque.
+    handleContinueWithRole(role);
   };
 
   const handleContinue = async () => {
@@ -67,6 +76,7 @@ function RoleSelection({ setUserRole, setUserId }) {
       const data = getObject('registerData', {});
       const celDigits = data.celular ? String(data.celular).replace(/\D/g, '').slice(-9) : '';
       const phone = celDigits.length >= 9 ? `+56${celDigits}` : undefined;
+      const pwd = data.password && String(data.password).length >= 8 ? String(data.password) : undefined;
       const apiCall = axios.post(
         `${BACKEND_URL}/api/users`,
         {
@@ -74,6 +84,7 @@ function RoleSelection({ setUserRole, setUserId }) {
           name: `${data.nombre || 'Usuario'} ${data.apellido || ''}`.trim(),
           email: data.email || `${roleToUse}_${Date.now()}@maqgo.cl`,
           ...(phone && { phone }),
+          ...(pwd && { password: pwd }),
         },
         { timeout: 4000 }
       );
@@ -137,7 +148,7 @@ function RoleSelection({ setUserRole, setUserId }) {
           textAlign: 'center',
           marginBottom: 28
         }}>
-          Toca para elegir o haz doble toque para continuar
+          Toca para continuar
         </p>
 
         {/* Opciones */}

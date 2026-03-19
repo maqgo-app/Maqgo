@@ -4,6 +4,7 @@ from auth_dependency import verify_user_access
 from models.user import User, UserCreate, ProviderAvailabilityUpdate
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import bcrypt
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -38,6 +39,7 @@ def _user_roles_list(doc: dict) -> list:
 async def create_user(user: UserCreate):
     """Crear nuevo usuario (cliente o proveedor). Si el email ya existe, se agrega el rol a la misma cuenta."""
     user_data = user.model_dump()
+    plain_password = user_data.pop("password", None)
     existing = await db.users.find_one({"email": user_data["email"]})
 
     if existing:
@@ -45,7 +47,13 @@ async def create_user(user: UserCreate):
         new_role = user_data.get("role")
         if new_role in roles:
             # Mismo rol: devolver el usuario existente (evitar duplicados)
-            result = dict(existing)
+            if plain_password:
+                await db.users.update_one(
+                    {"email": user_data["email"]},
+                    {"$set": {"password": _hash_password(plain_password)}},
+                )
+            fresh = await db.users.find_one({"email": user_data["email"]}, {"_id": 0, "password": 0})
+            result = dict(fresh or existing)
             result.pop("_id", None)
             result.pop("password", None)
             await _add_session_token(result)
@@ -54,6 +62,8 @@ async def create_user(user: UserCreate):
         update = {"roles": new_roles}
         if user_data.get("name"):
             update["name"] = user_data["name"]
+        if plain_password:
+            update["password"] = _hash_password(plain_password)
         if new_role == "provider":
             if user_data.get('hourlyRate') is not None:
                 update["hourlyRate"] = user_data["hourlyRate"]
@@ -74,6 +84,8 @@ async def create_user(user: UserCreate):
     user_obj = User(**user_data)
     doc = user_obj.model_dump()
     doc['createdAt'] = doc['createdAt'].isoformat()
+    if plain_password:
+        doc["password"] = _hash_password(plain_password)
     await db.users.insert_one(doc)
     result = doc.copy()
     result.pop('_id', None)

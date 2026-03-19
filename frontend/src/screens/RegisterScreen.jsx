@@ -20,11 +20,12 @@ function RegisterScreen() {
     apellido: '',
     email: '',
     celular: '',
-    rut: ''          // Para boleta electrónica (cuando no necesita factura)
+    rut: '',          // Para boleta electrónica (cuando no necesita factura)
+    password: ''
   });
   const [accepted, setAccepted] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
-  const [errors, setErrors] = useState({ email: '', celular: '', rut: '' });
+  const [errors, setErrors] = useState({ email: '', celular: '', rut: '', password: '' });
 
   const update = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -36,11 +37,12 @@ function RegisterScreen() {
     const emailErr = validateEmail(form.email);
     const celularErr = validateCelularChile(form.celular);
     const rutErr = !form.rut ? 'Ingresa tu RUT' : !validateRut(form.rut) ? 'RUT inválido' : '';
-    if (emailErr || celularErr || rutErr) {
-      setErrors({ email: emailErr, celular: celularErr, rut: rutErr });
+    const passwordErr = form.password.length < 8 ? 'La contraseña debe tener al menos 8 caracteres' : '';
+    if (emailErr || celularErr || rutErr || passwordErr) {
+      setErrors({ email: emailErr, celular: celularErr, rut: rutErr, password: passwordErr });
       return;
     }
-    setErrors({ email: '', celular: '', rut: '' });
+    setErrors({ email: '', celular: '', rut: '', password: '' });
     localStorage.setItem('registerData', JSON.stringify(form));
 
     const phone = form.celular ? `+56${form.celular.replace(/\D/g, '')}` : '';
@@ -79,7 +81,7 @@ function RegisterScreen() {
     }
   };
 
-  const isValid = form.nombre && form.apellido && form.email && form.celular && form.rut && validateRut(form.rut) && accepted;
+  const isValid = form.nombre && form.apellido && form.email && form.celular && form.rut && validateRut(form.rut) && form.password.length >= 8 && accepted;
 
   return (
     <div className="maqgo-app">
@@ -193,6 +195,22 @@ function RegisterScreen() {
             aria-label="RUT"
           />
           {errors.rut ? <p style={{ color: '#f44336', fontSize: 12, marginBottom: 12 }}>{errors.rut}</p> : null}
+
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+            Contraseña <span style={{ color: '#EC6819' }}>*</span>
+          </label>
+          <input
+            className="maqgo-input"
+            placeholder="Mínimo 8 caracteres"
+            type="password"
+            value={form.password}
+            onChange={e => update('password', e.target.value)}
+            style={{ marginBottom: errors.password ? 4 : 16 }}
+            data-testid="register-password"
+            aria-label="Contraseña"
+            autoComplete="new-password"
+          />
+          {errors.password ? <p style={{ color: '#f44336', fontSize: 12, marginBottom: 12 }}>{errors.password}</p> : null}
 
           {/* Checkbox T&C */}
           <div style={{ 

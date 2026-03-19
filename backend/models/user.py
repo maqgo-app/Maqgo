@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Literal
 from datetime import datetime, timezone
 import uuid
@@ -66,6 +66,17 @@ class UserCreate(BaseModel):
     provider_role: Optional[Literal['super_master', 'master', 'operator']] = 'super_master'
     owner_id: Optional[str] = None
     rut: Optional[str] = None
+    # Login por correo (opcional en API; el registro cliente la envía tras OTP)
+    password: Optional[str] = None
+
+    @field_validator('password')
+    @classmethod
+    def validate_password_optional(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == '':
+            return None
+        if len(v) < 8:
+            raise ValueError('La contraseña debe tener al menos 8 caracteres')
+        return v
 
 class ProviderAvailabilityUpdate(BaseModel):
     isAvailable: bool
