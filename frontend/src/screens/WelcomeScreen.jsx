@@ -226,7 +226,12 @@ function WelcomeScreen() {
             <button
               onClick={() => {
                 const step = abandonedBooking?.step || localStorage.getItem('clientBookingStep');
-                navigate(getClientBookingRoute(step));
+                const target = getClientBookingRoute(step);
+                if (!hasSession) {
+                  navigate('/login', { state: { redirect: target } });
+                  return;
+                }
+                navigate(target);
                 setAbandonedBooking(null);
               }}
               style={{
@@ -263,7 +268,14 @@ function WelcomeScreen() {
             : (isDesktop ? 48 : (isShortViewport ? 28 : (isNarrowMobile ? 36 : 44)))
         }}>
           <button
-            onClick={() => navigate('/client/home')}
+            onClick={() => {
+              const target = '/client/home';
+              if (!hasSession) {
+                navigate('/login', { state: { redirect: target } });
+                return;
+              }
+              navigate(target);
+            }}
             className="welcome-cta-primary"
             data-testid="start-client-btn"
             aria-label="Arrendar maquinaria"

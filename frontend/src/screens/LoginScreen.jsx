@@ -35,9 +35,11 @@ function LoginScreen({ setUserRole, setUserId }) {
       if (res.data.role === 'admin' || redirectTo === '/admin') {
         navigate('/admin', { replace: true });
       } else if (res.data.role === 'client') {
-        navigate('/client/home', { replace: true });
+        const target = redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
+        navigate(target, { replace: true });
       } else {
-        navigate('/provider/home', { replace: true });
+        const target = redirectTo && redirectTo.startsWith('/provider') ? redirectTo : '/provider/home';
+        navigate(target, { replace: true });
       }
     } catch (e) {
       if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
