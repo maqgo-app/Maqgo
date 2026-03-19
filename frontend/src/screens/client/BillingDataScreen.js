@@ -10,7 +10,7 @@ import { MaqgoButton } from '../../components/base';
 /**
  * Pantalla de Datos de Facturación (Cliente)
  * Solo cuando el cliente eligió "Sí" a factura con RUT empresa.
- * Se piden RUT empresa + Razón social.
+ * Se piden: RUT, Razón social, Giro y Dirección tributaria.
  */
 function BillingDataScreen() {
   const navigate = useNavigate();
@@ -18,15 +18,23 @@ function BillingDataScreen() {
   const backRoute = getBookingBackRoute(pathname);
   const [form, setForm] = useState({
     rut: '',
-    razonSocial: ''
+    razonSocial: '',
+    giro: '',
+    direccion: ''
   });
   const [rutError, setRutError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const savedBilling = getObject('billingData', {});
-    if (savedBilling.rut || savedBilling.razonSocial) {
-      setForm(prev => ({ ...prev, rut: savedBilling.rut || prev.rut, razonSocial: savedBilling.razonSocial || prev.razonSocial }));
+    if (savedBilling.rut || savedBilling.razonSocial || savedBilling.giro || savedBilling.direccion) {
+      setForm(prev => ({
+        ...prev,
+        rut: savedBilling.rut || prev.rut,
+        razonSocial: savedBilling.razonSocial || prev.razonSocial,
+        giro: savedBilling.giro || prev.giro,
+        direccion: savedBilling.direccion || prev.direccion
+      }));
     }
   }, []);
 
@@ -48,14 +56,20 @@ function BillingDataScreen() {
     }
     setRutError('');
     setIsSubmitting(true);
-    const billingData = { billingType: 'empresa', razonSocial: form.razonSocial, rut: form.rut };
+    const billingData = {
+      billingType: 'empresa',
+      razonSocial: form.razonSocial.trim(),
+      rut: form.rut,
+      giro: form.giro?.trim() || '',
+      direccion: form.direccion?.trim() || ''
+    };
     localStorage.setItem('billingData', JSON.stringify(billingData));
     const registerData = getObject('registerData', {});
     localStorage.setItem('registerData', JSON.stringify({ ...registerData, ...billingData }));
     navigate('/client/card');
   };
 
-  const isValid = form.razonSocial?.trim() && form.rut && validateRut(form.rut);
+  const isValid = form.razonSocial?.trim() && form.rut && validateRut(form.rut) && form.giro?.trim() && form.direccion?.trim();
 
   return (
     <div className="maqgo-app">
@@ -83,7 +97,7 @@ function BillingDataScreen() {
           Datos de Facturación
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', marginBottom: 24 }}>
-          RUT empresa + Razón social para emitir tu factura
+          Datos de tu empresa para emitir la factura
         </p>
 
         {/* Trust signal */}
@@ -146,6 +160,32 @@ function BillingDataScreen() {
             aria-describedby={rutError ? 'billing-rut-error' : undefined}
           />
           {rutError && <p id="billing-rut-error" style={{ color: 'var(--maqgo-orange)', fontSize: 12, margin: '0 0 12px' }}>{rutError}</p>}
+
+          <label htmlFor="billing-giro" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block', marginTop: 16 }}>
+            Giro <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
+          </label>
+          <input
+            id="billing-giro"
+            className="maqgo-input"
+            placeholder="Ej: Arriendo de maquinaria"
+            value={form.giro}
+            onChange={e => update('giro', e.target.value)}
+            style={{ marginBottom: 12 }}
+            data-testid="billing-giro"
+          />
+
+          <label htmlFor="billing-direccion" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+            Dirección tributaria <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
+          </label>
+          <input
+            id="billing-direccion"
+            className="maqgo-input"
+            placeholder="Calle, número, comuna"
+            value={form.direccion}
+            onChange={e => update('direccion', e.target.value)}
+            style={{ marginBottom: 12 }}
+            data-testid="billing-direccion"
+          />
         </div>
 
         {/* Info */}

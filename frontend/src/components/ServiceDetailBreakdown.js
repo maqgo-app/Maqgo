@@ -50,8 +50,18 @@ const ServiceDetailBreakdown = ({
   const maqgoFeeNeto = Math.round(subtotal * 0.10);
   const maqgoFeeIva = Math.round(maqgoFeeNeto * 0.19);
   const maqgoFeeConIva = maqgoFeeNeto + maqgoFeeIva;
-  const ivaTotal = needsInvoice ? Math.round((subtotal + maqgoFeeNeto) * 0.19) : 0;
-  const totalCliente = needsInvoice ? subtotal + maqgoFeeNeto + ivaTotal : subtotal + maqgoFeeConIva;
+  // Best practice: el total al cliente debe ser el mismo para boleta y factura.
+  // El backend calcula el mismo bruto:
+  //   total = subtotal + feeNeto + IVA sobre (subtotal + feeNeto)
+  //
+  // Para boleta (needsInvoice=false) la UI muestra "Tarifa por servicio (IVA incl.)",
+  // por lo que la parte "feeNeto * 0.19" ya va incluida en `maqgoFeeConIva`.
+  // Entonces, el IVA restante que falta para igualar el total es el IVA sobre el subtotal.
+  const ivaTotalFactura = Math.round((subtotal + maqgoFeeNeto) * 0.19); // para factura
+  const ivaSobreSubtotalBoleta = Math.round(subtotal * 0.19); // para boleta
+  const totalCliente = needsInvoice
+    ? subtotal + maqgoFeeNeto + ivaTotalFactura
+    : subtotal + maqgoFeeConIva + ivaSobreSubtotalBoleta;
 
   // Cálculos proveedor
   const maqgoProviderFee = Math.round(subtotal * 0.10 * 1.19);
@@ -113,10 +123,18 @@ const ServiceDetailBreakdown = ({
               compact={compact}
             />
           </div>
-          {needsInvoice && (
-            <div style={sectionStyle}>
-              <Row label="IVA (19%)" value={formatPrice(ivaTotal)} compact={compact} />
-            </div>
+          {(
+            needsInvoice
+              ? (
+                <div style={sectionStyle}>
+                  <Row label="IVA (19%)" value={formatPrice(ivaTotalFactura)} compact={compact} />
+                </div>
+              )
+              : (
+                <div style={sectionStyle}>
+                  <Row label="IVA (19%) sobre subtotal" value={formatPrice(ivaSobreSubtotalBoleta)} compact={compact} />
+                </div>
+              )
           )}
           <Divider />
           <div style={sectionStyle}>

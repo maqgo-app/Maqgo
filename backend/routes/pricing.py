@@ -105,16 +105,13 @@ async def calculate_immediate(request: ImmediatePriceRequest):
         is_per_hour = breakdown.get('is_per_hour', True)
         base_service_no_mult = base_price * request.hours if is_per_hour else base_price
         
-        # CON factura: IVA 19% sobre (subtotal + comisión neta). SIN factura: IVA solo sobre comisión
+        # Mismo bruto en factura y boleta: IVA 19% siempre sobre (subtotal + comisión)
         subtotal = breakdown.get('subtotal', 0)
         client_commission = breakdown.get('client_commission', 0)
         client_commission_iva = breakdown.get('client_commission_iva', 0)
-        if request.needs_invoice:
-            base_para_iva = subtotal + client_commission
-            iva_total = round(base_para_iva * 0.19)
-            final_price = round(subtotal + client_commission + iva_total)
-        else:
-            final_price = result.get('final_price', round(subtotal + client_commission + client_commission_iva))
+        base_para_iva = subtotal + client_commission
+        iva_total = round(base_para_iva * 0.19)
+        final_price = round(subtotal + client_commission + iva_total)
         
         return {
             **result,
@@ -146,13 +143,13 @@ async def calculate_scheduled(request: ScheduledPriceRequest):
             days=request.days,
             transport_cost=request.transport_cost,
         )
-        if request.needs_invoice:
-            breakdown = result.get('breakdown', {})
-            subtotal = breakdown.get('subtotal', 0)
-            client_commission = breakdown.get('client_commission', 0)
-            base_para_iva = subtotal + client_commission
-            iva_total = round(base_para_iva * 0.19)
-            result['final_price'] = round(subtotal + client_commission + iva_total)
+        # Mismo bruto en factura y boleta
+        breakdown = result.get('breakdown', {})
+        subtotal = breakdown.get('subtotal', 0)
+        client_commission = breakdown.get('client_commission', 0)
+        base_para_iva = subtotal + client_commission
+        iva_total = round(base_para_iva * 0.19)
+        result['final_price'] = round(subtotal + client_commission + iva_total)
         result['needs_invoice'] = request.needs_invoice
         return result
     except PricingValidationError as e:
@@ -189,12 +186,12 @@ async def calculate_hybrid(request: HybridPriceRequest):
         additional = result.get('additional_days', {})
         breakdown = result.get('breakdown', {})
         
-        if request.needs_invoice:
-            subtotal = breakdown.get('subtotal', 0)
-            client_commission = breakdown.get('client_commission', 0)
-            base_para_iva = subtotal + client_commission
-            iva_total = round(base_para_iva * 0.19)
-            result['final_price'] = round(subtotal + client_commission + iva_total)
+        # Mismo bruto en factura y boleta
+        subtotal = breakdown.get('subtotal', 0)
+        client_commission = breakdown.get('client_commission', 0)
+        base_para_iva = subtotal + client_commission
+        iva_total = round(base_para_iva * 0.19)
+        result['final_price'] = round(subtotal + client_commission + iva_total)
         
         return {
             **result,

@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
 from typing import List, Optional
+
+from auth_dependency import get_current_user
 from models.service_request import ServiceRequest, ServiceRequestCreate, Location, calculate_commissions
 from pricing.business_rules import LATE_CANCELLATION_FEE_PERCENT
 from services.utils import haversine_meters
@@ -30,13 +32,22 @@ payment_service = PaymentService(db)
 timer_service = TimerService(db)
 
 @router.post("", response_model=dict)
-async def create_service_request(request: ServiceRequestCreate):
+async def create_service_request(
+    request: ServiceRequestCreate,
+    current_user: dict = Depends(get_current_user)
+):
     """
     Crear nueva solicitud de servicio.
     El cliente debe haber aceptado la jornada (workdayAccepted=true).
     Inmediatamente inicia el proceso de matching.
     NO se cobra en este momento.
+    Solo el cliente autenticado puede crear solicitudes a su nombre.
     """
+    if request.clientId and request.clientId != current_user.get("id"):
+        raise HTTPException(
+            status_code=403,
+            detail="Solo puedes crear solicitudes a tu nombre"
+        )
     # Verificar que aceptó la jornada
     if not request.workdayAccepted:
         raise HTTPException(
@@ -186,15 +197,19 @@ async def get_service_request(request_id: str):
 @router.put("/{request_id}/accept", response_model=dict)
 async def accept_service_request(
     request_id: str,
-    body: dict = Body(...)
+    body: dict = Body(...),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Proveedor acepta la solicitud.
     ESTO DISPARA EL COBRO AL CLIENTE.
+    Solo el proveedor con oferta activa puede aceptar.
     """
     provider_id = body.get('providerId')
     if not provider_id:
         raise HTTPException(status_code=400, detail="providerId requerido")
+    if provider_id != current_user.get('id'):
+        raise HTTPException(status_code=403, detail="Solo puedes aceptar ofertas dirigidas a ti")
     
     request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
     if not request:
@@ -229,16 +244,25 @@ async def accept_service_request(
 @router.put("/{request_id}/cancel", response_model=dict)
 async def cancel_service_client(
     request_id: str,
-    body: dict = Body(default={})
+    body: dict = Body(default={}),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Cancelación por cliente.
     Ventana gratuita 1h: reembolso total. > 1h: 20%.
     Si arrivalDetectedAt existe: cancelación bloqueada.
+    Solo el cliente dueño de la solicitud puede cancelar.
     """
     request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
     if not request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+    client_id = request.get('clientId')
+    if client_id and client_id != current_user.get('id'):
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el cliente de esta reserva puede cancelarla"
+        )
 
     status = request.get('status', '')
     # Mapear a estados del doc: pending_provider, accepted, en_route
@@ -321,12 +345,14 @@ async def cancel_service_client(
 @router.put("/{request_id}/reject", response_model=dict)
 async def reject_service_request(
     request_id: str,
-    body: dict = Body(default={})
+    body: dict = Body(default={}),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Proveedor rechaza la solicitud.
     El sistema buscará automáticamente el siguiente proveedor.
     NO HAY COBRO.
+    Solo el proveedor con oferta activa puede rechazar.
     """
     request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
     if not request:
@@ -335,6 +361,8 @@ async def reject_service_request(
     provider_id = request.get('currentOfferId')
     if not provider_id:
         raise HTTPException(status_code=400, detail="No hay oferta activa")
+    if provider_id != current_user.get('id'):
+        raise HTTPException(status_code=403, detail="Solo el proveedor con oferta activa puede rechazar")
     
     result = await handle_offer_response(db, request_id, provider_id, accepted=False)
     

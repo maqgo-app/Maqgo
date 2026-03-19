@@ -339,7 +339,8 @@ export function buildPricingFallback({ machineryType, basePrice, transportFee, h
     const subtotal = totalServiceCost + transport;
     const commission = Math.round(subtotal * MAQGO_CLIENT_COMMISSION_RATE);
     const commissionIva = Math.round(commission * IVA_RATE);
-    const finalPrice = Math.round(subtotal + commission + commissionIva);
+    const sinFactura = Math.round(subtotal + commission + commissionIva);
+    const finalPrice = totalConFactura(sinFactura);
 
     return {
       final_price: finalPrice,
@@ -349,7 +350,7 @@ export function buildPricingFallback({ machineryType, basePrice, transportFee, h
     };
   }
 
-  const finalPrice = calculateClientPrice({
+  const sinFactura = calculateClientPrice({
     machineryType,
     basePrice,
     transportFee,
@@ -357,6 +358,7 @@ export function buildPricingFallback({ machineryType, basePrice, transportFee, h
     days: reservationType === 'scheduled' ? days : 1,
     reservationType
   });
+  const finalPrice = totalConFactura(sinFactura);
 
   let serviceCost;
   let serviceAmount;

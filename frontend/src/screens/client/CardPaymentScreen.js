@@ -250,7 +250,7 @@ function CardPaymentScreen() {
                 <p><strong>Razón Social:</strong> {billingData.razonSocial}</p>
                 <p><strong>RUT:</strong> {billingData.rut}</p>
                 <p><strong>Giro:</strong> {billingData.giro}</p>
-                <p><strong>Dirección:</strong> {billingData.direccion}</p>
+                <p><strong>Dirección tributaria:</strong> {billingData.direccion}</p>
               </>
             ) : (
               <>

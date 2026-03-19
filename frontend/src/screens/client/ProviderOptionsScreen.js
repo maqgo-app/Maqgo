@@ -4,7 +4,7 @@ import { getBookingBackRoute } from '../../utils/bookingFlow';
 import axios from 'axios';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import { getArray } from '../../utils/safeStorage';
-import { calculateClientPrice } from '../../utils/pricing';
+import { calculateClientPrice, totalConFactura } from '../../utils/pricing';
 import { NoProvidersError, NoProvidersTryTomorrow, LegalChargeNotice } from '../../components/ErrorStates';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
@@ -33,7 +33,8 @@ function ProviderOptionsScreen() {
   const [tomorrowAvailable, setTomorrowAvailable] = useState(false);
   const [tomorrowCount, setTomorrowCount] = useState(0);
   const [isDemoProviders, setIsDemoProviders] = useState(false);
-  const [selectedMachinery] = useState(localStorage.getItem('selectedMachinery') || 'retroexcavadora');
+  const normalizeMachinery = (m) => String(m || '').trim().toLowerCase().replace(/\s+/g, '_');
+  const [selectedMachinery] = useState(() => normalizeMachinery(localStorage.getItem('selectedMachinery') || 'retroexcavadora'));
   const [hours, setHours] = useState(() => {
     const type = localStorage.getItem('reservationType') || 'immediate';
     const saved = localStorage.getItem('selectedHours');
@@ -149,26 +150,34 @@ function ProviderOptionsScreen() {
   const perTripScheduledLabel = getPerTripDateLabel(selectedDatesRaw, localStorage.getItem('selectedDate') || '', { prefix: 'Valor viaje ·' });
 
   const getDemoProvidersFallback = () => {
-    const capOpts = getMachineryCapacityOptions(selectedMachinery);
-    const specValues = capOpts?.options ? [...capOpts.options].slice(0, 5) : null;
-    const providerFieldToSnake = {
-      capacityM3: 'capacity_m3',
-      capacityLiters: 'capacity_liters',
-      capacityTonM: 'capacity_ton_m',
-      bucketM3: 'bucket_m3',
-      weightTon: 'weight_ton',
-      powerHp: 'power_hp',
-      bladeWidthM: 'blade_width_m',
-      craneTon: 'crane_ton',
-      rollerTon: 'roller_ton'
-    };
-    const specKey = capOpts?.providerField ? providerFieldToSnake[capOpts.providerField] : null;
-    const baseProviders = getDemoProviders(selectedMachinery, 5, { extended: true });
-    const all = specKey && specValues
-      ? baseProviders.map((p, i) => ({ ...p, [specKey]: specValues[i % specValues.length] }))
-      : baseProviders;
-    // Cliente ve todos los proveedores: MAQGO factura siempre al cliente; a proveedores sin factura MAQGO emite factura de compra
-    return all;
+    try {
+      const capOpts = getMachineryCapacityOptions(selectedMachinery);
+      const specValues = capOpts?.options ? [...capOpts.options].slice(0, 5) : null;
+      const providerFieldToSnake = {
+        capacityM3: 'capacity_m3',
+        capacityLiters: 'capacity_liters',
+        capacityTonM: 'capacity_ton_m',
+        bucketM3: 'bucket_m3',
+        weightTon: 'weight_ton',
+        powerHp: 'power_hp',
+        bladeWidthM: 'blade_width_m',
+        craneTon: 'crane_ton',
+        rollerTon: 'roller_ton'
+      };
+      const specKey = capOpts?.providerField ? providerFieldToSnake[capOpts.providerField] : null;
+      const baseProviders = getDemoProviders(selectedMachinery, 5, { extended: true });
+      const all = specKey && specValues
+        ? baseProviders.map((p, i) => ({ ...p, [specKey]: specValues[i % specValues.length] }))
+        : baseProviders;
+      // Cliente ve todos los proveedores: MAQGO factura siempre al cliente; a proveedores sin factura MAQGO emite factura de compra
+      return all;
+    } catch (e) {
+      console.error('getDemoProvidersFallback failed:', e);
+      // Último recurso: fallback genérico para que la pantalla no muera.
+      const base = getDemoProviders(selectedMachinery, 5, { extended: true });
+      if (Array.isArray(base) && base.length) return base;
+      return getDemoProviders('retroexcavadora', 5, { extended: true });
+    }
   };
 
   /** Horas máximas: HorasCierre - HoraActual - ETA - 1hr almuerzo + 30min elasticidad */
@@ -190,8 +199,12 @@ function ProviderOptionsScreen() {
   };
 
   const fetchProviders = async () => {
-    const clientLat = -33.4489;
-    const clientLng = -70.6693;
+    // Usar la ubicación exacta ingresada en ServiceLocationScreen.
+    // Si no existe (ej. fallback sin Google Places), usar coordenadas demo.
+    const savedLat = parseFloat(localStorage.getItem('serviceLat') || '');
+    const savedLng = parseFloat(localStorage.getItem('serviceLng') || '');
+    const clientLat = Number.isFinite(savedLat) ? savedLat : -33.4489;
+    const clientLng = Number.isFinite(savedLng) ? savedLng : -70.6693;
     const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
     const FAST_FALLBACK_MS = 2500; // Si la API tarda más, mostrar opciones de inmediato
 
@@ -229,7 +242,8 @@ function ProviderOptionsScreen() {
         return {
           ...p,
           max_hours: calculateMaxHours(p.closing_time || '20:00', p.eta_minutes || 40),
-          total_price: calculateTotalPrice(p, selectedMachinery),
+          // UX: mostrar el mismo total bruto que se usa en P5 (con factura / mismo bruto).
+          total_price: totalConFactura(calculateTotalPrice(p, selectedMachinery)),
           has_transport: needsTransport(),
           primaryPhoto: p.machineData?.primaryPhoto || null
         };
@@ -239,9 +253,14 @@ function ProviderOptionsScreen() {
     } catch (error) {
       setIsDemoProviders(true);
       setTomorrowAvailable(false);
-      setProviders(getDemoProvidersFallback().map(p => ({
+      const fallbackProviders = getDemoProvidersFallback();
+      const safeFallback = Array.isArray(fallbackProviders) && fallbackProviders.length
+        ? fallbackProviders
+        : getDemoProviders('retroexcavadora', 5, { extended: true });
+
+      setProviders(safeFallback.map(p => ({
         ...p,
-        total_price: calculateTotalPrice(p, selectedMachinery),
+        total_price: totalConFactura(calculateTotalPrice(p, selectedMachinery)),
         has_transport: needsTransport(),
         max_hours: calculateMaxHours(p.closing_time || '20:00', p.eta_minutes || 40)
       })));
@@ -274,7 +293,7 @@ function ProviderOptionsScreen() {
     const firstId = validSelectedIds[0];
     const provider = providers.find((p) => idMatch(p.id, firstId));
     if (!provider) return;
-    const calculatedPrice = calculateTotalPrice(provider, selectedMachinery);
+    const calculatedPrice = provider?.total_price ?? totalConFactura(calculateTotalPrice(provider, selectedMachinery));
     const adjustedProvider = {
       ...provider,
       transport_fee: needsTransport() ? provider.transport_fee : 0
@@ -548,7 +567,7 @@ function ProviderOptionsScreen() {
               tabIndex={0}
               onClick={() => toggleProvider(provider.id)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleProvider(provider.id); } }}
-              aria-label={`Proveedor ${index + 1}, ${formatPrice(calculateTotalPrice(provider, selectedMachinery))}, ${provider.eta_minutes || '?'} min, ${provider.distance || '?'} km${isSelected ? ', seleccionado' : ''}`}
+              aria-label={`Proveedor ${index + 1}, ${formatPrice(provider.total_price)}, ${provider.eta_minutes || '?'} min, ${provider.distance || '?'} km${isSelected ? ', seleccionado' : ''}`}
               style={{
                 background: isSelected ? 'rgba(236, 104, 25, 0.15)' : '#363636',
                 border: isSelected ? '2px solid #EC6819' : '2px solid transparent',
@@ -600,7 +619,7 @@ function ProviderOptionsScreen() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                       <span style={{ color: '#EC6819', fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }}>
-                        {formatPrice(calculateTotalPrice(provider, selectedMachinery))}
+                        {formatPrice(provider.total_price)}
                       </span>
                       {/* Subtítulo: qué incluye el precio (transparencia) */}
                       <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 4, lineHeight: 1.3 }}>
@@ -621,7 +640,9 @@ function ProviderOptionsScreen() {
                         <path d="M6 1L7.2 4.2H10.6L7.9 6.3L8.8 9.8L6 7.8L3.2 9.8L4.1 6.3L1.4 4.2H4.8L6 1Z" fill="#EC6819"/>
                       </svg>
                       <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>Calificación</span>
-                      <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, fontWeight: 600 }}>{(provider.rating ?? 0).toFixed(1)}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, fontWeight: 600 }}>
+                        {(Number(provider.rating) || 0).toFixed(1)}
+                      </span>
                     </div>
                   </div>
                 </div>

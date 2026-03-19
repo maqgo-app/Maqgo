@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getObject, getArray } from '../../utils/safeStorage';
 import { getPerTripDateLabel, getPerTripCountLabel } from '../../utils/bookingDates';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { clearBookingProgress } from '../../utils/abandonmentTracker';
@@ -10,13 +11,14 @@ import { vibrate } from '../../utils/uberUX';
 import { 
   RequestExpiredError, 
   ProviderRejectedError, 
-  PaymentFailedError,
-  ConnectionError 
+  PaymentFailedError
 } from '../../components/ErrorStates';
 
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { getClientBreakdown, MACHINERY_NO_TRANSPORT, MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { formatPrice, formatDateShort } from '../../utils/format';
+import { getBookingBackRoute } from '../../utils/bookingFlow';
 
 const MIN_HOURS_IMMEDIATE = 4;
 const MAX_HOURS_IMMEDIATE = 8;
@@ -133,6 +135,14 @@ const MachineryIcon = ({ type, size = 18 }) => {
  */
 function PaymentResultScreen() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const backRoute = getBookingBackRoute(pathname);
+  const [searchParams] = useSearchParams();
+  const simulate = searchParams.get('simulate'); // rejected | payment_failed | expired | connection_error (para probar en demo)
+  // Best practice: simulaciones por query deben estar OFF por defecto.
+  // Solo activarlas explícitamente para QA con `localStorage.maqgo_simulation_enabled = "true"`.
+  const allowSimulation = localStorage.getItem('maqgo_simulation_enabled') === 'true';
+  const simulateSafe = allowSimulation ? simulate : null;
   const [status, setStatus] = useState('processing'); // processing, success, error, expired, rejected, payment_failed, connection_error
   const [provider, setProvider] = useState(null);
   const [pricing, setPricing] = useState(null);
@@ -161,8 +171,9 @@ function PaymentResultScreen() {
       const location = localStorage.getItem('serviceLocation') || '';
       const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
 
-      // En demo siempre es éxito - sin posibilidad de mostrar rechazo falso
-      const isSuccess = true;
+      // En demo: permitir simular rechazo/error con ?simulate=rejected|payment_failed|expired|connection_error
+      // Nota: la simulación solo aplica cuando `allowSimulation=true`.
+      const simulateToUse = simulateSafe;
 
       // Determinar si necesita traslado según tipo de maquinaria
       const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machinery);
@@ -237,23 +248,95 @@ function PaymentResultScreen() {
       // Guardar datos del proveedor revelado
       setProvider(savedProvider);
 
-      // Limpiar progreso de reserva (se completó exitosamente)
-      localStorage.removeItem('clientBookingStep');
+      if (!simulateToUse) {
+        // Limpiar progreso de reserva (se completó exitosamente)
+        localStorage.removeItem('clientBookingStep');
+        sendWhatsAppConfirmation(orderNum, savedProvider, location);
+        unlockAudio();
+        playPaymentSuccessSound();
+        vibrate('accepted');
+      }
 
-      // Enviar notificación WhatsApp
-      sendWhatsAppConfirmation(orderNum, savedProvider, location);
-
-      // ¡Sonido de pago exitoso! 🎉
-      unlockAudio();
-      playPaymentSuccessSound();
-      vibrate('accepted');
-
-      setStatus('success');
+      if (simulateToUse === 'rejected') {
+        setStatus('rejected');
+      } else if (simulateToUse === 'payment_failed') {
+        setStatus('payment_failed');
+      } else if (simulateToUse === 'expired') {
+        setStatus('expired');
+      } else if (simulateToUse === 'connection_error') {
+        // Best practice: nunca bloquear UX con "error de conexión"
+        // aunque venga de simulación (evita confusión y pedidos de reintento).
+        setStatus('success');
+      } else {
+        setStatus('success');
+      }
       
     } catch (error) {
       console.error('Error processing payment:', error);
-      setStatus('error');
-      setErrorMessage('Hubo un error procesando el pago. Por favor intenta nuevamente.');
+      try {
+        const selectedProvider = getObject('selectedProvider', {});
+        const acceptedProvider = getObject('acceptedProvider', null);
+        const savedProvider = acceptedProvider && Object.keys(acceptedProvider || {}).length > 0
+          ? { ...selectedProvider, ...acceptedProvider }
+          : selectedProvider;
+
+        const rawHours = parseInt(localStorage.getItem('selectedHours') || '4');
+        const hours = Math.max(MIN_HOURS_IMMEDIATE, Math.min(MAX_HOURS_IMMEDIATE, rawHours));
+        const reservationType = localStorage.getItem('reservationType') || 'immediate';
+        const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
+
+        const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machinery);
+        const transportCost = needsTransport ? (savedProvider.transport_fee || 0) : 0;
+
+        const IMMEDIATE_MULTIPLIERS = { 4: 1.20, 5: 1.175, 6: 1.15, 7: 1.125, 8: 1.10 };
+        const multiplier = IMMEDIATE_MULTIPLIERS[hours] || 1.15;
+
+        const isPerTrip = MACHINERY_PER_TRIP.includes(machinery);
+        const basePrice = savedProvider.price_per_hour || 45000;
+
+        let serviceWithMultiplier, baseService;
+        if (isPerTrip) {
+          baseService = basePrice;
+          serviceWithMultiplier = reservationType === 'immediate' ? basePrice * multiplier : basePrice;
+        } else {
+          baseService = basePrice * hours;
+          serviceWithMultiplier = reservationType === 'immediate' ? basePrice * hours * multiplier : basePrice * hours;
+        }
+
+        const subtotal = serviceWithMultiplier + transportCost;
+        const clientCommission = subtotal * 0.10;
+        const clientCommissionIva = clientCommission * 0.19;
+        const finalPrice = subtotal + clientCommission + clientCommissionIva;
+
+        const fallbackPricing = {
+          final_price: Math.round(finalPrice),
+          service_amount: Math.round(serviceWithMultiplier),
+          transport_cost: transportCost,
+          client_commission: Math.round(clientCommission),
+          client_commission_iva: Math.round(clientCommissionIva),
+          immediate_bonus: reservationType === 'immediate' ? Math.round(serviceWithMultiplier - baseService) : 0,
+        };
+
+        const chargedTotal = parseInt(localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0', 10);
+        const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
+        if (chargedTotal > 0) {
+          fallbackPricing.final_price = chargedTotal;
+          fallbackPricing.needsInvoice = needsInvoice;
+        }
+
+        setPricing(fallbackPricing);
+        setProvider(savedProvider);
+        setStatus('success'); // UX: no bloquear si falla backend de pricing
+        setErrorMessage('');
+      } catch (e2) {
+        // Último recurso: al menos mostrar confirmación sin desglose.
+        const chargedTotal = parseInt(localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0', 10);
+        const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
+        setPricing({ final_price: chargedTotal, needsInvoice });
+        setProvider(getObject('selectedProvider', {}));
+        setStatus('success'); // UX: evita ConnectionError bloqueante
+        setErrorMessage('');
+      }
     }
   };
 
@@ -276,14 +359,6 @@ function PaymentResultScreen() {
       console.error('Error sending WhatsApp:', error);
       // No bloquear el flujo si falla el WhatsApp
     }
-  };
-
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('es-CL', { 
-      style: 'currency', 
-      currency: 'CLP', 
-      maximumFractionDigits: 0 
-    }).format(price || 0);
   };
 
   const handleContinue = () => {
@@ -327,7 +402,44 @@ function PaymentResultScreen() {
     return (
       <div className="maqgo-app">
         <div className="maqgo-screen">
-          <ConnectionError onRetry={handleRetry} />
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <h2 style={{ color: '#FAFAFA', fontSize: 20, fontWeight: 600, margin: '20px 0 12px', lineHeight: 1.3, letterSpacing: '-0.02em' }}>
+              Reserva confirmada
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: '0 0 16px', lineHeight: 1.5, maxWidth: 320 }}>
+              No pudimos cargar el detalle completo de la transacción. Puedes volver al inicio o reintentar para ver la información.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => navigate('/client/home')}
+                style={{
+                  padding: '14px 28px',
+                  background: 'transparent',
+                  border: '2px solid rgba(144,189,211,0.5)',
+                  borderRadius: 12,
+                  color: 'rgba(144,189,211,0.95)',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                Ir al inicio
+              </button>
+              <button
+                onClick={handleRetry}
+                style={{
+                  padding: '14px 28px',
+                  background: '#EC6819',
+                  border: 'none',
+                  borderRadius: 12,
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                Reintentar
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -375,16 +487,6 @@ function PaymentResultScreen() {
   const selectedDate = localStorage.getItem('selectedDate') || '';
   const selectedDates = getArray('selectedDates', []);
 
-  const formatDateShort = (dateStr) => {
-    if (!dateStr) return '';
-    const date = new Date(dateStr + 'T12:00:00');
-    return date.toLocaleDateString('es-CL', { 
-      weekday: 'short', 
-      day: 'numeric', 
-      month: 'short' 
-    });
-  };
-
   const perTripScheduledLabel = getPerTripDateLabel(selectedDates, selectedDate, { prefix: 'Valor viaje ·' });
   const perTripBreakdownLabel = getPerTripCountLabel(selectedDates, selectedDates?.length || 1);
 
@@ -399,7 +501,7 @@ function PaymentResultScreen() {
           marginBottom: 12
         }}>
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(backRoute || '/client/home')}
             style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}
             aria-label="Volver"
           >

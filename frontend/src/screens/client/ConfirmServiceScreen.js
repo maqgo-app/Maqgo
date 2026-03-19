@@ -7,7 +7,6 @@ import BookingProgress from '../../components/BookingProgress';
 import { getObject, getArray } from '../../utils/safeStorage';
 import { buildPricingFallback, calculateClientPrice, MACHINERY_NO_TRANSPORT, totalConFactura, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, MACHINERY_PER_TRIP, REFERENCE_PRICES } from '../../utils/pricing';
 import BACKEND_URL from '../../utils/api';
-import { ConnectionError } from '../../components/ErrorStates';
 import { MACHINERY_NAMES, getProviderSpecDisplay } from '../../utils/machineryNames';
 import { getPerTripDateLabel, getDateRangeShort as getDateRangeShortUtil, formatDateSingle } from '../../utils/bookingDates';
 import { MaqgoButton } from '../../components/base';
@@ -69,9 +68,15 @@ function ConfirmServiceScreen() {
     if (selected.length === 0) return { priceRange: null, providerForMax: provider };
 
     const totals = selected.map((p, idx) => {
+      // Mejor UX: si P4 ya calculó `total_price` para este proveedor,
+      // lo reutilizamos para que P5 muestre exactamente el mismo mínimo/máximo.
+      if (p?.total_price != null && Number.isFinite(Number(p.total_price))) {
+        return Number(p.total_price);
+      }
+
       let base = p.price_per_hour || 0;
       if (refTrip && base > 0 && base < 100000) base = Math.round(refTrip * (tripSpread[Math.min(idx, 4)] || 1));
-      return calculateClientPrice({
+      const sinFacturaTotal = calculateClientPrice({
         machineryType: machineryKey || machinery,
         basePrice: base,
         transportFee: needsTransport ? (p.transport_fee || 0) : 0,
@@ -79,6 +84,8 @@ function ConfirmServiceScreen() {
         days: totalDays,
         reservationType
       });
+      // Convertimos al mismo bruto que ve el cliente en P4.
+      return totalConFactura(sinFacturaTotal);
     });
 
     if (selected.length === 1) {
@@ -177,7 +184,19 @@ function ConfirmServiceScreen() {
         const isFastTimeout = error?.message === 'timeout';
         const isNetworkError = !isFastTimeout && !error.response && (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error') || error.message?.includes('timeout'));
         if (isNetworkError) {
-          setPriceError('connection');
+          // No bloquear la UX: si el backend de pricing cae, mostramos el fallback local
+          // y dejamos que el cliente complete igual el flujo.
+          setPriceError(null);
+          setPricing(buildPricingFallback({
+            machineryType: machineryKey || machinery,
+            basePrice: priceToUse,
+            transportFee: needsTransport ? (effectiveProvider.transport_fee || 0) : 0,
+            hours: hoursToday,
+            days: totalDays,
+            reservationType,
+            isHybrid,
+            additionalDays
+          }));
           return;
         }
         setPricing(buildPricingFallback({
@@ -213,19 +232,8 @@ function ConfirmServiceScreen() {
 
   const formatDate = (dateStr) => formatDateSingle(dateStr);
 
-  // Mostrar ConnectionError cuando falló la conexión al obtener precio
-  if (priceError === 'connection') {
-    return (
-      <div className="maqgo-app">
-        <div className="maqgo-screen" style={{ justifyContent: 'center', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
-          <ConnectionError onRetry={() => {
-            setPriceError(null);
-            setRetryCount(c => c + 1);
-          }} />
-        </div>
-      </div>
-    );
-  }
+  // Best practice: si falla el backend de pricing, no bloqueamos el flujo.
+  // Se renderiza el precio estimado con `fallbackPricing`.
 
   const doConfirm = () => {
     if (!location.trim()) {
@@ -304,23 +312,9 @@ function ConfirmServiceScreen() {
   const maqgoFeeIva = Math.round(maqgoFeeNeto * IVA_RATE);
   const maqgoFeeConIva = maqgoFeeNeto + maqgoFeeIva;
   
-  // Total sin factura (base para fallback)
-  const totalSinFactura = displayPricing?.final_price ?? Math.round(subtotalNeto + maqgoFeeConIva);
-  // Total a pagar: API devuelve ya el correcto (con o sin factura) porque enviamos needs_invoice; fallback lo calculamos
-  let totalFinal;
-  let ivaTotal;
-  if (displayPricing?.final_price != null && displayPricing.final_price > 0) {
-    totalFinal = displayPricing.final_price;
-    ivaTotal = needsInvoice ? Math.max(0, totalFinal - subtotalNeto - maqgoFeeNeto) : 0;
-  } else {
-    if (needsInvoice) {
-      totalFinal = totalConFactura(totalSinFactura);
-      ivaTotal = totalFinal - totalSinFactura;
-    } else {
-      totalFinal = totalSinFactura;
-      ivaTotal = 0;
-    }
-  }
+  // Mismo bruto en factura y boleta: total siempre con IVA sobre (subtotal + Tarifa)
+  const totalFinal = displayPricing?.final_price ?? totalConFactura(Math.round(subtotalNeto + maqgoFeeConIva));
+  const ivaTotal = Math.max(0, totalFinal - subtotalNeto - maqgoFeeNeto);
 
   const dateRangeShort = getDateRangeShortUtil(selectedDates, selectedDate);
   const dateRangeWithYear = getDateRangeShortUtil(selectedDates, selectedDate, { includeYear: true });
@@ -443,13 +437,13 @@ function ConfirmServiceScreen() {
             <>
               {priceRange && hasMultipleProviders ? (
                 <p style={{ color: 'var(--maqgo-orange)', fontSize: 28, fontWeight: 700, margin: '0 0 16px', whiteSpace: 'nowrap' }}>
-                  <span>{formatPrice(needsInvoice ? totalConFactura(priceRange.min) : priceRange.min)}</span>
+                  <span>{formatPrice(priceRange.min)}</span>
                   <span style={{ margin: '0 6px', opacity: 0.9 }}>a</span>
-                  <span>{formatPrice(needsInvoice ? totalConFactura(priceRange.max) : priceRange.max)}</span>
+                  <span>{formatPrice(priceRange.max)}</span>
                 </p>
               ) : (
                 <p style={{ color: 'var(--maqgo-orange)', fontSize: 32, fontWeight: 700, margin: '0 0 16px', whiteSpace: 'nowrap' }}>
-                  {formatPrice(priceRange ? (needsInvoice ? totalConFactura(priceRange.min) : priceRange.min) : totalFinal)}
+                  {formatPrice(priceRange ? priceRange.min : totalFinal)}
                 </p>
               )}
 
@@ -466,6 +460,9 @@ function ConfirmServiceScreen() {
                 <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: 500 }}>
                   ¿Necesitas factura con RUT empresa?
                 </span>
+                <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, margin: '0 0 4px', lineHeight: 1.4 }}>
+                  El total es el mismo. Con factura tu empresa recupera el IVA como crédito fiscal.
+                </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <button
                     type="button"
@@ -654,10 +651,10 @@ function ConfirmServiceScreen() {
                 <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(maqgoFeeNeto)}</span>
               </div>
 
-              {/* IVA: sin factura = 19% solo sobre Tarifa; con factura = 19% sobre (Subtotal + Tarifa) */}
+              {/* IVA: mismo bruto en factura y boleta */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
-                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, minWidth: 0 }}>{needsInvoice ? 'IVA 19% (Subtotal + Tarifa por Servicio)' : 'IVA 19% sobre Tarifa por Servicio'}</span>
-                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(needsInvoice ? ivaTotal : maqgoFeeIva)}</span>
+                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, minWidth: 0 }}>IVA 19% (Subtotal + Tarifa por Servicio)</span>
+                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(ivaTotal)}</span>
               </div>
 
               {/* Total a pagar */}
