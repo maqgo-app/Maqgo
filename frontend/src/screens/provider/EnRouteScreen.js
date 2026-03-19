@@ -8,7 +8,7 @@ import { useToast } from '../../components/Toast';
 // Radio máximo para validar llegada (en metros)
 const ARRIVAL_RADIUS_METERS = 150;
 
-// Radio para notificar al cliente (WhatsApp + push)
+// Radio para notificar al cliente (vía MAQGO: chat/push interno)
 const ARRIVING_NOTIFY_RADIUS_METERS = 500;
 
 // Coordenadas de demo para la obra (Santiago Centro)
@@ -126,28 +126,8 @@ function EnRouteScreen() {
     return R * c; // Distancia en metros
   };
 
-  // Notificar al cliente por WhatsApp cuando el proveedor está a 500m (solo una vez)
-  useEffect(() => {
-    const sentKey = `providerArrivingSent_${localStorage.getItem('currentServiceId') || 'demo'}`;
-    if (localStorage.getItem(sentKey)) return;
-    const dist = calculateDistance(
-      operatorLocation.lat, operatorLocation.lng,
-      workLocation.lat, workLocation.lng
-    );
-    if (dist <= ARRIVING_NOTIFY_RADIUS_METERS) {
-      const request = getObjectFirst(['acceptedRequest', 'incomingRequest'], {});
-      const clientPhoneRaw = request.clientPhone || request.client_phone || localStorage.getItem('userPhone');
-      const phone = clientPhoneRaw ? (String(clientPhoneRaw).startsWith('+') ? clientPhoneRaw : `+56${String(clientPhoneRaw).replace(/\D/g, '')}`) : null;
-      if (phone) {
-        fetch(`${BACKEND_URL}/api/communications/whatsapp/provider-arriving`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ client_phone: phone })
-        }).catch(() => {});
-        localStorage.setItem(sentKey, '1');
-      }
-    }
-  }, [operatorLocation.lat, operatorLocation.lng, workLocation.lat, workLocation.lng]);
+  // WhatsApp deshabilitado para coordinación proveedor <-> cliente.
+  // El canal de coordinación es el chat interno (/chat/:serviceId).
 
   const handleConfirmArrival = () => {
     setCheckingLocation(true);

@@ -128,7 +128,7 @@ const MachineryIcon = ({ type, size = 18 }) => {
  * Muestra el resultado del procesamiento del pago:
  * - Estado: procesando → aceptado/rechazado
  * - Si aceptado: desglose completo + datos del proveedor
- * - Envía confirmación por WhatsApp
+ * - Notificaciones de coordinación por MAQGO (chat interno / push)
  * 
  * WORLD-CLASS: Esta es la pantalla donde se revela el proveedor
  * porque el pago ya fue procesado exitosamente.
@@ -148,8 +148,6 @@ function PaymentResultScreen() {
   const [pricing, setPricing] = useState(null);
   const [orderNumber, setOrderNumber] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [notificationSent, setNotificationSent] = useState(false);
-
   useEffect(() => {
     processPayment();
   }, []);
@@ -250,8 +248,9 @@ function PaymentResultScreen() {
 
       if (!simulateToUse) {
         // Limpiar progreso de reserva (se completó exitosamente)
-        localStorage.removeItem('clientBookingStep');
-        sendWhatsAppConfirmation(orderNum, savedProvider, location);
+        // Nota: si solo limpiamos `clientBookingStep` y queda `bookingProgress`,
+        // el WelcomeScreen puede mostrar el banner "Arriendo sin terminar" al refrescar.
+        clearBookingProgress();
         unlockAudio();
         playPaymentSuccessSound();
         vibrate('accepted');
@@ -340,26 +339,8 @@ function PaymentResultScreen() {
     }
   };
 
-  const sendWhatsAppConfirmation = async (orderNum, providerData, location) => {
-    try {
-      const clientPhone = localStorage.getItem('userPhone') || '+56912345678';
-      
-      await axios.post(`${BACKEND_URL}/api/communications/whatsapp/confirm-client`, {
-        phone: clientPhone,
-        service_id: orderNum,
-        provider_name: providerData.operator_name || providerData.providerOperatorName || 'Operador asignado',
-        operator_name: providerData.operator_name || providerData.providerOperatorName || 'Operador',
-        license_plate: providerData.license_plate || 'Por confirmar',
-        eta_minutes: providerData.eta_minutes || 40,
-        location: location
-      });
-      
-      setNotificationSent(true);
-    } catch (error) {
-      console.error('Error sending WhatsApp:', error);
-      // No bloquear el flujo si falla el WhatsApp
-    }
-  };
+  // WhatsApp deshabilitado para coordinación cliente <-> proveedor.
+  // La coordinación ocurre por chat interno (ruta /chat/:serviceId).
 
   const handleContinue = () => {
     // Mostrar primero "preparándose", luego a los 10 s "en camino"
@@ -736,13 +717,13 @@ function PaymentResultScreen() {
           {/* Nombre del operador + Rating en línea */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <div style={{ color: '#fff', fontSize: 16, fontWeight: 600 }}>
-              {provider?.operator_name || provider?.providerOperatorName || 'Operador asignado'}
+              Proveedor MAQGO
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M6 1L7.2 4.2H10.6L7.9 6.3L8.8 9.8L6 7.8L3.2 9.8L4.1 6.3L1.4 4.2H4.8L6 1Z" fill="#EC6819"/>
               </svg>
-              <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>{(provider?.rating ?? 4.8).toFixed(1)}</span>
+              <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>—</span>
             </div>
           </div>
 
@@ -757,7 +738,7 @@ function PaymentResultScreen() {
           }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 9, marginBottom: 2 }}>PATENTE</div>
-              <div style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>{provider?.license_plate}</div>
+              <div style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>POR-DEFINIR</div>
             </div>
             <div style={{ width: 1, height: 30, background: '#444' }}></div>
             <div style={{ textAlign: 'center' }}>
@@ -800,25 +781,7 @@ function PaymentResultScreen() {
           </div>
         </div>
 
-        {/* Notificación WhatsApp - compacta */}
-        {notificationSent && (
-          <div style={{
-            background: 'rgba(37, 211, 102, 0.1)',
-            borderRadius: 8,
-            padding: '8px 10px',
-            marginBottom: 10,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-            </svg>
-            <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 11 }}>
-              Confirmación enviada a tu WhatsApp
-            </span>
-          </div>
-        )}
+        {/* Notificación WhatsApp removida: coordinación via chat interno */}
 
         {/* QUÉ PASA DESPUÉS */}
         <div style={{

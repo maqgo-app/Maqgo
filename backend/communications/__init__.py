@@ -499,6 +499,36 @@ def send_whatsapp(
             'error': f'Unknown template: {template}',
             'log': log_message('whatsapp', phone_number, template, 'error', 'Unknown template')
         }
+
+    # Regla MAQGO: el chat es el canal obligatorio entre cliente y proveedor.
+    # Para evitar "contacto" fuera de la app, deshabilitamos WhatsApp en eventos
+    # de coordinación cliente <-> proveedor (aunque el endpoint frontend lo llame).
+    CONTACT_WHATSAPP_TEMPLATES = {
+        # Cliente - coordinación
+        'client_request_sent',
+        'client_provider_accepted',
+        'client_provider_arrived',
+        'client_provider_arriving',
+        'client_service_reminder',
+        'confirmation_client',
+        'provider_en_route',
+        'provider_request_accepted',
+        # Proveedor - coordinación
+        'new_request_provider',
+        # Ciclo de servicio
+        'service_started',
+        'service_finished',
+        # Operador (asignación a través de eventos externos)
+        'operator_assigned',
+    }
+    if template in CONTACT_WHATSAPP_TEMPLATES:
+        logger.info(f"[WHATSAPP DISABLED][chat-only] template={template} to={phone_number}")
+        return {
+            'success': True,
+            'demo_mode': DEMO_MODE,
+            'disabled': True,
+            'log': log_message('whatsapp', phone_number, template, 'disabled_chat_only')
+        }
     
     message_body = WHATSAPP_TEMPLATES[template].format(**params)
     

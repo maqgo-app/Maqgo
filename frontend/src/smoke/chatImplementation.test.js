@@ -46,3 +46,30 @@ describe('Seguridad de chat', () => {
   });
 });
 
+describe('WhatsApp no debe coordinar cliente <-> proveedor', () => {
+  it('PaymentResultScreen no llama endpoints WhatsApp de confirmación', () => {
+    const src = readFileSync(
+      join(root, 'screens/client/PaymentResultScreen.js'),
+      'utf8'
+    );
+    expect(src).not.toContain('/api/communications/whatsapp/');
+  });
+
+  it('EnRouteScreen no llama endpoints WhatsApp de llegada', () => {
+    const src = readFileSync(
+      join(root, 'screens/provider/EnRouteScreen.js'),
+      'utf8'
+    );
+    expect(src).not.toContain('/api/communications/whatsapp/');
+  });
+
+  it('backend bloquea WhatsApp por templates chat-only', () => {
+    const backend = readFileSync(
+      join(root, '..', '..', 'backend', 'communications', '__init__.py'),
+      'utf8'
+    );
+    expect(backend).toContain('[WHATSAPP DISABLED][chat-only]');
+    expect(backend).toContain('CONTACT_WHATSAPP_TEMPLATES');
+  });
+});
+
