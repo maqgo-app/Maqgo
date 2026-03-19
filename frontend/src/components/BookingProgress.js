@@ -63,11 +63,26 @@ function BookingProgress() {
 
   const maxVisitedStep = Math.max(currentStep, persistedStepNumber);
   const reservationType = localStorage.getItem('reservationType') || 'immediate';
+
+  const priceType = localStorage.getItem('priceType') || 'hour';
+  const selectedDatesRaw = localStorage.getItem('selectedDates');
+  let selectedDates = [];
+  try {
+    selectedDates = selectedDatesRaw ? JSON.parse(selectedDatesRaw) : [];
+  } catch {
+    selectedDates = [];
+  }
+  const hasCalendarMulti = Array.isArray(selectedDates) && selectedDates.length > 0;
+
+  const step1Route = reservationType === 'scheduled'
+    ? (hasCalendarMulti ? '/client/calendar-multi' : '/client/calendar')
+    : '/client/machinery';
+
+  const step2Route = priceType === 'trip' ? '/client/urgency' : '/client/hours-selection';
+
   const stepToPath = {
-    1: path === '/client/calendar-multi'
-      ? '/client/calendar-multi'
-      : (reservationType === 'scheduled' ? '/client/calendar' : '/client/machinery'),
-    2: '/client/hours-selection',
+    1: step1Route,
+    2: step2Route,
     3: '/client/service-location',
     4: '/client/providers',
     5: '/client/confirm',
@@ -104,7 +119,7 @@ function BookingProgress() {
         const isPast = stepNum < currentStep;
         const isReachable = stepNum <= maxVisitedStep;
         // UX estable: bolitas solo permiten "volver" (pasados), el avance lo controla el botón inferior.
-        const canNavigate = isReachable && !isActive && isPast;
+        const canNavigate = isReachable && !isActive && isPast && !(reservationType === 'scheduled' && stepNum === 2);
         const isDoneOrReachable = isPast || (isReachable && !isActive);
         const goTo = stepToPath[stepNum] || '/client/machinery';
         return (

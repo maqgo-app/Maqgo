@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
 import { MACHINERY_DESCRIPTIONS } from '../../utils/machineryNames';
 import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
 
@@ -197,6 +198,8 @@ function MachinerySelection() {
     if (!selectedMachinery) return;
     localStorage.setItem('selectedMachinery', selectedMachinery);
     localStorage.removeItem('selectedMachineryList');
+    // Guardar tope de progreso para que el reingreso respete la ventana de 24h.
+    saveBookingProgress('machinery', { machinery: selectedMachinery });
     const primary = selectedMachinery;
 
     const isPerTrip = MACHINERY_PER_TRIP.includes(primary);

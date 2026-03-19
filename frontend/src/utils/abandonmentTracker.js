@@ -9,6 +9,7 @@ import BACKEND_URL from './api';
 const BOOKING_STEPS = {
   machinery: 1,
   hours: 2,
+  urgency: 2,
   location: 3,
   providers: 4,
   confirm: 5,
