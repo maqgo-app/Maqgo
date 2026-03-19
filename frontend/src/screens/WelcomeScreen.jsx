@@ -19,7 +19,8 @@ function WelcomeScreen() {
   const [isShortViewport, setIsShortViewport] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 700);
   const [abandonedBooking, setAbandonedBooking] = useState(null);
-  const [mounted, setMounted] = useState(false);
+  // Evita flash: no renderizar con opacity=0 al primer frame.
+  const [mounted, setMounted] = useState(true);
 
   useEffect(() => {
     const check = () => {

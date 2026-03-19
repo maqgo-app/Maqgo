@@ -47,7 +47,9 @@ function ProtectedRoute() {
 
   const userId = localStorage.getItem('userId');
   if (!userId) {
-    return <Navigate to="/" state={{ from: pathname }} replace />;
+    // Mantener UX: si venían de Welcome y no hay sesión,
+    // enviar a /login y al loguearse redirigir al destino original.
+    return <Navigate to="/login" state={{ from: pathname, redirect: pathname }} replace />;
   }
 
   return <Outlet />;

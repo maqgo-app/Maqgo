@@ -21,7 +21,7 @@ function MaqgoLogo({ size = 'small', customSize = null, style = {} }) {
   return (
     <div
       className="maqgo-logo"
-      style={{ minWidth: 1, minHeight: 1, ...style }}
+      style={{ minWidth: 1, minHeight: logoSize, height: logoSize, ...style }}
     >
       <img
         src="/maqgo_logo_clean.png"
