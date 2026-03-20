@@ -241,7 +241,7 @@ function WelcomeScreen() {
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
               <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600 }}>Ofrecer mi maquinaria</div>
-              <div style={{ fontSize: 12, color: '#B8B8B8' }}>Regístrate y recibe solicitudes de clientes</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)' }}>Regístrate y recibe solicitudes de clientes</div>
             </div>
           </button>
 
@@ -256,7 +256,7 @@ function WelcomeScreen() {
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
               <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600 }}>Soy operador</div>
-              <div style={{ fontSize: 12, color: '#B8B8B8' }}>Unirme con código de equipo</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)' }}>Unirme con código de equipo</div>
             </div>
           </button>
         </main>
@@ -271,7 +271,7 @@ function WelcomeScreen() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: isShortViewport ? 4 : (isDesktop ? (isNarrowMobile ? '8px 12px' : '12px 20px') : 8),
-            paddingTop: isShortViewport ? 8 : (isNarrowMobile ? 16 : 24),
+            paddingTop: isShortViewport ? 6 : (isNarrowMobile ? 12 : 18),
             paddingBottom: isShortViewport ? 8 : 12,
             marginTop: 'auto',
             borderTop: '1px solid rgba(255,255,255,0.06)'
@@ -409,6 +409,13 @@ function WelcomeScreen() {
         .welcome-cta-secondary:hover {
           background: rgba(34, 34, 40, 0.9);
           border-color: rgba(255,255,255,0.12);
+        }
+        .welcome-cta-primary:focus-visible,
+        .welcome-cta-secondary:focus-visible,
+        .welcome-footer-btn:focus-visible {
+          outline: 2px solid rgba(236, 104, 25, 0.95);
+          outline-offset: 2px;
+          border-radius: 10px;
         }
         .welcome-cta-icon {
           width: 40px;
