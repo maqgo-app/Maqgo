@@ -31,6 +31,10 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production' && !backendUrl.includes('localhost')
   return {
     plugins: [jsxInJs(), react()],
+    test: {
+      include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}'],
+      exclude: ['qa-artifacts/**', 'node_modules/**', 'dist/**'],
+    },
     define: {
       'process.env.REACT_APP_BACKEND_URL': JSON.stringify(backendUrl),
       'import.meta.env.VITE_BACKEND_URL': JSON.stringify(backendUrl),

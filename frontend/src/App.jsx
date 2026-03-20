@@ -1,8 +1,9 @@
 import React, { useState, Suspense, lazy } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './utils/api'; // Configura timeout global axios (evita esperas indefinidas)
 import { ROUTES } from './constants';
 import ProviderHomeScreen from './screens/provider/ProviderHomeScreen'; // Import directo: evita errores de chunks lazy al confirmar onboarding
+import RegisterScreen from './screens/RegisterScreen.jsx'; // Import directo: evita fallo de chunk al tocar "Registrarme"
 import { AuthProvider } from './context/AuthContext';
 import ToastProvider from './components/Toast';
 import BottomNavigation from './components/BottomNavigation';
@@ -16,8 +17,8 @@ import BookingFlowFallback from './components/BookingFlowFallback';
 // Code-splitting: pantallas se cargan bajo demanda (menor bundle inicial, carga más rápida)
 // Públicas
 const WelcomeScreen = lazy(() => import('./screens/WelcomeScreen.jsx'));
-const RegisterScreen = lazy(() => import('./screens/RegisterScreen.jsx'));
 const LoginScreen = lazy(() => import('./screens/LoginScreen.jsx'));
+const ForgotPasswordScreen = lazy(() => import('./screens/ForgotPasswordScreen.jsx'));
 const SelectChannelScreen = lazy(() => import('./screens/SelectChannelScreen'));
 const VerifySMSScreen = lazy(() => import('./screens/VerifySMSScreen'));
 const VerifiedScreen = lazy(() => import('./screens/VerifiedScreen'));
@@ -119,32 +120,10 @@ function PageFallback() {
   );
 }
 
-function ForgotPasswordPlaceholder() {
-  const navigate = useNavigate();
-  return (
-    <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ justifyContent: 'center', padding: 24 }}>
-        <p style={{ color: '#fff', marginBottom: 16, textAlign: 'center', lineHeight: 1.5 }}>
-          Aún no tenemos recuperación automática de contraseña por correo.
-        </p>
-        <p style={{ color: 'rgba(255,255,255,0.75)', marginBottom: 20, textAlign: 'center', fontSize: 14, lineHeight: 1.5 }}>
-          Si no puedes entrar, vuelve a <strong>Regístrate</strong> con el mismo correo y celular (OTP en demo: <strong>123456</strong>) o usa una cuenta demo si la tienes en tu entorno.
-        </p>
-        <button className="maqgo-btn-primary" onClick={() => navigate('/login')} style={{ marginBottom: 12 }}>
-          Volver al inicio de sesión
-        </button>
-        <button type="button" className="maqgo-btn-secondary" onClick={() => navigate('/register')}>
-          Ir a registro
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function AppContent() {
   const location = useLocation();
-  const [userRole, setUserRole] = useState(() => localStorage.getItem('userRole') || null);
-  const [userId, setUserId] = useState(() => localStorage.getItem('userId') || null);
+  const [, setUserRole] = useState(() => localStorage.getItem('userRole') || null);
+  const [, setUserId] = useState(() => localStorage.getItem('userId') || null);
 
   const path = location.pathname;
   // NUNCA mostrar nav: formularios, onboarding, flujos de reserva/pago
@@ -178,7 +157,7 @@ function AppContent() {
         <Route path="/welcome" element={<WelcomeScreen />} />
         <Route path="/register" element={<RegisterScreen />} />
         <Route path="/login" element={<LoginScreen setUserRole={setUserRole} setUserId={setUserId} />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPlaceholder />} />
+        <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
         <Route path="/select-channel" element={<SelectChannelScreen />} />
         <Route path="/verify-sms" element={<VerifySMSScreen />} />
         <Route path="/verified" element={<VerifiedScreen />} />

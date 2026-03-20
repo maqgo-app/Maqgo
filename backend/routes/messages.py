@@ -36,6 +36,8 @@ def _content_contains_phone_or_contact(text: str) -> bool:
         return True
     if re.search(r"whatsapp|wa\.me", low):
         return True
+    if re.search(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", s, re.I):
+        return True
     if re.search(
         r"\+?\s*56[\s.\-]*9[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d",
         s,

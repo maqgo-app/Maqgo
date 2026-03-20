@@ -34,6 +34,7 @@ describe('Seguridad de chat', () => {
     expect(messageContainsPhoneOrContact('tel:+56912345678')).toBe(true);
     expect(messageContainsPhoneOrContact('wa.me/56912345678')).toBe(true);
     expect(messageContainsPhoneOrContact('+56 9 1234 5678')).toBe(true);
+    expect(messageContainsPhoneOrContact('escribeme a test@correo.cl')).toBe(true);
   });
 
   it('backend bloquea compartir contacto en mensajes', () => {

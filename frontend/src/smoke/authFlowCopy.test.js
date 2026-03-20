@@ -15,17 +15,19 @@ function read(rel) {
 }
 
 describe('Recuperación / registro / rol', () => {
-  it('App: pantalla olvidé contraseña ya no dice solo "próximamente" y ofrece ir a registro', () => {
+  it('ForgotPasswordScreen: existe flujo real con envío de código y nueva contraseña', () => {
     const app = read('App.jsx');
-    expect(app).not.toMatch(/Recuperación de contraseña próximamente/);
-    expect(app).toMatch(/Ir a registro/);
-    expect(app).toMatch(/Volver al inicio de sesión/);
+    const forgot = read('screens/ForgotPasswordScreen.jsx');
+    expect(app).toMatch(/\/forgot-password/);
+    expect(forgot).toContain('password-reset/request');
+    expect(forgot).toContain('password-reset/confirm');
+    expect(forgot).toContain('Guardar nueva contraseña');
   });
 
   it('RegisterScreen: pide contraseña (mín. 8) y la guarda en registerData', () => {
     const src = read('screens/RegisterScreen.jsx');
     expect(src).toMatch(/register-password/);
-    expect(src).toMatch(/password\.length\s*<\s*8/);
+    expect(src).toMatch(/validatePassword\(form\.password/);
     expect(src).toMatch(/localStorage\.setItem\('registerData'/);
   });
 

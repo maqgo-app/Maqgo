@@ -1,6 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, useLocation } from "react-router-dom";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
+import "@fontsource/space-grotesk/400.css";
+import "@fontsource/space-grotesk/500.css";
+import "@fontsource/space-grotesk/600.css";
+import "@fontsource/space-grotesk/700.css";
 import "./styles/maqgo.css";
 import App from "./App.jsx";
 
@@ -11,6 +19,19 @@ class ErrorBoundary extends React.Component {
   }
   componentDidCatch(error, info) {
     console.error("App error:", error, info);
+    const message = error?.message || String(error);
+    const isChunkError = /Failed to fetch dynamically imported module|Loading chunk|ChunkLoadError/i.test(message);
+    if (isChunkError) {
+      const reloadKey = "maqgo_chunk_reload_once";
+      const alreadyReloaded = sessionStorage.getItem(reloadKey) === "1";
+      if (!alreadyReloaded) {
+        sessionStorage.setItem(reloadKey, "1");
+        window.location.reload();
+      } else {
+        // Evita quedar bloqueado en un loop si persiste el error
+        sessionStorage.removeItem(reloadKey);
+      }
+    }
   }
   handleReload = () => {
     window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();

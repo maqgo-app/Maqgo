@@ -130,6 +130,7 @@ from routes.admin_reports import router as admin_reports_router
 from routes.admin_config import router as admin_config_router
 from routes.chatbot import router as chatbot_router
 from routes.public_stats import router as public_stats_router
+from routes.maps import router as maps_router
 
 # Create main API router
 api_router = APIRouter(prefix="/api")
@@ -173,3 +174,5 @@ api_router.include_router(chatbot_router)
 api_router.include_router(public_stats_router)
 # Register main router
 app.include_router(api_router)
+# Maps router ya trae prefijo /api/maps, se monta directo para evitar /api/api/maps
+app.include_router(maps_router)

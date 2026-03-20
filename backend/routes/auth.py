@@ -53,6 +53,16 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+    celular: str
+
+class PasswordResetConfirmRequest(BaseModel):
+    email: EmailStr
+    celular: str
+    code: str = Field(..., min_length=4, max_length=8)
+    new_password: str = Field(..., min_length=8)
+
 def hash_password(password: str) -> str:
     """Hash seguro con bcrypt."""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -77,6 +87,13 @@ def _user_roles(existing: dict) -> list:
         return list(roles)
     r = existing.get("role")
     return [r] if r else []
+
+
+def _normalize_phone_last9(phone: str) -> str:
+    digits = ''.join(c for c in str(phone or '') if c.isdigit())
+    if digits.startswith('56') and len(digits) >= 11:
+        digits = digits[2:]
+    return digits[-9:] if len(digits) >= 9 else digits
 
 
 @router.post("/register")
@@ -299,3 +316,89 @@ async def logout(body: dict = Body(...)):
     if token:
         await db.sessions.delete_one({"token": token})
     return {"message": "Sesión cerrada"}
+
+
+@router.post("/password-reset/request")
+@limiter.limit("5/minute")
+async def password_reset_request(request: Request, body: PasswordResetRequest):
+    """
+    Inicia restablecimiento de contraseña por SMS OTP.
+    Respuesta genérica para no filtrar si un email existe.
+    """
+    celular_err = _validate_celular_chile(body.celular)
+    if celular_err:
+        raise HTTPException(status_code=400, detail=celular_err)
+
+    generic_ok = {
+        "success": True,
+        "message": "Si los datos coinciden, te enviamos un código por SMS."
+    }
+
+    user = await db.users.find_one({"email": body.email})
+    if not user:
+        return generic_ok
+
+    user_phone_9 = _normalize_phone_last9(user.get("phone", ""))
+    input_phone_9 = _normalize_phone_last9(body.celular)
+    if not user_phone_9 or user_phone_9 != input_phone_9:
+        return generic_ok
+
+    phone_e164 = _format_phone(body.celular)
+    sms_result = send_sms_otp(phone_e164, channel='sms')
+    if not sms_result.get("success"):
+        # En modo real devolvemos error explícito para reintento controlado.
+        if not sms_result.get("demo_mode"):
+            raise HTTPException(status_code=400, detail=sms_result.get("error", "No se pudo enviar el código"))
+
+    now = datetime.now(timezone.utc)
+    await db.password_reset_requests.update_one(
+        {"userId": user["id"]},
+        {"$set": {
+            "userId": user["id"],
+            "email": body.email,
+            "phone": phone_e164,
+            "createdAt": now.isoformat(),
+            "expiresAt": now.isoformat()
+        }},
+        upsert=True
+    )
+    return generic_ok
+
+
+@router.post("/password-reset/confirm")
+@limiter.limit("10/minute")
+async def password_reset_confirm(request: Request, body: PasswordResetConfirmRequest):
+    """
+    Confirma código OTP y actualiza contraseña.
+    """
+    celular_err = _validate_celular_chile(body.celular)
+    if celular_err:
+        raise HTTPException(status_code=400, detail=celular_err)
+
+    user = await db.users.find_one({"email": body.email})
+    if not user:
+        raise HTTPException(status_code=400, detail="Datos inválidos")
+
+    user_phone_9 = _normalize_phone_last9(user.get("phone", ""))
+    input_phone_9 = _normalize_phone_last9(body.celular)
+    if not user_phone_9 or user_phone_9 != input_phone_9:
+        raise HTTPException(status_code=400, detail="Datos inválidos")
+
+    pending = await db.password_reset_requests.find_one({"userId": user["id"]})
+    if not pending:
+        raise HTTPException(status_code=400, detail="Primero solicita el código de recuperación")
+
+    phone_e164 = _format_phone(body.celular)
+    verify_result = verify_sms_otp(phone_e164, body.code)
+    if not verify_result.get("valid"):
+        raise HTTPException(status_code=400, detail="Código incorrecto")
+
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"password": hash_password(body.new_password)}}
+    )
+    await db.password_reset_requests.delete_one({"userId": user["id"]})
+    # Invalidar sesiones activas para forzar login con nueva clave.
+    await db.sessions.delete_many({"userId": user["id"]})
+
+    return {"success": True, "message": "Contraseña actualizada correctamente"}
