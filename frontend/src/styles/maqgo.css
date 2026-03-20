@@ -726,7 +726,11 @@ a:focus-visible,
 /* Responsive para desktop */
 @media (min-width: var(--maqgo-breakpoint-mobile)) {
   .maqgo-app {
-    box-shadow: 0 0 80px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow:
+      0 0 0 1px rgba(236, 104, 25, 0.22),
+      0 0 80px rgba(0, 0, 0, 0.6),
+      0 14px 40px rgba(0, 0, 0, 0.45);
     border-radius: 45px;
     margin: 20px auto;
     min-height: calc(100vh - 40px);

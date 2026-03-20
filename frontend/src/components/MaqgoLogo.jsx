@@ -1,8 +1,7 @@
 import React from 'react';
 
 /**
- * Logo MAQGO - Imagen PNG transparente (engranaje + pin + texto)
- * maqgo_logo_clean.png: fondo transparente, colores originales
+ * Logo MAQGO (SVG limpio en /public)
  *
  * @param {string} size - 'large' | 'medium' | 'small' | 'mini'
  * @param {number} customSize - Tamaño en px (altura, opcional)
@@ -24,8 +23,13 @@ function MaqgoLogo({ size = 'small', customSize = null, style = {} }) {
       style={{ minWidth: 1, minHeight: logoSize, height: logoSize, ...style }}
     >
       <img
-        src="/maqgo_logo_clean.png"
+        src="/maqgo_logo_clean.svg"
         alt="MAQGO"
+        loading="eager"
+        decoding="async"
+        fetchPriority="high"
+        width={logoSize}
+        height={logoSize}
         style={{
           height: logoSize,
           width: 'auto',

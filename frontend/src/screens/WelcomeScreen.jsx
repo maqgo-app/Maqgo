@@ -2,10 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../components/MaqgoLogo';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
-import { checkAbandonedBooking } from '../utils/abandonmentTracker';
-import { getClientBookingRoute } from '../utils/bookingFlow';
 import { BREAKPOINT_MOBILE, BREAKPOINT_NARROW } from '../constants/breakpoints';
-import { Z_INDEX } from '../constants/zIndex';
 
 /**
  * WelcomeScreen - Esencia de MAQGO
@@ -18,7 +15,6 @@ function WelcomeScreen() {
   const [isNarrowMobile, setIsNarrowMobile] = useState(false);
   const [isShortViewport, setIsShortViewport] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 700);
-  const [abandonedBooking, setAbandonedBooking] = useState(null);
   // Evita flash: no renderizar con opacity=0 al primer frame.
   const [mounted, setMounted] = useState(true);
 
@@ -61,11 +57,6 @@ function WelcomeScreen() {
 
   useEffect(() => {
     document.title = 'MAQGO - Maquinaria pesada donde la necesitas';
-  }, []);
-
-  useEffect(() => {
-    const progress = checkAbandonedBooking();
-    if (progress) setAbandonedBooking(progress);
   }, []);
 
   useEffect(() => {
@@ -192,66 +183,14 @@ function WelcomeScreen() {
             lineHeight: 1.55,
             maxWidth: isDesktop ? '36ch' : '28ch'
           }}>
-            Arriendo inmediato o programado.
+            Coordina un servicio inmediato o programado en pocos pasos, con disponibilidad real y seguimiento.
           </p>
-        </header>
-
-        {/* Banner: Reserva en progreso */}
-        {abandonedBooking && (
-          <div
-            style={{
-              flexShrink: 0,
-              marginBottom: isShortViewport ? 4 : 10,
-              padding: isShortViewport ? 10 : 14,
-              background: 'linear-gradient(135deg, rgba(236, 104, 25, 0.2) 0%, rgba(236, 104, 25, 0.1) 100%)',
-              border: '1px solid rgba(236, 104, 25, 0.5)',
-              borderRadius: 12,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              zIndex: Z_INDEX.sticky
-            }}
-            role="alert"
-            aria-label="Tienes un arriendo sin terminar"
-          >
-            <div>
-              <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, margin: '0 0 4px', fontFamily: "'Inter', sans-serif" }}>
-                Arriendo sin terminar
-              </p>
-              <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, margin: 0, fontFamily: "'Inter', sans-serif" }}>
-                ¿Deseas continuar donde quedaste?
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                const step = abandonedBooking?.step || localStorage.getItem('clientBookingStep');
-                const target = getClientBookingRoute(step);
-                if (!hasSession) {
-                  navigate('/login', { state: { redirect: target } });
-                  return;
-                }
-                navigate(target);
-                setAbandonedBooking(null);
-              }}
-              style={{
-                padding: '10px 18px',
-                background: '#EC6819',
-                border: 'none',
-                borderRadius: 10,
-                color: '#fff',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-                flexShrink: 0,
-                fontFamily: "'Inter', sans-serif"
-              }}
-              aria-label="Continuar arriendo"
-            >
-              Continuar
-            </button>
+          <div style={{ marginTop: isShortViewport ? 8 : 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.74)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '6px 10px' }}>Disponibilidad inmediata</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.74)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '6px 10px' }}>Pago seguro</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.74)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '6px 10px' }}>Soporte MAQGO</span>
           </div>
-        )}
+        </header>
 
         {/* CTAs - flex:1 para ocupar espacio y centrar en desktop; en móvil también flex para distribuir */}
         {/* Sin banner "Continuar": más espacio entre header y botones para buena UX de navegación */}
@@ -263,9 +202,7 @@ function WelcomeScreen() {
           justifyContent: isDesktop ? 'center' : (isShortViewport ? 'center' : 'flex-start'),
           gap: isShortViewport ? 8 : (isNarrowMobile ? 12 : 16),
           overflow: 'hidden',
-          marginTop: abandonedBooking
-            ? (isDesktop ? 16 : (isShortViewport ? 8 : 12))
-            : (isDesktop ? 48 : (isShortViewport ? 28 : (isNarrowMobile ? 36 : 44)))
+          marginTop: isDesktop ? 48 : (isShortViewport ? 28 : (isNarrowMobile ? 36 : 44))
         }}>
           <button
             onClick={() => {
