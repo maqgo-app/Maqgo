@@ -11,8 +11,6 @@ from rate_limit import limiter
 from communications import (
     send_sms_otp,
     verify_sms_otp,
-    DEMO_MODE,
-    DEMO_OTP_CODE,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -129,9 +127,7 @@ async def register(request: Request, body: RegisterRequest):
         # SMS para verificación (mismo flujo que registro nuevo)
         phone_e164 = _format_phone(body.celular)
         sms_result = send_sms_otp(phone_e164, channel='sms')
-        if DEMO_MODE or sms_result.get('demo_mode'):
-            sms_code = DEMO_OTP_CODE
-        elif 'otp' in sms_result:
+        if 'otp' in sms_result:
             sms_code = sms_result['otp']
         else:
             sms_code = None
@@ -165,9 +161,7 @@ async def register(request: Request, body: RegisterRequest):
     await db.users.insert_one(user)
 
     sms_result = send_sms_otp(phone_e164, channel='sms')
-    if DEMO_MODE or sms_result.get('demo_mode'):
-        sms_code = DEMO_OTP_CODE
-    elif 'otp' in sms_result:
+    if 'otp' in sms_result:
         sms_code = sms_result['otp']
     else:
         sms_code = None
@@ -292,9 +286,7 @@ async def resend_code(request: Request, body: dict = Body(...)):
     phone_e164 = _format_phone(user.get("phone", ""))
     sms_result = send_sms_otp(phone_e164, channel='sms')
     
-    if DEMO_MODE or sms_result.get('demo_mode'):
-        sms_code = DEMO_OTP_CODE
-    elif 'otp' in sms_result:
+    if 'otp' in sms_result:
         sms_code = sms_result['otp']
     else:
         sms_code = None
@@ -391,7 +383,7 @@ async def password_reset_confirm(request: Request, body: PasswordResetConfirmReq
     phone_e164 = _format_phone(body.celular)
     verify_result = verify_sms_otp(phone_e164, body.code)
     if not verify_result.get("valid"):
-        raise HTTPException(status_code=400, detail="Código incorrecto")
+        raise HTTPException(status_code=400, detail=verify_result.get("error") or "Código incorrecto")
 
     await db.users.update_one(
         {"id": user["id"]},

@@ -16,6 +16,13 @@ function ForgotPasswordScreen() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  const formatPhoneE164 = (value) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (digits.startsWith('56') && digits.length >= 11) return `+${digits}`;
+    if (digits.length === 9) return `+56${digits}`;
+    return '';
+  };
+
   const requestCode = async () => {
     if (!email.trim() || !celular.trim()) return;
     setLoading(true);
@@ -30,6 +37,32 @@ function ForgotPasswordScreen() {
       setStep(2);
     } catch (e) {
       setError(e.response?.data?.detail || 'No se pudo solicitar el código');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendCode = async () => {
+    const phone = formatPhoneE164(celular);
+    if (!phone) {
+      setError('Celular inválido. Ingresa 9 dígitos');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await axios.post(`${BACKEND_URL}/api/communications/sms/send-otp`, {
+        phone_number: phone,
+        channel: 'sms'
+      });
+      if (res?.data?.success) {
+        setMessage('Te enviamos un nuevo código por SMS.');
+      } else {
+        setError(res?.data?.detail || res?.data?.error || 'No se pudo reenviar el código');
+      }
+    } catch (e) {
+      setError(e.response?.data?.detail || 'No se pudo reenviar el código');
     } finally {
       setLoading(false);
     }
@@ -115,6 +148,33 @@ function ForgotPasswordScreen() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirmar nueva contraseña"
             />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                className="maqgo-btn-secondary"
+                onClick={() => {
+                  setStep(1);
+                  setCode('');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setMessage('');
+                  setError('');
+                }}
+                style={{ flex: 1 }}
+                disabled={loading}
+              >
+                Editar datos
+              </button>
+              <button
+                type="button"
+                className="maqgo-btn-secondary"
+                onClick={resendCode}
+                style={{ flex: 1 }}
+                disabled={loading}
+              >
+                {loading ? 'Reenviando...' : 'Reenviar código'}
+              </button>
+            </div>
           </>
         )}
 

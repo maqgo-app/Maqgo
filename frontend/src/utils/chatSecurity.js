@@ -27,11 +27,11 @@ export function messageContainsPhoneOrContact(text) {
   if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(s)) return true;
 
   // +56 9 X XXX XXXX (flexible separadores)
-  if (/\+?\s*56[\s.\-]*9[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d/.test(s)) {
+  if (/\+?\s*56[\s.-]*9[\s.-]*\d[\s.-]*\d[\s.-]*\d[\s.-]*\d[\s.-]*\d[\s.-]*\d[\s.-]*\d[\s.-]*\d[\s.-]*\d/.test(s)) {
     return true;
   }
   // Móvil chileno 9 XXXX XXXX
-  if (/\b9[\s.\-]?\d{4}[\s.\-]?\d{4}\b/.test(s)) return true;
+  if (/\b9[\s.-]?\d{4}[\s.-]?\d{4}\b/.test(s)) return true;
 
   const digits = s.replace(/\D/g, '');
   if (digits.length >= 9 && /9\d{8,}/.test(digits)) return true;

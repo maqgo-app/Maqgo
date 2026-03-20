@@ -21,7 +21,9 @@ describe('Recuperación / registro / rol', () => {
     expect(app).toMatch(/\/forgot-password/);
     expect(forgot).toContain('password-reset/request');
     expect(forgot).toContain('password-reset/confirm');
+    expect(forgot).toContain('Restablecer contraseña');
     expect(forgot).toContain('Guardar nueva contraseña');
+    expect(forgot).not.toMatch(/pr[oó]ximamente/i);
   });
 
   it('RegisterScreen: pide contraseña (mín. 8) y la guarda en registerData', () => {
