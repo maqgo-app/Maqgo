@@ -23,6 +23,8 @@ export function messageContainsPhoneOrContact(text) {
   const lower = s.toLowerCase();
   if (/\btel:\s*/i.test(s)) return true;
   if (/whatsapp|wa\.me/i.test(lower)) return true;
+  // Bloquear correos para mantener chat como único canal
+  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(s)) return true;
 
   // +56 9 X XXX XXXX (flexible separadores)
   if (/\+?\s*56[\s.\-]*9[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d[\s.\-]*\d/.test(s)) {
