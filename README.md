@@ -75,11 +75,43 @@ npm run start
 
 ## 🚀 Antes de producción / Lanzamiento
 
-Ejecutar **`./scripts/pre-deploy.sh`** (tests + build). Ver **`CORRER.md`** para setup detallado y **`docs/`** para guías de integración.
+| Script | Qué hace |
+|--------|-----------|
+| `./scripts/quality-gate.sh` | Frontend: `npm ci`, tests unit, build (igual job frontend en GitHub Actions). |
+| `./scripts/pre-deploy.sh` | Si existe `backend/venv`: tests Python + build frontend + avisos de `.env`. |
+| `./scripts/deploy-cto.sh` | Ejecuta `quality-gate.sh` + `pre-deploy.sh` cuando hay venv. |
 
-**Producción:** Ver **`docs/PRODUCCION.md`** para checklist (REACT_APP_BACKEND_URL, CORS, etc.).
+```bash
+chmod +x scripts/quality-gate.sh scripts/deploy-cto.sh   # una vez
+./scripts/deploy-cto.sh
+```
+
+**Checklist y variables LIVE:** `docs/PRODUCCION.md` · **QA y una sola fuente de verdad:** `docs/QA_Y_LANZAMIENTO.md` · **Setup local:** `CORRER.md`.
 
 ---
+---
+
+## 🗺️ Google Maps en Producción
+
+Para que el autocompletado de direcciones funcione en producción:
+
+1. Crear una API key nueva en Google Cloud.
+2. Habilitar solo estas APIs:
+   - Maps JavaScript API
+   - Places API
+3. Restringir la key por **HTTP referrers**:
+   - `https://maqgo.cl/*`
+   - `https://www.maqgo.cl/*`
+   - `https://*.vercel.app/*` (si usas previews)
+4. Restringir la key por **API restrictions** a Maps JavaScript + Places.
+5. Configurar en deploy (Vercel):
+   - `VITE_GOOGLE_MAPS_API_KEY=<tu_key>`
+6. Redeploy y prueba rápida:
+   - En ubicación escribe una dirección (ej: "Av. Providencia 1234")
+   - Verifica que aparezcan sugerencias y permita continuar
+
+> Seguridad: nunca subas una key real al repositorio. Usa variables de entorno.
+
 
 ## 🏗️ Estructura del Proyecto
 
@@ -98,7 +130,7 @@ Ejecutar **`./scripts/pre-deploy.sh`** (tests + build). Ver **`CORRER.md`** para
     │   ├── maqgo-logo-transparent.png
     │   └── notification.wav
     └── src/
-        ├── App.js
+        ├── App.jsx
         ├── components/
         │   ├── BottomNavigation.js
         │   └── MaqgoComponents.js

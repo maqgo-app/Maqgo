@@ -143,7 +143,40 @@ function WelcomeScreen() {
           paddingBottom: isShortViewport ? 12 : (isNarrowMobile ? 20 : (isDesktop ? 40 : 28)),
           width: '100%'
         }}>
-          <MaqgoLogo customSize={logoSize} style={{ marginBottom: heroLogoBottom }} />
+          <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 14) : heroLogoBottom }} />
+          {/* Caluga premium: valor en una frase, sin repetir el titular */}
+          <div
+            role="note"
+            aria-label="Propuesta de valor"
+            style={{
+              marginBottom: isShortViewport ? 10 : (isNarrowMobile ? 12 : 14),
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              maxWidth: 'min(100%, 26rem)',
+              padding: isShortViewport ? '7px 14px' : '9px 20px',
+              borderRadius: 9999,
+              background: 'linear-gradient(135deg, #F0843A 0%, #EC6819 45%, #B8430E 100%)',
+              boxShadow:
+                '0 8px 28px rgba(236, 104, 25, 0.38), inset 0 1px 0 rgba(255,255,255,0.28)',
+              border: '1px solid rgba(255,255,255,0.14)',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: isDesktop ? 12.5 : scalePx(isShortViewport ? 10.5 : 11, 10, 12.5),
+                fontWeight: 600,
+                letterSpacing: '0.03em',
+                lineHeight: 1.35,
+                color: '#FFFBF7',
+                textAlign: 'center',
+                textShadow: '0 1px 2px rgba(0,0,0,0.18)',
+              }}
+            >
+              Elige en pocos pasos con disponibilidad en tiempo real
+            </span>
+          </div>
           <div style={{
             width: '100%',
             display: 'flex',
@@ -151,27 +184,6 @@ function WelcomeScreen() {
             alignItems: 'center',
             gap: isShortViewport ? 8 : (isNarrowMobile ? 10 : 12),
           }}>
-          <div style={{
-            display: 'inline-block',
-            flexShrink: 0,
-            background: 'linear-gradient(135deg, rgba(236, 104, 25, 0.22) 0%, rgba(236, 104, 25, 0.10) 100%)',
-            border: '1px solid rgba(236, 104, 25, 0.38)',
-            borderRadius: 24,
-            padding: isDesktop
-              ? '8px 16px'
-              : `${scalePx(isShortViewport ? 5 : 6, 5, 7)}px ${scalePx(isShortViewport ? 11 : 13, 10, 14)}px`,
-            boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06), 0 2px 10px rgba(236,104,25,0.16)',
-          }}>
-            <span style={{
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: isDesktop ? 12 : scalePx(isShortViewport ? 10 : 11, 10, 12),
-              fontWeight: 600,
-              letterSpacing: 0.1,
-              lineHeight: 1.35,
-            }}>
-              Arrienda maquinaria en minutos, para hoy o para cuando la necesites.
-            </span>
-          </div>
           <h1 style={{
             fontFamily: "'Space Grotesk', sans-serif",
             fontSize: isDesktop ? 26 : scalePx(isShortViewport ? 17 : 20, 16, 23),
@@ -196,26 +208,8 @@ function WelcomeScreen() {
             lineHeight: 1.5,
             maxWidth: isDesktop ? '36ch' : '28ch'
           }}>
-            Elige en pocos pasos y continúa con disponibilidad real.
+            Cotización transparente: confirma cuando te convenga.
           </p>
-          </div>
-          <div
-            style={{
-              marginTop: isDesktop ? 12 : scalePx(isShortViewport ? 7 : 9, 7, 12),
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexWrap: 'wrap',
-              gap: isDesktop ? 8 : scalePx(7, 6, 9),
-              padding: isDesktop ? '6px 8px' : `${scalePx(5, 4, 6)}px ${scalePx(7, 6, 9)}px`,
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 999,
-              boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
-            }}
-          >
-            <span style={{ fontSize: isDesktop ? 11 : scalePx(11, 10, 12), color: 'rgba(255,255,255,0.86)', border: '1px solid rgba(236,104,25,0.35)', background: 'rgba(236,104,25,0.10)', borderRadius: 999, padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`, boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)' }}>Hoy o programado</span>
-            <span style={{ fontSize: isDesktop ? 11 : scalePx(11, 10, 12), color: 'rgba(255,255,255,0.86)', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.04)', borderRadius: 999, padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`, boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)' }}>Reserva simple</span>
           </div>
         </header>
 
@@ -228,7 +222,7 @@ function WelcomeScreen() {
           flexDirection: 'column',
           justifyContent: isDesktop ? 'center' : (isShortViewport ? 'center' : 'flex-start'),
           gap: isShortViewport ? 8 : (isNarrowMobile ? 12 : 16),
-          overflow: 'hidden',
+          overflow: 'visible',
           marginTop: isDesktop ? 48 : (isShortViewport ? 28 : (isNarrowMobile ? 36 : 44))
         }}>
           <button
@@ -248,8 +242,8 @@ function WelcomeScreen() {
               <IconExcavator />
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
-              <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600 }}>Arrendar maquinaria</div>
-              <div style={{ fontSize: 12, opacity: 0.95 }}>Inmediato o programado</div>
+              <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Arrendar maquinaria</div>
+              <div style={{ fontSize: 12, opacity: 0.95 }}>Para hoy o en la fecha que indiques</div>
             </div>
           </button>
 
