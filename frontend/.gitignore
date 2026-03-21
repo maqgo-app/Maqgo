@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.vercel
+
+# Artefactos de salida de lint locales (no commitear)
+lint*.txt

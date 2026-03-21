@@ -5,6 +5,7 @@ Guías de soporte e integración.
 | Documento | Descripción |
 |-----------|-------------|
 | [QA_Y_LANZAMIENTO.md](QA_Y_LANZAMIENTO.md) | QA sin fricción: diagnóstico antes de cambios, checklist lanzamiento, velocidad de mejoras |
+| [LIMPIEZA_Y_FUENTE_UNICA.md](LIMPIEZA_Y_FUENTE_UNICA.md) | Qué no versionar, fuente única, deployments en rojo en GitHub |
 | [OTP_SNS_SETUP.md](OTP_SNS_SETUP.md) | Redis + AWS SNS para OTP (recuperar contraseña, verificación SMS; Railway) |
 | [GOOGLE_MAPS_SETUP.md](GOOGLE_MAPS_SETUP.md) | Configuración de Google Maps / Places API |
 | [ONECLICK.md](ONECLICK.md) | Integración Transbank OneClick Mall |

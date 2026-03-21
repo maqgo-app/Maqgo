@@ -82,6 +82,13 @@ function WelcomeScreen() {
     return () => cancelAnimationFrame(id);
   }, []);
 
+  // Desktop: fondo exterior #000 para que el marco tipo “dispositivo” (Tesla/premium) contraste como acordamos
+  useEffect(() => {
+    if (!isDesktop) return undefined;
+    document.documentElement.classList.add('maqgo-welcome-desktop-chrome');
+    return () => document.documentElement.classList.remove('maqgo-welcome-desktop-chrome');
+  }, [isDesktop]);
+
   const hasSession = !!localStorage.getItem('userId');
 
   const handleAccount = () => {
@@ -144,8 +151,9 @@ function WelcomeScreen() {
           width: '100%'
         }}>
           <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 14) : heroLogoBottom }} />
-          {/* Caluga premium: valor en una frase, sin repetir el titular */}
+          {/* Caluga premium — disponibilidad en tiempo real */}
           <div
+            className="welcome-hero-caluga"
             role="note"
             aria-label="Propuesta de valor"
             style={{
@@ -208,8 +216,49 @@ function WelcomeScreen() {
             lineHeight: 1.5,
             maxWidth: isDesktop ? '36ch' : '28ch'
           }}>
-            Cotización transparente: confirma cuando te convenga.
+            Arrienda maquinaria en minutos, para hoy o para cuando la necesites.
           </p>
+          {/* Chips de apoyo — barra premium (vidrio + acento naranja) */}
+          <div
+            className="welcome-value-chips"
+            style={{
+              marginTop: isDesktop ? 12 : scalePx(isShortViewport ? 7 : 9, 7, 12),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+              gap: isDesktop ? 8 : scalePx(7, 6, 9),
+              padding: isDesktop ? '6px 8px' : `${scalePx(5, 4, 6)}px ${scalePx(7, 6, 9)}px`,
+              borderRadius: 999,
+            }}
+          >
+            <span
+              style={{
+                fontSize: isDesktop ? 11 : scalePx(11, 10, 12),
+                color: 'rgba(255,255,255,0.86)',
+                border: '1px solid rgba(236,104,25,0.35)',
+                background: 'rgba(236,104,25,0.10)',
+                borderRadius: 999,
+                padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`,
+                boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
+              }}
+            >
+              Hoy o programado
+            </span>
+            <span
+              style={{
+                fontSize: isDesktop ? 11 : scalePx(11, 10, 12),
+                color: 'rgba(255,255,255,0.86)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: 'rgba(255,255,255,0.04)',
+                borderRadius: 999,
+                padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`,
+                boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
+              }}
+            >
+              Reserva simple
+            </span>
+          </div>
           </div>
         </header>
 
