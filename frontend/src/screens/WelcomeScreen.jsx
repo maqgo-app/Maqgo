@@ -151,6 +151,27 @@ function WelcomeScreen() {
             alignItems: 'center',
             gap: isShortViewport ? 8 : (isNarrowMobile ? 10 : 12),
           }}>
+          <div style={{
+            display: 'inline-block',
+            flexShrink: 0,
+            background: 'linear-gradient(135deg, rgba(236, 104, 25, 0.22) 0%, rgba(236, 104, 25, 0.10) 100%)',
+            border: '1px solid rgba(236, 104, 25, 0.38)',
+            borderRadius: 24,
+            padding: isDesktop
+              ? '8px 16px'
+              : `${scalePx(isShortViewport ? 5 : 6, 5, 7)}px ${scalePx(isShortViewport ? 11 : 13, 10, 14)}px`,
+            boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06), 0 2px 10px rgba(236,104,25,0.16)',
+          }}>
+            <span style={{
+              color: 'rgba(255,255,255,0.9)',
+              fontSize: isDesktop ? 12 : scalePx(isShortViewport ? 10 : 11, 10, 12),
+              fontWeight: 600,
+              letterSpacing: 0.1,
+              lineHeight: 1.35,
+            }}>
+              Arrienda maquinaria en minutos, para hoy o para cuando la necesites.
+            </span>
+          </div>
           <h1 style={{
             fontFamily: "'Space Grotesk', sans-serif",
             fontSize: isDesktop ? 26 : scalePx(isShortViewport ? 17 : 20, 16, 23),
@@ -175,7 +196,7 @@ function WelcomeScreen() {
             lineHeight: 1.5,
             maxWidth: isDesktop ? '36ch' : '28ch'
           }}>
-            Arrienda maquinaria en minutos, para hoy o para cuando la necesites.
+            Elige en pocos pasos y continúa con disponibilidad real.
           </p>
           </div>
           <div
