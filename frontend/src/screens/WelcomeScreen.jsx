@@ -187,13 +187,14 @@ function WelcomeScreen() {
               flexWrap: 'wrap',
               gap: isDesktop ? 8 : scalePx(7, 6, 9),
               padding: isDesktop ? '6px 8px' : `${scalePx(5, 4, 6)}px ${scalePx(7, 6, 9)}px`,
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(255,255,255,0.06)',
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)',
+              border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: 999,
+              boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
             }}
           >
-            <span style={{ fontSize: isDesktop ? 11 : scalePx(11, 10, 12), color: 'rgba(255,255,255,0.72)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px` }}>Hoy o programado</span>
-            <span style={{ fontSize: isDesktop ? 11 : scalePx(11, 10, 12), color: 'rgba(255,255,255,0.72)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px` }}>Reserva simple</span>
+            <span style={{ fontSize: isDesktop ? 11 : scalePx(11, 10, 12), color: 'rgba(255,255,255,0.86)', border: '1px solid rgba(236,104,25,0.35)', background: 'rgba(236,104,25,0.10)', borderRadius: 999, padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`, boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)' }}>Hoy o programado</span>
+            <span style={{ fontSize: isDesktop ? 11 : scalePx(11, 10, 12), color: 'rgba(255,255,255,0.86)', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.04)', borderRadius: 999, padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`, boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)' }}>Reserva simple</span>
           </div>
         </header>
 
