@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Body, Request
 from pydantic import BaseModel, EmailStr, Field
 from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import os
 import bcrypt
 import secrets
@@ -11,8 +11,6 @@ from rate_limit import limiter
 from communications import (
     send_sms_otp,
     verify_sms_otp,
-    DEMO_MODE,
-    DEMO_OTP_CODE,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -129,9 +127,7 @@ async def register(request: Request, body: RegisterRequest):
         # SMS para verificación (mismo flujo que registro nuevo)
         phone_e164 = _format_phone(body.celular)
         sms_result = send_sms_otp(phone_e164, channel='sms')
-        if DEMO_MODE or sms_result.get('demo_mode'):
-            sms_code = DEMO_OTP_CODE
-        elif 'otp' in sms_result:
+        if 'otp' in sms_result:
             sms_code = sms_result['otp']
         else:
             sms_code = None
@@ -165,9 +161,7 @@ async def register(request: Request, body: RegisterRequest):
     await db.users.insert_one(user)
 
     sms_result = send_sms_otp(phone_e164, channel='sms')
-    if DEMO_MODE or sms_result.get('demo_mode'):
-        sms_code = DEMO_OTP_CODE
-    elif 'otp' in sms_result:
+    if 'otp' in sms_result:
         sms_code = sms_result['otp']
     else:
         sms_code = None
@@ -292,9 +286,7 @@ async def resend_code(request: Request, body: dict = Body(...)):
     phone_e164 = _format_phone(user.get("phone", ""))
     sms_result = send_sms_otp(phone_e164, channel='sms')
     
-    if DEMO_MODE or sms_result.get('demo_mode'):
-        sms_code = DEMO_OTP_CODE
-    elif 'otp' in sms_result:
+    if 'otp' in sms_result:
         sms_code = sms_result['otp']
     else:
         sms_code = None
@@ -329,19 +321,21 @@ async def password_reset_request(request: Request, body: PasswordResetRequest):
     if celular_err:
         raise HTTPException(status_code=400, detail=celular_err)
 
-    generic_ok = {
+    # otp_sent=false si no hay usuario o el celular no calza (sin filtrar cuentas).
+    generic_no_send = {
         "success": True,
-        "message": "Si los datos coinciden, te enviamos un código por SMS."
+        "message": "Si los datos coinciden con tu cuenta, te enviamos un código por SMS.",
+        "otp_sent": False,
     }
 
     user = await db.users.find_one({"email": body.email})
     if not user:
-        return generic_ok
+        return generic_no_send
 
     user_phone_9 = _normalize_phone_last9(user.get("phone", ""))
     input_phone_9 = _normalize_phone_last9(body.celular)
     if not user_phone_9 or user_phone_9 != input_phone_9:
-        return generic_ok
+        return generic_no_send
 
     phone_e164 = _format_phone(body.celular)
     sms_result = send_sms_otp(phone_e164, channel='sms')
@@ -351,6 +345,8 @@ async def password_reset_request(request: Request, body: PasswordResetRequest):
             raise HTTPException(status_code=400, detail=sms_result.get("error", "No se pudo enviar el código"))
 
     now = datetime.now(timezone.utc)
+    # Alineado con OTP (5 min en Redis); ventana de documento un poco mayor por clock skew
+    expires_at = now + timedelta(minutes=10)
     await db.password_reset_requests.update_one(
         {"userId": user["id"]},
         {"$set": {
@@ -358,11 +354,16 @@ async def password_reset_request(request: Request, body: PasswordResetRequest):
             "email": body.email,
             "phone": phone_e164,
             "createdAt": now.isoformat(),
-            "expiresAt": now.isoformat()
+            "expiresAt": expires_at.isoformat(),
         }},
         upsert=True
     )
-    return generic_ok
+    return {
+        "success": True,
+        "message": generic_no_send["message"],
+        "otp_sent": True,
+        "demo_mode": bool(sms_result.get("demo_mode")),
+    }
 
 
 @router.post("/password-reset/confirm")
@@ -388,10 +389,27 @@ async def password_reset_confirm(request: Request, body: PasswordResetConfirmReq
     if not pending:
         raise HTTPException(status_code=400, detail="Primero solicita el código de recuperación")
 
+    exp_raw = pending.get("expiresAt")
+    if exp_raw:
+        try:
+            exp = datetime.fromisoformat(str(exp_raw).replace("Z", "+00:00"))
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > exp:
+                await db.password_reset_requests.delete_one({"userId": user["id"]})
+                raise HTTPException(
+                    status_code=400,
+                    detail="El código expiró. Solicita uno nuevo desde el paso anterior.",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
     phone_e164 = _format_phone(body.celular)
     verify_result = verify_sms_otp(phone_e164, body.code)
     if not verify_result.get("valid"):
-        raise HTTPException(status_code=400, detail="Código incorrecto")
+        raise HTTPException(status_code=400, detail=verify_result.get("error") or "Código incorrecto")
 
     await db.users.update_one(
         {"id": user["id"]},

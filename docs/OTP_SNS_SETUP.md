@@ -6,6 +6,29 @@ Reemplaza Twilio para códigos de verificación. Costo: **~$6-10 por 1000 SMS** 
 
 ---
 
+## Quién configura qué (CTO)
+
+**Nadie externo (incl. asistente IA) puede “configurarlo por ti”** sin acceso a:
+
+- Tu **Railway** (variables del servicio que corre el API)
+- Tu **Upstash** (Redis) y/o proveedor Redis
+- Tu **AWS** (IAM + SNS SMS; tarjeta y límites de cuenta)
+
+Lo que sí puedes hacer tú en **~15 minutos**: seguir esta guía y pegar las 4 variables en Railway → **Redeploy**.
+
+**Checklist mínimo producción (recuperar contraseña + OTP real):**
+
+| Dónde | Qué |
+|--------|-----|
+| Railway → **mismo servicio** que expone `/api/` | `REDIS_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` |
+| Railway | `MAQGO_ENV=production`, `MAQGO_DEMO_MODE=false` (el backend **no arranca** si demo queda en `true` con `MAQGO_ENV=production`) |
+| Upstash | URL **Redis** (`redis://` o `rediss://`), **no** la URL REST-only |
+| AWS SNS | Sandbox: destino verificado; producción: según política AWS |
+
+**Verificación sin secretos:** `GET https://<tu-backend>/healthz/otp-readiness` → `ready: true` cuando Redis + AWS key están presentes y `is_otp_configured()` pasa. También puedes usar `GET /api/communications/status` y revisar `otp_sns_configured`.
+
+---
+
 ## Qué necesitas (en orden)
 
 1. **Cuenta en Upstash** (Redis gratis)
@@ -27,11 +50,13 @@ Reemplaza Twilio para códigos de verificación. Costo: **~$6-10 por 1000 SMS** 
 4. Tipo: **Regional** (gratis)
 5. Clic en **Create**
 
-### 1.3 Obtener la URL
-1. En la base de datos creada, entra a **REST API**
-2. Copia la **UPSTASH_REDIS_REST_URL** o la **Connection string**
-3. Formato típico: `redis://default:XXXXX@xxx.upstash.io:6379`
-4. **Guárdala** en un archivo de texto (la necesitas en el Paso 3)
+### 1.3 Obtener la URL (importante para este backend)
+El código usa `redis-py` con `redis.from_url(REDIS_URL)`: necesitas la **URL de conexión Redis**, no solo la API REST.
+
+1. En el dashboard de la base, pestaña **Connect** (o **Details**)
+2. Copia el string tipo **`redis://`** o **`rediss://`** (TLS recomendado en Upstash)
+3. Formato típico: `rediss://default:XXXXX@xxx.upstash.io:6379`
+4. **Guárdala** para el Paso 3 (Railway Variables)
 
 ---
 
@@ -71,9 +96,9 @@ Reemplaza Twilio para códigos de verificación. Costo: **~$6-10 por 1000 SMS** 
 ## Paso 3: Configurar variables en tu backend
 
 ### 3.1 Dónde configurarlas
-- **Railway**: Project → tu servicio → **Variables**
+- **Railway**: Project → el **servicio que despliega el backend** (el que tiene el Dockerfile/`start` del API) → **Variables**. No pongas OTP solo en el frontend ni en otro servicio vacío: el SMS lo dispara **este** proceso.
 - **Render**: Dashboard → tu servicio → **Environment**
-- **Otro**: archivo `.env` en producción
+- **Otro**: archivo `.env` en producción (nunca commitear secretos)
 
 ### 3.2 Variables a agregar
 
@@ -94,9 +119,10 @@ AWS_REGION=us-east-1
 ```
 
 ### 3.4 Verificar
-1. Reinicia tu backend (Railway/Render lo hace al guardar variables)
-2. Llama a `GET /api/communications/status`
-3. Deberías ver `"otp_sns_configured": true`
+1. **Redeploy** el backend tras guardar variables (Railway a veces no recarga env hasta redeploy).
+2. Llama a **`GET /healthz/otp-readiness`** (recomendado; no expone flags de producto).
+3. Esperado: `"ready": true` (y `redis_url_set` / `aws_access_key_id_set` en `true`).
+4. Opcional: `GET /api/communications/status` → `"otp_sns_configured": true`.
 
 ---
 

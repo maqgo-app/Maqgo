@@ -4,6 +4,7 @@
  */
 
 import BACKEND_URL from './api';
+import { getObject } from './safeStorage';
 
 // Pasos del flujo de reserva del cliente
 const BOOKING_STEPS = {
@@ -15,6 +16,25 @@ const BOOKING_STEPS = {
   confirm: 5,
   payment: 6,
   calendar: 1  // Paso 1 en flujo programado
+};
+
+const RESUMABLE_STEPS = new Set(Object.keys(BOOKING_STEPS));
+
+const isValidReservationType = (value) => value === 'immediate' || value === 'scheduled';
+
+const validateProgressShape = (data) => {
+  if (!data || typeof data !== 'object') return { ok: false, reason: 'missing-data' };
+  if (!data.step || !RESUMABLE_STEPS.has(data.step)) return { ok: false, reason: 'invalid-step' };
+  if (typeof data.timestamp !== 'number') return { ok: false, reason: 'invalid-timestamp' };
+
+  const expectedStepNumber = BOOKING_STEPS[data.step] || 0;
+  const currentStepNumber = Number(data.stepNumber || 0);
+  if (currentStepNumber !== expectedStepNumber) return { ok: false, reason: 'invalid-step-number' };
+
+  const reservationType = data?.data?.reservationType || localStorage.getItem('reservationType');
+  if (!isValidReservationType(reservationType)) return { ok: false, reason: 'invalid-reservation-type' };
+
+  return { ok: true, reason: 'ok' };
 };
 
 // Guardar progreso de reserva
@@ -85,12 +105,24 @@ const trackAbandonmentRisk = async (progress) => {
   }
 };
 
-import { getObject } from './safeStorage';
-
 // Detectar si hay una reserva abandonada
 export const checkAbandonedBooking = () => {
+  const userRole = localStorage.getItem('userRole');
+  // Solo aplica a flujo cliente; si venimos de otro rol, limpiar estado residual.
+  if (userRole && userRole !== 'client') {
+    clearBookingProgress();
+    return null;
+  }
+
   const data = getObject('bookingProgress', null);
   if (!data || typeof data !== 'object') return null;
+
+  // Evitar falsos positivos: validar estructura completa.
+  const shape = validateProgressShape(data);
+  if (!shape.ok) {
+    clearBookingProgress();
+    return null;
+  }
 
   const timeSinceAbandonment = Date.now() - data.timestamp;
 
@@ -107,10 +139,17 @@ export const checkAbandonedBooking = () => {
   return null;
 };
 
+// Regla centralizada: solo mostrar "Continuar reserva" si el progreso es valido y reciente.
+export const shouldShowResumeBooking = () => {
+  const progress = checkAbandonedBooking();
+  if (!progress) return { show: false, reason: 'no-valid-progress', progress: null };
+  return { show: true, reason: 'valid-progress', progress };
+};
+
 // Hook para detectar cuando el usuario va a salir de la página
 export const setupAbandonmentDetection = () => {
   // Detectar cierre de pestaña/navegador
-  window.addEventListener('beforeunload', (e) => {
+  window.addEventListener('beforeunload', () => {
     const progress = localStorage.getItem('bookingProgress');
     if (progress) {
       // El navegador puede mostrar un mensaje de confirmación
@@ -134,5 +173,6 @@ export default {
   saveBookingProgress,
   clearBookingProgress,
   checkAbandonedBooking,
+  shouldShowResumeBooking,
   setupAbandonmentDetection
 };

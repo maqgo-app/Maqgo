@@ -4,6 +4,7 @@ Guías de soporte e integración.
 
 | Documento | Descripción |
 |-----------|-------------|
+| [OTP_SNS_SETUP.md](OTP_SNS_SETUP.md) | Redis + AWS SNS para OTP (recuperar contraseña, verificación SMS; Railway) |
 | [GOOGLE_MAPS_SETUP.md](GOOGLE_MAPS_SETUP.md) | Configuración de Google Maps / Places API |
 | [ONECLICK.md](ONECLICK.md) | Integración Transbank OneClick Mall |
 | [PricingPolicy_v1.md](PricingPolicy_v1.md) | Política de precios |

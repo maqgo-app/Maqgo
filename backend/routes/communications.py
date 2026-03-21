@@ -113,9 +113,8 @@ class NotifyOwnerAlertRequest(BaseModel):
 @limiter.limit("5/minute")
 async def api_send_otp(request: Request, body: SendOTPRequest):
     """
-    Send 6-digit OTP via SMS (OTP SNS / Twilio / Demo).
+    Send 6-digit OTP via SMS (OTP SNS / Twilio).
     - OTP valid for 5 minutes, max 3 attempts, rate limit 3/10min
-    - In demo mode, use code: 123456
     """
     result = send_sms_otp(body.phone_number, body.channel)
     
@@ -139,7 +138,6 @@ async def api_send_otp(request: Request, body: SendOTPRequest):
 async def api_verify_otp(request: Request, body: VerifyOTPRequest):
     """
     Verify OTP code.
-    - In demo mode, accepts 123456
     - Returns valid + error (for invalid/expired/too many attempts)
     - Si OTP válido y existe usuario con ese teléfono: crea sesión y retorna token
     """
@@ -652,6 +650,5 @@ async def api_communications_status():
         'twilio_configured': bool(os.environ.get('TWILIO_ACCOUNT_SID')),
         'whatsapp_configured': bool(os.environ.get('TWILIO_WHATSAPP_FROM')),
         'sms_configured': bool(os.environ.get('TWILIO_SMS_FROM')),
-        'verify_configured': bool(os.environ.get('TWILIO_VERIFY_SERVICE')),
-        'demo_otp_code': '123456' if DEMO_MODE else None
+        'verify_configured': bool(os.environ.get('TWILIO_VERIFY_SERVICE'))
     }

@@ -12,9 +12,9 @@ from slowapi.errors import RateLimitExceeded
 
 from rate_limit import limiter
 
-# Load environment variables
+# Load environment variables (solo rellena claves faltantes; no pisa vars del host/Railway)
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env", override=False)
 
 # Configure logging early
 logging.basicConfig(
@@ -22,6 +22,33 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+def is_production_env() -> bool:
+    value = os.environ.get('MAQGO_ENV', os.environ.get('ENVIRONMENT', 'development'))
+    return str(value).strip().lower() in {'prod', 'production'}
+
+
+def parse_bool_env(name: str, default: bool = False) -> bool:
+    raw = str(os.environ.get(name, str(default))).strip().lower()
+    return raw in {'1', 'true', 'yes', 'on'}
+
+
+def validate_production_safety(cors_origins_raw: str) -> None:
+    """
+    Bloquea arranque en producción si hay configuración insegura.
+    """
+    if not is_production_env():
+        return
+
+    cors_values = [origin.strip() for origin in cors_origins_raw.split(',') if origin.strip()]
+    if not cors_values:
+        raise RuntimeError("Configuración inválida: CORS_ORIGINS vacío en producción.")
+    if '*' in cors_values:
+        raise RuntimeError("Configuración insegura: CORS_ORIGINS no puede usar '*' en producción.")
+    if parse_bool_env('MAQGO_DEMO_MODE', False):
+        raise RuntimeError("Configuración insegura: MAQGO_DEMO_MODE=true en producción.")
+    if parse_bool_env('TBK_DEMO_MODE', False):
+        raise RuntimeError("Configuración insegura: TBK_DEMO_MODE=true en producción.")
 
 # Timer scheduler task
 async def timer_scheduler():
@@ -65,13 +92,14 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 MAQGO API iniciando...")
 
     # Advertencias de producción
-    cors_origins = os.environ.get('CORS_ORIGINS', '*')
-    if cors_origins.strip() == '*':
+    cors_origins_raw = os.environ.get('CORS_ORIGINS', '*')
+    validate_production_safety(cors_origins_raw)
+    if cors_origins_raw.strip() == '*':
         logger.warning("⚠️ CORS_ORIGINS=* (permite cualquier origen). En producción definir dominios explícitos.")
-    demo_mode = os.environ.get('MAQGO_DEMO_MODE', 'true').lower() == 'true'
+    demo_mode = parse_bool_env('MAQGO_DEMO_MODE', False)
     if demo_mode:
         logger.warning("⚠️ MAQGO_DEMO_MODE=true. En producción usar false para SMS reales.")
-    tbk_demo = os.environ.get('TBK_DEMO_MODE', 'false').lower() == 'true'
+    tbk_demo = parse_bool_env('TBK_DEMO_MODE', False)
     if tbk_demo:
         logger.warning("⚠️ TBK_DEMO_MODE=true. En producción usar false para Transbank real.")
 
@@ -104,10 +132,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 
 # CORS
+cors_origins_raw = os.environ.get('CORS_ORIGINS', '*')
+cors_origins = [origin.strip() for origin in cors_origins_raw.split(',') if origin.strip()]
+if not cors_origins:
+    cors_origins = ['*']
+allow_all_origins = '*' in cors_origins
+
+# Con wildcard no se deben habilitar credenciales (evita errores CORS en browsers)
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_credentials=not allow_all_origins,
+    allow_origins=(['*'] if allow_all_origins else cors_origins),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -130,7 +165,11 @@ from routes.admin_reports import router as admin_reports_router
 from routes.admin_config import router as admin_config_router
 from routes.chatbot import router as chatbot_router
 from routes.public_stats import router as public_stats_router
-from routes.maps import router as maps_router
+try:
+    from routes.maps import router as maps_router
+except Exception as e:
+    maps_router = None
+    logger.error(f"Maps router disabled at startup: {e}")
 
 # Create main API router
 api_router = APIRouter(prefix="/api")
@@ -175,4 +214,39 @@ api_router.include_router(public_stats_router)
 # Register main router
 app.include_router(api_router)
 # Maps router ya trae prefijo /api/maps, se monta directo para evitar /api/api/maps
-app.include_router(maps_router)
+if maps_router is not None:
+    app.include_router(maps_router)
+
+# Health checks de infraestructura (Railway/monitoreo externo)
+@app.get("/")
+async def infra_root():
+    return {
+        "service": "maqgo-backend",
+        "status": "ok",
+        "api": "/api/"
+    }
+
+@app.get("/healthz")
+async def infra_healthz():
+    return {"status": "ok"}
+
+
+@app.get("/healthz/otp-readiness")
+async def infra_healthz_otp_readiness():
+    """
+    Infra: OTP vía Redis+SNS. Separado de /api/communications/status para no mezclar dominio con despliegue.
+    No expone secretos; solo presencia de variables y flag canónico is_otp_configured().
+    """
+    redis_url_set = bool(str(os.environ.get("REDIS_URL", "")).strip())
+    aws_key_id_set = bool(str(os.environ.get("AWS_ACCESS_KEY_ID", "")).strip())
+    try:
+        from services.otp_service import is_otp_configured
+
+        ready = is_otp_configured()
+    except ImportError:
+        ready = False
+    return {
+        "ready": ready,
+        "redis_url_set": redis_url_set,
+        "aws_access_key_id_set": aws_key_id_set,
+    }

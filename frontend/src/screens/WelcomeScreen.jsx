@@ -2,7 +2,40 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../components/MaqgoLogo';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
-import { BREAKPOINT_MOBILE, BREAKPOINT_NARROW } from '../constants/breakpoints';
+import { useWelcomeLayout } from '../hooks/useWelcomeLayout';
+import { shouldShowResumeBooking, clearBookingProgress } from '../utils/abandonmentTracker';
+
+const ICON_SIZE = 24;
+
+function IconExcavator() {
+  return (
+    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }} aria-hidden="true">
+      <path d="M4 19h16" />
+      <path d="M8 19V10l4-5 4 5v9" />
+      <path d="M8 10h8" />
+      <path d="M16 10l3 4" />
+      <path d="M19 14l-2 3" />
+    </svg>
+  );
+}
+
+function IconBuilding() {
+  return (
+    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }} aria-hidden="true">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  );
+}
+
+function IconUser() {
+  return (
+    <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }} aria-hidden="true">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 20c0-3 3-6 8-6s8 3 8 6" />
+    </svg>
+  );
+}
 
 /**
  * WelcomeScreen - Esencia de MAQGO
@@ -11,48 +44,23 @@ import { BREAKPOINT_MOBILE, BREAKPOINT_NARROW } from '../constants/breakpoints';
 function WelcomeScreen() {
   const navigate = useNavigate();
   const [adminPending, setAdminPending] = useState(0);
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [isNarrowMobile, setIsNarrowMobile] = useState(false);
-  const [isShortViewport, setIsShortViewport] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 700);
-  // Evita flash: no renderizar con opacity=0 al primer frame.
-  const [mounted, setMounted] = useState(true);
-
-  useEffect(() => {
-    const check = () => {
-      const h = window.innerHeight;
-      setIsShortViewport(h < 680);
-      setViewportHeight(h);
-    };
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
-
-  useEffect(() => {
-    const mq = window.matchMedia(`(min-width: ${BREAKPOINT_MOBILE}px)`);
-    setIsDesktop(mq.matches);
-    const handler = () => setIsDesktop(mq.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${BREAKPOINT_NARROW}px)`);
-    setIsNarrowMobile(mq.matches);
-    const handler = () => setIsNarrowMobile(mq.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
+  const { isDesktop, isNarrowMobile, isShortViewport, viewportHeight, viewportWidth } = useWelcomeLayout();
+  // Fade-in suave tras primer paint (evita flash de layout).
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     const role = localStorage.getItem('userRole');
-    if (!token || role !== 'admin') return;
-    fetchWithAuth(`${BACKEND_URL}/api/admin/stats`, { redirectOn401: false })
+    if (!token || role !== 'admin') return undefined;
+    const ac = new AbortController();
+    fetchWithAuth(`${BACKEND_URL}/api/admin/stats`, {
+      redirectOn401: false,
+      signal: ac.signal,
+    })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => setAdminPending(data.pending_total || 0))
       .catch(() => {});
+    return () => ac.abort();
   }, []);
 
   useEffect(() => {
@@ -60,34 +68,21 @@ function WelcomeScreen() {
   }, []);
 
   useEffect(() => {
-    const t = requestAnimationFrame(() => setMounted(true));
-    return () => cancelAnimationFrame(t);
+    // Respetar regla de negocio: solo mantener progreso si realmente es reanudable.
+    const decision = shouldShowResumeBooking();
+    if (!decision.show) {
+      clearBookingProgress();
+      localStorage.removeItem('pendingRoute');
+      localStorage.removeItem('showResumeModal');
+    }
+  }, []);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
   }, []);
 
   const hasSession = !!localStorage.getItem('userId');
-
-  const iconSize = 24;
-  const IconExcavator = () => (
-    <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }} aria-hidden="true">
-      <path d="M4 19h16" />
-      <path d="M8 19V10l4-5 4 5v9" />
-      <path d="M8 10h8" />
-      <path d="M16 10l3 4" />
-      <path d="M19 14l-2 3" />
-    </svg>
-  );
-  const IconBuilding = () => (
-    <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }} aria-hidden="true">
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  );
-  const IconUser = () => (
-    <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }} aria-hidden="true">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 20c0-3 3-6 8-6s8 3 8 6" />
-    </svg>
-  );
 
   const handleAccount = () => {
     navigate('/login');
@@ -106,6 +101,15 @@ function WelcomeScreen() {
           : viewportHeight < 680
             ? 130
             : 142;
+  const widthProgress = Math.max(0, Math.min(1, (viewportWidth - 320) / 110));
+  const widthScale = isDesktop ? 1 : (0.9 + (widthProgress * 0.16)); // 320->0.9, 430->1.06
+  const heightScale = isDesktop ? 1 : (viewportHeight < 620 ? 0.94 : (viewportHeight > 760 ? 1.04 : 1));
+  const fineScale = isDesktop ? 1 : (widthScale * heightScale);
+  const scalePx = (base, min, max) => {
+    const scaled = Math.round(base * fineScale);
+    return Math.max(min, Math.min(max, scaled));
+  };
+  const heroLogoBottom = isDesktop ? 36 : (isShortViewport ? 16 : (isNarrowMobile ? 20 : 24));
 
   return (
     <div className={`maqgo-app ${isDesktop ? 'welcome-desktop' : ''} ${isShortViewport ? 'welcome-short' : ''}`}>
@@ -139,33 +143,42 @@ function WelcomeScreen() {
           paddingBottom: isShortViewport ? 12 : (isNarrowMobile ? 20 : (isDesktop ? 40 : 28)),
           width: '100%'
         }}>
-          <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? 4 : (isNarrowMobile ? 10 : (isDesktop ? 36 : 16)) }} />
+          <MaqgoLogo customSize={logoSize} style={{ marginBottom: heroLogoBottom }} />
+          <div style={{
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: isShortViewport ? 8 : (isNarrowMobile ? 10 : 12),
+          }}>
           <div style={{
             display: 'inline-block',
             flexShrink: 0,
-            background: 'linear-gradient(135deg, rgba(236, 104, 25, 0.25) 0%, rgba(236, 104, 25, 0.15) 100%)',
-            border: '1.5px solid rgba(236, 104, 25, 0.6)',
+            background: 'linear-gradient(135deg, rgba(236, 104, 25, 0.22) 0%, rgba(236, 104, 25, 0.10) 100%)',
+            border: '1px solid rgba(236, 104, 25, 0.38)',
             borderRadius: 24,
-            padding: isShortViewport ? '4px 10px' : (isDesktop ? '8px 18px' : (isNarrowMobile ? '6px 12px' : '7px 16px')),
-            marginBottom: isShortViewport ? 4 : (isNarrowMobile ? 10 : 14),
-            boxShadow: '0 2px 12px rgba(236, 104, 25, 0.2)'
+            padding: isDesktop
+              ? '8px 16px'
+              : `${scalePx(isShortViewport ? 5 : 6, 5, 7)}px ${scalePx(isShortViewport ? 11 : 13, 10, 14)}px`,
+            boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06), 0 2px 10px rgba(236,104,25,0.16)',
           }}>
             <span style={{
-              color: '#EC6819',
-              fontSize: isShortViewport ? 9 : (isDesktop ? 12 : (isNarrowMobile ? 10 : 11)),
-              fontWeight: 700,
-              letterSpacing: 0.8
+              color: 'rgba(255,255,255,0.9)',
+              fontSize: isDesktop ? 12 : scalePx(isShortViewport ? 10 : 11, 10, 12),
+              fontWeight: 600,
+              letterSpacing: 0.1,
+              lineHeight: 1.35,
             }}>
-              ARRIENDO POR HORAS, DÍAS O SEMANAS
+              Arrienda maquinaria en minutos, para hoy o para cuando la necesites.
             </span>
           </div>
           <h1 style={{
             fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: isShortViewport ? 16 : (isDesktop ? 26 : (isNarrowMobile ? 18 : 22)),
+            fontSize: isDesktop ? 26 : scalePx(isShortViewport ? 17 : 20, 16, 23),
             fontWeight: 600,
             color: '#FAFAFA',
-            margin: '0 0 ' + (isShortViewport ? 3 : (isNarrowMobile ? 6 : 10)) + 'px',
-            lineHeight: 1.3,
+            margin: 0,
+            lineHeight: 1.24,
             letterSpacing: '-0.02em',
             maxWidth: '100%',
             overflowWrap: 'break-word',
@@ -177,18 +190,32 @@ function WelcomeScreen() {
             <span style={{ color: '#fff' }}>operador incluido</span>
           </h1>
           <p style={{
-            fontSize: isShortViewport ? 12 : (isDesktop ? 15 : (isNarrowMobile ? 13 : 14)),
+            fontSize: isDesktop ? 15 : scalePx(isShortViewport ? 12 : 13, 12, 15),
             color: '#B0B0B8',
             margin: 0,
-            lineHeight: 1.55,
+            lineHeight: 1.5,
             maxWidth: isDesktop ? '36ch' : '28ch'
           }}>
-            Coordina un servicio inmediato o programado en pocos pasos, con disponibilidad real y seguimiento.
+            Elige en pocos pasos y continúa con disponibilidad real.
           </p>
-          <div style={{ marginTop: isShortViewport ? 8 : 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8 }}>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.74)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '6px 10px' }}>Disponibilidad inmediata</span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.74)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '6px 10px' }}>Pago seguro</span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.74)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '6px 10px' }}>Soporte MAQGO</span>
+          </div>
+          <div
+            style={{
+              marginTop: isDesktop ? 12 : scalePx(isShortViewport ? 7 : 9, 7, 12),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+              gap: isDesktop ? 8 : scalePx(7, 6, 9),
+              padding: isDesktop ? '6px 8px' : `${scalePx(5, 4, 6)}px ${scalePx(7, 6, 9)}px`,
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 999,
+              boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
+            }}
+          >
+            <span style={{ fontSize: isDesktop ? 11 : scalePx(11, 10, 12), color: 'rgba(255,255,255,0.86)', border: '1px solid rgba(236,104,25,0.35)', background: 'rgba(236,104,25,0.10)', borderRadius: 999, padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`, boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)' }}>Hoy o programado</span>
+            <span style={{ fontSize: isDesktop ? 11 : scalePx(11, 10, 12), color: 'rgba(255,255,255,0.86)', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.04)', borderRadius: 999, padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`, boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)' }}>Reserva simple</span>
           </div>
         </header>
 
@@ -222,7 +249,7 @@ function WelcomeScreen() {
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
               <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600 }}>Arrendar maquinaria</div>
-              <div style={{ fontSize: 12, opacity: 0.95 }}>Inmediato o programado · Sin registro para empezar</div>
+              <div style={{ fontSize: 12, opacity: 0.95 }}>Inmediato o programado</div>
             </div>
           </button>
 

@@ -230,4 +230,7 @@ def verify_otp(phone_number: str, code: str) -> dict:
 
 def is_otp_configured() -> bool:
     """Indica si el servicio OTP (Redis + AWS) está listo."""
-    return bool(os.environ.get("REDIS_URL") and os.environ.get("AWS_ACCESS_KEY_ID"))
+    return bool(
+        str(os.environ.get("REDIS_URL", "")).strip()
+        and str(os.environ.get("AWS_ACCESS_KEY_ID", "")).strip()
+    )
