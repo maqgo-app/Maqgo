@@ -216,7 +216,7 @@ function WelcomeScreen() {
             lineHeight: 1.5,
             maxWidth: isDesktop ? '36ch' : '28ch'
           }}>
-            Arrienda maquinaria en minutos, para hoy o para cuando la necesites.
+            Arrienda maquinaria en minutos, para hoy o en la fecha que indiques.
           </p>
           {/* Chips de apoyo — barra premium (vidrio + acento naranja) */}
           <div
