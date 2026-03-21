@@ -213,8 +213,11 @@ html, body, #root {
     overflow: visible;
     min-height: calc(100vh - 48px);
     margin: 24px auto;
-    border-radius: 20px;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    border-radius: 38px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow:
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
+      0 18px 42px rgba(0, 0, 0, 0.48);
   }
 }
 
@@ -726,15 +729,29 @@ a:focus-visible,
 /* Responsive para desktop */
 @media (min-width: var(--maqgo-breakpoint-mobile)) {
   .maqgo-app {
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.16);
     box-shadow:
-      0 0 0 1px rgba(236, 104, 25, 0.22),
-      0 0 80px rgba(0, 0, 0, 0.6),
-      0 14px 40px rgba(0, 0, 0, 0.45);
-    border-radius: 45px;
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
+      0 18px 42px rgba(0, 0, 0, 0.48);
+    border-radius: 38px;
     margin: 20px auto;
     min-height: calc(100vh - 40px);
     overflow: hidden;
+  }
+  /* Brillo sutil tipo hardware premium (desktop only) */
+  .maqgo-app::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.02) 16%,
+      rgba(255, 255, 255, 0) 34%
+    );
+    opacity: 0.55;
   }
 }
 
