@@ -143,7 +143,40 @@ function WelcomeScreen() {
           paddingBottom: isShortViewport ? 12 : (isNarrowMobile ? 20 : (isDesktop ? 40 : 28)),
           width: '100%'
         }}>
-          <MaqgoLogo customSize={logoSize} style={{ marginBottom: heroLogoBottom }} />
+          <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 14) : heroLogoBottom }} />
+          {/* Caluga premium: valor en una frase, sin repetir el titular */}
+          <div
+            role="note"
+            aria-label="Propuesta de valor"
+            style={{
+              marginBottom: isShortViewport ? 10 : (isNarrowMobile ? 12 : 14),
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              maxWidth: 'min(100%, 26rem)',
+              padding: isShortViewport ? '7px 14px' : '9px 20px',
+              borderRadius: 9999,
+              background: 'linear-gradient(135deg, #F0843A 0%, #EC6819 45%, #B8430E 100%)',
+              boxShadow:
+                '0 8px 28px rgba(236, 104, 25, 0.38), inset 0 1px 0 rgba(255,255,255,0.28)',
+              border: '1px solid rgba(255,255,255,0.14)',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: isDesktop ? 12.5 : scalePx(isShortViewport ? 10.5 : 11, 10, 12.5),
+                fontWeight: 600,
+                letterSpacing: '0.03em',
+                lineHeight: 1.35,
+                color: '#FFFBF7',
+                textAlign: 'center',
+                textShadow: '0 1px 2px rgba(0,0,0,0.18)',
+              }}
+            >
+              Elige en pocos pasos con disponibilidad en tiempo real
+            </span>
+          </div>
           <div style={{
             width: '100%',
             display: 'flex',
@@ -175,7 +208,7 @@ function WelcomeScreen() {
             lineHeight: 1.5,
             maxWidth: isDesktop ? '36ch' : '28ch'
           }}>
-            Elige en pocos pasos y continúa con disponibilidad real.
+            Cotización transparente: confirma cuando te convenga.
           </p>
           </div>
         </header>

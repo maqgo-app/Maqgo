@@ -1,5 +1,24 @@
 # Checklist Producción LIVE MAQGO
 
+> **Proceso y velocidad:** ver también [QA_Y_LANZAMIENTO.md](QA_Y_LANZAMIENTO.md) (diagnóstico previo, Definition of Done, una sola fuente de verdad).
+
+## Regla de despliegue (CTO)
+
+No se autoriza deploy si no se cumple lo siguiente en este orden:
+
+1. `./scripts/quality-gate.sh` en verde (frontend: `npm ci`, tests unit, build; ver script).
+2. `./scripts/pre-deploy.sh` en verde **si tenés `backend/venv`** (tests Python + build); si no, la paridad backend queda en **GitHub Actions** al hacer push.
+3. Registro del intento en `docs/DEPLOY_LOG.md`.
+
+Script recomendado para centralizar la validación:
+
+```bash
+chmod +x scripts/quality-gate.sh scripts/deploy-cto.sh  # una vez
+./scripts/deploy-cto.sh
+```
+
+`deploy-cto.sh` ejecuta `quality-gate.sh` y, si existe el venv del backend, `pre-deploy.sh`.
+
 ## Modo producción = inscripciones reales
 
 Cuando `REACT_APP_BACKEND_URL` apunta a tu API de producción (no localhost):
