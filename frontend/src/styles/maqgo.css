@@ -203,6 +203,43 @@ html, body, #root {
   padding: 0;
 }
 
+/*
+ * Welcome desktop “Tesla / dispositivo”: fondo exterior casi negro solo en esta pantalla.
+ * Sin esto, #root y la app comparten tono y el marco no “flota”.
+ */
+html.maqgo-welcome-desktop-chrome,
+html.maqgo-welcome-desktop-chrome body,
+html.maqgo-welcome-desktop-chrome #root {
+  background: var(--maqgo-bg-outer) !important;
+  min-height: 100%;
+}
+
+/* Contenido por encima del ::before (brillo) del marco */
+.maqgo-app.welcome-desktop .maqgo-screen.welcome-screen {
+  position: relative;
+  z-index: 1;
+}
+
+/* Caluga superior — presencia premium (refuerza sombra en CSS) */
+.welcome-hero-caluga {
+  filter: drop-shadow(0 4px 20px rgba(236, 104, 25, 0.35));
+}
+
+/* Barra de chips — vidrio + borde legible (look acordado) */
+.welcome-value-chips {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 24px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
 /* Desktop: más espacio desde el header para distribuir mejor la info (sin afectar mobile) */
 @media (min-width: var(--maqgo-breakpoint-mobile)) {
   .maqgo-screen {

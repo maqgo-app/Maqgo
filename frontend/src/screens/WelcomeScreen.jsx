@@ -82,6 +82,13 @@ function WelcomeScreen() {
     return () => cancelAnimationFrame(id);
   }, []);
 
+  // Desktop: fondo exterior #000 para que el marco tipo “dispositivo” (Tesla/premium) contraste como acordamos
+  useEffect(() => {
+    if (!isDesktop) return undefined;
+    document.documentElement.classList.add('maqgo-welcome-desktop-chrome');
+    return () => document.documentElement.classList.remove('maqgo-welcome-desktop-chrome');
+  }, [isDesktop]);
+
   const hasSession = !!localStorage.getItem('userId');
 
   const handleAccount = () => {
@@ -146,6 +153,7 @@ function WelcomeScreen() {
           <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 14) : heroLogoBottom }} />
           {/* Caluga premium — disponibilidad en tiempo real */}
           <div
+            className="welcome-hero-caluga"
             role="note"
             aria-label="Propuesta de valor"
             style={{
@@ -210,8 +218,9 @@ function WelcomeScreen() {
           }}>
             Arrienda maquinaria en minutos, para hoy o para cuando la necesites.
           </p>
-          {/* Chips de apoyo — selección acordada: Hoy o programado + Reserva simple */}
+          {/* Chips de apoyo — barra premium (vidrio + acento naranja) */}
           <div
+            className="welcome-value-chips"
             style={{
               marginTop: isDesktop ? 12 : scalePx(isShortViewport ? 7 : 9, 7, 12),
               display: 'flex',
@@ -220,10 +229,7 @@ function WelcomeScreen() {
               flexWrap: 'wrap',
               gap: isDesktop ? 8 : scalePx(7, 6, 9),
               padding: isDesktop ? '6px 8px' : `${scalePx(5, 4, 6)}px ${scalePx(7, 6, 9)}px`,
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)',
-              border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: 999,
-              boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
             }}
           >
             <span
