@@ -144,7 +144,7 @@ function WelcomeScreen() {
           width: '100%'
         }}>
           <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 14) : heroLogoBottom }} />
-          {/* Caluga premium: valor en una frase, sin repetir el titular */}
+          {/* Caluga premium — copy acordado en el hilo: cierre en una sola frase tipo marketplace */}
           <div
             role="note"
             aria-label="Propuesta de valor"
@@ -174,7 +174,7 @@ function WelcomeScreen() {
                 textShadow: '0 1px 2px rgba(0,0,0,0.18)',
               }}
             >
-              Elige en pocos pasos con disponibilidad en tiempo real
+              Arrienda maquinaria en minutos, para hoy o para cuando la necesites.
             </span>
           </div>
           <div style={{
@@ -210,6 +210,49 @@ function WelcomeScreen() {
           }}>
             Elige en pocos pasos y continúa con disponibilidad real.
           </p>
+          {/* Chips de apoyo — selección acordada: Hoy o programado + Reserva simple */}
+          <div
+            style={{
+              marginTop: isDesktop ? 12 : scalePx(isShortViewport ? 7 : 9, 7, 12),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+              gap: isDesktop ? 8 : scalePx(7, 6, 9),
+              padding: isDesktop ? '6px 8px' : `${scalePx(5, 4, 6)}px ${scalePx(7, 6, 9)}px`,
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 999,
+              boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
+            }}
+          >
+            <span
+              style={{
+                fontSize: isDesktop ? 11 : scalePx(11, 10, 12),
+                color: 'rgba(255,255,255,0.86)',
+                border: '1px solid rgba(236,104,25,0.35)',
+                background: 'rgba(236,104,25,0.10)',
+                borderRadius: 999,
+                padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`,
+                boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
+              }}
+            >
+              Hoy o programado
+            </span>
+            <span
+              style={{
+                fontSize: isDesktop ? 11 : scalePx(11, 10, 12),
+                color: 'rgba(255,255,255,0.86)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: 'rgba(255,255,255,0.04)',
+                borderRadius: 999,
+                padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`,
+                boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
+              }}
+            >
+              Reserva simple
+            </span>
+          </div>
           </div>
         </header>
 
