@@ -12,9 +12,9 @@ from slowapi.errors import RateLimitExceeded
 
 from rate_limit import limiter
 
-# Load environment variables
+# Load environment variables (solo rellena claves faltantes; no pisa vars del host/Railway)
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env", override=False)
 
 # Configure logging early
 logging.basicConfig(
