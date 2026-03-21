@@ -224,3 +224,24 @@ async def infra_root():
 @app.get("/healthz")
 async def infra_healthz():
     return {"status": "ok"}
+
+
+@app.get("/healthz/otp-readiness")
+async def infra_healthz_otp_readiness():
+    """
+    Infra: OTP vía Redis+SNS. Separado de /api/communications/status para no mezclar dominio con despliegue.
+    No expone secretos; solo presencia de variables y flag canónico is_otp_configured().
+    """
+    redis_url_set = bool(str(os.environ.get("REDIS_URL", "")).strip())
+    aws_key_id_set = bool(str(os.environ.get("AWS_ACCESS_KEY_ID", "")).strip())
+    try:
+        from services.otp_service import is_otp_configured
+
+        ready = is_otp_configured()
+    except ImportError:
+        ready = False
+    return {
+        "ready": ready,
+        "redis_url_set": redis_url_set,
+        "aws_access_key_id_set": aws_key_id_set,
+    }

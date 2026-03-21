@@ -644,15 +644,9 @@ async def api_communications_status():
     except ImportError:
         pass
 
-    # Solo booleanos (sin valores) para diagnosticar despliegues sin filtrar secretos
-    redis_url_set = bool(str(os.environ.get("REDIS_URL", "")).strip())
-    aws_key_id_set = bool(str(os.environ.get("AWS_ACCESS_KEY_ID", "")).strip())
-
     return {
         'demo_mode': DEMO_MODE,
         'otp_sns_configured': otp_sns,
-        'redis_url_set': redis_url_set,
-        'aws_access_key_id_set': aws_key_id_set,
         'twilio_configured': bool(os.environ.get('TWILIO_ACCOUNT_SID')),
         'whatsapp_configured': bool(os.environ.get('TWILIO_WHATSAPP_FROM')),
         'sms_configured': bool(os.environ.get('TWILIO_SMS_FROM')),
