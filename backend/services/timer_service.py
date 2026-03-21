@@ -59,6 +59,20 @@ class TimerService:
             total_amount = float(service.get('totalAmount', 0))
             cancel_event = {'type': 'cancelled_no_arrival', 'at': now.isoformat()}
 
+            refund_rr = None
+            if total_amount > 0:
+                refund_rr = await payment_service.rollback_charge(
+                    service['id'],
+                    reason='no_arrival_timeout',
+                    refund_amount=total_amount,
+                    skip_service_request_update=True,
+                )
+            pay_status = (
+                'refunded'
+                if (total_amount <= 0 or (refund_rr and refund_rr.get('success')))
+                else 'refund_pending'
+            )
+
             await self.db.service_requests.update_one(
                 {'id': service['id'], 'status': 'confirmed'},
                 {
@@ -66,19 +80,11 @@ class TimerService:
                         'status': 'cancelled_no_arrival',
                         'cancelled_at': now.isoformat(),
                         'cancellation_reason': 'Timeout: proveedor no marcó llegada',
-                        'paymentStatus': 'refunded',
+                        'paymentStatus': pay_status,
                     },
                     '$push': {'events': cancel_event}
                 }
             )
-
-            if total_amount > 0:
-                await payment_service.rollback_charge(
-                    service['id'],
-                    reason='no_arrival_timeout',
-                    refund_amount=total_amount,
-                    skip_service_request_update=True
-                )
 
             cancelled_count += 1
             logger.info(f"Servicio {service['id']} -> cancelled_no_arrival (timeout sin llegada)")

@@ -178,7 +178,24 @@ class PaymentService:
                 }
         else:
             logger.info(f"Sin OneClick para cliente {client_id}, usando flujo simulado")
-        
+
+        # Órdenes TBK: guardar padre + detalle Mall (el reembolso exige detail_buy_order correcto)
+        main_bo = None
+        detail_bo = None
+        if tbk_response:
+            details = tbk_response.get('details') or []
+            d0 = details[0] if details else {}
+            main_bo = (
+                tbk_response.get('buy_order')
+                or tbk_response.get('buyOrder')
+                or buy_order
+            )
+            detail_bo = (
+                d0.get('buy_order')
+                or d0.get('buyOrder')
+                or main_bo
+            )
+
         # Crear registro de pago
         payment = {
             'id': str(uuid.uuid4()),
@@ -192,7 +209,8 @@ class PaymentService:
             'chargedAt': now.isoformat(),
             'provider': PAYMENT_CONFIG['provider'],
             'cardLastFour': (client or {}).get('cardLastFour', '****'),
-            'tbkBuyOrder': (tbk_response.get('buy_order') or buy_order) if tbk_response else None
+            'tbkBuyOrder': main_bo,
+            'tbkDetailBuyOrder': detail_bo,
         }
         
         await self.db.payments.insert_one(payment)
@@ -252,21 +270,27 @@ class PaymentService:
 
         # Reembolso real con Transbank si fue cobro OneClick
         buy_order = payment.get('tbkBuyOrder')
+        detail_buy_order = payment.get('tbkDetailBuyOrder') or buy_order
         amount = int(round(refund_amount if refund_amount is not None else (payment.get('amount', 0) or payment.get('chargedAmount', 0))))
         if buy_order and amount > 0:
             try:
                 from services.oneclick_service import refund_payment as tbk_refund
                 tbk_refund(
                     buy_order=buy_order,
-                    detail_buy_order=buy_order,
+                    detail_buy_order=detail_buy_order,
                     amount=amount
                 )
             except Exception as e:
                 logger.exception(f"Error Transbank refund: {e}")
-                # Continuar con el rollback en DB aunque Transbank falle
-                # (se puede reembolsar manualmente después)
+                return {
+                    'success': False,
+                    'status': 'refund_failed',
+                    'message': 'Transbank no confirmó el reembolso; el cobro sigue registrado',
+                    'error': str(e),
+                    'paymentId': payment['id'],
+                }
 
-        # Actualizar estado del pago
+        # Actualizar estado del pago solo si TBK OK (o no aplica TBK)
         await self.db.payments.update_one(
             {'id': payment['id']},
             {
