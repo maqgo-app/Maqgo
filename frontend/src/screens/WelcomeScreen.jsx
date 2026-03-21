@@ -201,15 +201,6 @@ function WelcomeScreen() {
             {' con '}
             <span style={{ color: '#fff' }}>operador incluido</span>
           </h1>
-          <p style={{
-            fontSize: isDesktop ? 15 : scalePx(isShortViewport ? 12 : 13, 12, 15),
-            color: '#B0B0B8',
-            margin: 0,
-            lineHeight: 1.5,
-            maxWidth: isDesktop ? '36ch' : '28ch'
-          }}>
-            Cotización transparente: confirma cuando te convenga.
-          </p>
           </div>
         </header>
 
