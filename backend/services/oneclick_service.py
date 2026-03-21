@@ -93,6 +93,11 @@ def authorize_payment(username: str, tbk_user: str, buy_order: str, amount: int)
 
 
 def refund_payment(buy_order: str, detail_buy_order: str, amount: int):
+    """
+    Reembolso / anulación parcial o total (OneClick Mall).
+    buy_order: orden padre de la transacción (misma usada en authorize).
+    detail_buy_order: orden del detalle tienda hija (puede coincidir con la padre en MAQGO).
+    """
     _check_config()
     url = f"{BASE_URL}/rswebpaytransaction/api/oneclick/v1.2/transactions/{buy_order}/refunds"
 
@@ -104,4 +109,10 @@ def refund_payment(buy_order: str, detail_buy_order: str, amount: int):
 
     response = requests.post(url, json=payload, headers=HEADERS, timeout=TBK_REQUEST_TIMEOUT)
     response.raise_for_status()
-    return response.json()
+    data = response.json()
+    rc = data.get("response_code", data.get("responseCode", -1))
+    if rc != 0:
+        raise ValueError(
+            f"Transbank rechazó el reembolso: response_code={rc} body={data}"
+        )
+    return data

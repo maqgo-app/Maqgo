@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException, Body, Depends
+from fastapi import APIRouter, HTTPException, Body, Depends, status
 from typing import List, Optional
 
-from auth_dependency import get_current_user
+from auth_dependency import get_current_user, get_current_admin
 from models.service_request import ServiceRequest, ServiceRequestCreate, Location, calculate_commissions
 from pricing.business_rules import LATE_CANCELLATION_FEE_PERCENT
 from services.utils import haversine_meters
@@ -16,7 +16,7 @@ from services.timer_service import TimerService
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ServerSelectionTimeoutError
 import os
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,64 @@ db = client[os.environ.get('DB_NAME', 'maqgo_db')]
 # Servicios
 payment_service = PaymentService(db)
 timer_service = TimerService(db)
+
+
+def _provider_matches_user(user: dict, provider_account_id: str) -> bool:
+    """Dueño de cuenta proveedor o miembro de equipo (owner_id)."""
+    if not provider_account_id:
+        return False
+    if user.get("id") == provider_account_id:
+        return True
+    if user.get("owner_id") == provider_account_id:
+        return True
+    return False
+
+
+def _effective_provider_account_id(user: dict) -> Optional[str]:
+    """ID de cuenta proveedor para listados (titular u operador bajo un dueño)."""
+    role = user.get("role")
+    uid = user.get("id")
+    owner_id = user.get("owner_id")
+    if role == "client" or role == "admin":
+        return None
+    if role == "provider":
+        return uid
+    if owner_id:
+        return owner_id
+    return uid
+
+
+def _can_read_service_request(user: dict, req: dict) -> bool:
+    if user.get("role") == "admin":
+        return True
+    uid = user.get("id")
+    if req.get("clientId") == uid:
+        return True
+    pid = req.get("providerId")
+    if pid and _provider_matches_user(user, pid):
+        return True
+    oid = req.get("currentOfferId")
+    if oid and _provider_matches_user(user, oid):
+        return True
+    return False
+
+
+def _assert_can_read_service(user: dict, req: dict) -> None:
+    if not _can_read_service_request(user, req):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para ver esta solicitud",
+        )
+
+
+def _assert_assigned_provider(user: dict, req: dict) -> None:
+    pid = req.get("providerId")
+    if not pid or not _provider_matches_user(user, pid):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el proveedor asignado puede realizar esta acción",
+        )
+
 
 @router.post("", response_model=dict)
 async def create_service_request(
@@ -123,36 +181,72 @@ async def create_service_request(
 
 @router.get("", response_model=List[dict])
 async def get_service_requests(
-    status: Optional[str] = None, 
-    clientId: Optional[str] = None, 
-    providerId: Optional[str] = None
+    service_status: Optional[str] = None,
+    clientId: Optional[str] = None,
+    providerId: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
 ):
-    """Obtener lista de solicitudes con filtros opcionales"""
+    """Listado acotado al usuario autenticado (admin puede filtrar con cuidado)."""
     try:
-        query = {}
-        if status:
-            query['status'] = status
-        if clientId:
-            query['clientId'] = clientId
-        if providerId:
-            query['providerId'] = providerId
-        requests = await db.service_requests.find(query, {'_id': 0}).to_list(1000)
+        role = current_user.get("role")
+        if role == "admin":
+            query = {}
+            if service_status:
+                query["status"] = service_status
+            if clientId:
+                query["clientId"] = clientId
+            if providerId:
+                query["providerId"] = providerId
+        elif role == "client":
+            query = {"clientId": current_user.get("id")}
+            if service_status:
+                query["status"] = service_status
+        else:
+            ep = _effective_provider_account_id(current_user)
+            if not ep:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Sin permiso para listar solicitudes",
+                )
+            base = {"$or": [{"providerId": ep}, {"currentOfferId": ep}]}
+            if service_status:
+                query = {"$and": [base, {"status": service_status}]}
+            else:
+                query = base
+        requests = await db.service_requests.find(query, {"_id": 0}).to_list(1000)
         return requests
     except ServerSelectionTimeoutError:
         logger.warning("MongoDB no disponible en get_service_requests")
         return []
 
 @router.get("/pending", response_model=List[dict])
-async def get_pending_requests_for_provider(providerId: Optional[str] = None):
+async def get_pending_requests_for_provider(
+    providerId: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
     """
     Obtener solicitudes con ofertas pendientes para el proveedor.
     """
     try:
         now = datetime.now(timezone.utc)
-        query = {'status': 'offer_sent'}
-        if providerId:
-            query['currentOfferId'] = providerId
-        requests = await db.service_requests.find(query, {'_id': 0}).to_list(100)
+        query = {"status": "offer_sent"}
+        if current_user.get("role") == "admin":
+            if providerId:
+                query["currentOfferId"] = providerId
+        else:
+            effective_provider_id = _effective_provider_account_id(current_user)
+            if not effective_provider_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Sin permiso para consultar ofertas",
+                )
+            if providerId and not _provider_matches_user(current_user, providerId):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="providerId no coincide con tu sesión",
+                )
+            query["currentOfferId"] = effective_provider_id
+        requests = await db.service_requests.find(query, {"_id": 0}).to_list(100)
     except ServerSelectionTimeoutError:
         logger.warning("MongoDB no disponible en /pending")
         return []
@@ -176,12 +270,16 @@ async def get_pending_requests_for_provider(providerId: Optional[str] = None):
     return active_requests
 
 @router.get("/{request_id}", response_model=dict)
-async def get_service_request(request_id: str):
-    """Obtener una solicitud específica"""
-    request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
+async def get_service_request(
+    request_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Obtener una solicitud específica (cliente, proveedor involucrado o admin)."""
+    request = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
     if not request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-    
+    _assert_can_read_service(current_user, request)
+
     # Calcular tiempo restante si hay oferta activa
     if request.get('status') == 'offer_sent' and request.get('offerExpiresAt'):
         now = datetime.now(timezone.utc)
@@ -208,21 +306,22 @@ async def accept_service_request(
     provider_id = body.get('providerId')
     if not provider_id:
         raise HTTPException(status_code=400, detail="providerId requerido")
-    if provider_id != current_user.get('id'):
-        raise HTTPException(status_code=403, detail="Solo puedes aceptar ofertas dirigidas a ti")
     
     request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
     if not request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
     
-    if request.get('currentOfferId') != provider_id:
-        raise HTTPException(status_code=400, detail="Esta oferta no es para ti")
+    offered_provider_id = request.get('currentOfferId')
+    if not offered_provider_id:
+        raise HTTPException(status_code=400, detail="No hay oferta activa")
+    if not _provider_matches_user(current_user, offered_provider_id):
+        raise HTTPException(status_code=403, detail="Solo puedes aceptar ofertas dirigidas a ti")
     
     if request.get('status') != 'offer_sent':
         raise HTTPException(status_code=400, detail="Esta solicitud ya no está disponible")
     
     # Procesar aceptación (esto incluye el cobro)
-    result = await handle_offer_response(db, request_id, provider_id, accepted=True)
+    result = await handle_offer_response(db, request_id, offered_provider_id, accepted=True)
     
     # Cobrar al cliente
     if result.get('status') == 'confirmed':
@@ -314,8 +413,20 @@ async def cancel_service_client(
         'cancellation_reason': body.get('reason'),
         'cancelled_at': now.isoformat(),
     }
+
+    refund_rollback = None
     if refund_amount > 0:
-        update_data['paymentStatus'] = 'refunded'
+        # Primero Transbank + payment; solo marcamos refunded en solicitud si TBK confirma
+        refund_rollback = await payment_service.rollback_charge(
+            request_id,
+            reason='client_cancelled',
+            refund_amount=refund_amount,
+            skip_service_request_update=True,
+        )
+        if refund_rollback.get('success'):
+            update_data['paymentStatus'] = 'refunded'
+        else:
+            update_data['paymentStatus'] = 'refund_pending'
 
     mongo_update = {'$set': update_data}
     if cancel_event:
@@ -326,19 +437,13 @@ async def cancel_service_client(
         mongo_update
     )
 
-    if refund_amount > 0:
-        await payment_service.rollback_charge(
-            request_id,
-            reason='client_cancelled',
-            refund_amount=refund_amount,
-            skip_service_request_update=True
-        )
-
     return {
         'status': new_status,
         'refund_amount': refund_amount,
         'late_fee_amount': cancelation_fee,
         'cancelationFee': cancelation_fee if cancelation_fee > 0 else None,
+        'refund_status': refund_rollback.get('status') if refund_rollback else None,
+        'refund_ok': refund_rollback.get('success') if refund_rollback else None,
     }
 
 
@@ -361,7 +466,7 @@ async def reject_service_request(
     provider_id = request.get('currentOfferId')
     if not provider_id:
         raise HTTPException(status_code=400, detail="No hay oferta activa")
-    if provider_id != current_user.get('id'):
+    if not _provider_matches_user(current_user, provider_id):
         raise HTTPException(status_code=403, detail="Solo el proveedor con oferta activa puede rechazar")
     
     result = await handle_offer_response(db, request_id, provider_id, accepted=False)
@@ -371,7 +476,8 @@ async def reject_service_request(
 @router.post("/{request_id}/mark-arrival", response_model=dict)
 async def mark_arrival(
     request_id: str,
-    body: dict = Body(default={})
+    body: dict = Body(default={}),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Proveedor marca llegada validada por GPS.
@@ -380,6 +486,7 @@ async def mark_arrival(
     request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
     if not request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    _assert_assigned_provider(current_user, request)
 
     if request.get('arrivalDetectedAt'):
         raise HTTPException(status_code=400, detail="La llegada ya fue registrada")
@@ -433,8 +540,16 @@ async def mark_arrival(
 
 
 @router.put("/{request_id}/start", response_model=dict)
-async def start_service(request_id: str):
+async def start_service(
+    request_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """Iniciar ejecución del servicio (proveedor llegó al lugar)"""
+    request = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
+    if not request:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    _assert_assigned_provider(current_user, request)
+
     result = await db.service_requests.update_one(
         {'id': request_id, 'status': 'confirmed'},
         {'$set': {'status': 'in_progress'}}
@@ -448,12 +563,18 @@ async def start_service(request_id: str):
 @router.put("/{request_id}/finish", response_model=dict)
 async def finish_service(
     request_id: str,
-    body: dict = Body(default={})
+    body: dict = Body(default={}),
+    current_user: dict = Depends(get_current_user),
 ):
     """
-    Finalizar servicio (SOLO para uso interno/testing).
-    En producción, el servicio se cierra AUTOMÁTICAMENTE.
+    Finalizar servicio (proveedor asignado o admin).
     """
+    if current_user.get("role") != "admin":
+        request = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
+        if not request:
+            raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+        _assert_assigned_provider(current_user, request)
+
     now = datetime.now(timezone.utc)
     finished_event = {'type': 'finished', 'at': now.isoformat()}
 
@@ -489,15 +610,16 @@ async def finish_service(
     }
 
 @router.post("/timers/check", response_model=dict)
-async def run_timer_check():
+async def run_timer_check(_: dict = Depends(get_current_admin)):
     """
-    Ejecuta verificación de timers manualmente.
+    Ejecuta verificación de timers manualmente (solo admin).
     En producción, esto se ejecuta automáticamente cada minuto.
     """
     result = await timer_service.run_all_checks()
     return result
 
 @router.get("/matching/config", response_model=dict)
-async def get_matching_config():
-    """Obtener configuración del sistema de matching"""
+async def get_matching_config(current_user: dict = Depends(get_current_user)):
+    """Obtener configuración del sistema de matching (requiere sesión)."""
+    _ = current_user
     return MATCHING_CONFIG

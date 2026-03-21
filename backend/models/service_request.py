@@ -82,7 +82,7 @@ class ServiceRequest(BaseModel):
     providerEarnings: float = 0.0  # Lo que recibe el proveedor (base - 10%)
     maqgoEarnings: float = 0.0  # Ganancia MAQGO (10% cliente + 10% proveedor = 20%)
     
-    paymentStatus: str = 'none'  # none | validated | charged | failed | refunded
+    paymentStatus: str = 'none'  # none | validated | charged | failed | refunded | refund_pending
     paymentId: Optional[str] = None
     chargedAt: Optional[str] = None
     chargedAmount: Optional[float] = None
