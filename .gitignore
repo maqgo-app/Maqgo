@@ -3,6 +3,9 @@
 # IDE (local only; .vscode compartido puede versionarse si el equipo lo decide)
 .idea/
 
+# Config git local (no subir identidad de máquina al repo)
+.gitconfig
+
 # Dependencies
 node_modules/
 /.pnp
