@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 
 from rate_limit import limiter
+from auth_dependency import get_current_admin
 from fastapi.responses import HTMLResponse, RedirectResponse
 from datetime import datetime, timezone
 import os
@@ -155,8 +156,15 @@ async def confirm_inscription(request: Request):
 
 @router.post("/authorize")
 @limiter.limit("20/minute")
-async def authorize_payment(request: Request, data: AuthorizePaymentRequest):
-    """Autoriza cobro con tarjeta inscrita."""
+async def authorize_payment(
+    request: Request,
+    data: AuthorizePaymentRequest,
+    _: dict = Depends(get_current_admin),
+):
+    """
+    Autoriza cobro con tarjeta inscrita.
+    Solo administración (el flujo productivo usa authorize_payment vía payment_service en servidor).
+    """
     try:
         result = tbk_authorize_payment(
             username=data.username,
@@ -171,8 +179,13 @@ async def authorize_payment(request: Request, data: AuthorizePaymentRequest):
 
 
 @router.post("/refund")
-async def refund_payment(data: RefundPaymentRequest):
-    """Reembolsa un cobro."""
+@limiter.limit("10/minute")
+async def refund_payment(
+    request: Request,
+    data: RefundPaymentRequest,
+    _: dict = Depends(get_current_admin),
+):
+    """Reembolsa un cobro (solo admin; operación financiera sensible)."""
     try:
         result = tbk_refund_payment(
             buy_order=data.buy_order,
