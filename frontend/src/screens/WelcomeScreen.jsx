@@ -144,7 +144,7 @@ function WelcomeScreen() {
           width: '100%'
         }}>
           <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 14) : heroLogoBottom }} />
-          {/* Caluga premium — copy acordado en el hilo: cierre en una sola frase tipo marketplace */}
+          {/* Caluga premium — disponibilidad en tiempo real */}
           <div
             role="note"
             aria-label="Propuesta de valor"
@@ -174,7 +174,7 @@ function WelcomeScreen() {
                 textShadow: '0 1px 2px rgba(0,0,0,0.18)',
               }}
             >
-              Arrienda maquinaria en minutos, para hoy o para cuando la necesites.
+              Elige en pocos pasos con disponibilidad en tiempo real
             </span>
           </div>
           <div style={{
@@ -208,7 +208,7 @@ function WelcomeScreen() {
             lineHeight: 1.5,
             maxWidth: isDesktop ? '36ch' : '28ch'
           }}>
-            Elige en pocos pasos y continúa con disponibilidad real.
+            Arrienda maquinaria en minutos, para hoy o para cuando la necesites.
           </p>
           {/* Chips de apoyo — selección acordada: Hoy o programado + Reserva simple */}
           <div
