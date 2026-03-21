@@ -16,13 +16,6 @@ function ForgotPasswordScreen() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const formatPhoneE164 = (value) => {
-    const digits = String(value || '').replace(/\D/g, '');
-    if (digits.startsWith('56') && digits.length >= 11) return `+${digits}`;
-    if (digits.length === 9) return `+56${digits}`;
-    return '';
-  };
-
   const requestCode = async () => {
     if (!email.trim() || !celular.trim()) return;
     setLoading(true);
@@ -33,8 +26,15 @@ function ForgotPasswordScreen() {
         email: email.trim(),
         celular: celular.trim()
       });
-      setMessage(res.data?.message || 'Si los datos coinciden, te enviamos un código por SMS.');
-      setStep(2);
+      const msg = res.data?.message || 'Si los datos coinciden con tu cuenta, te enviamos un código por SMS.';
+      setMessage(msg);
+      // Backend nuevo: otp_sent; legacy sin campo → avanzar como antes.
+      const sent = res.data?.otp_sent !== false;
+      if (sent) {
+        setStep(2);
+      } else {
+        setError('Revisa el correo y el celular (9 dígitos) registrados en tu cuenta.');
+      }
     } catch (e) {
       setError(e.response?.data?.detail || 'No se pudo solicitar el código');
     } finally {
@@ -43,24 +43,23 @@ function ForgotPasswordScreen() {
   };
 
   const resendCode = async () => {
-    const phone = formatPhoneE164(celular);
-    if (!phone) {
-      setError('Celular inválido. Ingresa 9 dígitos');
+    if (!email.trim() || !celular.trim()) {
+      setError('Faltan correo o celular');
       return;
     }
     setLoading(true);
     setError('');
     setMessage('');
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/communications/sms/send-otp`, {
-        phone_number: phone,
-        channel: 'sms'
+      const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/request`, {
+        email: email.trim(),
+        celular: celular.trim()
       });
-      if (res?.data?.success) {
-        setMessage('Te enviamos un nuevo código por SMS.');
-      } else {
-        setError(res?.data?.detail || res?.data?.error || 'No se pudo reenviar el código');
+      if (res.data?.otp_sent === false) {
+        setError('No pudimos reenviar. Verifica correo y celular.');
+        return;
       }
+      setMessage(res.data?.message || 'Te enviamos un nuevo código por SMS.');
     } catch (e) {
       setError(e.response?.data?.detail || 'No se pudo reenviar el código');
     } finally {
