@@ -18,6 +18,8 @@
     "test:e2e": "playwright test qa-artifacts/desktop-qa.spec.js"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
     "axios": "^1.13.5",
     "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
