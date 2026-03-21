@@ -245,7 +245,7 @@ html.maqgo-welcome-desktop-chrome #root {
   .maqgo-screen {
     padding-top: max(64px, env(safe-area-inset-top, 0px) + 40px);
   }
-  /* Solo layout; borde/sombra = mismo “chrome” naranja que la caluga (.maqgo-app desktop) */
+  /* Solo layout; borde/sombra del marco = cromo/plata global (.maqgo-app desktop), no naranja */
   .maqgo-app.welcome-desktop {
     max-width: 520px;
     overflow: visible;
@@ -759,22 +759,20 @@ a:focus-visible,
   cursor: pointer;
 }
 
-/* Responsive para desktop — marco tipo teléfono con borde/glow alineado a la caluga naranja */
+/* Responsive para desktop — marco “Tesla”: cromo/plata (blanco + sombra). El naranja de marca va en la caluga, no en el borde del dispositivo */
 @media (min-width: var(--maqgo-breakpoint-mobile)) {
   .maqgo-app {
-    /* Misma lectura que WelcomeScreen caluga: filete claro + halo #EC6819 */
     border: 1px solid rgba(255, 255, 255, 0.14);
     box-shadow:
-      0 0 0 1px rgba(236, 104, 25, 0.38),
-      0 10px 40px rgba(236, 104, 25, 0.22),
-      inset 0 1px 0 rgba(255, 255, 255, 0.14),
-      0 22px 56px rgba(0, 0, 0, 0.52);
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.1),
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 18px 46px rgba(0, 0, 0, 0.52);
     border-radius: 38px;
     margin: 20px auto;
     min-height: calc(100vh - 40px);
     overflow: hidden;
   }
-  /* Brillo premium: esquina cálida (marca) + highlight tipo vidrio */
+  /* Brillo tipo vidrio / hardware (sin tinte naranja en el marco) */
   .maqgo-app::before {
     content: '';
     position: absolute;
@@ -783,12 +781,11 @@ a:focus-visible,
     border-radius: inherit;
     background: linear-gradient(
       135deg,
-      rgba(240, 132, 58, 0.14) 0%,
-      rgba(255, 255, 255, 0.1) 12%,
-      rgba(255, 255, 255, 0.04) 22%,
-      rgba(255, 255, 255, 0) 40%
+      rgba(255, 255, 255, 0.14) 0%,
+      rgba(255, 255, 255, 0.05) 18%,
+      rgba(255, 255, 255, 0) 38%
     );
-    opacity: 0.82;
+    opacity: 0.72;
   }
 }
 
