@@ -106,12 +106,37 @@ function loadGoogleMapsScript(apiKey) {
     }
     const script = document.createElement('script');
     // Best practice: loading=async para evitar warning de performance.
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=es&loading=async`;
+    // v=weekly: evita casos donde el núcleo carga antes que el submódulo `places`.
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&libraries=places&language=es&loading=async`;
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error('GoogleMapsScriptLoadError'));
     document.head.appendChild(script);
+  });
+}
+
+/**
+ * Tras `onload` del script, a veces `google.maps.places.Autocomplete` aún no está (race / carga diferida).
+ * Esperamos unos ms antes de declarar fallo.
+ */
+function waitForAutocompleteConstructor(maxMs = 2500) {
+  const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  return new Promise((resolve) => {
+    const check = () => {
+      if (typeof window.google?.maps?.places?.Autocomplete === 'function') {
+        resolve(true);
+        return;
+      }
+      const elapsed =
+        (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
+      if (elapsed >= maxMs) {
+        resolve(false);
+        return;
+      }
+      window.setTimeout(check, 50);
+    };
+    check();
   });
 }
 
@@ -181,9 +206,9 @@ export function AddressAutocomplete({
     window.addEventListener('error', errorListener);
     onPlacesStatusChange?.({ ready: false, phase: 'loading', hasApiKey: true });
     loadGoogleMapsScript(apiKey)
-      .then(() => {
+      .then(async () => {
+        const ctorOk = await waitForAutocompleteConstructor();
         setScriptLoaded(true);
-        const ctorOk = !!window.google?.maps?.places?.Autocomplete;
         // Listo de verdad solo cuando el Autocomplete está adjunto (segundo effect).
         onPlacesReadyChange?.(false);
         onPlacesStatusChange?.({

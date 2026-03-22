@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TermsModal } from '../components/MaqgoComponents';
 import MaqgoLogo from '../components/MaqgoLogo';
+import PasswordField from '../components/PasswordField';
 import { useToast } from '../components/Toast';
 import { validateEmail, validateCelularChile, validateRut, formatRut, sanitizeRutInput } from '../utils/chileanValidation';
-import { getPasswordHint, validatePassword } from '../utils/passwordValidation';
+import { getPasswordHint, validatePassword, PASSWORD_RULES } from '../utils/passwordValidation';
 import BACKEND_URL, { fetchWithTimeout } from '../utils/api';
 
 /**
@@ -17,7 +18,6 @@ function RegisterScreen() {
   const navigate = useNavigate();
   const toast = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     nombre: '',
     apellido: '',
@@ -232,52 +232,25 @@ function RegisterScreen() {
           />
           {errors.rut ? <p style={{ color: '#f44336', fontSize: 12, marginBottom: 12 }}>{errors.rut}</p> : null}
 
-          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+          <label
+            htmlFor="register-password"
+            style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
+          >
             Contraseña <span style={{ color: '#EC6819' }}>*</span>
           </label>
-          <div className="maqgo-input" style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: 0,
-            overflow: 'hidden',
-            marginBottom: errors.password ? 4 : 6
-          }}>
-            <input
-              placeholder={passwordHint}
-              type={showPassword ? 'text' : 'password'}
-              value={form.password}
-              onChange={e => update('password', e.target.value)}
-              style={{
-                flex: 1,
-                padding: '14px 12px',
-                background: 'transparent',
-                border: 'none',
-                color: '#fff',
-                fontSize: 15,
-                outline: 'none'
-              }}
-              data-testid="register-password"
-              aria-label="Contraseña"
-              autoComplete="new-password"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(prev => !prev)}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#90BDD3',
-                cursor: 'pointer',
-                padding: '0 12px',
-                height: '100%',
-                fontSize: 13,
-                fontWeight: 600
-              }}
-              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-            >
-              {showPassword ? 'Ocultar' : 'Mostrar'}
-            </button>
-          </div>
+          <PasswordField
+            id="register-password"
+            name="new-password"
+            placeholder={passwordHint}
+            value={form.password}
+            onChange={e => update('password', e.target.value)}
+            style={{ marginBottom: errors.password ? 4 : 6 }}
+            error={Boolean(errors.password)}
+            data-testid="register-password"
+            autoComplete="new-password"
+            minLength={PASSWORD_RULES.minLength}
+            maxLength={PASSWORD_RULES.maxLength}
+          />
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: errors.password ? 8 : 12 }}>
             {passwordHint}
           </p>

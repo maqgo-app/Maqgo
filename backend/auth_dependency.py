@@ -6,14 +6,15 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timezone
-import os
 import secrets
+
+from db_config import get_db_name, get_mongo_url
 
 security = HTTPBearer(auto_error=False)
 
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get('DB_NAME', 'maqgo_db')]
+db = client[get_db_name()]
 
 
 def _normalize_phone(phone: str) -> str:

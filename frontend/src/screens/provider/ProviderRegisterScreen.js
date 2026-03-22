@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import PasswordField from '../../components/PasswordField';
 import { validateEmail, validateCelularChile } from '../../utils/chileanValidation';
 import { useToast } from '../../components/Toast';
-import { getPasswordHint, validatePassword } from '../../utils/passwordValidation';
+import { getPasswordHint, validatePassword, PASSWORD_RULES } from '../../utils/passwordValidation';
 
 import BACKEND_URL from '../../utils/api';
 
@@ -15,7 +16,6 @@ function ProviderRegisterScreen() {
   const DRAFT_KEY = 'providerRegisterDraft';
   const navigate = useNavigate();
   const toast = useToast();
-  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     nombre: '', apellido: '', email: '', celular: '', password: ''
   });
@@ -151,49 +151,25 @@ function ProviderRegisterScreen() {
             />
           </div>
           {errors.celular ? <p style={{ color: '#f44336', fontSize: 12, marginTop: -8, marginBottom: 8 }}>{errors.celular}</p> : null}
-          
-          <div className="maqgo-input" style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: 0,
-            overflow: 'hidden',
-            marginBottom: errors.password ? 4 : 6
-          }}>
-            <input
-              placeholder={passwordHint}
-              type={showPassword ? 'text' : 'password'}
-              value={form.password}
-              onChange={e => update('password', e.target.value)}
-              style={{
-                flex: 1,
-                padding: '14px 12px',
-                background: 'transparent',
-                border: 'none',
-                color: '#fff',
-                fontSize: 15,
-                outline: 'none'
-              }}
-              autoComplete="new-password"
-              aria-label="Contrasena"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(prev => !prev)}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#90BDD3',
-                cursor: 'pointer',
-                padding: '0 12px',
-                height: '100%',
-                fontSize: 13,
-                fontWeight: 600
-              }}
-              aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
-            >
-              {showPassword ? 'Ocultar' : 'Mostrar'}
-            </button>
-          </div>
+
+          <label
+            htmlFor="provider-register-password"
+            style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
+          >
+            Contraseña <span style={{ color: '#EC6819' }}>*</span>
+          </label>
+          <PasswordField
+            id="provider-register-password"
+            name="new-password"
+            placeholder={passwordHint}
+            value={form.password}
+            onChange={e => update('password', e.target.value)}
+            style={{ marginBottom: errors.password ? 4 : 6 }}
+            error={Boolean(errors.password)}
+            autoComplete="new-password"
+            minLength={PASSWORD_RULES.minLength}
+            maxLength={PASSWORD_RULES.maxLength}
+          />
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 0, marginBottom: errors.password ? 8 : 12 }}>
             {passwordHint}
           </p>

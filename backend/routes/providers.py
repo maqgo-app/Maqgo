@@ -4,17 +4,17 @@ Algoritmo de matching basado en precio y distancia
 """
 from fastapi import APIRouter, Query, HTTPException
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
 import math
 from typing import List, Optional
+
+from db_config import get_db_name, get_mongo_url
 
 from pricing.constants import REFERENCE_PRICES_PER_SERVICE
 
 router = APIRouter(prefix="/providers", tags=["Providers"])
 
-# MongoDB connection
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'maqgo_db')
+MONGO_URL = get_mongo_url()
+DB_NAME = get_db_name()
 
 # Maquinarias que NO necesitan traslado (son vehículos con patente)
 MACHINERY_NO_TRANSPORT = ['camion_pluma', 'camion_aljibe', 'camion_tolva']

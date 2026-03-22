@@ -8,16 +8,17 @@ from pydantic import BaseModel, Field
 
 from auth_dependency import get_current_admin
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
+
+from db_config import get_db_name, get_mongo_url
 
 from services.refund_request_service import RefundRequestService
 from services.payment_service import PaymentService
 
 router = APIRouter(prefix="/admin/refund-requests", tags=["admin-refunds"])
 
-mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get("DB_NAME", "maqgo_db")]
+db = client[get_db_name()]
 
 
 class ApproveBody(BaseModel):

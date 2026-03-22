@@ -32,12 +32,13 @@ except ModuleNotFoundError:
 
 load_dotenv()
 
+from db_config import get_db_name, get_mongo_url
+
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
-# MongoDB
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get('DB_NAME', 'maqgo_db')]
+db = client[get_db_name()]
 
 # Resend (opcional)
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY')

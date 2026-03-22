@@ -102,12 +102,6 @@ function ServiceLocationScreen() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const hasApiKey = useMemo(() => !!getGoogleMapsApiKey(), []);
-  const apiKeyMasked = useMemo(() => {
-    const key = getGoogleMapsApiKey();
-    if (!key) return '';
-    const tail = key.slice(-4);
-    return `AIza...${tail}`;
-  }, []);
 
   const onPlacesStatusChange = useCallback((status) => {
     const phase = status?.phase;
@@ -119,20 +113,48 @@ function ServiceLocationScreen() {
     else if (phase === 'ready' && status?.ready) setPlacesPhase('ready');
   }, []);
 
+  /** Texto para equipo / soporte (producción: sin códigos crudos al usuario). */
   const diagnosticReason = useMemo(() => {
     if (!placesReason) return '';
     const known = {
-      RefererNotAllowedMapError: 'La key no permite este dominio/puerto (HTTP referrer).',
-      BillingNotEnabledMapError: 'El proyecto de Google Cloud no tiene facturación activa.',
-      ApiNotActivatedMapError: 'Falta habilitar Maps JavaScript API o Places API.',
-      InvalidKeyMapError: 'La API key es inválida o fue eliminada.',
-      ExpiredKeyMapError: 'La API key expiró.',
-      RequestDeniedMapError: 'Google rechazó la solicitud por restricciones de key.',
-      GoogleMapsScriptLoadError: 'No se pudo descargar el script de Google Maps (red, bloqueador o CSP).',
-      AutocompleteConstructorUnavailable: 'Google cargó, pero Places Autocomplete no quedó disponible.',
-      AutocompleteInitFailed: 'No se pudo inicializar el autocompletado.'
+      RefererNotAllowedMapError: 'La configuración de Google no permite este sitio web. Revisa restricciones de dominio en la consola de Google Cloud.',
+      BillingNotEnabledMapError: 'En Google Cloud falta activar facturación para Maps.',
+      ApiNotActivatedMapError: 'En Google Cloud deben estar habilitadas “Maps JavaScript API” y “Places API”.',
+      InvalidKeyMapError: 'La clave de Maps no es válida o fue revocada.',
+      ExpiredKeyMapError: 'La clave de Maps expiró.',
+      RequestDeniedMapError: 'Google rechazó la solicitud (revisa restricciones de la clave).',
+      GoogleMapsScriptLoadError: 'No se pudo descargar Maps (red, bloqueador o política del sitio).',
+      AutocompleteConstructorUnavailable:
+        'El buscador de calles no se activó; puedes seguir con dirección escrita a mano y referencia.',
+      AutocompleteInitFailed: 'El buscador de calles no pudo iniciarse; puedes seguir a mano.'
     };
-    return known[placesReason] || 'Error de Google Maps no clasificado.';
+    return known[placesReason] || 'Algo impidió activar el buscador de direcciones.';
+  }, [placesReason]);
+
+  /** Título y párrafo principal del aviso rojo (lenguaje usuario; no decimos “mapa” si solo falló el autocompletado). */
+  const placesFailureUi = useMemo(() => {
+    const r = placesReason;
+    const manualHint =
+      'Escribe la dirección y la comuna, y una referencia detallada (mín. 25 caracteres). Puedes continuar: el operador podrá ubicarte.';
+    if (r === 'AutocompleteConstructorUnavailable' || r === 'AutocompleteInitFailed') {
+      return {
+        title: 'Buscador de calles no disponible',
+        body: manualHint,
+        retryLabel: 'Reintentar buscador',
+      };
+    }
+    if (r === 'GoogleMapsScriptLoadError') {
+      return {
+        title: 'No pudimos cargar el buscador de direcciones',
+        body: `${manualHint} También puedes pulsar reintentar.`,
+        retryLabel: 'Reintentar',
+      };
+    }
+    return {
+      title: 'No pudimos activar el buscador de direcciones',
+      body: `${manualHint} Si el problema continúa, revisa la configuración de Google Maps en el proyecto.`,
+      retryLabel: 'Reintentar',
+    };
   }, [placesReason]);
 
   const waitingForPlaces =
@@ -283,24 +305,7 @@ function ServiceLocationScreen() {
           Dirección exacta para que el operador llegue sin problemas.
         </p>
 
-        <div
-          style={{
-            marginBottom: 14,
-            padding: '8px 10px',
-            borderRadius: 8,
-            border: hasApiKey ? '1px solid rgba(46, 204, 113, 0.35)' : '1px solid rgba(255,255,255,0.12)',
-            background: hasApiKey ? 'rgba(46, 204, 113, 0.1)' : 'rgba(255,255,255,0.04)',
-            color: 'rgba(255,255,255,0.9)',
-            fontSize: 12
-          }}
-          data-testid="maps-api-key-status"
-        >
-          {hasApiKey
-            ? `API key de Google Maps detectada (${apiKeyMasked}).`
-            : 'API key de Google Maps no detectada. Se permite dirección manual.'}
-        </div>
-
-        {/* Estado del buscador Google Places */}
+        {/* Estado del buscador (sin jerga de “API key”: es detalle de implementación) */}
         {hasApiKey && (placesPhase === 'loading' || placesPhase === 'script_loaded') && (
           <div
             style={{
@@ -314,8 +319,10 @@ function ServiceLocationScreen() {
               lineHeight: 1.45
             }}
           >
-            <strong style={{ color: '#EC6819' }}>Cargando buscador de direcciones…</strong>
-            <div style={{ marginTop: 6 }}>Conectando con Google Places para sugerir calles y puntos en Chile.</div>
+            <strong style={{ color: '#EC6819' }}>Cargando sugerencias de dirección…</strong>
+            <div style={{ marginTop: 6 }}>
+              Preparando el buscador para sugerirte calles y lugares en Chile. Espera un momento.
+            </div>
           </div>
         )}
         {hasApiKey && placesPhase === 'ready' && (
@@ -331,10 +338,10 @@ function ServiceLocationScreen() {
               lineHeight: 1.45
             }}
           >
-            <strong style={{ color: '#2ecc71' }}>Buscador activo</strong>
+            <strong style={{ color: '#2ecc71' }}>Buscador listo</strong>
             <div style={{ marginTop: 6 }}>
-              Elige una sugerencia de la lista para fijar el punto. Si no aparece tu calle, prueba sin número o un lugar
-              cercano; si aún no, usa la opción de abajo.
+              Escribe en el campo de abajo y elige una sugerencia para fijar el punto en el mapa. Si no aparece tu calle,
+              prueba sin número o un lugar cercano; si aún no, marca la opción de abajo y completa la referencia.
             </div>
           </div>
         )}
@@ -351,27 +358,22 @@ function ServiceLocationScreen() {
               lineHeight: 1.45
             }}
           >
-            <strong style={{ color: '#e74c3c' }}>No se pudo cargar el mapa</strong>
-            <div style={{ marginTop: 6 }}>
-              Puedes reintentar la carga. Si sigue fallando, escribe la dirección y una referencia muy detallada (mín. 25
-              caracteres).
-            </div>
+            <strong style={{ color: '#e74c3c' }}>{placesFailureUi.title}</strong>
+            <div style={{ marginTop: 6 }}>{placesFailureUi.body}</div>
             <button
               type="button"
               onClick={() => setScriptRetryKey((k) => k + 1)}
               className="maqgo-btn-secondary"
               style={{ marginTop: 10, width: '100%', padding: '10px 12px', fontSize: 14 }}
             >
-              Reintentar carga del mapa
+              {placesFailureUi.retryLabel}
             </button>
-            {!!placesReason && (
-              <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.9)' }}>
-                Diagnóstico: <code>{placesReason}</code>
-                {!!diagnosticReason && (
-                  <div style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)' }}>
-                    {diagnosticReason}
-                  </div>
+            {import.meta.env.DEV && (!!placesReason || !!diagnosticReason) && (
+              <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.45 }}>
+                {!!placesReason && (
+                  <div style={{ fontFamily: 'monospace', marginBottom: 4 }}>Código: {placesReason}</div>
                 )}
+                {!!diagnosticReason && <div>{diagnosticReason}</div>}
               </div>
             )}
           </div>
@@ -391,8 +393,8 @@ function ServiceLocationScreen() {
           >
             <strong>Modo sin mapa</strong>
             <div style={{ marginTop: 6 }}>
-              Escribe la dirección completa y una referencia clara (mín. 15 caracteres) para que el operador pueda
-              ubicarte.
+              Escribe la dirección completa, elige la comuna y una referencia clara (mín. 15 caracteres) para que el operador
+              pueda ubicarte.
             </div>
           </div>
         )}
@@ -439,7 +441,7 @@ function ServiceLocationScreen() {
           </div>
         </div>
 
-        {/* Input Dirección con autocompletado (Google Places si hay API key) */}
+        {/* Input dirección: autocompletado cuando hay clave de Maps configurada en la app */}
         <div style={{ marginBottom: 16 }}>
           <label style={{ 
             color: 'rgba(255,255,255,0.8)', 
@@ -498,10 +500,11 @@ function ServiceLocationScreen() {
                   }
                 }}
                 style={{ marginTop: 3, width: 18, height: 18, flexShrink: 0 }}
-                aria-label="No encuentro mi dirección en la lista de Google"
+                aria-label="No encuentro mi dirección en las sugerencias"
               />
               <span>
-                <strong>No encuentro mi dirección</strong> en la lista (se pedirá una referencia detallada para ubicarte).
+                <strong>No encuentro mi dirección</strong> entre las sugerencias (te pediremos una referencia detallada para
+                ubicarte).
               </span>
             </label>
             {manualAddressNotFound && (

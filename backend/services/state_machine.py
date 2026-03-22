@@ -1,7 +1,6 @@
 """Service state transitions and automation"""
 from datetime import datetime, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,9 +28,11 @@ def get_next_state(current_state: str) -> str:
 
 async def check_and_update_service_states():
     """Background task to auto-update service states based on time"""
-    mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+    from db_config import get_db_name, get_mongo_url
+
+    mongo_url = get_mongo_url()
     client = AsyncIOMotorClient(mongo_url)
-    db = client[os.environ.get('DB_NAME', 'maqgo_db')]
+    db = client[get_db_name()]
     
     now = datetime.utcnow()
     

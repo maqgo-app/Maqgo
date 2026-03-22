@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, Body, Request
-from pydantic import BaseModel, EmailStr, Field
+import re
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timezone, timedelta
 import os
@@ -7,6 +9,7 @@ import bcrypt
 import secrets
 
 from rate_limit import limiter
+from db_config import get_db_name, get_mongo_url
 
 from communications import (
     send_sms_otp,
@@ -15,9 +18,9 @@ from communications import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get('DB_NAME', 'maqgo_db')]
+db = client[get_db_name()]
 
 
 def _format_phone(celular: str) -> str:
@@ -44,8 +47,15 @@ class RegisterRequest(BaseModel):
     apellido: str
     email: EmailStr
     celular: str
-    password: str = Field(..., min_length=8, description="Mínimo 8 caracteres")
+    password: str = Field(..., min_length=8, max_length=12, description="Entre 8 y 12 caracteres, letras y números")
     role: str = "client"
+
+    @field_validator('password')
+    @classmethod
+    def register_password_complexity(cls, v: str) -> str:
+        if not re.search(r'[A-Za-z]', v) or not re.search(r'\d', v):
+            raise ValueError('La contraseña debe incluir letras y números')
+        return v
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -59,7 +69,14 @@ class PasswordResetConfirmRequest(BaseModel):
     email: EmailStr
     celular: str
     code: str = Field(..., min_length=4, max_length=8)
-    new_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=8, max_length=12)
+
+    @field_validator('new_password')
+    @classmethod
+    def reset_password_complexity(cls, v: str) -> str:
+        if not re.search(r'[A-Za-z]', v) or not re.search(r'\d', v):
+            raise ValueError('La contraseña debe incluir letras y números')
+        return v
 
 def hash_password(password: str) -> str:
     """Hash seguro con bcrypt."""

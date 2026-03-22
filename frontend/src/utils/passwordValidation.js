@@ -1,11 +1,11 @@
 export const PASSWORD_RULES = {
   minLength: 8,
-  maxLength: 16
+  maxLength: 12
 };
 
 export const getPasswordHint = (useAccents = true) => {
-  const base = `Entre ${PASSWORD_RULES.minLength} y ${PASSWORD_RULES.maxLength} caracteres, con letras y numeros`;
-  return useAccents ? base.replace('numeros', 'números') : base;
+  const base = `De ${PASSWORD_RULES.minLength} a ${PASSWORD_RULES.maxLength} caracteres, con letras y números`;
+  return useAccents ? base : base.replace('números', 'numeros');
 };
 
 export const validatePassword = (password = '', customHint) => {

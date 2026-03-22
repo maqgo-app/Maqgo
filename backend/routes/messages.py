@@ -3,15 +3,15 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone
 from bson import ObjectId
-import os
 import re
 from pymongo import MongoClient
 
+from db_config import get_db_name, get_mongo_url
+
 router = APIRouter(prefix="/messages", tags=["messages"])
 
-# MongoDB connection
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'maqgo')
+MONGO_URL = get_mongo_url()
+DB_NAME = get_db_name()
 client = MongoClient(MONGO_URL)
 db = client[DB_NAME]
 

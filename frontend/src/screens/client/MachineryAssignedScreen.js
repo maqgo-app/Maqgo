@@ -19,6 +19,7 @@ import { vibrate } from '../../utils/uberUX';
  */
 
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
+import { getProviderLicensePlate } from '../../utils/providerDisplay';
 import { getMinutesAfterEtaToAllowCancel } from '../../utils/cancellationPolicy';
 
 // Mapeo de razones de incidente a mensajes amigables
@@ -56,6 +57,7 @@ function MachineryAssignedScreen() {
     }
     return selected;
   });
+  const licensePlateLabel = getProviderLicensePlate(provider) || 'Por confirmar';
   const [machinery] = useState(localStorage.getItem('selectedMachinery') || 'retroexcavadora');
   const [location] = useState(localStorage.getItem('serviceLocation') || '');
 
@@ -622,7 +624,7 @@ function MachineryAssignedScreen() {
               Patente
             </span>
             <span style={{ color: '#fff', fontSize: 18, fontWeight: 700, fontFamily: 'monospace', letterSpacing: 2 }}>
-              POR-DEFINIR
+              {licensePlateLabel}
             </span>
           </div>
         </div>

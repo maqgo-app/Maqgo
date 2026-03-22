@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getWelcomeAppHomePath, isAdminRoleStored } from './welcomeHome.js';
+import {
+  getWelcomeAppHomePath,
+  getWelcomeOfferMachineryDestination,
+  getWelcomeOperatorDestination,
+  isAdminRoleStored,
+} from './welcomeHome.js';
 
 /** Entorno Node (vitest): mock en globalThis.localStorage (mismo mecanismo que usa welcomeHome). */
 function installLocalStorageMock(seed = {}) {
@@ -63,6 +68,76 @@ describe('welcomeHome', () => {
         providerRole: 'operator',
       });
       expect(getWelcomeAppHomePath()).toBe('/operator/home');
+    });
+  });
+
+  describe('getWelcomeOfferMachineryDestination', () => {
+    it('sin userId → null (flujo /register)', () => {
+      installLocalStorageMock({});
+      expect(getWelcomeOfferMachineryDestination()).toBeNull();
+    });
+
+    it('admin → /admin', () => {
+      installLocalStorageMock({ userId: 'a1', userRole: 'admin' });
+      expect(getWelcomeOfferMachineryDestination()).toBe('/admin');
+    });
+
+    it('proveedor titular → /provider/home', () => {
+      installLocalStorageMock({
+        userId: 'p1',
+        userRole: 'provider',
+        providerRole: 'super_master',
+      });
+      expect(getWelcomeOfferMachineryDestination()).toBe('/provider/home');
+    });
+
+    it('operador → /operator/home', () => {
+      installLocalStorageMock({
+        userId: 'o1',
+        userRole: 'provider',
+        providerRole: 'operator',
+      });
+      expect(getWelcomeOfferMachineryDestination()).toBe('/operator/home');
+    });
+
+    it('cliente → /provider/register', () => {
+      installLocalStorageMock({ userId: 'c1', userRole: 'client' });
+      expect(getWelcomeOfferMachineryDestination()).toBe('/provider/register');
+    });
+  });
+
+  describe('getWelcomeOperatorDestination', () => {
+    it('sin userId → /operator/join', () => {
+      installLocalStorageMock({});
+      expect(getWelcomeOperatorDestination()).toBe('/operator/join');
+    });
+
+    it('admin → /admin', () => {
+      installLocalStorageMock({ userId: 'a1', userRole: 'admin' });
+      expect(getWelcomeOperatorDestination()).toBe('/admin');
+    });
+
+    it('operador → /operator/home', () => {
+      installLocalStorageMock({
+        userId: 'o1',
+        userRole: 'provider',
+        providerRole: 'operator',
+      });
+      expect(getWelcomeOperatorDestination()).toBe('/operator/home');
+    });
+
+    it('proveedor titular → /operator/join', () => {
+      installLocalStorageMock({
+        userId: 'p1',
+        userRole: 'provider',
+        providerRole: 'super_master',
+      });
+      expect(getWelcomeOperatorDestination()).toBe('/operator/join');
+    });
+
+    it('cliente → /operator/join', () => {
+      installLocalStorageMock({ userId: 'c1', userRole: 'client' });
+      expect(getWelcomeOperatorDestination()).toBe('/operator/join');
     });
   });
 

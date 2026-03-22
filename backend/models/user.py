@@ -1,3 +1,5 @@
+import re
+
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Literal
 from datetime import datetime, timezone
@@ -74,8 +76,10 @@ class UserCreate(BaseModel):
     def validate_password_optional(cls, v: Optional[str]) -> Optional[str]:
         if v is None or v == '':
             return None
-        if len(v) < 8:
-            raise ValueError('La contraseña debe tener al menos 8 caracteres')
+        if len(v) < 8 or len(v) > 12:
+            raise ValueError('La contraseña debe tener entre 8 y 12 caracteres')
+        if not re.search(r'[A-Za-z]', v) or not re.search(r'\d', v):
+            raise ValueError('La contraseña debe incluir letras y números')
         return v
 
 class ProviderAvailabilityUpdate(BaseModel):

@@ -1,8 +1,13 @@
 import asyncio
 import os
+import sys
 from pathlib import Path
 
 from motor.motor_asyncio import AsyncIOMotorClient
+
+_BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(_BACKEND_ROOT) not in sys.path:
+  sys.path.insert(0, str(_BACKEND_ROOT))
 
 
 def load_env_from_dotenv():
@@ -28,8 +33,10 @@ def load_env_from_dotenv():
 async def main():
   load_env_from_dotenv()
 
-  mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-  db_name = os.environ.get("DB_NAME", "maqgo_db")
+  from db_config import get_db_name, get_mongo_url
+
+  mongo_url = get_mongo_url()
+  db_name = get_db_name()
 
   client = AsyncIOMotorClient(mongo_url)
   db = client[db_name]

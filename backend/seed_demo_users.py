@@ -3,17 +3,18 @@
 Crea usuarios demo para probar el login.
 Ejecutar: python seed_demo_users.py
 """
-import os
 import bcrypt
 from pathlib import Path
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
+from db_config import get_db_name, get_mongo_url
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'maqgo_db')
+MONGO_URL = get_mongo_url()
+DB_NAME = get_db_name()
 
 
 def hash_password(password: str) -> str:

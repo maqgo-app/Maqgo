@@ -122,6 +122,12 @@ Para flujo controlado de despliegue (rol CTO):
 
 ---
 
+## Producción (Railway + Vercel)
+
+No improvisar el orden de deploy. Seguir la guía: **[docs/RAILWAY_PRODUCTION.md](docs/RAILWAY_PRODUCTION.md)** (CORS, `REACT_APP_BACKEND_URL`, healthcheck, errores típicos).
+
+---
+
 ## Si el frontend no arranca
 
 1. **Reinstalar dependencias:**

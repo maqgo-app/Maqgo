@@ -8,8 +8,9 @@ from auth_dependency import get_current_admin
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 from typing import Dict, Optional
-import os
 import copy
+
+from db_config import get_db_name, get_mongo_url
 
 from pricing.constants import (
     REFERENCE_PRICES_PER_HOUR,
@@ -18,9 +19,9 @@ from pricing.constants import (
 
 router = APIRouter(prefix="/admin", tags=["admin-config"])
 
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get('DB_NAME', 'maqgo')]  # Alineado con services.py
+db = client[get_db_name()]
 
 CONFIG_KEY = "reference_prices"
 

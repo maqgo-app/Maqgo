@@ -18,6 +18,16 @@ Regla operativa: no se despliega sin quality gate en verde y validacion final.
 ## Historial
 
 - Fecha: 2026-03-22
+- Entorno: repo (frontend)
+- Cambio: **UX técnico** — `getHttpErrorMessage` centralizado (`utils/httpErrors.js` + tests); Login y Forgot Password usan helper; historial sin datos demo en **producción** (demo solo `import.meta.env.DEV`); `HistoryScreen` usa `maskName`/`maskLocation` de `privacy.js`; doc `docs/UX_FEEDBACK.md` (toasts vs inline, stack Radix no usado en App).
+
+- Fecha: 2026-03-22
+- Entorno: production (backend + frontend)
+- Responsable: CTO (Cursor)
+- Cambio: **Admin performance** — `GET /api/services/admin/all` con `limit` (default 50, max 200), `offset`, `status` (filtro server-side incl. `maqgo_to_invoice`); `stats` y `finances` globales sin cargar toda la colección; índice Mongo `created_at` descendente; dashboard con paginación y métricas desde `finances` del API.
+- Deploy: **backend primero**, luego frontend (respuesta incluye `finances` obligatorio para métricas correctas con lista paginada).
+
+- Fecha: 2026-03-22
 - Entorno: production (Vercel / frontend)
 - Responsable: CTO (Cursor)
 - Quality gate: PASS (`npm run gate:deploy` — vitest + vite build)

@@ -8,89 +8,79 @@ from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timedelta
 from typing import Optional
-import os
+from collections import Counter
 import io
 import csv
 
+from db_config import get_db_name, get_mongo_url
+
 router = APIRouter(prefix="/admin/reports", tags=["admin-reports"])
 
-# MongoDB connection (alineado con services.py)
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get('DB_NAME', 'maqgo')]
+db = client[get_db_name()]
 
 async def _build_weekly_report(weeks_ago: int = 0):
-    """Lógica interna del informe semanal (sin auth)."""
-    # Calcular rango de fechas
-    today = datetime.now()
-    start_of_week = today - timedelta(days=today.weekday() + (weeks_ago * 7))
+    """
+    Informe semanal alineado al pipeline de facturación MAQGO (colección `services`):
+    pending_review → approved → invoiced → paid | disputed | cancelled
+    """
+    now = datetime.utcnow()
+    start_of_week = now - timedelta(days=now.weekday() + (weeks_ago * 7))
     start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_week = start_of_week + timedelta(days=7)
-    
-    # Obtener solicitudes de la semana
+
     services = await db.services.find({
         "created_at": {"$gte": start_of_week, "$lt": end_of_week}
     }).to_list(None)
-    
-    total_solicitudes = len(services)
-    
-    # Calcular métricas
-    aceptadas = 0
-    rechazadas = 0
-    sin_respuesta = 0
-    canceladas = 0
-    tiempos_confirmacion = []
-    horas_solicitadas = 0
-    horas_finales = 0
-    inmediatas = 0
-    inmediatas_aceptadas = 0
-    
+
+    pipeline_keys = ["pending_review", "approved", "invoiced", "paid", "disputed", "cancelled"]
+    por_estado = {k: 0 for k in pipeline_keys}
+    por_estado["otros"] = 0
+
     for s in services:
-        status = s.get("status", "")
-        
-        # Contar por estado
-        if status in ["confirmed", "in_progress", "completed", "in_transit", "arrived"]:
-            aceptadas += 1
-        elif status == "rejected":
-            rechazadas += 1
-        elif status == "cancelled":
-            canceladas += 1
-        elif status in ["pending", "searching", "expired"]:
-            sin_respuesta += 1
-        
-        # Tiempo de confirmación
-        if s.get("confirmed_at") and s.get("created_at"):
-            diff = (s["confirmed_at"] - s["created_at"]).total_seconds() / 60
-            tiempos_confirmacion.append(diff)
-        
-        # Horas
-        horas_solicitadas += s.get("hours", 0)
-        horas_finales += s.get("final_hours", s.get("hours", 0))
-        
-        # Reserva inmediata (mismo día)
-        if s.get("service_date"):
-            service_date = s["service_date"]
-            if isinstance(service_date, str):
-                try:
-                    service_date = datetime.fromisoformat(service_date.replace("Z", "+00:00"))
-                except:
-                    service_date = None
-            
-            if service_date:
-                created = s.get("created_at", datetime.now())
-                if service_date.date() == created.date():
-                    inmediatas += 1
-                    if status in ["confirmed", "in_progress", "completed", "in_transit", "arrived"]:
-                        inmediatas_aceptadas += 1
-    
-    # Calcular promedios y tasas
-    tiempo_promedio = round(sum(tiempos_confirmacion) / len(tiempos_confirmacion), 1) if tiempos_confirmacion else 0
-    tasa_cancelacion = round((canceladas / total_solicitudes * 100), 1) if total_solicitudes > 0 else 0
-    tasa_inmediatas = round((inmediatas_aceptadas / inmediatas * 100), 1) if inmediatas > 0 else 0
-    
-    # Generar alertas
+        st = s.get("status") or ""
+        if st in pipeline_keys:
+            por_estado[st] += 1
+        else:
+            por_estado["otros"] += 1
+
+    review_hours = []
+    for s in services:
+        if s.get("approved_at") and s.get("created_at"):
+            ca, aa = s["created_at"], s["approved_at"]
+            if isinstance(ca, datetime) and isinstance(aa, datetime):
+                review_hours.append((aa - ca).total_seconds() / 3600.0)
+
+    tiempo_promedio_revision_h = round(sum(review_hours) / len(review_hours), 1) if review_hours else 0.0
+    tiempo_promedio_revision_min = round(tiempo_promedio_revision_h * 60, 1) if tiempo_promedio_revision_h else 0.0
+
+    paid_docs = await db.services.find({
+        "status": "paid",
+        "paid_at": {"$gte": start_of_week, "$lt": end_of_week}
+    }).to_list(None)
+    gmv_week = sum(float(d.get("gross_total") or 0) for d in paid_docs)
+    n_pagados_cerrados = len(paid_docs)
+
+    total_creados = len(services)
+    canceladas = por_estado.get("cancelled", 0)
+    tasa_cancel = round((canceladas / total_creados * 100), 1) if total_creados else 0.0
+
+    mach = Counter((s.get("machinery_type") or "—") for s in services)
+    top_maquinaria = [{"tipo": k, "n": v} for k, v in mach.most_common(5)]
+
     alertas = await generate_alerts(db, start_of_week, end_of_week)
-    
+
+    etiquetas = {
+        "pending_review": "En revisión MAQGO",
+        "approved": "Aprobado (factura proveedor)",
+        "invoiced": "Facturado (pago pendiente)",
+        "paid": "Pagado",
+        "disputed": "En disputa",
+        "cancelled": "Cancelado",
+        "otros": "Otro estado",
+    }
+
     return {
         "periodo": {
             "inicio": start_of_week.isoformat(),
@@ -98,18 +88,27 @@ async def _build_weekly_report(weeks_ago: int = 0):
             "semana": f"Semana del {start_of_week.strftime('%d/%m/%Y')} al {(end_of_week - timedelta(days=1)).strftime('%d/%m/%Y')}"
         },
         "resumen": {
-            "total_solicitudes": total_solicitudes,
-            "tiempo_promedio_confirmacion_min": tiempo_promedio,
-            "solicitudes_aceptadas": aceptadas,
-            "solicitudes_rechazadas": rechazadas,
-            "solicitudes_sin_respuesta": sin_respuesta,
+            "total_servicios_creados_semana": total_creados,
+            "por_estado": por_estado,
+            "etiquetas_estado": etiquetas,
+            "tiempo_promedio_revision_h": tiempo_promedio_revision_h,
+            "tiempo_promedio_revision_min": tiempo_promedio_revision_min,
+            "servicios_pagados_cerrados_semana": n_pagados_cerrados,
+            "gmv_pagado_semana_clp": round(gmv_week),
+            "tasa_cancelacion": f"{tasa_cancel}%",
+            "top_maquinaria": top_maquinaria,
+            "total_solicitudes": total_creados,
+            "tiempo_promedio_confirmacion_min": tiempo_promedio_revision_min,
+            "solicitudes_aceptadas": por_estado.get("approved", 0) + por_estado.get("invoiced", 0) + por_estado.get("paid", 0),
+            "solicitudes_rechazadas": 0,
+            "solicitudes_sin_respuesta": por_estado.get("pending_review", 0),
             "solicitudes_canceladas": canceladas,
-            "tasa_cancelacion": f"{tasa_cancelacion}%",
-            "reservas_inmediatas": inmediatas,
-            "tasa_aceptacion_inmediatas": f"{tasa_inmediatas}%"
+            "reservas_inmediatas": 0,
+            "tasa_aceptacion_inmediatas": "N/A",
         },
         "alertas": alertas,
-        "generado_el": datetime.now().isoformat()
+        "generado_el": datetime.utcnow().isoformat(),
+        "pipeline": "facturacion_post_servicio",
     }
 
 
@@ -119,99 +118,62 @@ async def get_weekly_report(weeks_ago: int = 0, _: dict = Depends(get_current_ad
     return await _build_weekly_report(weeks_ago)
 
 
-async def generate_alerts(db, start_date, end_date, umbral_confirmacion_min=30, umbral_no_respuesta=0.3):
-    """Genera alertas operativas"""
+async def generate_alerts(db, start_date, end_date, umbral_revision_h=72):
+    """
+    Alertas alineadas al pipeline de facturación (colección `services`).
+    Sin dependencias de colecciones legacy (operators / matching).
+    """
     alertas = []
-    
-    # Alerta 1: Solicitudes con más de X minutos sin confirmación
-    pending_services = await db.services.find({
+    now = datetime.utcnow()
+
+    cola_lenta = await db.services.count_documents({
+        "status": "pending_review",
+        "created_at": {"$lt": now - timedelta(hours=umbral_revision_h)},
+    })
+    if cola_lenta > 0:
+        alertas.append({
+            "tipo": "COLA_REVISION",
+            "mensaje": f"{cola_lenta} servicio(s) con más de {umbral_revision_h}h en revisión MAQGO (revisar/aprobar).",
+            "detalle": [],
+        })
+
+    disp = await db.services.count_documents({
+        "status": "disputed",
         "created_at": {"$gte": start_date, "$lt": end_date},
-        "status": {"$in": ["pending", "searching"]}
-    }).to_list(None)
-    
-    solicitudes_lentas = []
-    for s in pending_services:
-        created = s.get("created_at", datetime.now())
-        diff_min = (datetime.now() - created).total_seconds() / 60
-        if diff_min > umbral_confirmacion_min:
-            solicitudes_lentas.append({
-                "id": str(s.get("_id", "")),
-                "minutos_esperando": round(diff_min)
-            })
-    
-    if solicitudes_lentas:
+    })
+    if disp > 0:
         alertas.append({
-            "tipo": "SOLICITUDES_SIN_CONFIRMACION",
-            "mensaje": f"{len(solicitudes_lentas)} solicitudes con más de {umbral_confirmacion_min} minutos sin confirmación",
-            "detalle": solicitudes_lentas[:10]  # Máximo 10
+            "tipo": "DISPUTAS",
+            "mensaje": f"{disp} servicio(s) en disputa creado(s) en esta ventana.",
+            "detalle": [],
         })
-    
-    # Alerta 2: Operadores con alta tasa de no respuesta
-    operators = await db.operators.find({}).to_list(None)
-    operadores_problema = []
-    
-    for op in operators:
-        op_id = str(op.get("_id", ""))
-        total_ofertas = await db.services.count_documents({
-            "created_at": {"$gte": start_date, "$lt": end_date},
-            "offers.operator_id": op_id
-        })
-        
-        if total_ofertas > 0:
-            no_respondidas = await db.services.count_documents({
-                "created_at": {"$gte": start_date, "$lt": end_date},
-                "offers": {
-                    "$elemMatch": {
-                        "operator_id": op_id,
-                        "status": {"$in": ["expired", "timeout"]}
-                    }
-                }
-            })
-            
-            tasa = no_respondidas / total_ofertas
-            if tasa > umbral_no_respuesta:
-                operadores_problema.append({
-                    "operador": op.get("name", "Sin nombre"),
-                    "telefono": op.get("phone", ""),
-                    "tasa_no_respuesta": f"{round(tasa * 100)}%"
-                })
-    
-    if operadores_problema:
+
+    mq_inv = await db.services.count_documents({
+        "status": "paid",
+        "maqgo_client_invoice_pending": {"$ne": False},
+    })
+    if mq_inv > 0:
         alertas.append({
-            "tipo": "OPERADORES_NO_RESPUESTA",
-            "mensaje": f"{len(operadores_problema)} operadores con alta tasa de no respuesta (>{umbral_no_respuesta*100}%)",
-            "detalle": operadores_problema[:10]
+            "tipo": "FACTURACION_MAQGO_CLIENTE",
+            "mensaje": f"{mq_inv} pago(s) donde MAQGO debe facturar al cliente (pendiente).",
+            "detalle": [],
         })
-    
-    # Alerta 3: Zonas/horarios con falta de oferta
-    sin_cobertura = await db.services.find({
-        "created_at": {"$gte": start_date, "$lt": end_date},
-        "status": {"$in": ["expired", "no_providers"]}
-    }).to_list(None)
-    
-    if sin_cobertura:
-        zonas = {}
-        for s in sin_cobertura:
-            comuna = s.get("location", {}).get("comuna", "Desconocida")
-            if comuna not in zonas:
-                zonas[comuna] = 0
-            zonas[comuna] += 1
-        
-        zonas_ordenadas = sorted(zonas.items(), key=lambda x: x[1], reverse=True)[:5]
-        
+
+    inv_pend = await db.services.count_documents({"status": "invoiced"})
+    if inv_pend > 0:
         alertas.append({
-            "tipo": "FALTA_OFERTA",
-            "mensaje": f"{len(sin_cobertura)} solicitudes sin cobertura",
-            "detalle": [{"zona": z[0], "solicitudes": z[1]} for z in zonas_ordenadas]
+            "tipo": "COBROS_PROVEEDOR",
+            "mensaje": f"{inv_pend} servicio(s) facturados esperando marcar pago a proveedor.",
+            "detalle": [],
         })
-    
+
     if not alertas:
         alertas.append({
             "tipo": "SIN_ALERTAS",
-            "mensaje": "No hay alertas operativas esta semana",
-            "detalle": []
+            "mensaje": "No hay alertas críticas en este snapshot.",
+            "detalle": [],
         })
-    
+
     return alertas
 
 
@@ -310,54 +272,56 @@ async def send_weekly_report_email(email: str = None, _: dict = Depends(get_curr
 
 
 def format_report_as_text(report: dict) -> str:
-    """Formatea el informe como texto plano"""
+    """Formatea el informe como texto plano (pipeline facturación MAQGO)."""
     r = report["resumen"]
-    
+    pe = r.get("por_estado") or {}
+    lab = r.get("etiquetas_estado") or {}
+
+    lineas_estado = ""
+    for k, v in pe.items():
+        if v or k == "pending_review":
+            etiqueta = lab.get(k, k)
+            lineas_estado += f"  • {etiqueta}: {v}\n"
+
+    top_m = r.get("top_maquinaria") or []
+    lineas_maq = ""
+    for row in top_m[:5]:
+        lineas_maq += f"  • {row.get('tipo', '—')}: {row.get('n', 0)}\n"
+    if not lineas_maq:
+        lineas_maq = "  (sin datos)\n"
+
     texto = f"""
 ═══════════════════════════════════════════════════════════════
-        MAQGO - INFORME OPERATIVO SEMANAL
+     MAQGO - INFORME SEMANAL (pipeline facturación post-servicio)
 ═══════════════════════════════════════════════════════════════
 {report["periodo"]["semana"]}
-Generado: {report["generado_el"][:10]}
+Generado: {report["generado_el"][:19]}
 
-───────────────────────────────────────────────────────────────
-                    RESUMEN DE SOLICITUDES
-───────────────────────────────────────────────────────────────
-Total solicitudes:              {r["total_solicitudes"]}
-Tiempo promedio confirmación:   {r["tiempo_promedio_confirmacion_min"]} minutos
+Servicios creados en la semana: {r.get("total_servicios_creados_semana", r.get("total_solicitudes", 0))}
+Tiempo promedio revisión MAQGO→aprobado: {r.get("tiempo_promedio_revision_h", 0)} h
+Pagados cerrados en la semana (paid_at): {r.get("servicios_pagados_cerrados_semana", 0)}
+GMV pagado en la semana (CLP): {r.get("gmv_pagado_semana_clp", 0)}
+Tasa cancelación (sobre creados): {r.get("tasa_cancelacion", "0%")}
 
-Aceptadas:                      {r["solicitudes_aceptadas"]}
-Rechazadas:                     {r["solicitudes_rechazadas"]}
-Sin respuesta:                  {r["solicitudes_sin_respuesta"]}
-Canceladas:                     {r["solicitudes_canceladas"]}
-
-Tasa de cancelación:            {r["tasa_cancelacion"]}
-
-───────────────────────────────────────────────────────────────
-                    RESERVAS INMEDIATAS
-───────────────────────────────────────────────────────────────
-Total reservas inmediatas:      {r["reservas_inmediatas"]}
-Tasa de aceptación:             {r["tasa_aceptacion_inmediatas"]}
-
+Por estado (creados esta semana):
+{lineas_estado}
+Top maquinaria (creados esta semana):
+{lineas_maq}
 ───────────────────────────────────────────────────────────────
                         ALERTAS
 ───────────────────────────────────────────────────────────────
 """
-    
+
     for alerta in report["alertas"]:
         texto += f"\n⚠️  {alerta['mensaje']}\n"
-        if alerta["detalle"]:
+        if alerta.get("detalle"):
             for d in alerta["detalle"][:5]:
                 texto += f"    • {d}\n"
-    
+
     texto += """
 ═══════════════════════════════════════════════════════════════
-
-Este informe refleja el desempeño operativo de la plataforma 
-durante la semana y se utiliza para ajustes de oferta, matching 
-y reglas de operación.
-
+Alineado a estados: pending_review → approved → invoiced → paid
 ═══════════════════════════════════════════════════════════════
 """
-    
+
     return texto

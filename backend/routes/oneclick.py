@@ -52,9 +52,11 @@ async def save_oneclick_credentials(request: Request, data: SaveOneClickRequest)
     """Guarda credenciales OneClick para cobros futuros (por email)."""
     try:
         from motor.motor_asyncio import AsyncIOMotorClient
-        mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+        from db_config import get_db_name, get_mongo_url
+
+        mongo_url = get_mongo_url()
         client = AsyncIOMotorClient(mongo_url)
-        db = client[os.environ.get("DB_NAME", "maqgo_db")]
+        db = client[get_db_name()]
         await db.oneclick_inscriptions.update_one(
             {"email": data.email},
             {"$set": {

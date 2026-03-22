@@ -266,9 +266,11 @@ async def get_reference_prices():
         "per_service": copy.deepcopy(REFERENCE_PRICES_PER_SERVICE),
     }
     try:
-        mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+        from db_config import get_db_name, get_mongo_url
+
+        mongo_url = get_mongo_url()
         client = AsyncIOMotorClient(mongo_url)
-        db = client[os.environ.get('DB_NAME', 'maqgo_db')]
+        db = client[get_db_name()]
         doc = await db.config.find_one({"_id": "reference_prices"})
         if doc:
             for key in ["per_hour", "per_service"]:

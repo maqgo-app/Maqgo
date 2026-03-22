@@ -6,6 +6,7 @@ import MaqgoLogo from '../components/MaqgoLogo';
 
 import BACKEND_URL from '../utils/api';
 import { getObject } from '../utils/safeStorage';
+import { PASSWORD_RULES } from '../utils/passwordValidation';
 
 /**
  * C09 - Seleccion de Rol
@@ -76,7 +77,11 @@ function RoleSelection({ setUserRole, setUserId }) {
       const data = getObject('registerData', {});
       const celDigits = data.celular ? String(data.celular).replace(/\D/g, '').slice(-9) : '';
       const phone = celDigits.length >= 9 ? `+56${celDigits}` : undefined;
-      const pwd = data.password && String(data.password).length >= 8 ? String(data.password) : undefined;
+      const rawPwd = data.password ? String(data.password) : '';
+      const pwd =
+        rawPwd.length >= PASSWORD_RULES.minLength && rawPwd.length <= PASSWORD_RULES.maxLength
+          ? rawPwd
+          : undefined;
       const apiCall = axios.post(
         `${BACKEND_URL}/api/users`,
         {

@@ -66,10 +66,12 @@ async def timer_scheduler():
         logger.warning(f"Timer scheduler no iniciado (dependencias): {e}")
         return
 
-    mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+    from db_config import get_db_name, get_mongo_url
+
+    mongo_url = get_mongo_url()
     try:
         client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=3000)
-        db = client[os.environ.get('DB_NAME', 'maqgo_db')]
+        db = client[get_db_name()]
         await client.admin.command('ping')
     except Exception as e:
         logger.warning(f"MongoDB no disponible. Timer scheduler desactivado. (Puedes correr sin MongoDB para probar el frontend.) Error: {e}")
@@ -163,6 +165,7 @@ from routes.invoices import router as invoices_router
 from routes.messages import router as messages_router
 from routes.admin_reports import router as admin_reports_router
 from routes.admin_config import router as admin_config_router
+from routes.marketing_kpi import router as marketing_kpi_router, cron_router as marketing_cron_router
 from routes.chatbot import router as chatbot_router
 from routes.public_stats import router as public_stats_router
 try:
@@ -209,6 +212,8 @@ api_router.include_router(invoices_router)
 api_router.include_router(messages_router)
 api_router.include_router(admin_reports_router)
 api_router.include_router(admin_config_router)
+api_router.include_router(marketing_kpi_router)
+api_router.include_router(marketing_cron_router)
 api_router.include_router(chatbot_router)
 api_router.include_router(public_stats_router)
 # Register main router

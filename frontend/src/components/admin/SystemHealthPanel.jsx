@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
 /** Umbrales operativos — ajustar aquí según volumen real en producción */
 const HEALTH_THRESHOLDS = {
@@ -38,7 +38,7 @@ function deriveHealth(stats, finances) {
       disputed ? `${disputed} reclamo(s) activo(s) — priorizar resolución.` : 'Sin reclamos abiertos en este snapshot.'
     ],
     performance: [
-      'Latencia y SLO: usar informe semanal (botón Operación) para tiempos de confirmación y cuellos operativos.'
+      'Latencia y SLO: el detalle está en el informe semanal (botón «Operación» en la barra superior de este panel).'
     ],
     security: [
       'Panel solo para rol admin; revisar permisos y auditoría en backend ante nuevas rutas admin.'
@@ -127,6 +127,16 @@ function RiskBlock({ title, items, emptyLabel }) {
 export default function SystemHealthPanel({ stats, finances }) {
   const h = useMemo(() => deriveHealth(stats || {}, finances || {}), [stats, finances]);
   const st = statusStyle[h.status] || statusStyle.STABLE;
+  const [detailOpen, setDetailOpen] = useState(true);
+
+  const scrollToOperacion = (e) => {
+    e.preventDefault();
+    const el = document.getElementById('admin-operacion');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.focus?.();
+    }
+  };
 
   return (
     <div
@@ -138,7 +148,7 @@ export default function SystemHealthPanel({ stats, finances }) {
         border: `1px solid ${st.border}`
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
         <div>
           <h2
             style={{
@@ -154,8 +164,15 @@ export default function SystemHealthPanel({ stats, finances }) {
           <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '6px 0 0' }}>
             Resumen operativo y riesgos (derivado del estado actual del dashboard)
           </p>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '8px 0 0', lineHeight: 1.45 }}>
+            Solo lectura: no hay menús ocultos. El texto de las tarjetas ya está expuesto. La etiqueta de estado (derecha) indica el nivel calculado;{' '}
+            <strong style={{ color: 'rgba(255,255,255,0.75)' }}>no es un botón</strong>.
+          </p>
         </div>
         <div
+          role="status"
+          aria-label={`Estado operativo: ${h.status}`}
+          title="Estado automático según colas y disputas; no es interactivo"
           style={{
             padding: '6px 14px',
             borderRadius: 999,
@@ -164,11 +181,39 @@ export default function SystemHealthPanel({ stats, finances }) {
             color: st.color,
             fontSize: 12,
             fontWeight: 700,
-            fontFamily: "'JetBrains Mono', monospace"
+            fontFamily: "'JetBrains Mono', monospace",
+            cursor: 'default',
+            userSelect: 'none'
           }}
         >
           {h.status}
         </div>
+      </div>
+
+      <div style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={() => setDetailOpen((v) => !v)}
+          style={{
+            padding: '8px 14px',
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 8,
+            color: '#fff',
+            fontSize: 12,
+            cursor: 'pointer'
+          }}
+          aria-expanded={detailOpen}
+        >
+          {detailOpen ? 'Ocultar detalle (riesgos y acciones)' : 'Mostrar detalle (riesgos y acciones)'}
+        </button>
+        <a
+          href="#admin-operacion"
+          onClick={scrollToOperacion}
+          style={{ color: '#90BDD3', fontSize: 12, fontWeight: 600 }}
+        >
+          Ir al botón «Operación» (informe semanal)
+        </a>
       </div>
 
       <div
@@ -191,7 +236,8 @@ export default function SystemHealthPanel({ stats, finances }) {
               background: '#1a1a1a',
               borderRadius: 10,
               padding: 12,
-              border: '1px solid rgba(255,255,255,0.06)'
+              border: '1px solid rgba(255,255,255,0.06)',
+              cursor: 'default'
             }}
           >
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, margin: '0 0 8px', textTransform: 'uppercase' }}>{block.label}</p>
@@ -204,21 +250,25 @@ export default function SystemHealthPanel({ stats, finances }) {
         ))}
       </div>
 
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 14 }}>
-        <RiskBlock title="Riesgos críticos" items={h.risks.critical} emptyLabel="Ninguno en este snapshot." />
-        <RiskBlock title="Riesgos altos" items={h.risks.high} emptyLabel="Ninguno en este snapshot." />
-        <RiskBlock title="Riesgos medios" items={h.risks.medium} emptyLabel="Ninguno destacado." />
-        <RiskBlock title="Riesgos bajos" items={h.risks.low} emptyLabel="Ninguno." />
-      </div>
+      {detailOpen && (
+        <>
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 14 }}>
+            <RiskBlock title="Riesgos críticos" items={h.risks.critical} emptyLabel="Ninguno en este snapshot." />
+            <RiskBlock title="Riesgos altos" items={h.risks.high} emptyLabel="Ninguno en este snapshot." />
+            <RiskBlock title="Riesgos medios" items={h.risks.medium} emptyLabel="Ninguno destacado." />
+            <RiskBlock title="Riesgos bajos" items={h.risks.low} emptyLabel="Ninguno." />
+          </div>
 
-      <div style={{ marginTop: 8, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <p style={{ color: '#EC6819', fontSize: 11, fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase' }}>Acciones sugeridas</p>
-        <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.88)', fontSize: 12, lineHeight: 1.55 }}>
-          {h.actions.map((a, i) => (
-            <li key={i}>{a}</li>
-          ))}
-        </ul>
-      </div>
+          <div style={{ marginTop: 8, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <p style={{ color: '#EC6819', fontSize: 11, fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase' }}>Acciones sugeridas</p>
+            <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.88)', fontSize: 12, lineHeight: 1.55 }}>
+              {h.actions.map((a, i) => (
+                <li key={i}>{a}</li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
     </div>
   );
 }

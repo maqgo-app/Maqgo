@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../components/MaqgoLogo';
+import PasswordField from '../components/PasswordField';
+import { PASSWORD_RULES } from '../utils/passwordValidation';
 import BACKEND_URL from '../utils/api';
+import { getHttpErrorMessage } from '../utils/httpErrors';
 
 /**
  * Pantalla C8 - Login
@@ -47,17 +50,14 @@ function LoginScreen({ setUserRole, setUserId }) {
         navigate(target, { replace: true });
       }
     } catch (e) {
-      if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
-        setError('El servidor no responde. Verifica que el backend esté corriendo (normalmente en el puerto 8000).');
-      } else if (e.response?.status === 401) {
-        setError('Correo o contraseña incorrectos');
-      } else if (e.response?.status >= 500) {
-        setError('Error del servidor. Intenta más tarde.');
-      } else if (!e.response) {
-        setError('Error de conexión. Verifica tu internet.');
-      } else {
-        setError('Error al iniciar sesión. Intenta nuevamente.');
-      }
+      setError(
+        getHttpErrorMessage(e, {
+          fallback: 'Error al iniciar sesión. Intenta nuevamente.',
+          statusMessages: {
+            401: 'Correo o contraseña incorrectos'
+          }
+        })
+      );
     } finally {
       setLoading(false);
     }
@@ -88,19 +88,36 @@ function LoginScreen({ setUserRole, setUserId }) {
 
         {/* Formulario */}
         <div style={{ flex: 1 }}>
+          <label
+            htmlFor="login-email"
+            style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
+          >
+            Correo electrónico
+          </label>
           <input
+            id="login-email"
+            name="email"
             className="maqgo-input"
-            placeholder="Correo electrónico"
+            placeholder="tu@correo.cl"
             type="email"
+            autoComplete="email"
             value={form.email}
-            onChange={e => setForm({...form, email: e.target.value})}
+            onChange={e => setForm({ ...form, email: e.target.value })}
           />
-          <input
-            className="maqgo-input"
+          <label
+            htmlFor="login-password"
+            style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
+          >
+            Contraseña
+          </label>
+          <PasswordField
+            id="login-password"
+            name="password"
             placeholder="Contraseña"
-            type="password"
             value={form.password}
-            onChange={e => setForm({...form, password: e.target.value})}
+            onChange={e => setForm({ ...form, password: e.target.value })}
+            autoComplete="current-password"
+            maxLength={PASSWORD_RULES.maxLength}
           />
 
           {error && (

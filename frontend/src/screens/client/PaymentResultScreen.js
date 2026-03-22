@@ -19,6 +19,7 @@ import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNa
 import { getClientBreakdown, MACHINERY_NO_TRANSPORT } from '../../utils/pricing';
 import { formatPrice, formatDateShort } from '../../utils/format';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
+import { getProviderLicensePlate } from '../../utils/providerDisplay';
 
 const MIN_HOURS_IMMEDIATE = 4;
 const MAX_HOURS_IMMEDIATE = 8;
@@ -247,9 +248,9 @@ function PaymentResultScreen() {
       setProvider(savedProvider);
 
       if (!simulateToUse) {
-        // Limpiar progreso de reserva (se completó exitosamente)
-        // Nota: si solo limpiamos `clientBookingStep` y queda `bookingProgress`,
-        // el WelcomeScreen puede mostrar el banner "Arriendo sin terminar" al refrescar.
+        // Limpiar progreso de reserva (se completó exitosamente).
+        // Debe ser completo (bookingProgress + clientBookingStep) para no dejar estado zombie;
+        // Welcome también normaliza progreso no reanudable al entrar.
         clearBookingProgress();
         unlockAudio();
         playPaymentSuccessSound();
@@ -738,7 +739,9 @@ function PaymentResultScreen() {
           }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 9, marginBottom: 2 }}>PATENTE</div>
-              <div style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>POR-DEFINIR</div>
+              <div style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>
+                {getProviderLicensePlate(provider) || 'Por confirmar'}
+              </div>
             </div>
             <div style={{ width: 1, height: 30, background: '#444' }}></div>
             <div style={{ textAlign: 'center' }}>

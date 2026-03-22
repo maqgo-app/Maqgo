@@ -342,6 +342,12 @@ p, .maqgo-body {
   box-shadow: 0 0 0 3px rgba(236, 104, 25, 0.15);
 }
 
+/* Contenedor con input interno (ej. PasswordField) */
+.maqgo-input:focus-within {
+  border-color: #EC6819;
+  box-shadow: 0 0 0 3px rgba(236, 104, 25, 0.15);
+}
+
 /* Focus visible - accesibilidad teclado (WCAG 2.4.7) */
 button:focus-visible,
 a:focus-visible,
@@ -350,6 +356,13 @@ a:focus-visible,
 [role="button"]:focus-visible {
   outline: 2px solid #EC6819;
   outline-offset: 2px;
+}
+
+/* Toggle mostrar contraseña (PasswordField) */
+.maqgo-password-toggle:focus-visible {
+  outline: 2px solid #EC6819;
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 .maqgo-btn-primary:focus-visible {

@@ -18,10 +18,12 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 from motor.motor_asyncio import AsyncIOMotorClient
 import aiohttp
 
+from db_config import get_db_name, get_mongo_url
+
 # Configuración
 BASE_URL = os.environ.get('STRESS_TEST_BASE_URL', 'http://localhost:8000/api')
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'maqgo_db')
+MONGO_URL = get_mongo_url()
+DB_NAME = get_db_name()
 STRESS_PREFIX = 'stress_'
 
 from pricing.business_rules import CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES

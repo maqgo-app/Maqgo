@@ -162,9 +162,11 @@ async def api_verify_otp(request: Request, body: VerifyOTPRequest):
         digits = "".join(c for c in body.phone_number if c.isdigit())
         if len(digits) >= 9:
             digits = digits[-9:]
-            mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+            from db_config import get_db_name, get_mongo_url
+
+            mongo_url = get_mongo_url()
             db_client = AsyncIOMotorClient(mongo_url)
-            db = db_client[os.environ.get("DB_NAME", "maqgo_db")]
+            db = db_client[get_db_name()]
             phone_norm = _normalize_phone(body.phone_number)
             # Buscar usuario por teléfono (auth guarda en E.164 o 9 dígitos)
             user = await db.users.find_one(

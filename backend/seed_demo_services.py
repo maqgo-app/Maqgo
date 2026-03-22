@@ -5,18 +5,19 @@ Ejecutar: python seed_demo_services.py
 
 Así Mis Cobros mostrará datos para probar.
 """
-import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
+from db_config import get_db_name, get_mongo_url
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-# Usar mismo DB que routes/services.py (default 'maqgo')
-DB_NAME = os.environ.get('DB_NAME', 'maqgo')
+MONGO_URL = get_mongo_url()
+# Misma DB que el backend (db_config / routes)
+DB_NAME = get_db_name()
 
 
 def main():

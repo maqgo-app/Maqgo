@@ -105,6 +105,7 @@ const OperatorServiceCompletedScreen = lazy(() => import('./screens/operator/Ope
 const AdminDashboard = lazy(() => import('./screens/admin/AdminDashboard'));
 const AdminPricingScreen = lazy(() => import('./screens/admin/AdminPricingScreen'));
 const AdminUsersScreen = lazy(() => import('./screens/admin/AdminUsersScreen'));
+const AdminMarketingScreen = lazy(() => import('./screens/admin/AdminMarketingScreen'));
 
 // Perfil y legales
 const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
@@ -257,6 +258,7 @@ function AppContent() {
           <Route index element={<AdminDashboard />} />
           <Route path="pricing" element={<AdminPricingScreen />} />
           <Route path="users" element={<AdminUsersScreen />} />
+          <Route path="marketing" element={<AdminMarketingScreen />} />
         </Route>
 
         {/* Perfil y legales */}

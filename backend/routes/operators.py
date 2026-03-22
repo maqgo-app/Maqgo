@@ -10,16 +10,16 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone, timedelta
-import os
 import random
 import string
 
+from motor.motor_asyncio import AsyncIOMotorClient
+from db_config import get_db_name, get_mongo_url
+
 router = APIRouter(prefix="/operators", tags=["operators"])
 
-# MongoDB connection
-from motor.motor_asyncio import AsyncIOMotorClient
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'maqgo_db')
+MONGO_URL = get_mongo_url()
+DB_NAME = get_db_name()
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 

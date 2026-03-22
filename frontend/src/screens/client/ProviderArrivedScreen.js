@@ -8,6 +8,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { MACHINERY_PER_TRIP } from '../../utils/pricing';
 import { getObject, getObjectFirst } from '../../utils/safeStorage';
+import { getProviderLicensePlate } from '../../utils/providerDisplay';
 
 // Constantes de tiempo (en segundos)
 const MAX_WAIT_TIME = 30 * 60; // 30 minutos
@@ -331,7 +332,7 @@ function ProviderArrivedScreen() {
               letterSpacing: 2,
               fontFamily: 'monospace'
             }}>
-              {provider.license_plate || 'BGKL-45'}
+              {getProviderLicensePlate(provider) || 'Por confirmar'}
             </div>
           </div>
 

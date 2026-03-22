@@ -4,13 +4,14 @@ Devuelve conteos para atraer clientes y proveedores.
 """
 from fastapi import APIRouter
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
+
+from db_config import get_db_name, get_mongo_url
 
 router = APIRouter(prefix="/public", tags=["public"])
 
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get('DB_NAME', 'maqgo_db')]
+db = client[get_db_name()]
 
 
 @router.get("/stats")

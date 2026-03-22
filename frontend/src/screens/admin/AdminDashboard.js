@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
@@ -15,6 +15,8 @@ const STATUS_CONFIG = {
   paid: { label: 'Pagado', color: '#4CAF50', bg: 'rgba(76, 175, 80, 0.1)' },
   disputed: { label: 'En disputa', color: '#F44336', bg: 'rgba(244, 67, 54, 0.1)' }
 };
+
+const PAGE_SIZE = 50;
 
 function AdminDashboard() {
   const navigate = useNavigate();
@@ -38,19 +40,96 @@ function AdminDashboard() {
   const [showWeeklyReport, setShowWeeklyReport] = useState(false);
   const [weeklyReport, setWeeklyReport] = useState(null);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [page, setPage] = useState(1);
+  const [listTotal, setListTotal] = useState(0);
+  const [sla, setSla] = useState(null);
+  const [weekComparison, setWeekComparison] = useState(null);
 
-  useEffect(() => {
-    fetchServices();
+  // Fallback si el backend no envía `finances` (versiones viejas / demo)
+  const calculateFinances = useCallback((serviceList) => {
+    let totalGross = 0;
+    let totalNet = 0;
+    let clientCommNet = 0;
+    let providerCommNet = 0;
+    let completed = 0;
+    let cancelled = 0;
+    let disputed = 0;
+
+    serviceList.forEach(s => {
+      if (['approved', 'invoiced', 'paid'].includes(s.status)) {
+        totalGross += s.gross_total || 0;
+        const grossSinIva = (s.gross_total || 0) / 1.19;
+        totalNet += grossSinIva;
+        const subtotalBase = grossSinIva / 1.10;
+        clientCommNet += subtotalBase * 0.10;
+        const serviceFeeNet = (s.service_fee || 0) / 1.19;
+        providerCommNet += serviceFeeNet;
+      }
+      if (s.status === 'paid') completed++;
+      if (s.status === 'cancelled') cancelled++;
+      if (s.status === 'disputed') disputed++;
+    });
+
+    setFinances({
+      totalGross: Math.round(totalGross),
+      totalNet: Math.round(totalNet),
+      clientCommission: Math.round(clientCommNet),
+      providerCommission: Math.round(providerCommNet),
+      totalCommission: Math.round(clientCommNet + providerCommNet),
+      completed,
+      cancelled,
+      disputed
+    });
   }, []);
 
-  const fetchServices = async () => {
+  const fetchServices = useCallback(async () => {
+    setLoading(true);
     try {
-      const response = await fetchWithAuth(`${BACKEND_URL}/api/services/admin/all`);
+      const offset = (page - 1) * PAGE_SIZE;
+      const qs = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset)
+      });
+      if (filter && filter !== 'all') {
+        qs.set('status', filter);
+      }
+      const response = await fetchWithAuth(`${BACKEND_URL}/api/services/admin/all?${qs.toString()}`);
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Error al cargar reservas');
+      }
       const serviceList = data.services || [];
       setServices(serviceList);
       setStats(data.stats || {});
-      calculateFinances(serviceList);
+      setListTotal(typeof data.total === 'number' ? data.total : serviceList.length);
+      if (data.finances && typeof data.finances === 'object') {
+        setFinances({
+          totalGross: data.finances.totalGross ?? 0,
+          totalNet: data.finances.totalNet ?? 0,
+          clientCommission: data.finances.clientCommission ?? 0,
+          providerCommission: data.finances.providerCommission ?? 0,
+          totalCommission: data.finances.totalCommission ?? 0,
+          completed: data.finances.completed ?? 0,
+          cancelled: data.finances.cancelled ?? 0,
+          disputed: data.finances.disputed ?? 0
+        });
+      } else if (data.limit == null && data.offset == null) {
+        // API legacy sin paginación: lista completa → cálculo local OK
+        calculateFinances(serviceList);
+      } else {
+        // Respuesta paginada sin finances: no recalcular con página parcial
+        console.warn('admin/all: respuesta sin finances; despliega backend actualizado');
+      }
+      if (data.sla && typeof data.sla === 'object') {
+        setSla(data.sla);
+      } else {
+        setSla(null);
+      }
+      if (data.week_comparison && typeof data.week_comparison === 'object') {
+        setWeekComparison(data.week_comparison);
+      } else {
+        setWeekComparison(null);
+      }
     } catch (error) {
       console.error('Error:', error);
       const demoServices = [
@@ -81,57 +160,19 @@ function AdminDashboard() {
         }
       ];
       setServices(demoServices);
-      setStats({ pending_review: 1, approved: 0, invoiced: 1, paid: 0, disputed: 0, total: 2 });
+      setStats({ pending_review: 1, approved: 0, invoiced: 1, paid: 0, disputed: 0, total: 2, maqgo_to_invoice: 0 });
+      setListTotal(demoServices.length);
       calculateFinances(demoServices);
+      setSla(null);
+      setWeekComparison(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
+  }, [filter, page, calculateFinances]);
 
-  // Calcular métricas financieras MAQGO (NETO sin IVA = ganancia real)
-  const calculateFinances = (serviceList) => {
-    let totalGross = 0;
-    let totalNet = 0;
-    let clientCommNet = 0;
-    let providerCommNet = 0;
-    let completed = 0;
-    let cancelled = 0;
-    let disputed = 0;
-
-    serviceList.forEach(s => {
-      // Solo contar servicios confirmados
-      if (['approved', 'invoiced', 'paid'].includes(s.status)) {
-        totalGross += s.gross_total || 0;
-        
-        // Calcular base sin IVA
-        const grossSinIva = (s.gross_total || 0) / 1.19;
-        totalNet += grossSinIva;
-        
-        // Comisión cliente NETA: 10% del subtotal base (sin IVA)
-        const subtotalBase = grossSinIva / 1.10;
-        clientCommNet += subtotalBase * 0.10;
-        
-        // Comisión proveedor NETA: service_fee sin IVA
-        const serviceFeeNet = (s.service_fee || 0) / 1.19;
-        providerCommNet += serviceFeeNet;
-      }
-      
-      // Contadores
-      if (s.status === 'paid') completed++;
-      if (s.status === 'cancelled') cancelled++;
-      if (s.status === 'disputed') disputed++;
-    });
-
-    setFinances({
-      totalGross: Math.round(totalGross),
-      totalNet: Math.round(totalNet),
-      clientCommission: Math.round(clientCommNet),
-      providerCommission: Math.round(providerCommNet),
-      totalCommission: Math.round(clientCommNet + providerCommNet),
-      completed,
-      cancelled,
-      disputed
-    });
-  };
+  useEffect(() => {
+    fetchServices();
+  }, [fetchServices]);
 
   const updateStatus = async (serviceId, newStatus) => {
     try {
@@ -228,14 +269,9 @@ function AdminDashboard() {
     });
   };
 
-  const maqgoToInvoiceServices = services.filter(s => 
-    s.status === 'paid' && s.maqgo_client_invoice_pending !== false
-  );
-  const filteredServices = filter === 'all' 
-    ? services 
-    : filter === 'maqgo_to_invoice'
-      ? maqgoToInvoiceServices
-      : services.filter(s => s.status === filter);
+  const maxPage = Math.max(1, Math.ceil(listTotal / PAGE_SIZE));
+  const rangeStart = listTotal === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = listTotal === 0 ? 0 : (page - 1) * PAGE_SIZE + services.length;
 
   return (
     <div style={{ 
@@ -301,6 +337,22 @@ function AdminDashboard() {
               💰 Precios
             </button>
             <button
+              type="button"
+              onClick={() => navigate('/admin/marketing')}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(144, 189, 211, 0.45)',
+                borderRadius: 8,
+                color: '#90BDD3',
+                cursor: 'pointer',
+                fontSize: 13
+              }}
+              title="Inversión semanal por canal, audiencia y CAC"
+            >
+              📈 Marketing & CAC
+            </button>
+            <button
               onClick={downloadPlanillaPagos}
               style={{
                 padding: '8px 16px',
@@ -315,6 +367,8 @@ function AdminDashboard() {
               📥 Planilla pagos
             </button>
             <button
+              type="button"
+              id="admin-operacion"
               onClick={() => fetchWeeklyReport(0)}
               disabled={loadingReport}
               style={{
@@ -327,6 +381,7 @@ function AdminDashboard() {
                 fontSize: 13,
                 fontWeight: 600
               }}
+              title="Informe semanal de operación (latencias, cuellos de botella)"
             >
               {loadingReport ? 'Cargando...' : '📋 Operación'}
             </button>
@@ -367,11 +422,14 @@ function AdminDashboard() {
         {/* Alerta: facturas por revisar y pagar */}
         {(stats.invoiced > 0 || stats.pending_review > 0 || (stats.maqgo_to_invoice || 0) > 0) && (
           <div
-            onClick={() => setFilter(
-              stats.invoiced > 0 ? 'invoiced' 
-              : (stats.maqgo_to_invoice || 0) > 0 ? 'maqgo_to_invoice' 
-              : 'pending_review'
-            )}
+            onClick={() => {
+              setPage(1);
+              setFilter(
+                stats.invoiced > 0 ? 'invoiced'
+                  : (stats.maqgo_to_invoice || 0) > 0 ? 'maqgo_to_invoice'
+                    : 'pending_review'
+              );
+            }}
             style={{
               background: stats.invoiced > 0
                 ? 'linear-gradient(135deg, rgba(156, 39, 176, 0.2) 0%, rgba(156, 39, 176, 0.05) 100%)'
@@ -581,6 +639,104 @@ function AdminDashboard() {
           </div>
         </div>
 
+        {/* SLA colas + comparativa semana (API admin/all) */}
+        {(sla || weekComparison) && (
+          <div style={{
+            background: '#2A2A2A',
+            borderRadius: 12,
+            padding: 20,
+            marginBottom: 24,
+            border: '1px solid rgba(144, 189, 211, 0.25)'
+          }}>
+            <h2 style={{
+              color: '#90BDD3',
+              fontSize: 15,
+              fontWeight: 700,
+              margin: '0 0 14px',
+              fontFamily: "'Space Grotesk', sans-serif"
+            }}>
+              ⏱ Colas y ritmo (tiempo real)
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '0 0 14px', lineHeight: 1.45 }}>
+              Promedios de espera en el pipeline de facturación. Útil para ver cuellos antes de que exploten las colas.
+            </p>
+            {sla && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: 12,
+                marginBottom: weekComparison ? 16 : 0
+              }}>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, margin: '0 0 6px', textTransform: 'uppercase' }}>Revisión MAQGO</p>
+                  <p style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {sla.revision_horas_promedio ?? '—'} h <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>prom.</span>
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '6px 0 0' }}>
+                    Máx {sla.revision_horas_max ?? '—'} h · {sla.en_revision ?? 0} en cola
+                  </p>
+                </div>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, margin: '0 0 6px', textTransform: 'uppercase' }}>Aprobado → factura prov.</p>
+                  <p style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {sla.aprobado_sin_factura_h_promedio ?? '—'} h
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '6px 0 0' }}>
+                    {sla.aprobado_sin_facturar ?? 0} servicio(s)
+                  </p>
+                </div>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, margin: '0 0 6px', textTransform: 'uppercase' }}>Facturado → pago</p>
+                  <p style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {sla.facturado_sin_pago_h_promedio ?? '—'} h
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '6px 0 0' }}>
+                    {sla.facturados_sin_pago ?? 0} servicio(s)
+                  </p>
+                </div>
+              </div>
+            )}
+            {weekComparison && (
+              <div style={{
+                paddingTop: 14,
+                borderTop: '1px solid rgba(255,255,255,0.08)',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: 12
+              }}>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, margin: '0 0 6px', textTransform: 'uppercase' }}>Servicios creados (sem. vs ant.)</p>
+                  <p style={{ color: '#fff', fontSize: 18, fontWeight: 600, margin: 0 }}>
+                    {weekComparison.creados_esta_semana ?? '—'} <span style={{ color: 'rgba(255,255,255,0.45)' }}>vs</span> {weekComparison.creados_semana_anterior ?? '—'}
+                  </p>
+                  <p style={{
+                    color: (weekComparison.delta_creados || 0) >= 0 ? '#81C784' : '#E57373',
+                    fontSize: 13,
+                    margin: '6px 0 0',
+                    fontWeight: 600
+                  }}>
+                    Δ {weekComparison.delta_creados || 0}
+                  </p>
+                </div>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, margin: '0 0 6px', textTransform: 'uppercase' }}>Pagados cerrados (paid_at en semana)</p>
+                  <p style={{ color: '#fff', fontSize: 18, fontWeight: 600, margin: 0 }}>
+                    {weekComparison.pagados_esta_semana ?? '—'} <span style={{ color: 'rgba(255,255,255,0.45)' }}>vs</span> {weekComparison.pagados_semana_anterior ?? '—'}
+                  </p>
+                  <p style={{
+                    color: (weekComparison.delta_pagados || 0) >= 0 ? '#81C784' : '#E57373',
+                    fontSize: 13,
+                    margin: '6px 0 0',
+                    fontWeight: 600
+                  }}>
+                    Δ {weekComparison.delta_pagados || 0}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Stats Cards - Estados de servicios */}
         <div style={{ 
           display: 'grid', 
@@ -602,7 +758,10 @@ function AdminDashboard() {
             return (
               <div
                 key={item.key}
-                onClick={() => setFilter(item.key)}
+                onClick={() => {
+                  setPage(1);
+                  setFilter(item.key);
+                }}
                 style={{
                   background: filter === item.key ? config.bg : '#2A2A2A',
                   border: filter === item.key ? `2px solid ${config.color}` : '1px solid rgba(255,255,255,0.1)',
@@ -633,7 +792,11 @@ function AdminDashboard() {
         {/* Filtro "Ver todos" */}
         <div style={{ marginBottom: 16 }}>
           <button
-            onClick={() => setFilter('all')}
+            type="button"
+            onClick={() => {
+              setPage(1);
+              setFilter('all');
+            }}
             style={{
               padding: '8px 16px',
               background: filter === 'all' ? '#EC6819' : 'transparent',
@@ -659,7 +822,7 @@ function AdminDashboard() {
               <span style={{ width: 32, height: 32, border: '3px solid rgba(236,104,25,0.3)', borderTopColor: 'var(--maqgo-orange)', borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
               <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14 }}>Cargando reservas...</p>
             </div>
-          ) : filteredServices.length === 0 ? (
+          ) : services.length === 0 ? (
             <div style={{ padding: 50, textAlign: 'center' }}>
               <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 40, margin: '0 0 12px' }}>📋</p>
               <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, margin: 0 }}>
@@ -693,7 +856,7 @@ function AdminDashboard() {
               </div>
 
               {/* Filas */}
-              {filteredServices.map((service, index) => {
+              {services.map((service, index) => {
               const status = STATUS_CONFIG[service.status];
               return (
                 <div 
@@ -847,6 +1010,53 @@ function AdminDashboard() {
                 </div>
               );
             })}
+
+              {listTotal > 0 && (
+                <div
+                  style={{
+                    borderTop: '1px solid rgba(255,255,255,0.06)',
+                    padding: '14px 20px',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    background: '#252525'
+                  }}
+                >
+                  <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>
+                    Mostrando <strong>{rangeStart}</strong>–<strong>{rangeEnd}</strong> de <strong>{listTotal}</strong>
+                    {filter !== 'all' && (
+                      <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginLeft: 8 }}>
+                        (filtro activo)
+                      </span>
+                    )}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button
+                      type="button"
+                      className="maqgo-btn-secondary"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      style={{ opacity: page <= 1 ? 0.45 : 1, padding: '8px 14px', fontSize: 13 }}
+                    >
+                      Anterior
+                    </button>
+                    <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+                      Página {page} / {maxPage}
+                    </span>
+                    <button
+                      type="button"
+                      className="maqgo-btn-secondary"
+                      disabled={page >= maxPage || listTotal === 0}
+                      onClick={() => setPage((p) => Math.min(maxPage, p + 1))}
+                      style={{ opacity: page >= maxPage ? 0.45 : 1, padding: '8px 14px', fontSize: 13 }}
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -993,62 +1203,61 @@ function AdminDashboard() {
               {weeklyReport.periodo?.semana}
             </p>
 
-            {/* Resumen de Solicitudes */}
+            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: -8, marginBottom: 16 }}>
+              Pipeline facturación: servicios creados en la semana y cierre de pagos con <code style={{ color: '#90BDD3' }}>paid_at</code> en la ventana.
+            </p>
+
+            {/* Resumen pipeline facturación */}
             <div style={{ background: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 16 }}>
               <h3 style={{ color: '#fff', fontSize: 14, margin: '0 0 12px', fontWeight: 600 }}>
-                RESUMEN DE SOLICITUDES
+                SERVICIOS CREADOS EN LA SEMANA (por estado)
               </h3>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <tbody>
                   <tr>
-                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>Total solicitudes</td>
-                    <td style={{ color: '#fff', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.total_solicitudes}</td>
+                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>Total creados</td>
+                    <td style={{ color: '#fff', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.total_servicios_creados_semana ?? weeklyReport.resumen?.total_solicitudes}</td>
                   </tr>
                   <tr>
-                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>Tiempo promedio confirmación</td>
-                    <td style={{ color: '#fff', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.tiempo_promedio_confirmacion_min} min</td>
+                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>Tiempo promedio revisión → aprobado</td>
+                    <td style={{ color: '#fff', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.tiempo_promedio_revision_h ?? '—'} h ({weeklyReport.resumen?.tiempo_promedio_revision_min ?? weeklyReport.resumen?.tiempo_promedio_confirmacion_min} min)</td>
                   </tr>
                   <tr>
-                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>Aceptadas</td>
-                    <td style={{ color: '#4CAF50', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.solicitudes_aceptadas}</td>
+                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>Pagados cerrados (paid_at en semana)</td>
+                    <td style={{ color: '#4CAF50', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.servicios_pagados_cerrados_semana ?? '—'}</td>
                   </tr>
                   <tr>
-                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>Rechazadas</td>
-                    <td style={{ color: '#F44336', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.solicitudes_rechazadas}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>Sin respuesta</td>
-                    <td style={{ color: '#FFA726', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.solicitudes_sin_respuesta}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>Canceladas</td>
-                    <td style={{ color: '#9C27B0', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.solicitudes_canceladas}</td>
+                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>GMV pagado (CLP)</td>
+                    <td style={{ color: '#EC6819', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.gmv_pagado_semana_clp != null ? formatPrice(weeklyReport.resumen.gmv_pagado_semana_clp) : '—'}</td>
                   </tr>
                   <tr style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '10px 0 6px' }}>Tasa de cancelación</td>
+                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '10px 0 6px' }}>Tasa cancelación (sobre creados)</td>
                     <td style={{ color: '#fff', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.tasa_cancelacion}</td>
                   </tr>
                 </tbody>
               </table>
-            </div>
-
-            {/* Reservas Inmediatas */}
-            <div style={{ background: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-              <h3 style={{ color: '#fff', fontSize: 14, margin: '0 0 12px', fontWeight: 600 }}>
-                RESERVAS INMEDIATAS (mismo día)
-              </h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <tbody>
-                  <tr>
-                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>Total reservas inmediatas</td>
-                    <td style={{ color: '#fff', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.reservas_inmediatas}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ color: 'rgba(255,255,255,0.7)', padding: '6px 0' }}>Tasa de aceptación</td>
-                    <td style={{ color: '#4CAF50', textAlign: 'right', fontWeight: 600 }}>{weeklyReport.resumen?.tasa_aceptacion_inmediatas}</td>
-                  </tr>
-                </tbody>
-              </table>
+              {weeklyReport.resumen?.por_estado && (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, margin: '0 0 8px' }}>Desglose</p>
+                  <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.88)', fontSize: 12, lineHeight: 1.6 }}>
+                    {Object.entries(weeklyReport.resumen.por_estado).map(([k, v]) => (
+                      <li key={k}>
+                        {(weeklyReport.resumen.etiquetas_estado && weeklyReport.resumen.etiquetas_estado[k]) || k}: <strong>{v}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {weeklyReport.resumen?.top_maquinaria && weeklyReport.resumen.top_maquinaria.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, margin: '0 0 8px' }}>Top maquinaria (creados esta semana)</p>
+                  <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.88)', fontSize: 12 }}>
+                    {weeklyReport.resumen.top_maquinaria.map((row, idx) => (
+                      <li key={idx}>{row.tipo}: {row.n}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Alertas */}
@@ -1125,7 +1334,7 @@ function AdminDashboard() {
               textAlign: 'center',
               fontStyle: 'italic'
             }}>
-              Este informe refleja el desempeño operativo de la plataforma durante la semana y se utiliza para ajustes de oferta, matching y reglas de operación.
+              Informe alineado al pipeline de facturación MAQGO (post-servicio). Matching en vivo se mide en otros informes.
             </p>
           </div>
         </div>

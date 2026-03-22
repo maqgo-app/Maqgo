@@ -16,17 +16,18 @@ from services.timer_service import TimerService
 from services.refund_request_service import RefundRequestService
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ServerSelectionTimeoutError
-import os
 from datetime import datetime, timezone
+
+from db_config import get_db_name, get_mongo_url
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/service-requests", tags=["service_requests"])
 
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get('DB_NAME', 'maqgo_db')]
+db = client[get_db_name()]
 
 # Servicios
 payment_service = PaymentService(db)

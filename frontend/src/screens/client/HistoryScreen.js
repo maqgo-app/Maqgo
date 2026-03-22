@@ -1,8 +1,90 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { maskName, maskLocation, getPrivacyLevel } from '../../utils/privacy';
+import { maskName, maskLocation } from '../../utils/privacy';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getArray } from '../../utils/safeStorage';
+
+/**
+ * Producción (Vite `import.meta.env.PROD`): NUNCA datos demo — lista vacía si no hay `serviceHistory`.
+ * Demo solo en `npm run dev` (`import.meta.env.DEV`). No usar env para activar demo en build release.
+ */
+const SHOW_HISTORY_DEMO = Boolean(import.meta.env.DEV);
+
+const DEMO_SERVICES_PROVIDER = [
+  {
+    id: 'hist-demo-p1',
+    date: '2024-12-28',
+    machinery: 'retroexcavadora',
+    clientName: 'Carlos González',
+    clientRating: 4.8,
+    hours: 4,
+    earnings: 168407,
+    status: 'completed',
+    myRating: 5,
+    location: 'Av. Providencia 1234'
+  },
+  {
+    id: 'hist-demo-p2',
+    date: '2024-12-20',
+    machinery: 'retroexcavadora',
+    clientName: 'María Fernández',
+    clientRating: 4.5,
+    hours: 6,
+    earnings: 235000,
+    status: 'completed',
+    myRating: 4,
+    location: 'Las Condes 567'
+  },
+  {
+    id: 'hist-demo-p3',
+    date: '2024-12-15',
+    machinery: 'retroexcavadora',
+    clientName: 'Juan Pérez',
+    clientRating: 3.9,
+    hours: 8,
+    earnings: 0,
+    status: 'cancelled',
+    location: 'Vitacura 890'
+  }
+];
+
+const DEMO_SERVICES_CLIENT = [
+  {
+    id: 'hist-demo-c1',
+    date: '2024-12-28',
+    machinery: 'retroexcavadora',
+    operatorName: 'Carlos Silva',
+    operatorRating: 4.8,
+    hours: 4,
+    total: 241593,
+    status: 'completed',
+    myRating: 5,
+    location: 'Av. Providencia 1234'
+  },
+  {
+    id: 'hist-demo-c2',
+    date: '2024-12-20',
+    machinery: 'camion_tolva',
+    operatorName: 'Pedro Muñoz',
+    operatorRating: 4.6,
+    hours: 6,
+    total: 312000,
+    status: 'completed',
+    myRating: 4,
+    location: 'Las Condes 567'
+  },
+  {
+    id: 'hist-demo-c3',
+    date: '2024-12-15',
+    machinery: 'excavadora',
+    operatorName: 'Jorge Ramírez',
+    operatorRating: 4.2,
+    hours: 8,
+    total: 0,
+    status: 'cancelled',
+    location: 'Vitacura 890'
+  }
+];
 
 /**
  * Pantalla de Historial de Servicios
@@ -23,94 +105,16 @@ function HistoryScreen() {
   const isProvider = userRole === 'provider';
 
   useEffect(() => {
-    // Cargar historial del localStorage o usar datos demo
     const saved = getArray('serviceHistory', []);
-    
-    if (saved.length === 0) {
-      // Datos demo según el rol
-      if (isProvider) {
-        // Historial para PROVEEDORES: muestra clientes
-        setServices([
-          {
-            id: 'hist-1',
-            date: '2024-12-28',
-            machinery: 'retroexcavadora',
-            clientName: 'Carlos González',
-            clientRating: 4.8,
-            hours: 4,
-            earnings: 168407, // Ganancia neta después de comisión
-            status: 'completed',
-            myRating: 5,
-            location: 'Av. Providencia 1234'
-          },
-          {
-            id: 'hist-2',
-            date: '2024-12-20',
-            machinery: 'retroexcavadora',
-            clientName: 'María Fernández',
-            clientRating: 4.5,
-            hours: 6,
-            earnings: 235000,
-            status: 'completed',
-            myRating: 4,
-            location: 'Las Condes 567'
-          },
-          {
-            id: 'hist-3',
-            date: '2024-12-15',
-            machinery: 'retroexcavadora',
-            clientName: 'Juan Pérez',
-            clientRating: 3.9,
-            hours: 8,
-            earnings: 0,
-            status: 'cancelled',
-            location: 'Vitacura 890'
-          }
-        ]);
-      } else {
-        // Historial para CLIENTES: muestra OPERADOR (nunca empresa) sin datos de contacto
-        // REGLA DE PRIVACIDAD: No mostrar nombre de empresa para evitar bypass de plataforma
-        setServices([
-          {
-            id: 'hist-1',
-            date: '2024-12-28',
-            machinery: 'retroexcavadora',
-            operatorName: 'Carlos Silva',  // Solo operador, nunca empresa
-            operatorRating: 4.8,
-            hours: 4,
-            total: 241593,
-            status: 'completed',
-            myRating: 5,
-            location: 'Av. Providencia 1234'
-          },
-          {
-            id: 'hist-2',
-            date: '2024-12-20',
-            machinery: 'camion_tolva',
-            operatorName: 'Pedro Muñoz',
-            operatorRating: 4.6,
-            hours: 6,
-            total: 312000,
-            status: 'completed',
-            myRating: 4,
-            location: 'Las Condes 567'
-          },
-          {
-            id: 'hist-3',
-            date: '2024-12-15',
-            machinery: 'excavadora',
-            operatorName: 'Jorge Ramírez',
-            operatorRating: 4.2,
-            hours: 8,
-            total: 0,
-            status: 'cancelled',
-            location: 'Vitacura 890'
-          }
-        ]);
-      }
-    } else {
+    if (saved.length > 0) {
       setServices(saved);
+      return;
     }
+    if (SHOW_HISTORY_DEMO) {
+      setServices(isProvider ? DEMO_SERVICES_PROVIDER : DEMO_SERVICES_CLIENT);
+      return;
+    }
+    setServices([]);
   }, [isProvider]);
 
   const formatPrice = (price) => {
@@ -119,23 +123,6 @@ function HistoryScreen() {
       currency: 'CLP',
       maximumFractionDigits: 0 
     }).format(price);
-  };
-
-  // Enmascarar nombre para proteger privacidad
-  // "Carlos González" → "Carlos G."
-  // "Transportes Silva" → "Transportes S."
-  const maskName = (name) => {
-    if (!name) return 'Usuario';
-    const parts = name.split(' ');
-    if (parts.length === 1) return name;
-    return `${parts[0]} ${parts[1]?.charAt(0)}.`;
-  };
-
-  // Enmascarar ubicación
-  // "Av. Providencia 1234" → "Av. Providencia XXXX"
-  const maskLocation = (location) => {
-    if (!location) return '';
-    return location.replace(/\d{3,}/g, 'XXXX');
   };
 
   const formatDate = (dateStr) => {
@@ -248,6 +235,11 @@ function HistoryScreen() {
                   Cuando hagas y completes una reserva aparecerá aquí.
                 </p>
               )}
+              {activeTab === 'completed' && isProvider && (
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '0 0 20px' }}>
+                  Cuando completes servicios aparecerán en esta lista.
+                </p>
+              )}
               {!isProvider && activeTab === 'completed' && (
                 <button
                   type="button"
@@ -256,6 +248,16 @@ function HistoryScreen() {
                   style={{ maxWidth: 280 }}
                 >
                   Reservar maquinaria
+                </button>
+              )}
+              {isProvider && (
+                <button
+                  type="button"
+                  className="maqgo-btn-primary"
+                  onClick={() => navigate('/provider/home')}
+                  style={{ maxWidth: 280 }}
+                >
+                  Ir al inicio
                 </button>
               )}
             </div>

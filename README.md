@@ -4,9 +4,17 @@ Aplicación móvil (PWA) para arriendo de maquinaria pesada con operador en Chil
 
 ## URL de producción (frontend Vercel)
 
-**https://maqgo.vercel.app**
+Proyecto en Vercel: **`maqgo`** → **https://maqgo.vercel.app**
 
 Metadatos canónicos (`index.html`) y PWA (`manifest.json`) apuntan a este dominio para previews y “Añadir a pantalla de inicio” coherentes.
+
+### Backend en Railway + env (producción)
+
+En **Railway** el proyecto del API suele llamarse p. ej. **`maqgo-prod-backend`** (servicio **Maqgo**). Repo GitHub: **`maqgo-app/Maqgo`**. Guía: **[docs/RAILWAY_PRODUCTION.md](docs/RAILWAY_PRODUCTION.md)**.
+
+**MongoDB (`MONGO_URL`, `DB_NAME` únicos):** [docs/DATABASE.md](docs/DATABASE.md) · verificación: `cd backend && python scripts/verify_db_config_convention.py`
+
+**UX (toasts, errores HTTP, historial en prod):** [docs/UX_FEEDBACK.md](docs/UX_FEEDBACK.md).
 
 ## 🚀 Correr Localmente
 
@@ -22,9 +30,9 @@ Metadatos canónicos (`index.html`) y PWA (`manifest.json`) apuntan a este domin
 git clone <tu-repo>
 cd maqgo
 
-# Configurar MongoDB (crear archivo backend/.env)
-echo "MONGO_URL=mongodb://localhost:27017/maqgo" > backend/.env
-echo "DB_NAME=maqgo" >> backend/.env
+# Configurar MongoDB (crear archivo backend/.env; DB_NAME debe coincidir con db_config / .env.example)
+echo "MONGO_URL=mongodb://localhost:27017" > backend/.env
+echo "DB_NAME=maqgo_db" >> backend/.env
 ```
 
 ### 2. Instalar y correr Backend

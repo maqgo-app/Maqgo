@@ -3,8 +3,9 @@ from typing import List, Optional
 from auth_dependency import verify_user_access
 from models.user import User, UserCreate, ProviderAvailabilityUpdate
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
 import bcrypt
+
+from db_config import get_db_name, get_mongo_url
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -22,9 +23,9 @@ async def _add_session_token(result: dict) -> None:
         import logging
         logging.getLogger(__name__).warning("No se pudo crear sesión para usuario: %s", e)
 
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get('DB_NAME', 'maqgo_db')]
+db = client[get_db_name()]
 
 def _user_roles_list(doc: dict) -> list:
     """Lista de roles (compatibilidad: si no hay 'roles', usar 'role')."""

@@ -13,20 +13,27 @@ from auth_dependency import get_current_admin
 from typing import Optional, List
 from datetime import datetime, timedelta
 from bson import ObjectId
-import os
 import base64
+
+from db_config import get_db_name, get_mongo_url
 
 router = APIRouter(prefix="/services", tags=["services"])
 
 # MongoDB connection
 from pymongo import MongoClient
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-DB_NAME = os.environ.get('DB_NAME', 'maqgo')
+MONGO_URL = get_mongo_url()
+DB_NAME = get_db_name()
 client = MongoClient(MONGO_URL)
 db = client[DB_NAME]
 services_collection = db['services']
 service_requests_collection = db['service_requests']
 users_collection = db['users']
+
+# Admin listado paginado por fecha (evita COLLSCAN en volumen alto)
+try:
+    services_collection.create_index([("created_at", -1)])
+except Exception:
+    pass
 
 # RBAC imports
 from utils.rbac import (
@@ -196,38 +203,236 @@ async def get_service(service_id: str):
 
 # ========== ADMIN ENDPOINTS ==========
 
-@router.get("/admin/all")
-async def get_all_services(_: dict = Depends(get_current_admin)):
-    """Dashboard MAQGO: obtener todos los servicios"""
-    services = list(services_collection.find(
-        {},
-        {"invoice_image": 0}
-    ).sort("created_at", -1))
-    
-    for service in services:
-        service['_id'] = str(service['_id'])
-        if 'created_at' in service:
-            service['created_at'] = service['created_at'].isoformat()
-        if 'review_deadline' in service:
-            service['review_deadline'] = service['review_deadline'].isoformat()
-    
-    # Contar por estado
-    # maqgo_to_invoice: pagados al proveedor donde MAQGO debe facturar al cliente (dentro del mes)
-    maqgo_to_invoice = [
-        s for s in services
-        if s['status'] == 'paid' and s.get('maqgo_client_invoice_pending', True)
-    ]
-    stats = {
-        "pending_review": sum(1 for s in services if s['status'] == 'pending_review'),
-        "approved": sum(1 for s in services if s['status'] == 'approved'),
-        "invoiced": sum(1 for s in services if s['status'] == 'invoiced'),
-        "paid": sum(1 for s in services if s['status'] == 'paid'),
-        "disputed": sum(1 for s in services if s['status'] == 'disputed'),
-        "maqgo_to_invoice": len(maqgo_to_invoice),
-        "total": len(services)
+def _admin_list_filter(status: Optional[str]) -> dict:
+    """Filtro Mongo para listado admin. `maqgo_to_invoice` alinea con el dashboard (paid y pending factura MAQGO)."""
+    s = (status or "all").strip().lower()
+    if s in ("", "all"):
+        return {}
+    if s == "maqgo_to_invoice":
+        return {"status": "paid", "maqgo_client_invoice_pending": {"$ne": False}}
+    if s in STATUSES:
+        return {"status": s}
+    raise HTTPException(status_code=400, detail=f"status inválido. Usar: all, {', '.join(STATUSES)}, maqgo_to_invoice")
+
+
+def _admin_compute_stats() -> dict:
+    """Conteos globales sin cargar todos los documentos."""
+    total = services_collection.count_documents({})
+    return {
+        "pending_review": services_collection.count_documents({"status": "pending_review"}),
+        "approved": services_collection.count_documents({"status": "approved"}),
+        "invoiced": services_collection.count_documents({"status": "invoiced"}),
+        "paid": services_collection.count_documents({"status": "paid"}),
+        "disputed": services_collection.count_documents({"status": "disputed"}),
+        "maqgo_to_invoice": services_collection.count_documents(
+            {"status": "paid", "maqgo_client_invoice_pending": {"$ne": False}}
+        ),
+        "total": total,
     }
-    
-    return {"services": services, "stats": stats}
+
+
+def _admin_compute_finances() -> dict:
+    """
+    Misma lógica que AdminDashboard.calculateFinances (frontend): solo approved/invoiced/paid para montos;
+    completed = nº paid; cancelled / disputed por conteo.
+    """
+    total_gross = total_net = client_comm = provider_comm = 0.0
+    cur = services_collection.find(
+        {"status": {"$in": ["approved", "invoiced", "paid"]}},
+        {"gross_total": 1, "service_fee": 1},
+    )
+    for doc in cur:
+        g = float(doc.get("gross_total") or 0)
+        total_gross += g
+        gross_sin_iva = g / 1.19
+        total_net += gross_sin_iva
+        subtotal_base = gross_sin_iva / 1.10
+        client_comm += subtotal_base * 0.10
+        provider_comm += float(doc.get("service_fee") or 0) / 1.19
+
+    completed = services_collection.count_documents({"status": "paid"})
+    cancelled = services_collection.count_documents({"status": "cancelled"})
+    disputed_n = services_collection.count_documents({"status": "disputed"})
+    return {
+        "totalGross": round(total_gross),
+        "totalNet": round(total_net),
+        "clientCommission": round(client_comm),
+        "providerCommission": round(provider_comm),
+        "totalCommission": round(client_comm + provider_comm),
+        "completed": completed,
+        "cancelled": cancelled,
+        "disputed": disputed_n,
+    }
+
+
+def _utc_now_naive():
+    return datetime.utcnow()
+
+
+def _age_hours(ref, now):
+    """Horas desde ref hasta now (Mongo datetime naive o aware)."""
+    if ref is None:
+        return None
+    if getattr(ref, "tzinfo", None) is not None:
+        ref = ref.replace(tzinfo=None)
+    try:
+        return max(0.0, (now - ref).total_seconds() / 3600.0)
+    except Exception:
+        return None
+
+
+def _admin_compute_sla_metrics() -> dict:
+    """
+    Colas del pipeline de facturación (post-servicio): tiempos de espera actuales.
+    """
+    now = _utc_now_naive()
+    pending_ages = []
+    for doc in services_collection.find({"status": "pending_review"}, {"created_at": 1}):
+        h = _age_hours(doc.get("created_at"), now)
+        if h is not None:
+            pending_ages.append(h)
+
+    approved_ages = []
+    for doc in services_collection.find({"status": "approved"}, {"created_at": 1, "approved_at": 1}):
+        ref = doc.get("approved_at") or doc.get("created_at")
+        h = _age_hours(ref, now)
+        if h is not None:
+            approved_ages.append(h)
+
+    invoiced_ages = []
+    for doc in services_collection.find({"status": "invoiced"}, {"created_at": 1, "invoice_uploaded_at": 1}):
+        ref = doc.get("invoice_uploaded_at") or doc.get("created_at")
+        h = _age_hours(ref, now)
+        if h is not None:
+            invoiced_ages.append(h)
+
+    def _avg(arr):
+        return round(sum(arr) / len(arr), 1) if arr else 0.0
+
+    def _mx(arr):
+        return round(max(arr), 1) if arr else 0.0
+
+    return {
+        "revision_horas_promedio": _avg(pending_ages),
+        "revision_horas_max": _mx(pending_ages),
+        "en_revision": len(pending_ages),
+        "aprobado_sin_factura_h_promedio": _avg(approved_ages),
+        "aprobado_sin_facturar": len(approved_ages),
+        "facturado_sin_pago_h_promedio": _avg(invoiced_ages),
+        "facturados_sin_pago": len(invoiced_ages),
+    }
+
+
+def _admin_week_over_week() -> dict:
+    """Comparación simple: semana calendario actual vs anterior (UTC)."""
+    now = _utc_now_naive()
+    weekday = now.weekday()
+    start_this = (now - timedelta(days=weekday)).replace(hour=0, minute=0, second=0, microsecond=0)
+    end_this = start_this + timedelta(days=7)
+    start_prev = start_this - timedelta(days=7)
+    end_prev = start_this
+
+    creados_esta = services_collection.count_documents(
+        {"created_at": {"$gte": start_this, "$lt": end_this}}
+    )
+    creados_ant = services_collection.count_documents(
+        {"created_at": {"$gte": start_prev, "$lt": end_prev}}
+    )
+    pagados_esta = services_collection.count_documents(
+        {"status": "paid", "paid_at": {"$gte": start_this, "$lt": end_this}}
+    )
+    pagados_ant = services_collection.count_documents(
+        {"status": "paid", "paid_at": {"$gte": start_prev, "$lt": end_prev}}
+    )
+
+    return {
+        "ventana_esta_semana": {"inicio": start_this.isoformat(), "fin": end_this.isoformat()},
+        "creados_esta_semana": creados_esta,
+        "creados_semana_anterior": creados_ant,
+        "delta_creados": creados_esta - creados_ant,
+        "pagados_esta_semana": pagados_esta,
+        "pagados_semana_anterior": pagados_ant,
+        "delta_pagados": pagados_esta - pagados_ant,
+    }
+
+
+@router.get("/admin/investor-snapshot")
+async def get_investor_snapshot(_: dict = Depends(get_current_admin)):
+    """
+    Resumen único para pitch / data room interno: usuarios, volumen, economía unitaria y ritmo semanal.
+    Misma base de datos y lógica de finanzas que el dashboard admin.
+    """
+    finances = _admin_compute_finances()
+    stats = _admin_compute_stats()
+    wow = _admin_week_over_week()
+    total_clients = users_collection.count_documents(
+        {"$or": [{"role": "client"}, {"roles": "client"}]}
+    )
+    total_providers = users_collection.count_documents(
+        {"$or": [{"role": "provider"}, {"roles": "provider"}]}
+    )
+    tn = float(finances.get("totalNet") or 0)
+    tc = float(finances.get("totalCommission") or 0)
+    take_rate = round(100.0 * tc / tn, 2) if tn > 0 else None
+    return {
+        "finances": finances,
+        "pipeline": stats,
+        "growth_week": wow,
+        "users": {"clientes": total_clients, "proveedores": total_providers},
+        "unit_economics": {
+            "take_rate_pct_sobre_ventas_netas": take_rate,
+            "nota": "Comisión MAQGO total / ventas netas sin IVA (histórico acumulado, servicios approved+).",
+        },
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+    }
+
+
+@router.get("/admin/all")
+async def get_all_services(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    status: Optional[str] = Query(
+        None,
+        description="Filtro de listado: all | pending_review | approved | invoiced | paid | disputed | maqgo_to_invoice",
+    ),
+    _: dict = Depends(get_current_admin),
+):
+    """
+    Dashboard MAQGO: stats y finanzas globales; listado paginado según `status`.
+    Evita cargar toda la colección en memoria ni enviar megabytes al front.
+    """
+    list_filter = _admin_list_filter(status)
+    total_for_filter = services_collection.count_documents(list_filter)
+
+    stats = _admin_compute_stats()
+    finances = _admin_compute_finances()
+    sla = _admin_compute_sla_metrics()
+    week_comparison = _admin_week_over_week()
+
+    services = list(
+        services_collection.find(list_filter, {"invoice_image": 0})
+        .sort("created_at", -1)
+        .skip(offset)
+        .limit(limit)
+    )
+
+    for service in services:
+        service["_id"] = str(service["_id"])
+        if "created_at" in service:
+            service["created_at"] = service["created_at"].isoformat()
+        if "review_deadline" in service:
+            service["review_deadline"] = service["review_deadline"].isoformat()
+
+    return {
+        "services": services,
+        "stats": stats,
+        "finances": finances,
+        "sla": sla,
+        "week_comparison": week_comparison,
+        "total": total_for_filter,
+        "limit": limit,
+        "offset": offset,
+    }
 
 @router.put("/admin/{service_id}")
 async def update_service_status(service_id: str, update: ServiceUpdate, _: dict = Depends(get_current_admin)):

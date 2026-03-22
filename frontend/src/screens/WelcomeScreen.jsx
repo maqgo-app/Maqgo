@@ -4,7 +4,12 @@ import MaqgoLogo from '../components/MaqgoLogo';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 import { useWelcomeLayout } from '../hooks/useWelcomeLayout';
 import { shouldShowResumeBooking, clearBookingProgress } from '../utils/abandonmentTracker';
-import { getWelcomeAppHomePath, isAdminRoleStored } from '../utils/welcomeHome';
+import {
+  getWelcomeAppHomePath,
+  getWelcomeOfferMachineryDestination,
+  getWelcomeOperatorDestination,
+  isAdminRoleStored,
+} from '../utils/welcomeHome';
 
 const ICON_SIZE = 24;
 
@@ -190,7 +195,9 @@ function WelcomeScreen() {
           padding: isDesktop
             ? `max(72px, env(safe-area-inset-top)) ${pad}px max(16px, env(safe-area-inset-bottom))`
             : `max(${isShortViewport ? 6 : 12}px, env(safe-area-inset-top, 12px)) ${pad}px max(${isShortViewport ? 6 : 10}px, env(safe-area-inset-bottom, 10px))`,
-          overflow: 'hidden',
+          /* overflow-y: auto evita recortar CTAs (ej. banner admin + viewport bajo); overflow-x hidden mantiene layout */
+          overflowX: 'hidden',
+          overflowY: 'auto',
           /* Fondo/opacidad del contenedor siempre 1: el stagger va en .welcome-reveal (evita parpadeo “pantalla vacía”) */
           opacity: 1,
           transition: 'none'
@@ -305,7 +312,7 @@ function WelcomeScreen() {
                 navigate('/login', { state: { redirect: target } });
                 return;
               }
-              navigate(target);
+              navigate(getWelcomeAppHomePath());
             }}
             className="welcome-cta-primary welcome-reveal"
             style={{ ['--welcome-d']: '200ms' }}
@@ -323,9 +330,16 @@ function WelcomeScreen() {
 
           <button
             onClick={() => {
-              // Guardar intención de proveedor para preseleccionar rol tras registro/SMS
-              localStorage.setItem('desiredRole', 'provider');
-              navigate('/register');
+              const dest = getWelcomeOfferMachineryDestination();
+              if (dest === null) {
+                localStorage.setItem('desiredRole', 'provider');
+                navigate('/register');
+                return;
+              }
+              if (dest === '/provider/register') {
+                localStorage.setItem('providerCameFromWelcome', 'true');
+              }
+              navigate(dest);
             }}
             className="welcome-cta-secondary welcome-reveal"
             style={{ ['--welcome-d']: '270ms' }}
@@ -336,13 +350,13 @@ function WelcomeScreen() {
               <IconBuilding />
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
-              <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600 }}>Ofrecer mi maquinaria</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)' }}>Regístrate y recibe solicitudes de clientes</div>
+              <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Ofrecer mi maquinaria</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Regístrate y recibe solicitudes de clientes</div>
             </div>
           </button>
 
           <button
-            onClick={() => navigate('/operator/join')}
+            onClick={() => navigate(getWelcomeOperatorDestination())}
             className="welcome-cta-secondary welcome-reveal"
             style={{ ['--welcome-d']: '340ms' }}
             data-testid="operator-join-btn"
@@ -352,8 +366,8 @@ function WelcomeScreen() {
               <IconUser />
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
-              <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600 }}>Soy operador</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)' }}>Unirme con código de equipo</div>
+              <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Soy operador</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Unirme con código de equipo</div>
             </div>
           </button>
         </main>
@@ -391,7 +405,10 @@ function WelcomeScreen() {
                 <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 9 }} aria-hidden="true">·</span>
                 <button
                   type="button"
-                  onClick={() => navigate('/register')}
+                  onClick={() => {
+                    localStorage.removeItem('desiredRole');
+                    navigate('/register');
+                  }}
                   className="welcome-footer-btn"
                   aria-label="Registrarse"
                   data-testid="welcome-register-link"
