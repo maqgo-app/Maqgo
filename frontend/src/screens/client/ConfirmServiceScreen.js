@@ -6,9 +6,9 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
 import { getObject, getArray } from '../../utils/safeStorage';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
-import { buildPricingFallback, calculateClientPrice, MACHINERY_NO_TRANSPORT, totalConFactura, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, MACHINERY_PER_TRIP, REFERENCE_PRICES } from '../../utils/pricing';
+import { buildPricingFallback, calculateClientPrice, MACHINERY_NO_TRANSPORT, totalConFactura, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, REFERENCE_PRICES } from '../../utils/pricing';
 import BACKEND_URL from '../../utils/api';
-import { MACHINERY_NAMES, getProviderSpecDisplay } from '../../utils/machineryNames';
+import { MACHINERY_NAMES, getProviderSpecDisplay, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getPerTripDateLabel, getDateRangeShort as getDateRangeShortUtil, formatDateSingle } from '../../utils/bookingDates';
 import { MaqgoButton } from '../../components/base';
 
@@ -56,7 +56,7 @@ function ConfirmServiceScreen() {
   }, [saveBookingProgress]);
 
   const machineryKey = (machinery || '').toLowerCase().replace(/\s+/g, '_');
-  const isPerTrip = MACHINERY_PER_TRIP.includes(machineryKey) || MACHINERY_PER_TRIP.includes(machinery);
+  const isPerTrip = isPerTripMachineryType(machinery);
   const isHybrid = reservationType === 'immediate' && additionalDays > 0;
   const totalDays = selectedDates.length || 1;
   const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machineryKey) && !MACHINERY_NO_TRANSPORT.includes(machinery);
@@ -148,7 +148,7 @@ function ConfirmServiceScreen() {
       const basePrice = effectiveProvider?.price_per_hour ?? 0;
       const priceToUse = basePrice > 0 ? basePrice : (isPerTrip && refTrip ? refTrip : 0);
       if (!priceToUse) return;
-      const transportCost = needsTransport ? (effectiveProvider.transport_fee || 0) : 0;
+      const transportCost = needsTransport ? (effectiveProvider?.transport_fee || 0) : 0;
       const FAST_FALLBACK_MS = 2500;
       const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
       try {
@@ -197,7 +197,7 @@ function ConfirmServiceScreen() {
           setPricing(buildPricingFallback({
             machineryType: machineryKey || machinery,
             basePrice: priceToUse,
-            transportFee: needsTransport ? (effectiveProvider.transport_fee || 0) : 0,
+            transportFee: needsTransport ? (effectiveProvider?.transport_fee || 0) : 0,
             hours: hoursToday,
             days: totalDays,
             reservationType,
@@ -209,7 +209,7 @@ function ConfirmServiceScreen() {
         setPricing(buildPricingFallback({
           machineryType: machineryKey || machinery,
           basePrice: priceToUse,
-          transportFee: needsTransport ? (effectiveProvider.transport_fee || 0) : 0,
+          transportFee: needsTransport ? (effectiveProvider?.transport_fee || 0) : 0,
           hours: hoursToday,
           days: totalDays,
           reservationType,

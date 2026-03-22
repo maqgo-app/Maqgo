@@ -27,7 +27,7 @@ function EmpresaScreen() {
 
   useEffect(() => {
     const saved = getObject('providerData', {});
-    if (saved.businessName) setData(saved);
+    if (saved.businessName) setTimeout(() => setData(saved), 0);
   }, []);
 
   // Close suggestions when clicking outside

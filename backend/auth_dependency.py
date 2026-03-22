@@ -86,7 +86,9 @@ async def get_current_admin(
     user: dict = Depends(get_current_user)
 ) -> dict:
     """Requiere que el usuario autenticado sea admin."""
-    if user.get("role") != "admin":
+    roles = user.get("roles") or []
+    is_admin = user.get("role") == "admin" or ("admin" in roles if isinstance(roles, list) else False)
+    if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acceso restringido a administradores",
@@ -100,7 +102,8 @@ async def verify_user_access(
     """Verifica que el usuario acceda solo a sus datos o sea admin."""
     if current_user.get("id") == user_id:
         return current_user
-    if current_user.get("role") == "admin":
+    roles = current_user.get("roles") or []
+    if current_user.get("role") == "admin" or ("admin" in roles if isinstance(roles, list) else False):
         return current_user
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,

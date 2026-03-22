@@ -21,23 +21,21 @@ function SelectOperatorScreen() {
   const [operatorPhone, setOperatorPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [useAsDefault, setUseAsDefault] = useState(false);
-  const [machineryId, setMachineryId] = useState('');
   const [showBackModal, setShowBackModal] = useState(false);
+  const [machineryId] = useState(() => {
+    const accepted = getObjectFirst(['acceptedRequest', 'incomingRequest'], {});
+    const raw = (accepted.machineryId || accepted.machineryType || 'retroexcavadora').toString();
+    return raw
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '') || 'retroexcavadora';
+  });
   
   // Datos del dueño/secretaria para notificaciones
   const [ownerPhone] = useState(() => getObject('registerData', {}).phone || '');
 
   useEffect(() => {
-    // Obtener machineryId de la solicitud aceptada (normalizar a id: retroexcavadora, camion_aljibe, etc.)
-    const accepted = getObjectFirst(['acceptedRequest', 'incomingRequest'], {});
-    const raw = (accepted.machineryId || accepted.machineryType || 'retroexcavadora').toString();
-    const mid = raw
-      .toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // quitar acentos
-      .replace(/\s+/g, '_')
-      .replace(/[^a-z0-9_]/g, '') || 'retroexcavadora';
-    setMachineryId(mid);
-
     // Cargar operadores registrados
     const savedOperators = getArray('operatorsData', []);
     
@@ -53,28 +51,30 @@ function SelectOperatorScreen() {
         licenseType: 'Clase D',
         isOwner: true
       };
-      setOperators([defaultOperator]);
-      setSelectedOperator(defaultOperator);
+      setTimeout(() => {
+        setOperators([defaultOperator]);
+        setSelectedOperator(defaultOperator);
+      }, 0);
     } else {
       // Agregar IDs si no existen
       const operatorsWithIds = savedOperators.map((op, index) => ({
         ...op,
         id: op.id || `op-${index}`
       }));
-      setOperators(operatorsWithIds);
+      setTimeout(() => setOperators(operatorsWithIds), 0);
       
       // Pre-seleccionar: operador por defecto para esta máquina, o el único, o ninguno
       const defaults = getObject(STORAGE_KEY_DEFAULT_BY_MACHINERY, {});
-      const defaultOpId = defaults[mid || 'retroexcavadora'];
+      const defaultOpId = defaults[machineryId || 'retroexcavadora'];
       const defaultOp = defaultOpId ? operatorsWithIds.find(o => o.id === defaultOpId) : null;
       
       if (operatorsWithIds.length === 1) {
-        setSelectedOperator(operatorsWithIds[0]);
+        setTimeout(() => setSelectedOperator(operatorsWithIds[0]), 0);
       } else if (defaultOp) {
-        setSelectedOperator(defaultOp);
+        setTimeout(() => setSelectedOperator(defaultOp), 0);
       }
     }
-  }, []);
+  }, [machineryId]);
 
   const handleConfirm = () => {
     if (!selectedOperator) return;

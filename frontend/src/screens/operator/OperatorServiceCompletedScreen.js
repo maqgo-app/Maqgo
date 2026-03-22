@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
@@ -7,8 +7,7 @@ import { vibrate } from '../../utils/uberUX';
 
 import BACKEND_URL from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
-import { MACHINERY_NAMES } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 
 /**
  * Pantalla: Servicio Completado (OPERADOR)
@@ -31,36 +30,15 @@ function OperatorServiceCompletedScreen() {
     rating: 4.8
   });
   const [countdown, setCountdown] = useState(5);
-  const [serviceData, setServiceData] = useState({});
-
-  useEffect(() => {
-    // Cargar datos del servicio
+  const [serviceData] = useState(() => {
     const savedService = getObject('activeService', {});
     const savedRequest = getObject('incomingRequest', {});
-    
     const machineryType = savedService.machinery_type || savedRequest.machineryId || 'retroexcavadora';
     const hours = savedService.hours || savedRequest.hours || 4;
-    
-    setServiceData({
-      ...savedService,
-      ...savedRequest,
-      machinery_type: machineryType,
-      hours: hours
-    });
-    
-    // Reproducir sonido de celebración
-    playServiceCompletedSound();
-    vibrate('finished');
-    
-    // Cargar stats del operador
-    loadStats();
-    
-    // Avanzar a rating después de 2 segundos
-    const timer = setTimeout(() => setStep('rating'), 2000);
-    return () => clearTimeout(timer);
-  }, []);
+    return { ...savedService, ...savedRequest, machinery_type: machineryType, hours };
+  });
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const operatorId = localStorage.getItem('userId');
       const response = await axios.get(`${BACKEND_URL}/api/operators/stats/${operatorId}`);
@@ -72,10 +50,25 @@ function OperatorServiceCompletedScreen() {
           rating: response.data.rating || 4.8
         });
       }
-    } catch (e) {
+    } catch {
       console.log('Using demo stats');
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Reproducir sonido de celebración
+    playServiceCompletedSound();
+    vibrate('finished');
+    
+    // Cargar stats del operador
+    setTimeout(() => {
+      loadStats();
+    }, 0);
+    
+    // Avanzar a rating después de 2 segundos
+    const timer = setTimeout(() => setStep('rating'), 2000);
+    return () => clearTimeout(timer);
+  }, [loadStats]);
 
   const submitRating = async () => {
     try {
@@ -116,10 +109,6 @@ function OperatorServiceCompletedScreen() {
       return () => clearInterval(timer);
     }
   }, [step, navigate]);
-
-  const formatCurrency = (amount) => {
-    return `$${amount?.toLocaleString('es-CL') || '0'}`;
-  };
 
   return (
     <div className="maqgo-app">
@@ -168,7 +157,7 @@ function OperatorServiceCompletedScreen() {
 
             <div style={{ marginTop: 30 }}>
               <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>
-                {MACHINERY_NAMES[serviceData.machinery_type] || 'Maquinaria'} · {MACHINERY_PER_TRIP.includes(serviceData.machinery_type || '') ? 'Valor viaje' : `${serviceData.hours || 4}h`}
+                {MACHINERY_NAMES[serviceData.machinery_type] || 'Maquinaria'} · {isPerTripMachineryType(serviceData.machinery_type) ? 'Valor viaje' : `${serviceData.hours || 4}h`}
               </p>
             </div>
           </div>

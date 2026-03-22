@@ -28,8 +28,10 @@ function OperatorDataScreen() {
     const firstComplete = saved.length > 0 && saved[0].nombre && saved[0].apellido &&
       saved[0].rut && validateRut(saved[0].rut);
     if (firstComplete) {
-      setOperators(saved);
-      setSameAsOwner(false);
+      setTimeout(() => {
+        setOperators(saved);
+        setSameAsOwner(false);
+      }, 0);
     }
   }, []);
 

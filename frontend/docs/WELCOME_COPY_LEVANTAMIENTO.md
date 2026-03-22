@@ -9,12 +9,13 @@ Documento de **trazabilidad**: qué quedó **acordado y versionado** vs interpre
 | Elemento | Texto |
 |----------|--------|
 | **Pestaña / `document.title`** | `MAQGO - Maquinaria pesada donde la necesitas` |
-| **Caluga** | *Elige en pocos pasos con disponibilidad en tiempo real* |
+| **Caluga** | *Arrienda maquinaria en minutos con disponibilidad en tiempo real.* |
 | **H1** | *Maquinaria pesada* + **donde la necesitas** (naranja) + *con* + **operador incluido** (blanco) |
-| **Subtítulo** | *Arrienda maquinaria en minutos, para hoy o en la fecha que indiques.* |
-| **Chips** | *Hoy o programado* · *Reserva simple* |
+| **Párrafo (bajo H1)** | *—* (ninguno) |
+| **CTA principal — subtítulo** | *Para hoy o en la fecha que indiques* |
+| **Chips (barra)** | **No en UI** — histórico *Hoy o programado* / *Reserva simple* no se muestran |
 
-*Subtítulo:* respecto a `88a0e32` se reemplazó *«…para cuando la necesites»* por *«…en la fecha que indiques»* para **no duplicar** la idea de *necesitar* (H1 ya dice *donde la necesitas*) y para **alinear** con el subtítulo del CTA principal.
+*Caluga = borde naranja + fondo vidrio (`tokens.css`); sin línea gris extra bajo el H1.*
 
 ## 1) Fuente Git (histórico — `88a0e32`)
 

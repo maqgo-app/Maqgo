@@ -1,7 +1,8 @@
-# Welcome — definición de pantalla final (v1)
+# Welcome — definición de pantalla final (v1, **cerrada producción**)
 
 Documento **maestro**: qué es la pantalla Welcome cuando los textos ya están cerrados.  
-Implementación de referencia: `src/screens/WelcomeScreen.jsx` + estilos en `src/styles/maqgo.css` (y tokens en `tokens.css`).
+Implementación de referencia: `src/screens/WelcomeScreen.jsx` + `src/utils/welcomeHome.js` + estilos en `src/styles/maqgo.css` (y `tokens.css`).  
+**Cierre:** checklist §8 verificada en código; FOUC/flash mitigados (`index.html` crítico + `useLayoutEffect` + fondo desktop global).
 
 ---
 
@@ -9,7 +10,7 @@ Implementación de referencia: `src/screens/WelcomeScreen.jsx` + estilos en `src
 
 - **Primera impresión** de MAQGO: clara, premium, sin ruido.
 - **Tres caminos** explícitos: cliente (arrendar), proveedor (ofrecer), operador (unirse).
-- **Acceso secundario:** login / registro / FAQ / legales / admin.
+- **Acceso secundario:** login o **Mi cuenta** (si hay sesión) / registro (solo sin sesión) / FAQ / legales / **Admin** (solo si `userRole === 'admin'` en sesión).
 
 ---
 
@@ -19,9 +20,9 @@ Implementación de referencia: `src/screens/WelcomeScreen.jsx` + estilos en `src
 |---|--------|-----------|
 | 1 | **Contenedor** | `.maqgo-app` + `.welcome-desktop` si viewport ≥ 768px |
 | 2 | **Pantalla** | `.maqgo-screen.welcome-screen` — columna flex, altura viewport |
-| 3 | **Header (hero)** | Logo → caluga → bloque texto (H1 + párrafo + chips) |
+| 3 | **Header (hero)** | Logo → caluga → **H1** — **sin** párrafo gris bajo el título — **sin** chips |
 | 4 | **Main (CTAs)** | 3 botones grandes (cliente, proveedor, operador) |
-| 5 | **Footer** | Login · registro · FAQ · términos · privacidad · Admin |
+| 5 | **Footer** | Sin sesión: Iniciar sesión · Registrarse · FAQ · legales. Con sesión: **Mi cuenta** (home por rol) · FAQ · legales · Admin si admin |
 
 **Sin** banner “Continuar arriendo” en esta pantalla (regla de negocio + UX acordada).
 
@@ -37,11 +38,9 @@ Implementación de referencia: `src/screens/WelcomeScreen.jsx` + estilos en `src
 ### Hero
 | Elemento | Texto |
 |----------|--------|
-| **Caluga** (pill naranja) | *Elige en pocos pasos con disponibilidad en tiempo real* |
+| **Caluga** (pill fondo vidrio, borde neutro) | *Arrienda maquinaria en minutos con disponibilidad en tiempo real.* |
 | **H1** | *Maquinaria pesada* **donde la necesitas** *con* **operador incluido** (énfasis naranja en “donde la necesitas”) |
-| **Párrafo** | *Arrienda maquinaria en minutos, para hoy o en la fecha que indiques.* |
-| **Chip 1** | *Hoy o programado* |
-| **Chip 2** | *Reserva simple* |
+| **Párrafo** bajo H1 | *—* (ninguno; la promesa va en la caluga + CTA) |
 
 ### CTAs (título + subtítulo)
 | Botón | Título | Subtítulo |
@@ -63,9 +62,9 @@ Implementación de referencia: `src/screens/WelcomeScreen.jsx` + estilos en `src
 | Viewport | Comportamiento |
 |----------|----------------|
 | **&lt; 768px** | Pantalla completa; sin marco “teléfono”; fondo `var(--maqgo-bg)`; tipografía y espaciados con `useWelcomeLayout` + `welcome-short` si aplica. |
-| **≥ 768px** | Marco tipo dispositivo: `.maqgo-app` con borde cromo/plata, radio 38px, sombra oscura; fondo exterior negro (`maqgo-welcome-desktop-chrome` en `<html>`). |
+| **≥ 768px** | Marco tipo dispositivo: `.maqgo-app.welcome-desktop` con borde cromo/plata, sombra; fondo exterior negro vía `html, body, #root` + `index.html` crítico (sin FOUC). |
 
-**Caluga:** siempre visible; estilo naranja de marca (no confundir con el marco neutro).
+**Caluga:** pill visible; borde translúcido + fondo vidrio (`tokens.css`); **sin** barra de chips.
 
 ---
 
@@ -74,7 +73,8 @@ Implementación de referencia: `src/screens/WelcomeScreen.jsx` + estilos en `src
 - **Marco desktop:** neutro (plata/cromo), **sin** halo naranja en el borde del mockup — ver `WELCOME_DESKTOP_VISUAL_SPEC.md`
 - **Caluga + acentos de conversión:** naranja `#EC6819` / gradiente acordado
 - **CTA proveedor:** acento cian `#90BDD3` coherente con marca secundaria
-- **Chips:** barra tipo vidrio (clase `.welcome-value-chips`)
+- **Sin chips** en el hero (histórico retirado)
+- **Motion:** entrada escalonada `.welcome-mounted` + `.welcome-reveal` en `maqgo.css` (`prefers-reduced-motion` respeta accesibilidad)
 
 ---
 
@@ -91,14 +91,14 @@ Implementación de referencia: `src/screens/WelcomeScreen.jsx` + estilos en `src
 
 ---
 
-## 8. Checklist antes de “cerrar” diseño
+## 8. Checklist — **cerrado para producción**
 
-- [ ] Copy de hero coincide fila por fila con la tabla §3  
-- [ ] Desktop ≥768px: se ve marco + fondo exterior negro  
-- [ ] Móvil: sin solapamiento logo / texto / CTAs en alturas cortas  
-- [ ] Footer enlaces vivos (FAQ, términos, privacidad)  
-- [ ] `npm run build` frontend OK  
+- [x] Copy de hero alineado con la tabla §3  
+- [x] Desktop ≥768px: marco `.welcome-desktop` + fondo exterior negro (sin FOUC crítico)  
+- [x] Móvil: `welcome-short` + escalado logo; revisión manual recomendada en SE / teclado  
+- [x] Footer: enlaces FAQ / términos / privacidad; sesión + admin según reglas actuales  
+- [x] `npm run gate:deploy` (tests + build) OK — ver `docs/CTO_PRODUCTION_GATE.md`  
 
 ---
 
-*Versión documento: alineada al código en repo en el momento de su creación; mantener sincronizado con commits de Welcome.*
+*Mantener este archivo sincronizado con cambios futuros de Welcome.*

@@ -15,7 +15,7 @@
  * - canAcceptRequests: Todos
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useCallback } from 'react';
 import BACKEND_URL from '../utils/api';
 
 const AuthContext = createContext(null);
@@ -69,18 +69,23 @@ const DEFAULT_PERMISSIONS = {
 };
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [providerRole, setProviderRole] = useState('super_master');
-  const [permissions, setPermissions] = useState(DEFAULT_PERMISSIONS.super_master);
-  const [loading, setLoading] = useState(true);
-  const [ownerId, setOwnerId] = useState(null);
+  const initialUserId = localStorage.getItem('userId');
+  const initialUserRole = localStorage.getItem('userRole');
+  const initialProviderRoleRaw = localStorage.getItem('providerRole') || 'super_master';
+  const initialProviderRole = initialProviderRoleRaw === 'owner' ? 'super_master' : initialProviderRoleRaw;
+
+  const [user, setUser] = useState(
+    initialUserId ? { id: initialUserId, role: initialUserRole } : null
+  );
+  const [providerRole, setProviderRole] = useState(initialProviderRole);
+  const [permissions, setPermissions] = useState(
+    DEFAULT_PERMISSIONS[initialProviderRole] || DEFAULT_PERMISSIONS.super_master
+  );
+  const [loading, setLoading] = useState(false);
+  const [ownerId, setOwnerId] = useState(() => localStorage.getItem('ownerId'));
   const [ownerName, setOwnerName] = useState(null);
 
-  useEffect(() => {
-    loadUserData();
-  }, []);
-
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
     try {
       const userId = localStorage.getItem('userId');
       const userRole = localStorage.getItem('userRole');
@@ -105,7 +110,7 @@ export function AuthProvider({ children }) {
             localStorage.setItem('providerRole', role);
             if (roleData.owner_id) localStorage.setItem('ownerId', roleData.owner_id);
           }
-        } catch (e) {
+        } catch {
           let role = savedProviderRole || 'super_master';
           if (role === 'owner') role = 'super_master';
           setProviderRole(role);
@@ -118,7 +123,7 @@ export function AuthProvider({ children }) {
       console.error('Error loading user data:', error);
     }
     setLoading(false);
-  };
+  }, []);
 
   const login = useCallback(async (userId, userRole, provRole = 'super_master') => {
     let normalizedRole = provRole;
@@ -185,32 +190,5 @@ export function AuthProvider({ children }) {
   );
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth debe usarse dentro de AuthProvider');
-  return context;
-}
-
-export function withPermission(WrappedComponent, requiredPermission) {
-  return function PermissionWrapper(props) {
-    const { hasPermission, loading } = useAuth();
-    if (loading) {
-      return (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#1a1a1a' }}>
-          <p style={{ color: 'rgba(255,255,255,0.95)' }}>Cargando...</p>
-        </div>
-      );
-    }
-    if (!hasPermission(requiredPermission)) {
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#1a1a1a', padding: 20 }}>
-          <p style={{ color: '#ff6b6b', fontSize: 18, marginBottom: 10 }}>Acceso restringido</p>
-          <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, textAlign: 'center' }}>No tienes permisos para acceder a esta sección.</p>
-        </div>
-      );
-    }
-    return <WrappedComponent {...props} />;
-  };
-}
-
 export default AuthContext;
+export { AuthContext };

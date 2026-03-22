@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getObject } from '../utils/safeStorage';
+import { clearAuthSessionPreservingDraft } from '../utils/sessionCleanup';
 
 /**
  * Pantalla de Perfil de Usuario
@@ -8,28 +9,19 @@ import { getObject } from '../utils/safeStorage';
  */
 function ProfileScreen() {
   const navigate = useNavigate();
-  const [user, setUser] = useState({
-    nombre: '',
-    apellido: '',
-    email: '',
-    celular: '',
-    role: 'client'
-  });
-  const [editing, setEditing] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-  useEffect(() => {
-    // Cargar datos del usuario
+  const [user, setUser] = useState(() => {
     const registerData = getObject('registerData', {});
     const role = localStorage.getItem('userRole') || 'client';
-    setUser({
+    return {
       nombre: registerData.nombre || 'Usuario',
       apellido: registerData.apellido || 'MAQGO',
       email: registerData.email || 'usuario@ejemplo.com',
       celular: registerData.celular || '+56 9 1234 5678',
       role
-    });
-  }, []);
+    };
+  });
+  const [editing, setEditing] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleSave = () => {
     localStorage.setItem('registerData', JSON.stringify(user));
@@ -37,7 +29,7 @@ function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    localStorage.clear();
+    clearAuthSessionPreservingDraft();
     navigate('/');
   };
 

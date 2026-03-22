@@ -7,8 +7,7 @@ import { playNewRequestSound, playTapSound, unlockAudio } from '../../utils/noti
 import { vibrate } from '../../utils/uberUX';
 
 import BACKEND_URL from '../../utils/api';
-import { getMachineryId } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { isPerTripMachineryType } from '../../utils/machineryNames';
 import { getObject, getJSON } from '../../utils/safeStorage';
 
 /**
@@ -31,11 +30,7 @@ function OperatorHomeScreen() {
   const [loading, setLoading] = useState(true);
   const [nextJob, setNextJob] = useState(null);
 
-  useEffect(() => {
-    loadOperatorData();
-  }, []);
-
-  const loadOperatorData = async () => {
+  async function loadOperatorData() {
     try {
       const userId = localStorage.getItem('userId');
       const ownerId = localStorage.getItem('ownerId');
@@ -48,7 +43,7 @@ function OperatorHomeScreen() {
           if (ownerRes.data) {
             setOwnerName(ownerRes.data.name || ownerRes.data.providerData?.businessName || 'Mi Empresa');
           }
-        } catch (e) {
+        } catch {
           const savedProvider = getObject('providerData', {});
           setOwnerName(savedProvider.businessName || 'Transportes Silva SpA');
         }
@@ -64,7 +59,7 @@ function OperatorHomeScreen() {
           const avail = userRes.data?.isAvailable ?? userRes.data?.available ?? false;
           setAvailable(!!avail);
           localStorage.setItem('providerAvailable', (!!avail).toString());
-        } catch (e) {
+        } catch {
           const saved = localStorage.getItem('providerAvailable') === 'true';
           setAvailable(saved);
         }
@@ -85,7 +80,7 @@ function OperatorHomeScreen() {
               hoursWorked: dashRes.data.total_hours || 0
             });
           }
-        } catch (e) {
+        } catch {
           setStats({ completed: 12, pending: 1, rating: 4.8, hoursWorked: 48 });
         }
       }
@@ -98,7 +93,7 @@ function OperatorHomeScreen() {
       setStats({ completed: 12, pending: 1, rating: 4.8, hoursWorked: 48 });
     }
     setLoading(false);
-  };
+  }
 
   useEffect(() => {
     // Polling para verificar solicitudes entrantes
@@ -106,7 +101,7 @@ function OperatorHomeScreen() {
       try {
         const userId = localStorage.getItem('userId');
         if (userId && available) {
-          const res = await axios.get(`${BACKEND_URL}/api/service-requests/pending?providerId=${userId}`);
+          const res = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
           if (res.data && res.data.length > 0) {
             localStorage.setItem('incomingRequest', JSON.stringify(res.data[0]));
             // ¡Sonido y vibración de nueva solicitud!
@@ -116,7 +111,7 @@ function OperatorHomeScreen() {
             navigate('/provider/request-received');
           }
         }
-      } catch (e) {
+      } catch {
         // Silenciar errores de polling
       }
     };
@@ -124,6 +119,13 @@ function OperatorHomeScreen() {
     const interval = setInterval(checkRequests, 5000);
     return () => clearInterval(interval);
   }, [available, navigate]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      loadOperatorData();
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const toggleAvailability = async () => {
     const userId = localStorage.getItem('userId');
@@ -429,7 +431,7 @@ function OperatorHomeScreen() {
               </p>
             </div>
             <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: '0 0 6px' }}>
-              {nextJob.machineryType} · {MACHINERY_PER_TRIP.includes(getMachineryId(nextJob.machinery_type || nextJob.machineryType)) ? 'Valor viaje' : `${nextJob.hours}h`}
+              {nextJob.machineryType} · {isPerTripMachineryType(nextJob.machinery_type || nextJob.machineryType) ? 'Valor viaje' : `${nextJob.hours}h`}
             </p>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
               {nextJob.location}

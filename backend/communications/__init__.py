@@ -26,13 +26,22 @@ TWILIO_SMS_FROM = os.environ.get('TWILIO_SMS_FROM')
 TWILIO_WHATSAPP_FROM = os.environ.get('TWILIO_WHATSAPP_FROM')
 TWILIO_VERIFY_SERVICE = os.environ.get('TWILIO_VERIFY_SERVICE')
 
-# Demo mode flag
-DEMO_MODE = os.environ.get('MAQGO_DEMO_MODE', 'true').lower() == 'true'
+# Demo mode flag (disabled by default to avoid OTP demo leaks)
+DEMO_MODE = os.environ.get('MAQGO_DEMO_MODE', 'false').lower() == 'true'
+IS_PRODUCTION = os.environ.get('MAQGO_ENV', 'development').lower() == 'production'
 DEMO_OTP_CODE = '123456'
 
 # Store OTP when using TWILIO_SMS_FROM without Verify (phone -> (otp, expires_at))
 _otp_store: dict = {}
 OTP_EXPIRY_SECONDS = 300  # 5 minutes
+
+
+def _is_demo_allowed() -> bool:
+    """
+    Demo OTP solo permitido fuera de produccion.
+    En produccion, cualquier desconfiguracion debe fallar de forma explicita.
+    """
+    return DEMO_MODE and not IS_PRODUCTION
 
 # Message templates (professional, calm, never aggressive)
 # REGLA: ≤3 líneas para SMS, lenguaje neutral chileno, sin tecnicismos
@@ -288,8 +297,8 @@ def send_sms_otp(phone_number: str, channel: str = 'sms') -> dict:
     except Exception as e:
         logger.warning(f"OTP SNS fallback: {e}")
 
-    # 2) Demo mode (sin Redis/AWS ni Twilio)
-    if DEMO_MODE and not (TWILIO_VERIFY_SERVICE or TWILIO_SMS_FROM):
+    # 2) Demo mode (solo no-produccion y explícitamente habilitado)
+    if _is_demo_allowed() and not (TWILIO_VERIFY_SERVICE or TWILIO_SMS_FROM):
         logger.info(f"[DEMO] OTP would be sent to {phone_number}, use code: {DEMO_OTP_CODE}")
         return {
             'success': True,
@@ -302,12 +311,19 @@ def send_sms_otp(phone_number: str, channel: str = 'sms') -> dict:
     # 3) Twilio
     client = get_twilio_client()
     if not client or not (TWILIO_VERIFY_SERVICE or TWILIO_SMS_FROM):
+        if _is_demo_allowed():
+            return {
+                'success': True,
+                'demo_mode': True,
+                'channel': channel,
+                'message': f'Twilio no configurado. Usa el código: {DEMO_OTP_CODE}',
+                'log': log_message(channel, phone_number, 'otp', 'demo', 'Twilio not configured')
+            }
         return {
-            'success': True,
-            'demo_mode': True,
-            'channel': channel,
-            'message': f'Twilio no configurado. Usa el código: {DEMO_OTP_CODE}',
-            'log': log_message(channel, phone_number, 'otp', 'demo', 'Twilio not configured')
+            'success': False,
+            'error': 'OTP no configurado. Configura Redis+AWS SNS o Twilio.',
+            'demo_mode': False,
+            'log': log_message(channel, phone_number, 'otp', 'error', 'OTP provider not configured')
         }
 
     try:
@@ -366,8 +382,8 @@ def verify_sms_otp(phone_number: str, code: str) -> dict:
     except Exception as e:
         logger.warning(f"OTP SNS verify fallback: {e}")
 
-    # 2) Demo mode
-    if DEMO_MODE and not (get_twilio_client() and (TWILIO_VERIFY_SERVICE or TWILIO_SMS_FROM)):
+    # 2) Demo mode (solo no-produccion)
+    if _is_demo_allowed() and not (get_twilio_client() and (TWILIO_VERIFY_SERVICE or TWILIO_SMS_FROM)):
         is_valid = code == DEMO_OTP_CODE
         return {
             'success': True,
@@ -411,13 +427,21 @@ def verify_sms_otp(phone_number: str, code: str) -> dict:
                 'log': log_message('sms', phone_number, 'otp_verify', 'error', str(e))
             }
 
-    # Fallback demo
-    is_valid = code == DEMO_OTP_CODE
+    if _is_demo_allowed():
+        is_valid = code == DEMO_OTP_CODE
+        return {
+            'success': True,
+            'valid': is_valid,
+            'demo_mode': True,
+            'log': log_message('sms', phone_number, 'otp_verify', 'valid' if is_valid else 'invalid')
+        }
+
     return {
-        'success': True,
-        'valid': is_valid,
-        'demo_mode': True,
-        'log': log_message('sms', phone_number, 'otp_verify', 'valid' if is_valid else 'invalid')
+        'success': False,
+        'valid': False,
+        'error': 'OTP no configurado. Configura Redis+AWS SNS o Twilio.',
+        'demo_mode': False,
+        'log': log_message('sms', phone_number, 'otp_verify', 'error', 'OTP provider not configured')
     }
 
 

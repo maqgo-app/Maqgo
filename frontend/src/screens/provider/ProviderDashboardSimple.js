@@ -25,7 +25,7 @@ function ProviderDashboardSimple() {
       { id: 'srv_003', transactionId: 'MQ-12345680', status: 'invoiced', date: new Date(Date.now() - 172800000).toISOString(), machineryType: 'Excavadora', hours: 6, operatorName: 'Pedro López', serviceAmount: 660000, bonusAmount: 99000, transportAmount: 35000 },
       { id: 'srv_004', transactionId: 'MQ-12345681', status: 'paid', date: new Date(Date.now() - 604800000).toISOString(), machineryType: 'Minicargador', hours: 8, operatorName: 'Juan Pérez', serviceAmount: 500000, bonusAmount: 50000, transportAmount: 20000 },
     ];
-    setServices(mockServices);
+    setTimeout(() => setServices(mockServices), 0);
     let pending = 0, toInvoice = 0, paid = 0;
     mockServices.forEach(s => {
       const total = (s.serviceAmount + s.bonusAmount + s.transportAmount) * 1.19;
@@ -35,7 +35,9 @@ function ProviderDashboardSimple() {
       else if (s.status === 'approved') toInvoice += net;
       else if (s.status === 'paid') paid += net;
     });
-    setTotals({ pending: Math.round(pending), toInvoice: Math.round(toInvoice), paid: Math.round(paid) });
+    setTimeout(() => {
+      setTotals({ pending: Math.round(pending), toInvoice: Math.round(toInvoice), paid: Math.round(paid) });
+    }, 0);
   }, []);
 
   const formatPrice = (price) => {

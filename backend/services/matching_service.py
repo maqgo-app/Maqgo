@@ -8,7 +8,7 @@ Lógica de matching:
 - Timeout: 90 segundos para que responda alguno.
 - Máximo: 5 proveedores notificados por solicitud.
 """
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Any
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import math
@@ -49,6 +49,24 @@ def _get_operator_display_name(provider: dict) -> str:
     if owner_name and owner_name != provider.get('providerData', {}).get('businessName'):
         return owner_name
     return 'Operador'
+
+
+def _get_license_plate_for_service(provider: Optional[dict]) -> Optional[str]:
+    """Patente del equipo asignado (usuario proveedor o primera máquina en machineData)."""
+    if not provider:
+        return None
+    lp = provider.get('licensePlate') or provider.get('license_plate')
+    if lp:
+        return str(lp).strip() or None
+    machine_data = provider.get('machineData') or {}
+    machines = machine_data.get('machines') or []
+    if machines and isinstance(machines, list) and len(machines) > 0:
+        m0: Any = machines[0]
+        if isinstance(m0, dict):
+            plate = m0.get('licensePlate') or m0.get('license_plate') or m0.get('patente')
+            if plate:
+                return str(plate).strip() or None
+    return None
 
 
 def calculate_distance(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -371,7 +389,8 @@ async def handle_offer_response(
         provider = await db.users.find_one({'id': provider_id}, {'_id': 0})
         # Cliente ve solo operador, nunca empresa (providerName interno para facturas)
         operator_display = _get_operator_display_name(provider) if provider else 'Operador'
-        
+        license_plate = _get_license_plate_for_service(provider)
+
         result = await db.service_requests.update_one(
             {'id': service_request_id, 'currentOfferId': provider_id},
             {
@@ -380,6 +399,7 @@ async def handle_offer_response(
                     'providerId': provider_id,
                     'providerName': provider.get('providerData', {}).get('businessName', 'Proveedor') if provider else 'Proveedor',
                     'providerOperatorName': operator_display,
+                    **({'license_plate': license_plate} if license_plate else {}),
                     'confirmedAt': now.isoformat(),
                     'startTime': now.isoformat(),
                     'endTime': end_time.isoformat(),

@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
-import { MACHINERY_NAMES } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getPerTripCountLabel } from '../../utils/bookingDates';
 import { getArray } from '../../utils/safeStorage';
 
@@ -40,7 +39,7 @@ function CalendarMultiDayScreen() {
   
   // Obtener tipo de maquinaria seleccionada
   const machinery = localStorage.getItem('selectedMachinery') || '';
-  const isPerTrip = MACHINERY_PER_TRIP.includes(machinery);
+  const isPerTrip = isPerTripMachineryType(machinery);
 
   const DAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
   const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
@@ -197,6 +196,16 @@ function CalendarMultiDayScreen() {
       }
     }
   };
+
+  useEffect(() => {
+    // Autosave defensivo de calendario: mantiene selección al volver atrás/adelante.
+    const isoDates = selectedDates.map((d) => d.toISOString());
+    localStorage.setItem('selectedDates', JSON.stringify(isoDates));
+    if (selectedDates.length > 0) {
+      const firstDate = selectedDates[0];
+      localStorage.setItem('selectedDate', firstDate.toISOString().split('T')[0]);
+    }
+  }, [selectedDates]);
 
   const days1 = getDaysInMonth(currentMonth);
   const nextMonthDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);

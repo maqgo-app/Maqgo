@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMachineryId } from '../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../utils/pricing';
+import { isPerTripMachineryType } from '../utils/machineryNames';
 
 /**
  * Pantalla de Historial (compartida)
@@ -96,7 +95,7 @@ function HistoryScreen() {
                     {service.date}
                   </span>
                   <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14 }}>
-                    {MACHINERY_PER_TRIP.includes(getMachineryId(service.machinery)) ? 'Valor viaje' : `${service.hours} horas`}
+                    {isPerTripMachineryType(service.machinery) ? 'Valor viaje' : `${service.hours} horas`}
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>

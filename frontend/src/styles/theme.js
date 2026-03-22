@@ -9,14 +9,14 @@
 
 export const MAQGO = {
   colors: {
-    // Fondos - Premium Dark
-    bgDark: '#141418',        // Fondo principal
+    // Fondos - Premium Dark (alineado con tokens.css; desktop vive en --maqgo-bg)
+    bgDark: '#101010',
     bgCard: '#1A1A1F',        // Cards
     bgCardHover: '#242429',   // Hover
     
     // Texto - CONTRASTE MEJORADO
     textPrimary: '#FAFAFA',
-    textSecondary: '#E0E0E0',  // Gris claro (mejor contraste)
+    textSecondary: '#E5E5E5', // Micro refuerzo vs fondos oscuros (paridad con --maqgo-text-secondary)
     textMuted: 'rgba(250,250,250,0.9)',  // Más visible
     
     // Bordes

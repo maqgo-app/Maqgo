@@ -41,13 +41,19 @@ function handle401() {
  * @param {Object} options - fetch options. redirectOn401=true (default) limpia sesión y redirige a login en 401.
  */
 export async function fetchWithAuth(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
-  const { redirectOn401 = true, ...fetchOpts } = options;
+  const { redirectOn401 = true, signal: outerSignal, ...fetchOpts } = options;
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
+  const abortBoth = () => controller.abort();
+  if (outerSignal) {
+    if (outerSignal.aborted) abortBoth();
+    else outerSignal.addEventListener('abort', abortBoth, { once: true });
+  }
   const headers = { ...(fetchOpts.headers || {}), ...getAuthHeaders() };
   try {
     const res = await fetch(url, { ...fetchOpts, headers, signal: controller.signal });
     clearTimeout(id);
+    if (outerSignal) outerSignal.removeEventListener('abort', abortBoth);
     if (res.status === 401 && redirectOn401) {
       handle401();
       throw new Error('Sesión expirada');
@@ -55,6 +61,7 @@ export async function fetchWithAuth(url, options = {}, timeoutMs = DEFAULT_TIMEO
     return res;
   } catch (e) {
     clearTimeout(id);
+    if (outerSignal) outerSignal.removeEventListener('abort', abortBoth);
     throw e;
   }
 }

@@ -1,7 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { MAQGO_BILLING } from './commissions';
-import { getMachineryId } from './machineryNames';
-import { MACHINERY_PER_TRIP } from './pricing';
+import { isPerTripMachineryType } from './machineryNames';
 
 const formatPrice = (price) =>
   new Intl.NumberFormat('es-CL', {
@@ -66,7 +65,7 @@ export function downloadVoucherPDF(service) {
   doc.setFont('helvetica', 'bold');
   const machineryType = service?.machineryType || service?.machinery_type || 'Servicio';
   const hours = service?.hours ?? 0;
-  const isPerTrip = service && MACHINERY_PER_TRIP.includes(getMachineryId(service.machinery_type || service.machineryType));
+  const isPerTrip = service && isPerTripMachineryType(service.machinery_type || service.machineryType);
   doc.text(`${machineryType} · ${isPerTrip ? 'Valor viaje' : `${hours} horas`}`, margin, y);
   y += 6;
 

@@ -11,11 +11,7 @@ function AdminPricingScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchPrices();
-  }, []);
-
-  const fetchPrices = async () => {
+  async function fetchPrices() {
     try {
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reference-prices`);
       const data = await res.json();
@@ -25,7 +21,13 @@ function AdminPricingScreen() {
       setPrices({ per_hour: {}, per_service: {} });
     }
     setLoading(false);
-  };
+  }
+
+  useEffect(() => {
+    setTimeout(() => {
+      fetchPrices();
+    }, 0);
+  }, []);
 
   const updatePrice = (type, machineId, field, value) => {
     const num = parseInt(value, 10);
@@ -82,11 +84,6 @@ function AdminPricingScreen() {
       toast.error('Error al guardar');
     }
     setSaving(false);
-  };
-
-  const formatPrice = (n) => {
-    if (n == null || n === '') return '-';
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
   };
 
   const PriceRow = ({ type, machineId }) => {

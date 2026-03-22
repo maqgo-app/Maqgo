@@ -1,15 +1,17 @@
 {
+  "id": "https://maqgo.vercel.app/",
   "name": "MAQGO - Maquinaria pesada donde la necesitas",
   "short_name": "MAQGO",
   "description": "Arriendo de maquinaria pesada en horas, no días. Sin contratos. Paga solo al confirmar.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#141418",
+  "background_color": "#101010",
   "theme_color": "#EC6819",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/vite.svg",
+      "src": "/maqgo_logo_clean.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

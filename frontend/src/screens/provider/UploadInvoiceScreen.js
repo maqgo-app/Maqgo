@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
@@ -7,8 +7,7 @@ import { fetchWithTimeout } from '../../utils/api';
 
 import BACKEND_URL from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
-import { getMachineryId } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { isPerTripMachineryType } from '../../utils/machineryNames';
 
 /**
  * Pantalla: Subir Factura (Proveedor)
@@ -33,11 +32,7 @@ function UploadInvoiceScreen() {
   const [invoiceImage, setInvoiceImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
 
-  useEffect(() => {
-    loadService();
-  }, [serviceId, serviceFromState]);
-
-  const loadService = async () => {
+  const loadService = useCallback(async () => {
     if (serviceFromState) {
       setService(normalizeServiceFromVoucher(serviceFromState));
       setLoading(false);
@@ -54,21 +49,47 @@ function UploadInvoiceScreen() {
           const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
           const serviceData = await Promise.race([fetchPromise, timeoutPromise]);
           setService(serviceData);
-        } catch (error) {
-          setService(getDemoService(serviceId));
+        } catch {
+          setService(
+            normalizeServiceFromVoucher({
+              id: serviceId,
+              transactionId: `MQ-${Date.now().toString().slice(-8)}`,
+              machineryType: 'Retroexcavadora',
+              hours: 4,
+              clientName: 'Carlos González',
+              serviceAmount: 180000,
+              bonusAmount: 36000,
+              transportAmount: 25000
+            })
+          );
         }
       } else {
         const lastService = getObject('lastCompletedService', {});
         if (lastService.id || lastService._id) {
           setService(normalizeServiceFromVoucher(lastService));
         } else {
-          setService(getDemoService('demo'));
+          setService(
+            normalizeServiceFromVoucher({
+              id: 'demo',
+              transactionId: `MQ-${Date.now().toString().slice(-8)}`,
+              machineryType: 'Retroexcavadora',
+              hours: 4,
+              clientName: 'Carlos González',
+              serviceAmount: 180000,
+              bonusAmount: 36000,
+              transportAmount: 25000
+            })
+          );
         }
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [serviceFromState, serviceId]);
+
+  useEffect(() => {
+    loadService();
+  }, [loadService]);
 
   const normalizeServiceFromVoucher = (s) => {
     const serviceAmount = s.serviceAmount || 0;
@@ -119,19 +140,6 @@ function UploadInvoiceScreen() {
       net_total: data.net_total ?? providerNet,
       date: data.created_at
     };
-  };
-
-  const getDemoService = (id) => {
-    return normalizeServiceFromVoucher({
-      id,
-      transactionId: `MQ-${Date.now().toString().slice(-8)}`,
-      machineryType: 'Retroexcavadora',
-      hours: 4,
-      clientName: 'Carlos González',
-      serviceAmount: 180000,
-      bonusAmount: 36000,
-      transportAmount: 25000
-    });
   };
 
   const handleFileSelect = (e) => {
@@ -186,7 +194,7 @@ function UploadInvoiceScreen() {
         setSubmitting(false);
       };
       reader.readAsDataURL(invoiceImage);
-    } catch (error) {
+    } catch {
       toast.success('Factura registrada (demo). Pago en 2 días hábiles.');
       navigate('/provider/cobros');
       setSubmitting(false);
@@ -243,7 +251,7 @@ function UploadInvoiceScreen() {
             📄 TU DESGLOSE · Factura a MAQGO por:
           </p>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{service && MACHINERY_PER_TRIP.includes(getMachineryId(service.machinery_type || service.machineryType)) ? 'Servicio (viaje)' : `Servicio (${service?.hours}h)`}</span>
+            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{service && isPerTripMachineryType(service.machinery_type || service.machineryType) ? 'Servicio (viaje)' : `Servicio (${service?.hours}h)`}</span>
             <span style={{ color: '#fff', fontSize: 13 }}>{formatPrice(service?.serviceAmount)}</span>
           </div>
           {(service?.bonusAmount || 0) > 0 && (

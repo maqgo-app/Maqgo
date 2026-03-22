@@ -1,0 +1,13 @@
+---
+description: Revision automatica tras cambios y comando full system review
+alwaysApply: true
+---
+
+# Revision automatica de produccion
+
+Tras cualquier cambio de codigo, ejecuta revision completa sin que el usuario la pida.
+
+- Si el usuario escribe `full system review`, realiza revision total del area o del diff reciente.
+- Evalua el cambio como sistema en produccion (APIs, pagos, concurrencia, edge cases).
+- No inventes metricas de produccion sin evidencia en codigo, tests o logs revisados.
+- Si no hubo cambios de codigo y no pidieron revision explicita, no fuerces veredicto.

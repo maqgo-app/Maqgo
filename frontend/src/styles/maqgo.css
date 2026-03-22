@@ -11,10 +11,10 @@
  * 
  * PALETA CERRADA:
  * Fondo exterior: #000000 (espacio alrededor de la app)
- * Background app:  #141418 (pantallas Maqgo, contraste con #000 exterior)
+ * Background app:  tokens --maqgo-bg (mobile #101010; desktop ~#0c0c0c)
  * Cards:       #1A1A1F
  * Text main:   #FAFAFA
- * Text second: #E0E0E0
+ * Text second: var(--maqgo-text-secondary)
  * Borders:     #2A2A2A
  * Action:      #EC6819
  * Info:        #90BDD3
@@ -80,11 +80,17 @@ html, body, #root {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
-  /* Mismo fondo que la app para evitar recuadro negro alrededor del logo en desktop (phone mockup) */
+  /* Mobile: mismo tono que columna app. Desktop: negro exterior (marco/columna = --maqgo-bg en .maqgo-app) — evita flash post-hidratación */
   background: var(--maqgo-bg);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (min-width: var(--maqgo-breakpoint-mobile)) {
+  html, body, #root {
+    background: var(--maqgo-bg-outer);
+  }
 }
 
 /* Typography */
@@ -114,7 +120,7 @@ html, body, #root {
   font-family: 'Inter', sans-serif;
   font-weight: 400;
   font-size: 14px;
-  color: #E0E0E0;
+  color: var(--maqgo-text-secondary);
 }
 
 /* Microcopy - GRIS CLARO (mejor contraste) */
@@ -122,7 +128,7 @@ html, body, #root {
   font-family: 'Inter', sans-serif;
   font-size: 12px;
   font-weight: 400;
-  color: #E0E0E0;
+  color: var(--maqgo-text-secondary);
   line-height: 1.5;
 }
 
@@ -153,7 +159,7 @@ html, body, #root {
 /* Badge neutro */
 .maqgo-badge-neutral {
   background: rgba(250, 250, 250, 0.08);
-  color: #E0E0E0;
+  color: var(--maqgo-text-secondary);
 }
 
 /* Badge error */
@@ -201,18 +207,19 @@ html, body, #root {
 /* WelcomeScreen: layout propio, sin padding por defecto de maqgo-screen */
 .maqgo-screen.welcome-screen {
   padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Móvil: negro neutro (sin matiz azul/rojo que choque con el naranja de marca) */
+  background: #0a0a0a;
 }
 
-/*
- * Welcome desktop “Tesla / dispositivo”: fondo exterior casi negro solo en esta pantalla.
- * Sin esto, #root y la app comparten tono y el marco no “flota”.
- */
-html.maqgo-welcome-desktop-chrome,
-html.maqgo-welcome-desktop-chrome body,
-html.maqgo-welcome-desktop-chrome #root {
-  background: var(--maqgo-bg-outer) !important;
-  min-height: 100%;
+@media (min-width: 768px) {
+  .maqgo-screen.welcome-screen {
+    background: var(--maqgo-bg);
+  }
 }
+
+/* Fondo exterior desktop: ver bloque html/body/#root (≥768px). Antes: clase maqgo-welcome-desktop-chrome + useEffect (un frame tarde). */
 
 /* Contenido por encima del ::before (brillo) del marco */
 .maqgo-app.welcome-desktop .maqgo-screen.welcome-screen {
@@ -220,24 +227,38 @@ html.maqgo-welcome-desktop-chrome #root {
   z-index: 1;
 }
 
-/* Caluga superior — presencia premium (refuerza sombra en CSS) */
+/* Caluga — sombra neutra (el acento naranja va en CTAs / H1, no en “gris + rojo” sobre la pill) */
 .welcome-hero-caluga {
-  filter: drop-shadow(0 4px 20px rgba(236, 104, 25, 0.35));
+  filter: drop-shadow(0 2px 14px rgba(0, 0, 0, 0.45));
 }
 
-/* Barra de chips — vidrio + borde legible (look acordado) */
-.welcome-value-chips {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.03) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 4px 24px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+/* Entrada escalonada Welcome (tokens: --maqgo-welcome-reveal-*) */
+@keyframes welcomeReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.welcome-screen .welcome-reveal {
+  opacity: 0;
+}
+
+.welcome-screen.welcome-mounted .welcome-reveal {
+  animation: welcomeReveal var(--maqgo-welcome-reveal-duration) var(--maqgo-welcome-reveal-ease) forwards;
+  animation-delay: var(--welcome-d, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-screen .welcome-reveal {
+    opacity: 1 !important;
+    animation: none !important;
+    transform: none !important;
+  }
 }
 
 /* Desktop: más espacio desde el header para distribuir mejor la info (sin afectar mobile) */
@@ -245,12 +266,12 @@ html.maqgo-welcome-desktop-chrome #root {
   .maqgo-screen {
     padding-top: max(64px, env(safe-area-inset-top, 0px) + 40px);
   }
-  /* Solo layout; borde/sombra del marco = cromo/plata global (.maqgo-app desktop), no naranja */
+  /* Solo layout Welcome desktop; cromo del marco en bloque “Tesla” (solo .welcome-desktop, ver más abajo) */
   .maqgo-app.welcome-desktop {
     max-width: 520px;
     overflow: visible;
     min-height: calc(100vh - 48px);
-    margin: 24px auto;
+    margin: 28px auto;
   }
 }
 
@@ -285,7 +306,7 @@ p, .maqgo-body {
   font-size: 14px;
   font-weight: 400;
   line-height: 1.5;
-  color: #E0E0E0;
+  color: var(--maqgo-text-secondary);
 }
 
 /* Status/Labels */
@@ -313,7 +334,7 @@ p, .maqgo-body {
 }
 
 .maqgo-input::placeholder {
-  color: #999;
+  color: var(--maqgo-input-placeholder);
 }
 
 .maqgo-input:focus {
@@ -354,7 +375,7 @@ a:focus-visible,
 
 .maqgo-phone-prefix {
   padding: 16px 14px;
-  color: #E0E0E0;
+  color: var(--maqgo-text-secondary);
   font-family: 'Inter', sans-serif;
   font-size: 15px;
   font-weight: 500;
@@ -427,7 +448,7 @@ a:focus-visible,
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 12px;
-  color: #E0E0E0;
+  color: var(--maqgo-text-secondary);
   font-family: 'Inter', sans-serif;
   font-size: 14px;
   font-weight: 600;
@@ -444,7 +465,7 @@ a:focus-visible,
 }
 .maqgo-btn-secondary:disabled:hover {
   border-color: rgba(255, 255, 255, 0.35);
-  color: #E0E0E0;
+  color: var(--maqgo-text-secondary);
 }
 .maqgo-btn-secondary-danger {
   border-color: rgba(244, 67, 54, 0.5);
@@ -759,21 +780,21 @@ a:focus-visible,
   cursor: pointer;
 }
 
-/* Responsive para desktop — marco “Tesla”: cromo/plata (blanco + sombra). El naranja de marca va en la caluga, no en el borde del dispositivo */
+/* Responsive para desktop — marco “Tesla”: solo Welcome (.welcome-desktop). Login/registro/etc. quedan columna plana centrada. */
 @media (min-width: var(--maqgo-breakpoint-mobile)) {
-  .maqgo-app {
-    border: 1px solid rgba(255, 255, 255, 0.14);
+  .maqgo-app.welcome-desktop {
+    border: 1px solid var(--maqgo-welcome-frame-stroke);
     box-shadow:
-      inset 0 0 0 0.5px rgba(255, 255, 255, 0.1),
-      0 0 0 1px rgba(255, 255, 255, 0.08),
-      0 18px 46px rgba(0, 0, 0, 0.52);
-    border-radius: 38px;
-    margin: 20px auto;
-    min-height: calc(100vh - 40px);
-    overflow: hidden;
+      inset 0 1px 0 var(--maqgo-welcome-frame-stroke-inset),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
+      0 0 0 1px rgba(0, 0, 0, 0.45),
+      0 22px 56px rgba(0, 0, 0, 0.62),
+      0 8px 24px rgba(0, 0, 0, 0.38);
+    border-radius: 40px;
+    /* margin, min-height, overflow: bloque superior (.maqgo-app.welcome-desktop) para no pisar overflow:visible (caluga/sombras) */
   }
-  /* Brillo tipo vidrio / hardware (sin tinte naranja en el marco) */
-  .maqgo-app::before {
+  /* Brillo esquina: más contenido, estilo hardware */
+  .maqgo-app.welcome-desktop::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -781,11 +802,36 @@ a:focus-visible,
     border-radius: inherit;
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.14) 0%,
-      rgba(255, 255, 255, 0.05) 18%,
-      rgba(255, 255, 255, 0) 38%
+      rgba(255, 255, 255, 0.085) 0%,
+      rgba(255, 255, 255, 0.032) 22%,
+      rgba(255, 255, 255, 0) 42%
     );
-    opacity: 0.72;
+    opacity: 0.52;
+  }
+
+  /*
+   * Welcome desktop: acento de marca en el “home” del mockup (solo /welcome).
+   * Línea inferior suave — no filete colorido en todo el perímetro (criterio CTO/UX).
+   */
+  .maqgo-app.welcome-desktop::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    z-index: 2;
+    left: 11%;
+    right: 11%;
+    bottom: 5px;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(236, 104, 25, 0.18) 20%,
+      rgba(236, 104, 25, 0.72) 50%,
+      rgba(236, 104, 25, 0.18) 80%,
+      transparent 100%
+    );
+    box-shadow: 0 0 16px rgba(236, 104, 25, 0.22);
   }
 }
 

@@ -87,7 +87,7 @@ export function getMachines() {
   let list;
   try {
     list = JSON.parse(raw);
-  } catch (_) {
+  } catch {
     list = JSON.parse(JSON.stringify(DEFAULT_MACHINES));
     saveMachines(list);
     return list;

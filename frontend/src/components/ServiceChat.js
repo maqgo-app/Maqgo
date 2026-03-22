@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 
 import BACKEND_URL from '../utils/api';
@@ -37,7 +37,6 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
   const knownMessageIdsRef = useRef(new Set());
   const didInitRef = useRef(false);
   const notifRequestedRef = useRef(false);
-  const otherSideLabel = userType === 'client' ? 'Operador' : 'Cliente';
 
   // Best practice: pedir permiso solo 1 vez al abrir el chat (si está soportado).
   useEffect(() => {
@@ -54,7 +53,7 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
     }
   }, [serviceId]);
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     try {
       const prevIds = knownMessageIdsRef.current;
       const res = await axios.get(`${BACKEND_URL}/api/messages/service/${serviceId}`);
@@ -94,18 +93,22 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
       console.error('Error fetching messages:', e);
     }
     setLoading(false);
-  };
+  }, [serviceId, userType]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
-    setLoading(true);
-    fetchMessages();
+    const initialFetchId = setTimeout(() => {
+      fetchMessages();
+    }, 0);
     const interval = setInterval(fetchMessages, 3000);
-    return () => clearInterval(interval);
-  }, [serviceId]);
+    return () => {
+      clearTimeout(initialFetchId);
+      clearInterval(interval);
+    };
+  }, [fetchMessages]);
 
   useEffect(() => {
     scrollToBottom();

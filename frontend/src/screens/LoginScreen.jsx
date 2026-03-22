@@ -25,16 +25,21 @@ function LoginScreen({ setUserRole, setUserId }) {
         timeout: 10000,
         headers: { 'Content-Type': 'application/json' }
       });
-      setUserRole(res.data.role);
+      const roles = Array.isArray(res.data.roles) ? res.data.roles : [];
+      // Prioridad: cuenta admin (role o roles[] desde /api/auth/login) → siempre panel admin
+      const isAdmin = res.data.role === 'admin' || roles.includes('admin');
+      const effectiveRole = isAdmin ? 'admin' : res.data.role;
+      setUserRole(effectiveRole);
       setUserId(res.data.id);
       localStorage.setItem('userId', res.data.id);
-      localStorage.setItem('userRole', res.data.role);
+      localStorage.setItem('userRole', effectiveRole);
+      localStorage.setItem('userRoles', JSON.stringify(roles));
       localStorage.setItem('providerRole', res.data.provider_role || 'super_master');
       if (res.data.token) localStorage.setItem('token', res.data.token);
-      // Admin → /admin; si venía con redirect a admin → /admin; cliente → /client/home; proveedor → /provider/home
-      if (res.data.role === 'admin' || redirectTo === '/admin') {
+      // Admin: siempre /admin (ignora redirect a /client si el usuario resultó ser admin)
+      if (isAdmin || redirectTo === '/admin') {
         navigate('/admin', { replace: true });
-      } else if (res.data.role === 'client') {
+      } else if (effectiveRole === 'client') {
         const target = redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
         navigate(target, { replace: true });
       } else {
@@ -43,7 +48,7 @@ function LoginScreen({ setUserRole, setUserId }) {
       }
     } catch (e) {
       if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
-        setError('El servidor no responde. ¿Está el backend corriendo en el puerto 8002?');
+        setError('El servidor no responde. Verifica que el backend esté corriendo (normalmente en el puerto 8000).');
       } else if (e.response?.status === 401) {
         setError('Correo o contraseña incorrectos');
       } else if (e.response?.status >= 500) {

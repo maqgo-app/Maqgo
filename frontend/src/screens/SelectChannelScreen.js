@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../components/MaqgoLogo';
 import { useToast } from '../components/Toast';
-import BACKEND_URL from '../utils/api';
+import BACKEND_URL, { fetchWithTimeout } from '../utils/api';
 import { getObject } from '../utils/safeStorage';
 
 /**
@@ -28,7 +28,7 @@ function SelectChannelScreen() {
     setError('');
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/communications/sms/send-otp`, {
+      const response = await fetchWithTimeout(`${BACKEND_URL}/api/communications/sms/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -37,11 +37,15 @@ function SelectChannelScreen() {
         })
       });
 
-      const data = await response.json();
-      // FastAPI devuelve { detail: "mensaje" } en errores HTTP
-      const errorMsg = data.detail || data.error || 'Error al enviar el código SMS';
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        // Posibles errores de proxy sin cuerpo JSON.
+      }
+      const errorMsg = data?.detail || data?.error || `Error al enviar el código SMS (${response.status})`;
 
-      if (data.success) {
+      if (response.ok && data?.success) {
         localStorage.setItem('verificationChannel', channel);
         toast.success('Código enviado a tu celular');
         navigate('/verify-sms');
@@ -50,7 +54,13 @@ function SelectChannelScreen() {
       }
     } catch (err) {
       console.error('Error:', err);
-      setError(err.message?.includes('Failed to fetch') ? 'No se pudo conectar al servidor. ¿Está el backend en marcha?' : 'Error de conexión. Intenta nuevamente.');
+      const isNetworkError = err?.name === 'TypeError' || err?.message?.includes('Failed to fetch');
+      const msg = isNetworkError
+        ? 'No se pudo conectar al servidor. Intenta nuevamente.'
+        : err?.name === 'AbortError'
+          ? 'El servidor tardó demasiado en responder. Intenta nuevamente.'
+          : 'Error de conexión. Intenta nuevamente.';
+      setError(msg);
     } finally {
       setLoading(false);
     }

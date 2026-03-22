@@ -13,6 +13,7 @@ from services.matching_service import (
 )
 from services.payment_service import PaymentService
 from services.timer_service import TimerService
+from services.refund_request_service import RefundRequestService
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ServerSelectionTimeoutError
 import os
@@ -30,6 +31,7 @@ db = client[os.environ.get('DB_NAME', 'maqgo_db')]
 # Servicios
 payment_service = PaymentService(db)
 timer_service = TimerService(db)
+refund_request_service = RefundRequestService(db)
 
 
 def _provider_matches_user(user: dict, provider_account_id: str) -> bool:
@@ -414,19 +416,21 @@ async def cancel_service_client(
         'cancelled_at': now.isoformat(),
     }
 
-    refund_rollback = None
+    refund_request_result = None
     if refund_amount > 0:
-        # Primero Transbank + payment; solo marcamos refunded en solicitud si TBK confirma
-        refund_rollback = await payment_service.rollback_charge(
-            request_id,
-            reason='client_cancelled',
-            refund_amount=refund_amount,
-            skip_service_request_update=True,
+        # Devolución pasa por MAQGO: solicitud → aprobación admin → Transbank
+        refund_request_result = await refund_request_service.create_request(
+            service_request_id=request_id,
+            amount=refund_amount,
+            reason="client_cancelled",
+            requested_by_user_id=current_user.get("id"),
+            source="client_cancel",
+            meta={
+                "late_fee_amount": cancelation_fee,
+                "new_status": new_status,
+            },
         )
-        if refund_rollback.get('success'):
-            update_data['paymentStatus'] = 'refunded'
-        else:
-            update_data['paymentStatus'] = 'refund_pending'
+        update_data["paymentStatus"] = "refund_requested"
 
     mongo_update = {'$set': update_data}
     if cancel_event:
@@ -437,13 +441,15 @@ async def cancel_service_client(
         mongo_update
     )
 
+    rr_doc = (refund_request_result or {}).get("refundRequest") if refund_request_result else None
     return {
         'status': new_status,
         'refund_amount': refund_amount,
         'late_fee_amount': cancelation_fee,
         'cancelationFee': cancelation_fee if cancelation_fee > 0 else None,
-        'refund_status': refund_rollback.get('status') if refund_rollback else None,
-        'refund_ok': refund_rollback.get('success') if refund_rollback else None,
+        'refund_request_id': rr_doc.get("id") if rr_doc else None,
+        'refund_request_status': rr_doc.get("status") if rr_doc else None,
+        'refund_pending_approval': bool(refund_amount > 0),
     }
 
 

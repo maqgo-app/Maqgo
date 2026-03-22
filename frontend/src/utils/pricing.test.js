@@ -10,7 +10,9 @@ import {
   calculateWithInvoice,
   totalConFactura,
   CON_FACTURA_FACTOR,
-  buildPricingFallback
+  buildPricingFallback,
+  isPerTripMachinery,
+  needsTransportMachinery,
 } from './pricing.js';
 
 describe('pricing constants', () => {
@@ -81,6 +83,38 @@ describe('calculateClientPrice', () => {
     });
     expect(price).toBeGreaterThan(0);
     expect(Number.isInteger(price)).toBe(true);
+  });
+
+  it('same result for canonical id and nombre visible (Retroexcavadora)', () => {
+    const a = calculateClientPrice({
+      machineryType: 'retroexcavadora',
+      basePrice: 50000,
+      transportFee: 25000,
+      hours: 4,
+      reservationType: 'immediate',
+    });
+    const b = calculateClientPrice({
+      machineryType: 'Retroexcavadora',
+      basePrice: 50000,
+      transportFee: 25000,
+      hours: 4,
+      reservationType: 'immediate',
+    });
+    expect(a).toBe(b);
+  });
+});
+
+describe('isPerTripMachinery / needsTransportMachinery', () => {
+  it('detecta por viaje por id o nombre visible', () => {
+    expect(isPerTripMachinery('camion_pluma')).toBe(true);
+    expect(isPerTripMachinery('Camión Pluma (Hiab)')).toBe(true);
+    expect(isPerTripMachinery('retroexcavadora')).toBe(false);
+  });
+
+  it('traslado: nombre visible de grúa cuenta como necesita transporte', () => {
+    expect(needsTransportMachinery('grua')).toBe(true);
+    expect(needsTransportMachinery('Grúa Móvil')).toBe(true);
+    expect(needsTransportMachinery('camion_aljibe')).toBe(false);
   });
 });
 

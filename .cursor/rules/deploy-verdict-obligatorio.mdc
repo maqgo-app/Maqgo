@@ -1,0 +1,14 @@
+---
+description: Veredicto obligatorio de deploy al final de cada revision
+alwaysApply: true
+---
+
+# Veredicto obligatorio
+
+Al cerrar cada revision de codigo (incluido `full system review`) termina con una sola decision:
+
+- `⚠️ BLOCK DEPLOY` si existe al menos un hallazgo HIGH o CRITICAL no resuelto de forma segura.
+- `✅ SAFE TO DEPLOY` si no hay HIGH/CRITICAL pendientes.
+
+Para cambios sustantivos, permite una frase compacta de contexto antes del veredicto final en la misma linea.
+Para cambios triviales (solo formato/rename sin comportamiento), responde solo con el veredicto.

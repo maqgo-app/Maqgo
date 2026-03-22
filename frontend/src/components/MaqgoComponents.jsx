@@ -148,7 +148,7 @@ export function ContactButton({ onOpenChat, name }) {
 }
 
 // Botones de contacto legacy (WhatsApp y Llamar) - DEPRECATED
-export function ContactButtons({ phone, name }) {
+export function ContactButtons({ phone: _phone, name: _name }) {
   // Best practice: el único canal entre cliente y proveedor es el chat interno.
   // Por seguridad, ocultamos números y eliminamos WhatsApp/Llamar.
   return (

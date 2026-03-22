@@ -48,7 +48,7 @@ const playTone = (frequency, duration, type = 'sine', volume = 0.3) => {
     
     oscillator.start(ctx.currentTime);
     oscillator.stop(ctx.currentTime + duration);
-  } catch (e) {
+  } catch {
     console.log('Audio not available');
   }
 };
@@ -81,7 +81,7 @@ const playSequence = (notes, tempo = 150) => {
       oscillator.stop(time + duration);
       
       time += duration;
-    } catch (e) {
+    } catch {
       // Silenciar errores
     }
   });
@@ -123,7 +123,7 @@ export const playNewRequestSound = () => {
       
       time += duration + gap;
     });
-  } catch (e) {
+  } catch {
     // Fallback simple
     playSequence([
       { freq: 523, dur: 0.15, type: 'triangle', vol: 0.6 },

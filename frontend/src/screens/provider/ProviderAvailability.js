@@ -27,9 +27,7 @@ function ProviderAvailability({ userId: userIdProp }) {
     if (isAvailable && userId) {
       const interval = setInterval(async () => {
         try {
-          const response = await axios.get(`${BACKEND_URL}/api/service-requests/pending`, {
-            params: { providerId: userId }
-          });
+          const response = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
           if (response.data && response.data.length > 0) {
             const request = response.data[0];
             localStorage.setItem('currentServiceId', request.id);
@@ -40,7 +38,7 @@ function ProviderAvailability({ userId: userIdProp }) {
             vibrate('newRequest');
             navigate('/provider/request-received');
           }
-        } catch (error) {
+        } catch {
           // Silenciar errores de polling
         }
       }, 2000);
@@ -67,7 +65,7 @@ function ProviderAvailability({ userId: userIdProp }) {
           navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
         });
         location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      } catch (e) {
+      } catch {
         console.log('Usando ubicación por defecto (Santiago)');
       }
     }
@@ -127,17 +125,17 @@ function ProviderAvailability({ userId: userIdProp }) {
           </div>
           
           <div className="machinery-list">
-            {MACHINERY_LIST.slice(0, 6).map(({ id, name, Icon }) => (
+            {MACHINERY_LIST.slice(0, 6).map((machine) => (
               <button 
-                key={id}
-                className={`machinery-item ${selectedMachinery === id ? 'selected' : ''}`}
-                onClick={() => setSelectedMachinery(id)}
+                key={machine.id}
+                className={`machinery-item ${selectedMachinery === machine.id ? 'selected' : ''}`}
+                onClick={() => setSelectedMachinery(machine.id)}
               >
                 <div className="machinery-icon">
-                  <Icon size={32} color={selectedMachinery === id ? '#ff8c42' : '#666'} />
+                  <machine.Icon size={32} color={selectedMachinery === machine.id ? '#ff8c42' : '#666'} />
                 </div>
-                <span className="machinery-name">{name}</span>
-                {selectedMachinery === id && (
+                <span className="machinery-name">{machine.name}</span>
+                {selectedMachinery === machine.id && (
                   <div className="check-badge">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                       <circle cx="8" cy="8" r="8" fill="#ff8c42"/>

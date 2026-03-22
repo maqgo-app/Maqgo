@@ -21,7 +21,6 @@ function ProviderHomeScreen() {
   const toast = useToast();
   const [available, setAvailable] = useState(() => localStorage.getItem('providerAvailable') === 'true');
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
-  const [pendingRequest, setPendingRequest] = useState(null);
   const [bankDataComplete, setBankDataComplete] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
 
@@ -68,9 +67,8 @@ function ProviderHomeScreen() {
       try {
         const userId = localStorage.getItem('userId');
         if (userId && available && onboardingCompleted) {
-          const res = await axios.get(`${BACKEND_URL}/api/service-requests/pending?providerId=${userId}`);
+          const res = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
           if (res.data && res.data.length > 0) {
-            setPendingRequest(res.data[0]);
             localStorage.setItem('incomingRequest', JSON.stringify(res.data[0]));
             unlockAudio();
             playNewRequestSound();
@@ -78,7 +76,7 @@ function ProviderHomeScreen() {
             navigate('/provider/request-received');
           }
         }
-      } catch (e) {
+      } catch {
         // Silenciar errores de polling
       }
     };

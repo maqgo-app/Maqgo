@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
-import { MACHINERY_DESCRIPTIONS } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_DESCRIPTIONS, isPerTripMachineryType } from '../../utils/machineryNames';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
@@ -175,7 +174,9 @@ function MachinerySelection() {
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed[0]) return parsed[0];
-    } catch (_) {}
+    } catch {
+      // Valor previo inválido en localStorage.
+    }
     return typeof raw === 'string' ? raw : '';
   };
   const [selectedMachinery, setSelectedMachineryState] = useState(getSingleMachinery);
@@ -184,7 +185,6 @@ function MachinerySelection() {
   useEffect(() => {
     localStorage.removeItem('selectedMachineryList');
     const one = getSingleMachinery();
-    setSelectedMachineryState(one);
     if (one) localStorage.setItem('selectedMachinery', one);
   }, []);
 
@@ -202,7 +202,7 @@ function MachinerySelection() {
     saveBookingProgress('machinery', { machinery: selectedMachinery });
     const primary = selectedMachinery;
 
-    const isPerTrip = MACHINERY_PER_TRIP.includes(primary);
+    const isPerTrip = isPerTripMachineryType(primary);
 
     if (reservationType === 'scheduled') {
       localStorage.setItem('clientBookingStep', 'location');

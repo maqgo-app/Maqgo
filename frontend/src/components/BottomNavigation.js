@@ -1,6 +1,7 @@
 import React from 'react';
 import { Z_INDEX } from '../constants/zIndex';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { clearAuthSessionPreservingDraft } from '../utils/sessionCleanup';
 
 /**
  * Ítem de navegación
@@ -68,8 +69,22 @@ const Icons = {
       <path d="M12 6V18M9 9C9 7.89543 10.3431 7 12 7C13.6569 7 15 7.89543 15 9C15 10.1046 13.6569 11 12 11C10.3431 11 9 11.8954 9 13C9 14.1046 10.3431 15 12 15C13.6569 15 15 14.1046 15 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
     </svg>
+  ),
+  logout: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M9 21H6C4.89543 21 4 20.1046 4 19V5C4 3.89543 4.89543 3 6 3H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M16 17L21 12L16 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M21 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
   )
 };
+
+function logoutAndGoWelcome(navigate) {
+  const confirmed = window.confirm('¿Quieres cerrar sesión ahora?');
+  if (!confirmed) return;
+  clearAuthSessionPreservingDraft();
+  navigate('/welcome');
+}
 
 /**
  * Navega al "Home" correcto según sesión y rol:
@@ -137,6 +152,12 @@ export function ClientNavigation() {
         label="Perfil"
         icon={Icons.profile}
       />
+      <NavItem
+        active={false}
+        onClick={() => logoutAndGoWelcome(navigate)}
+        label="Salir"
+        icon={Icons.logout}
+      />
     </div>
   );
 }
@@ -196,6 +217,12 @@ export function ProviderNavigation() {
           label="Perfil"
           icon={Icons.profile}
         />
+        <NavItem
+          active={false}
+          onClick={() => logoutAndGoWelcome(navigate)}
+          label="Salir"
+          icon={Icons.logout}
+        />
       </div>
     );
   }
@@ -234,6 +261,12 @@ export function ProviderNavigation() {
         onClick={() => navigate('/provider/profile')}
         label="Perfil"
         icon={Icons.profile}
+      />
+      <NavItem
+        active={false}
+        onClick={() => logoutAndGoWelcome(navigate)}
+        label="Salir"
+        icon={Icons.logout}
       />
     </div>
   );

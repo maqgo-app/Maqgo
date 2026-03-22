@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { playAccessGrantedAlert, playSuccessAlert, playArrivalAlert, vibrate } from '../../utils/alertSound';
 
-import { MACHINERY_NAMES, getMachineryId } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getObjectFirst } from '../../utils/safeStorage';
 
 /**
@@ -26,19 +25,27 @@ function ArrivalScreen() {
   // Timer de 30 minutos
   const MAX_WAITING_MINUTES = 30;
 
+  function handleStartService() {
+    localStorage.setItem('serviceStarted', 'true');
+    localStorage.setItem('serviceStartTime', new Date().toISOString());
+    navigate('/provider/service-active');
+  }
+
   useEffect(() => {
     // Cargar datos del servicio
     const request = getObjectFirst(['acceptedRequest', 'incomingRequest'], {});
-    setServiceData({
+    setTimeout(() => setServiceData({
       clientName: request.clientName || 'Carlos González',
       location: request.location || localStorage.getItem('serviceLocation') || 'Av. Providencia 1234, Santiago',
       machinery: request.machineryType || localStorage.getItem('selectedMachinery') || 'retroexcavadora',
       hours: request.hours || parseInt(localStorage.getItem('selectedHours') || '4'),
-    });
+    }), 0);
 
     // Registrar hora de llegada
     const now = new Date();
-    setArrivalTime(now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }));
+    setTimeout(() => {
+      setArrivalTime(now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }));
+    }, 0);
     localStorage.setItem('arrivalTime', now.toISOString());
     
     // Notificar al cliente que el operador llegó
@@ -138,12 +145,6 @@ function ArrivalScreen() {
     };
   }, [waitingForClient, clientAccepted]);
 
-  const handleStartService = () => {
-    localStorage.setItem('serviceStarted', 'true');
-    localStorage.setItem('serviceStartTime', new Date().toISOString());
-    navigate('/provider/service-active');
-  };
-
   return (
     <div className="maqgo-app">
       <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 20px' }}>
@@ -186,7 +187,7 @@ function ArrivalScreen() {
                   30 minutos de espera
                 </p>
                 <p style={{ color: 'rgba(0,0,0,0.7)', fontSize: 13, margin: '4px 0 0' }}>
-                  Iniciando servicio automáticamente...
+                  Inicio automático: el cliente no te dejó entrar en 30 min
                 </p>
               </div>
             </div>
@@ -423,7 +424,7 @@ function ArrivalScreen() {
                 {MACHINERY_NAMES[serviceData.machinery] || serviceData.machinery}
               </div>
               <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>
-                {MACHINERY_PER_TRIP.includes(getMachineryId(serviceData.machinery)) ? 'Valor viaje' : `${serviceData.hours} horas de servicio`}
+                {isPerTripMachineryType(serviceData.machinery) ? 'Valor viaje' : `${serviceData.hours} horas de servicio`}
               </div>
             </div>
           </div>

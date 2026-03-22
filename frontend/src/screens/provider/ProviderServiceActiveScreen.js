@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
-import { getMachineryDisplayName, getMachineryId } from '../../utils/machineryNames';
+import { getMachineryDisplayName, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getObject, getJSON } from '../../utils/safeStorage';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
 
 /**
  * Pantalla P5 - Servicio en Curso (Proveedor)
@@ -16,21 +15,21 @@ function ProviderServiceActiveScreen() {
     const parsed = getJSON('incomingRequest', null);
     if (parsed) {
       const machineryId = parsed.machinery_type || parsed.machineryType || 'retroexcavadora';
-      setRequest({
+      setTimeout(() => setRequest({
         ...parsed,
         machinery_type: machineryId,
         machineryType: getMachineryDisplayName(machineryId)
-      });
+      }), 0);
     } else {
       const machineData = getObject('machineData', {});
       const machineryType = machineData.machineryType || 'retroexcavadora';
       
-      setRequest({
+      setTimeout(() => setRequest({
         machineryType: getMachineryDisplayName(machineryType),
         location: 'Santiago Centro',
         hours: 4,
         clientName: 'Carlos González'
-      });
+      }), 0);
     }
   }, []);
 
@@ -109,8 +108,8 @@ padding: 24,
             <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{request?.location}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>{MACHINERY_PER_TRIP.includes(getMachineryId(request?.machinery_type || request?.machineryType)) ? 'Tipo' : 'Horas contratadas'}</span>
-            <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>{MACHINERY_PER_TRIP.includes(getMachineryId(request?.machinery_type || request?.machineryType)) ? 'Valor viaje' : `${request?.hours} horas`}</span>
+            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>{isPerTripMachineryType(request?.machinery_type || request?.machineryType) ? 'Tipo' : 'Horas contratadas'}</span>
+            <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>{isPerTripMachineryType(request?.machinery_type || request?.machineryType) ? 'Valor viaje' : `${request?.hours} horas`}</span>
           </div>
         </div>
 

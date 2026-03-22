@@ -16,8 +16,7 @@ const DEMO_WORK_LOCATION = { lat: -33.4489, lng: -70.6693 };
 
 import BACKEND_URL from '../../utils/api';
 import { getObject, getArray, getObjectFirst } from '../../utils/safeStorage';
-import { getMachineryId } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { isPerTripMachineryType } from '../../utils/machineryNames';
 
 /**
  * Pantalla: En Camino a la Obra (PROVEEDOR)
@@ -40,7 +39,7 @@ function EnRouteScreen() {
   const [gpsError, setGpsError] = useState('');
   const [checkingLocation, setCheckingLocation] = useState(false);
   const [showLocationError, setShowLocationError] = useState(false);
-  const [operatorLocation, setOperatorLocation] = useState({ lat: -33.4372, lng: -70.6506 });
+  const [, setOperatorLocation] = useState({ lat: -33.4372, lng: -70.6506 });
   const [workLocation, setWorkLocation] = useState(DEMO_WORK_LOCATION);
   const serviceId = localStorage.getItem('currentServiceId') || `service-${Date.now()}`;
 
@@ -82,7 +81,7 @@ function EnRouteScreen() {
             lng: position.coords.longitude
           });
         },
-        (error) => {
+        () => {
           console.log('GPS no disponible, usando ubicación demo');
         },
         { enableHighAccuracy: true, timeout: 10000 }
@@ -222,12 +221,6 @@ function EnRouteScreen() {
     localStorage.setItem('activeIncident', JSON.stringify(incidentData));
     
     // Cerrar modal y mostrar confirmación
-    setShowIncidentModal(false);
-    setIncidentReason('');
-    toast.success('Incidente reportado. El cliente ha sido notificado.');
-  };
-
-  const handleOpenMaps = () => {
     setShowIncidentModal(false);
     setIncidentReason('');
     toast.success('Incidente reportado. El cliente ha sido notificado.');
@@ -467,7 +460,7 @@ function EnRouteScreen() {
               </div>
               <div>
                 <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>{serviceData.machinery}</div>
-                <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>{MACHINERY_PER_TRIP.includes(getMachineryId(serviceData.machinery)) ? 'Valor viaje' : `${serviceData.hours} horas`}</div>
+                <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>{isPerTripMachineryType(serviceData.machinery) ? 'Valor viaje' : `${serviceData.hours} horas`}</div>
               </div>
             </div>
           </div>

@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 
 import BACKEND_URL from '../../utils/api';
-import { MACHINERY_NAMES } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 
 /**
  * Historial de trabajos para OPERADORES
@@ -34,11 +33,7 @@ function OperatorHistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ completed: 0, hours: 0 });
 
-  useEffect(() => {
-    fetchServices();
-  }, []);
-
-  const fetchServices = async () => {
+  async function fetchServices() {
     try {
       const operatorId = localStorage.getItem('userId');
       const response = await fetch(`${BACKEND_URL}/api/services/provider/${operatorId}?user_role=operator`);
@@ -77,7 +72,13 @@ function OperatorHistoryScreen() {
       setStats({ completed: 1, hours: 10 });
     }
     setLoading(false);
-  };
+  }
+
+  useEffect(() => {
+    setTimeout(() => {
+      fetchServices();
+    }, 0);
+  }, []);
 
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
@@ -209,7 +210,7 @@ function OperatorHistoryScreen() {
                           {MACHINERY_NAMES[service.machinery_type] || service.machinery_type}
                         </p>
                         <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
-                          {MACHINERY_PER_TRIP.includes(service.machinery_type || '') ? 'Valor viaje' : `${service.hours} horas`}
+                          {isPerTripMachineryType(service.machinery_type || service.machineryType) ? 'Valor viaje' : `${service.hours} horas`}
                         </p>
                       </div>
                     </div>

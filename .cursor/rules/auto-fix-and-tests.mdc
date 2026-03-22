@@ -1,0 +1,19 @@
+---
+description: Auto-fix y validacion automatica antes de cerrar tareas
+alwaysApply: true
+---
+
+# Auto-fix + ejecucion automatica
+
+En cualquier cambio de codigo:
+
+1. Ejecuta auto-fix y formateo disponible para los archivos modificados.
+2. Ejecuta los tests o validaciones relevantes del area tocada.
+3. Si falla algo, corrige y vuelve a ejecutar hasta dejar verde o reportar bloqueo real.
+4. No finalices una tarea sin indicar claramente que comando corriste y su resultado.
+
+Orden sugerido:
+
+- Primero checks locales rapidos (lint/typecheck del modulo afectado).
+- Luego tests del modulo afectado.
+- Si el cambio es transversal, corre el suite principal del proyecto.

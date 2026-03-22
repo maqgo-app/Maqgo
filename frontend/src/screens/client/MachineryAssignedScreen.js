@@ -18,8 +18,7 @@ import { vibrate } from '../../utils/uberUX';
  * - Sonidos de notificación (asignado, llegando)
  */
 
-import { MACHINERY_NAMES } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getMinutesAfterEtaToAllowCancel } from '../../utils/cancellationPolicy';
 
 // Mapeo de razones de incidente a mensajes amigables
@@ -453,7 +452,7 @@ function MachineryAssignedScreen() {
           operatorLocation={{
             lat: operatorLocationSim.lat,
             lng: operatorLocationSim.lng,
-            name: provider.operator_name || provider.providerOperatorName || 'Operador'
+            name: 'Operador'
           }}
           serviceLocation={{
             lat: workLocation.lat,
@@ -597,14 +596,14 @@ function MachineryAssignedScreen() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ color: '#fff', fontSize: 16, fontWeight: 600 }}>
-                {provider.operator_name || provider.providerOperatorName || 'Operador asignado'}
+                Proveedor MAQGO
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="#EC6819">
                   <path d="M6 1L7.2 4.2H10.6L7.9 6.3L8.8 9.8L6 7.8L3.2 9.8L4.1 6.3L1.4 4.2H4.8L6 1Z"/>
                 </svg>
                 <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-                  {(provider.rating ?? 4.8).toFixed(1)}
+                  —
                 </span>
               </div>
             </div>
@@ -623,7 +622,7 @@ function MachineryAssignedScreen() {
               Patente
             </span>
             <span style={{ color: '#fff', fontSize: 18, fontWeight: 700, fontFamily: 'monospace', letterSpacing: 2 }}>
-              {provider.license_plate || 'POR-DEFINIR'}
+              POR-DEFINIR
             </span>
           </div>
         </div>
@@ -669,7 +668,7 @@ function MachineryAssignedScreen() {
                 {MACHINERY_NAMES[machinery] || machinery}
               </div>
               <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
-                {MACHINERY_PER_TRIP.includes(machinery) ? 'Valor viaje' : `${localStorage.getItem('selectedHours') || 4} horas`}
+                {isPerTripMachineryType(machinery) ? 'Valor viaje' : `${localStorage.getItem('selectedHours') || 4} horas`}
               </div>
             </div>
           </div>

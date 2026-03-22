@@ -5,8 +5,7 @@ import { HistoryListSkeleton } from '../../components/ListSkeleton';
 
 import BACKEND_URL from '../../utils/api';
 
-import { MACHINERY_NAMES } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 
 function ProviderHistoryScreen() {
   const navigate = useNavigate();
@@ -28,7 +27,7 @@ function ProviderHistoryScreen() {
       const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
       const servicesData = await Promise.race([fetchPromise, timeoutPromise]);
       setServices(servicesData);
-    } catch (error) {
+    } catch {
       setServices([
         {
           _id: 'demo-1',
@@ -159,7 +158,7 @@ function ProviderHistoryScreen() {
               {MACHINERY_NAMES[service.machinery_type] || service.machinery_type}
             </p>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
-              {MACHINERY_PER_TRIP.includes(service.machinery_type || '') ? 'Valor viaje · ' : (service.hours > 0 ? `${service.hours}h · ` : '')}{service.location} · {formatDate(service.created_at)}
+              {isPerTripMachineryType(service.machinery_type || service.machineryType) ? 'Valor viaje · ' : (service.hours > 0 ? `${service.hours}h · ` : '')}{service.location} · {formatDate(service.created_at)}
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>

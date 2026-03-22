@@ -83,7 +83,7 @@ def main():
             "name": "Admin MAQGO",
             "email": "admin@maqgo.cl",
             "phone": "999999999",
-            "password": hash_password("maqgo2024"),
+            "password": hash_password("maqgo2026"),
             "role": "admin",
             "createdAt": "2024-01-01T00:00:00Z",
             "phoneVerified": True,
@@ -128,7 +128,7 @@ def main():
     print("|-----------|-------------------|-------------|")
     print("| Cliente   | cliente@demo.cl   | demo123     |")
     print("| Proveedor | proveedor@demo.cl | demo123     |")
-    print("| Admin     | admin@maqgo.cl    | maqgo2024   |")
+    print("| Admin     | admin@maqgo.cl    | maqgo2026   |")
     print("")
     print("Código enrolamiento operador: DEMO01")
     print("  (Soy operador → Unirme con código → DEMO01)")

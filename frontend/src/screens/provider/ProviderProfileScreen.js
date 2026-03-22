@@ -1,34 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getObject } from '../../utils/safeStorage';
+import { clearAuthSessionPreservingDraft } from '../../utils/sessionCleanup';
 
-/**
- * Pantalla: Perfil del Proveedor (Estilo Airbnb)
- * - Titular/Gerente (super_master, master, owner): ve todo (Inicio, Máquinas, Cobros, Empresa, Banco, Ayuda, Legal)
- * - Operador: ve solo lo suyo (Inicio, Historial, Ayuda, Legal) — sin máquinas, cobros ni datos empresa/banco
- */
-function ProviderProfileScreen() {
-  const navigate = useNavigate();
-  const [providerData, setProviderData] = useState({});
-  const [bankComplete, setBankComplete] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const providerRole = localStorage.getItem('providerRole') || 'super_master';
-  const isOperator = providerRole === 'operator';
-  const operatorName = localStorage.getItem('operatorName') || 'Operador';
-
-  useEffect(() => {
-    const saved = getObject('providerData', {});
-    const bank = getObject('bankData', {});
-    setProviderData(saved);
-    setBankComplete(!!bank.bank && !!bank.accountNumber);
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
-  };
-
-  const MenuItem = ({ label, sublabel, onClick, showBadge }) => (
+function MenuItem({ label, sublabel, onClick, showBadge }) {
+  return (
     <button
       onClick={onClick}
       style={{
@@ -72,8 +48,10 @@ function ProviderProfileScreen() {
       </div>
     </button>
   );
+}
 
-  const SectionTitle = ({ title }) => (
+function SectionTitle({ title }) {
+  return (
     <p style={{
       color: 'rgba(255,255,255,0.4)',
       fontSize: 11,
@@ -85,6 +63,29 @@ function ProviderProfileScreen() {
       {title}
     </p>
   );
+}
+
+/**
+ * Pantalla: Perfil del Proveedor (Estilo Airbnb)
+ * - Titular/Gerente (super_master, master, owner): ve todo (Inicio, Máquinas, Cobros, Empresa, Banco, Ayuda, Legal)
+ * - Operador: ve solo lo suyo (Inicio, Historial, Ayuda, Legal) — sin máquinas, cobros ni datos empresa/banco
+ */
+function ProviderProfileScreen() {
+  const navigate = useNavigate();
+  const [providerData] = useState(() => getObject('providerData', {}));
+  const [bankComplete] = useState(() => {
+    const bank = getObject('bankData', {});
+    return !!bank.bank && !!bank.accountNumber;
+  });
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const providerRole = localStorage.getItem('providerRole') || 'super_master';
+  const isOperator = providerRole === 'operator';
+  const operatorName = localStorage.getItem('operatorName') || 'Operador';
+
+  const handleLogout = () => {
+    clearAuthSessionPreservingDraft();
+    navigate('/');
+  };
 
   return (
     <div className="maqgo-app">

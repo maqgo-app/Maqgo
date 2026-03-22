@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 
 import BACKEND_URL from '../../utils/api';
-import { IMMEDIATE_MULTIPLIERS, MACHINERY_PER_HOUR, MACHINERY_NO_TRANSPORT, MACHINERY_PER_TRIP } from '../../utils/pricing';
-import { MACHINERY_NAMES, getMachineryId } from '../../utils/machineryNames';
+import { IMMEDIATE_MULTIPLIERS, MACHINERY_PER_HOUR, MACHINERY_NO_TRANSPORT } from '../../utils/pricing';
+import { MACHINERY_NAMES, getMachineryId, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getObject, getObjectFirst } from '../../utils/safeStorage';
 
 /**
@@ -24,23 +24,7 @@ function ProviderServiceFinishedScreen() {
   const [orderNumber] = useState(() => localStorage.getItem('orderNumber') || `MQ-${Date.now().toString().slice(-8)}`);
   
   // Datos del servicio y cliente para facturación
-  const [serviceData, setServiceData] = useState({
-    client: {},
-    clientBilling: {},
-    machinery: 'retroexcavadora',
-    hours: 4,
-    location: '',
-    earnings: {
-      grossTotal: 0,
-      serviceFee: 0,
-      netTotal: 0,
-      serviceAmount: 0,
-      transportAmount: 0,
-      bonusAmount: 0
-    }
-  });
-
-  useEffect(() => {
+  const [serviceData] = useState(() => {
     // Cargar datos del servicio
     const request = getObjectFirst(['acceptedRequest', 'incomingRequest'], {});
     const savedProvider = getObject('selectedProvider', {});
@@ -48,35 +32,57 @@ function ProviderServiceFinishedScreen() {
     
     // Obtener tipo de maquinaria: primero de request, luego de machineData, luego fallback
     let machinery = request.machineryType || request.machineryId || machineData.machineryType || localStorage.getItem('selectedMachinery') || 'retroexcavadora';
-    // Normalizar a ID si viene como nombre completo
-    const machineryId = machinery.toLowerCase().replace(/\s+/g, '_').replace('á', 'a').replace('ó', 'o').replace('ú', 'u');
-    
+    const machineryId = getMachineryId(machinery);
+    const reservationType = request.reservationType || localStorage.getItem('reservationType') || 'immediate';
     const hours = request.hours || parseInt(localStorage.getItem('selectedHours') || '4');
-    const basePrice = savedProvider.price_per_hour || 80000;
+    const basePrice = request.base_price_hr || request.basePrice || savedProvider.price_per_hour || 80000;
     
     // Determinar si necesita traslado
     const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machineryId);
-    const transportCost = needsTransport ? (savedProvider.transport_fee || 35000) : 0;
+    const transportCost = needsTransport
+      ? (request.transport_cost ?? request.transportFee ?? savedProvider.transport_fee ?? 35000)
+      : 0;
     
-    // Calcular ganancia del proveedor (misma fórmula que backend/pricing)
-    const multiplier = IMMEDIATE_MULTIPLIERS[hours] || 1.20;
-    const isPerHour = MACHINERY_PER_HOUR.includes(machineryId);
-    const serviceBase = isPerHour ? basePrice * hours : basePrice;
-    const serviceWithMultiplier = isPerHour ? serviceBase * multiplier : basePrice * multiplier;
-    const bonusAmount = serviceWithMultiplier - serviceBase;
+    // Prioridad: usar montos reales del request/backend cuando existen.
+    const reqServiceAmount = Number(request.service_amount ?? request.serviceAmount);
+    const reqBonusAmount = Number(request.bonus_amount ?? request.bonusAmount ?? 0);
+    const reqTransportAmount = Number(request.transport_amount ?? request.transportAmount ?? transportCost);
+    const reqGrossTotal = Number(request.gross_total ?? request.grossTotal);
+    const reqServiceFee = Number(request.service_fee ?? request.serviceFee);
+    const reqNetTotal = Number(request.net_total ?? request.netTotal);
+    const hasBackendFinancials = Number.isFinite(reqServiceAmount) && reqServiceAmount > 0;
+
+    let serviceBase;
+    let serviceWithMultiplier;
+    let bonusAmount;
+    let grossTotal;
+    let totalServiceFee;
+    let netTotal;
+    let finalTransportAmount;
+
+    if (hasBackendFinancials) {
+      serviceWithMultiplier = reqServiceAmount;
+      bonusAmount = Number.isFinite(reqBonusAmount) ? reqBonusAmount : 0;
+      finalTransportAmount = Number.isFinite(reqTransportAmount) ? reqTransportAmount : 0;
+      grossTotal = Number.isFinite(reqGrossTotal) ? reqGrossTotal : (serviceWithMultiplier + finalTransportAmount);
+      totalServiceFee = Number.isFinite(reqServiceFee) ? reqServiceFee : (grossTotal * 0.119);
+      netTotal = Number.isFinite(reqNetTotal) ? reqNetTotal : (grossTotal - totalServiceFee);
+      serviceBase = serviceWithMultiplier - bonusAmount;
+    } else {
+      const multiplier = reservationType === 'immediate' ? (IMMEDIATE_MULTIPLIERS[hours] || 1.20) : 1;
+      const isPerHour = MACHINERY_PER_HOUR.includes(machineryId);
+      serviceBase = isPerHour ? basePrice * hours : basePrice;
+      serviceWithMultiplier = serviceBase * multiplier;
+      bonusAmount = serviceWithMultiplier - serviceBase;
+      finalTransportAmount = transportCost;
+      grossTotal = serviceWithMultiplier + finalTransportAmount;
+      const maqgoFee = grossTotal * 0.10;
+      const maqgoFeeIva = maqgoFee * 0.19;
+      totalServiceFee = maqgoFee + maqgoFeeIva;
+      netTotal = grossTotal - totalServiceFee;
+    }
     
-    // Bruto = servicio + traslado
-    const grossTotal = serviceWithMultiplier + transportCost;
-    
-    // Tarifa por Servicio MAQGO = 10% + IVA del bruto
-    const maqgoFee = grossTotal * 0.10;
-    const maqgoFeeIva = maqgoFee * 0.19;
-    const totalServiceFee = maqgoFee + maqgoFeeIva;
-    
-    // Neto = Bruto - Tarifa por Servicio
-    const netTotal = grossTotal - totalServiceFee;
-    
-    setServiceData({
+    return {
       client: {
         id: request.clientId || request.client_id,
         name: request.clientName || 'Carlos González',
@@ -91,15 +97,15 @@ function ProviderServiceFinishedScreen() {
         netTotal: Math.round(netTotal),
         serviceAmount: Math.round(serviceWithMultiplier),
         serviceBase: Math.round(serviceBase),
-        transportAmount: transportCost,
+        transportAmount: Math.round(finalTransportAmount),
         bonusAmount: Math.round(bonusAmount),
         // Monto que debe facturar el proveedor a MAQGO (subtotal menos tarifa plataforma)
         invoiceAmount: Math.round(grossTotal),
         invoiceIva: Math.round(grossTotal * 0.19),
         invoiceTotal: Math.round(grossTotal * 1.19)
       }
-    });
-  }, []);
+    };
+  });
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('es-CL', { 
@@ -413,7 +419,7 @@ function ProviderServiceFinishedScreen() {
           {/* Servicio */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
             <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
-              {MACHINERY_PER_TRIP.includes(getMachineryId(serviceData.machinery)) ? 'Servicio (viaje)' : `Servicio (${serviceData.hours}h)`}
+              {isPerTripMachineryType(serviceData.machinery) ? 'Servicio (viaje)' : `Servicio (${serviceData.hours}h)`}
             </span>
             <span style={{ color: '#fff', fontSize: 12 }}>
               {formatPrice(serviceData.earnings.serviceBase || serviceData.earnings.serviceAmount)}
@@ -492,7 +498,7 @@ function ProviderServiceFinishedScreen() {
                 {MACHINERY_NAMES[serviceData.machinery] || serviceData.machinery}
               </div>
               <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 11 }}>
-                {MACHINERY_PER_TRIP.includes(getMachineryId(serviceData.machinery)) ? 'Valor viaje' : `${serviceData.hours}h`} · {serviceData.location}
+                {isPerTripMachineryType(serviceData.machinery) ? 'Valor viaje' : `${serviceData.hours}h`} · {serviceData.location}
               </div>
             </div>
           </div>

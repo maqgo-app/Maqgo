@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { maskName, maskLocation, getPrivacyLevel } from '../../utils/privacy';
-import { MACHINERY_NAMES } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getArray } from '../../utils/safeStorage';
 
 /**
@@ -283,7 +282,7 @@ function HistoryScreen() {
                       {MACHINERY_NAMES[service.machinery] || service.machinery}
                     </p>
                     <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '4px 0 0' }}>
-                      {formatDate(service.date)} · {MACHINERY_PER_TRIP.includes(service.machinery || '') ? 'Valor viaje' : `${service.hours} horas`}
+                      {formatDate(service.date)} · {isPerTripMachineryType(service.machinery) ? 'Valor viaje' : `${service.hours} horas`}
                     </p>
                   </div>
                   <span style={{
@@ -306,7 +305,7 @@ function HistoryScreen() {
                   marginBottom: 10
                 }}>
                   {/* REGLA DE PRIVACIDAD:
-                      - Cliente ve: "Operador" + nombre anonimizado (Carlos S.)
+                      - Cliente ve siempre "Proveedor MAQGO" fuera de llegada a obra
                       - Proveedor ve: "Cliente" + nombre anonimizado (Juan P.)
                       - NUNCA mostrar nombre de empresa al cliente */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -315,7 +314,7 @@ function HistoryScreen() {
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ color: '#fff', fontSize: 12 }}>
-                        {maskName(isProvider ? service.clientName : service.operatorName)}
+                        {isProvider ? maskName(service.clientName) : 'Proveedor MAQGO'}
                       </span>
                       {/* Rating de la contraparte */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>

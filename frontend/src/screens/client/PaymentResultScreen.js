@@ -15,8 +15,8 @@ import {
 } from '../../components/ErrorStates';
 
 import BACKEND_URL from '../../utils/api';
-import { MACHINERY_NAMES } from '../../utils/machineryNames';
-import { getClientBreakdown, MACHINERY_NO_TRANSPORT, MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
+import { getClientBreakdown, MACHINERY_NO_TRANSPORT } from '../../utils/pricing';
 import { formatPrice, formatDateShort } from '../../utils/format';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
 
@@ -197,7 +197,7 @@ function PaymentResultScreen() {
         pricingToShow = pricingResponse.data;
       } catch (e) {
         const basePrice = savedProvider.price_per_hour || 45000;
-        const isPerTrip = MACHINERY_PER_TRIP.includes(machinery);
+        const isPerTrip = isPerTripMachineryType(machinery);
         let serviceWithMultiplier, baseService;
         if (isPerTrip) {
           baseService = basePrice;
@@ -290,7 +290,7 @@ function PaymentResultScreen() {
         const IMMEDIATE_MULTIPLIERS = { 4: 1.20, 5: 1.175, 6: 1.15, 7: 1.125, 8: 1.10 };
         const multiplier = IMMEDIATE_MULTIPLIERS[hours] || 1.15;
 
-        const isPerTrip = MACHINERY_PER_TRIP.includes(machinery);
+        const isPerTrip = isPerTripMachineryType(machinery);
         const basePrice = savedProvider.price_per_hour || 45000;
 
         let serviceWithMultiplier, baseService;
@@ -604,7 +604,7 @@ function PaymentResultScreen() {
                   <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
                     {reservationType === 'immediate' 
                       ? `Reserva prioritaria (${hours}h)`
-                      : MACHINERY_PER_TRIP.includes(machinery) 
+                      : isPerTripMachineryType(machinery) 
                         ? (selectedDates?.length > 1 ? `Reserva (${perTripBreakdownLabel})` : 'Reserva (Valor viaje)')
                         : `Reserva (${reservationType === 'scheduled' ? '8' : hours}h)`}
                   </span>
@@ -773,7 +773,7 @@ function PaymentResultScreen() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{MACHINERY_NAMES[machinery] || machinery}</div>
             <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {MACHINERY_PER_TRIP.includes(machinery) 
+              {isPerTripMachineryType(machinery)
                 ? (reservationType === 'scheduled' ? perTripScheduledLabel : 'Valor viaje · Inicio HOY')
                 : (reservationType === 'scheduled' ? `Jornada · ${formatDateShort(selectedDate)}` : `${hours}h · Reserva prioritaria`)
               } · {location}

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TermsModal } from '../components/MaqgoComponents';
 import MaqgoLogo from '../components/MaqgoLogo';
 import { useToast } from '../components/Toast';
 import { validateEmail, validateCelularChile, validateRut, formatRut, sanitizeRutInput } from '../utils/chileanValidation';
-import BACKEND_URL from '../utils/api';
+import { getPasswordHint, validatePassword } from '../utils/passwordValidation';
+import BACKEND_URL, { fetchWithTimeout } from '../utils/api';
 
 /**
  * C03 - Registro Cliente
@@ -12,9 +13,11 @@ import BACKEND_URL from '../utils/api';
  * Datos de facturación empresa se piden al momento del pago (si necesita factura)
  */
 function RegisterScreen() {
+  const DRAFT_KEY = 'clientRegisterDraft';
   const navigate = useNavigate();
   const toast = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     nombre: '',
     apellido: '',
@@ -26,6 +29,29 @@ function RegisterScreen() {
   const [accepted, setAccepted] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [errors, setErrors] = useState({ email: '', celular: '', rut: '', password: '' });
+  const passwordHint = getPasswordHint(true);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft && typeof draft === 'object') {
+        setForm(prev => ({ ...prev, ...draft.form }));
+        setAccepted(Boolean(draft.accepted));
+      }
+    } catch {
+      // Ignorar drafts corruptos sin romper el flujo
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ form, accepted }));
+    } catch {
+      // Sin bloqueo por storage
+    }
+  }, [form, accepted]);
 
   const update = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -37,7 +63,7 @@ function RegisterScreen() {
     const emailErr = validateEmail(form.email);
     const celularErr = validateCelularChile(form.celular);
     const rutErr = !form.rut ? 'Ingresa tu RUT' : !validateRut(form.rut) ? 'RUT inválido' : '';
-    const passwordErr = form.password.length < 8 ? 'La contraseña debe tener al menos 8 caracteres' : '';
+    const passwordErr = validatePassword(form.password, passwordHint);
     if (emailErr || celularErr || rutErr || passwordErr) {
       setErrors({ email: emailErr, celular: celularErr, rut: rutErr, password: passwordErr });
       return;
@@ -53,7 +79,7 @@ function RegisterScreen() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/communications/sms/send-otp`, {
+      const response = await fetchWithTimeout(`${BACKEND_URL}/api/communications/sms/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -61,19 +87,29 @@ function RegisterScreen() {
           channel: 'sms'
         })
       });
-      const data = await response.json();
-      if (data.success) {
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        // Algunas respuestas de error pueden no venir como JSON (proxy/reverse-proxy).
+      }
+
+      if (response.ok && data?.success) {
         localStorage.setItem('verificationChannel', 'sms');
         navigate('/verify-sms');
       } else {
-        const msg = data.detail || data.error || 'Error al enviar el código SMS';
+        const msg = data?.detail || data?.error || `Error al enviar el código SMS (${response.status})`;
         setErrors(prev => ({ ...prev, celular: msg }));
         toast.error(msg);
       }
     } catch (err) {
-      const msg = err.message?.includes('Failed to fetch')
+      const isNetworkError = err?.name === 'TypeError' || err?.message?.includes('Failed to fetch');
+      const msg = isNetworkError
         ? 'No se pudo conectar al servidor. Intenta nuevamente.'
-        : 'Error de conexión. Intenta nuevamente.';
+        : err?.name === 'AbortError'
+          ? 'El servidor tardó demasiado en responder. Intenta nuevamente.'
+          : 'Error de conexión. Intenta nuevamente.';
       setErrors(prev => ({ ...prev, celular: msg }));
       toast.error(msg);
     } finally {
@@ -81,7 +117,7 @@ function RegisterScreen() {
     }
   };
 
-  const isValid = form.nombre && form.apellido && form.email && form.celular && form.rut && validateRut(form.rut) && form.password.length >= 8 && accepted;
+  const isValid = form.nombre && form.apellido && form.email && form.celular && form.rut && validateRut(form.rut) && !validatePassword(form.password, passwordHint) && accepted;
 
   return (
     <div className="maqgo-app">
@@ -199,17 +235,52 @@ function RegisterScreen() {
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
             Contraseña <span style={{ color: '#EC6819' }}>*</span>
           </label>
-          <input
-            className="maqgo-input"
-            placeholder="Mínimo 8 caracteres"
-            type="password"
-            value={form.password}
-            onChange={e => update('password', e.target.value)}
-            style={{ marginBottom: errors.password ? 4 : 16 }}
-            data-testid="register-password"
-            aria-label="Contraseña"
-            autoComplete="new-password"
-          />
+          <div className="maqgo-input" style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: 0,
+            overflow: 'hidden',
+            marginBottom: errors.password ? 4 : 6
+          }}>
+            <input
+              placeholder={passwordHint}
+              type={showPassword ? 'text' : 'password'}
+              value={form.password}
+              onChange={e => update('password', e.target.value)}
+              style={{
+                flex: 1,
+                padding: '14px 12px',
+                background: 'transparent',
+                border: 'none',
+                color: '#fff',
+                fontSize: 15,
+                outline: 'none'
+              }}
+              data-testid="register-password"
+              aria-label="Contraseña"
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(prev => !prev)}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#90BDD3',
+                cursor: 'pointer',
+                padding: '0 12px',
+                height: '100%',
+                fontSize: 13,
+                fontWeight: 600
+              }}
+              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            >
+              {showPassword ? 'Ocultar' : 'Mostrar'}
+            </button>
+          </div>
+          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: errors.password ? 8 : 12 }}>
+            {passwordHint}
+          </p>
           {errors.password ? <p style={{ color: '#f44336', fontSize: 12, marginBottom: 12 }}>{errors.password}</p> : null}
 
           {/* Checkbox T&C */}

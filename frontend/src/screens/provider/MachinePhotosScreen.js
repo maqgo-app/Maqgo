@@ -44,15 +44,12 @@ function compressImage(dataUrl) {
 function MachinePhotosScreen() {
   const navigate = useNavigate();
   const [photos, setPhotos] = useState([]);
-  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
     const saved = getArray('machinePhotos', []);
-    if (saved.length > 0) setPhotos(saved);
-    
-    // Check if demo mode
-    const demoMode = localStorage.getItem('demoMode') === 'true';
-    setIsDemo(demoMode);
+    if (saved.length > 0) {
+      setTimeout(() => setPhotos(saved), 0);
+    }
   }, []);
 
   const handleAddPhoto = (e) => {
@@ -107,8 +104,6 @@ function MachinePhotosScreen() {
   };
 
   const handleBack = () => navigate('/provider/machine-data');
-
-  const canContinue = true; // Fotos opcionales desde día cero
 
   return (
     <div className="maqgo-app">

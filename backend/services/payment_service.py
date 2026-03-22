@@ -243,7 +243,8 @@ class PaymentService:
         service_request_id: str,
         reason: str = 'service_cancelled',
         refund_amount: float = None,
-        skip_service_request_update: bool = False
+        skip_service_request_update: bool = False,
+        refund_payment_status_only: bool = False,
     ) -> dict:
         """
         Revierte un cobro en caso de error.
@@ -251,6 +252,8 @@ class PaymentService:
         Args:
             service_request_id: ID de la solicitud
             reason: Razón del rollback
+            skip_service_request_update: no tocar service_requests
+            refund_payment_status_only: si no skip, solo paymentStatus=refunded (no cambiar status a matching)
             
         Returns:
             Resultado del rollback
@@ -304,15 +307,21 @@ class PaymentService:
         
         # Actualizar solicitud (salvo si cancel ya lo hizo)
         if not skip_service_request_update:
-            await self.db.service_requests.update_one(
-                {'id': service_request_id},
-                {
-                    '$set': {
-                        'paymentStatus': 'refunded',
-                        'status': 'matching'  # Volver a buscar proveedor
-                    }
-                }
-            )
+            if refund_payment_status_only:
+                await self.db.service_requests.update_one(
+                    {'id': service_request_id},
+                    {'$set': {'paymentStatus': 'refunded'}},
+                )
+            else:
+                await self.db.service_requests.update_one(
+                    {'id': service_request_id},
+                    {
+                        '$set': {
+                            'paymentStatus': 'refunded',
+                            'status': 'matching',  # Volver a buscar proveedor
+                        }
+                    },
+                )
         
         logger.info(f"Cobro revertido para servicio {service_request_id}: {reason}")
         

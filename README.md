@@ -2,6 +2,11 @@
 
 Aplicación móvil (PWA) para arriendo de maquinaria pesada con operador en Chile.
 
+## URL de producción (frontend Vercel)
+
+**https://maqgo.vercel.app**
+
+Metadatos canónicos (`index.html`) y PWA (`manifest.json`) apuntan a este dominio para previews y “Añadir a pantalla de inicio” coherentes.
 
 ## 🚀 Correr Localmente
 

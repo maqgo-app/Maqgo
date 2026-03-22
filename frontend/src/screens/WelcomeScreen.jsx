@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../components/MaqgoLogo';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 import { useWelcomeLayout } from '../hooks/useWelcomeLayout';
 import { shouldShowResumeBooking, clearBookingProgress } from '../utils/abandonmentTracker';
+import { getWelcomeAppHomePath, isAdminRoleStored } from '../utils/welcomeHome';
 
 const ICON_SIZE = 24;
 
@@ -45,7 +46,7 @@ function WelcomeScreen() {
   const navigate = useNavigate();
   const [adminPending, setAdminPending] = useState(0);
   const { isDesktop, isNarrowMobile, isShortViewport, viewportHeight, viewportWidth } = useWelcomeLayout();
-  // Fade-in suave tras primer paint (evita flash de layout).
+  // useLayoutEffect: stagger listo antes del primer paint (sin frame vacío).
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -77,21 +78,18 @@ function WelcomeScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setMounted(true));
-    return () => cancelAnimationFrame(id);
+  useLayoutEffect(() => {
+    setMounted(true);
   }, []);
 
-  // Desktop: fondo exterior #000 para que el marco tipo “dispositivo” (Tesla/premium) contraste como acordamos
-  useEffect(() => {
-    if (!isDesktop) return undefined;
-    document.documentElement.classList.add('maqgo-welcome-desktop-chrome');
-    return () => document.documentElement.classList.remove('maqgo-welcome-desktop-chrome');
-  }, [isDesktop]);
-
   const hasSession = !!localStorage.getItem('userId');
+  const showAdminInFooter = isAdminRoleStored();
 
   const handleAccount = () => {
+    if (hasSession) {
+      navigate(getWelcomeAppHomePath());
+      return;
+    }
     navigate('/login');
   };
 
@@ -116,12 +114,12 @@ function WelcomeScreen() {
     const scaled = Math.round(base * fineScale);
     return Math.max(min, Math.min(max, scaled));
   };
-  const heroLogoBottom = isDesktop ? 36 : (isShortViewport ? 16 : (isNarrowMobile ? 20 : 24));
+  const heroLogoBottom = isDesktop ? 40 : (isShortViewport ? 16 : (isNarrowMobile ? 20 : 24));
 
   return (
     <div className={`maqgo-app ${isDesktop ? 'welcome-desktop' : ''} ${isShortViewport ? 'welcome-short' : ''}`}>
       <div
-        className="maqgo-screen welcome-screen"
+        className={`maqgo-screen welcome-screen ${mounted ? 'welcome-mounted' : ''}`}
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -131,13 +129,14 @@ function WelcomeScreen() {
           minHeight: isDesktop ? undefined : '100dvh',
           maxHeight: isDesktop ? undefined : '100dvh',
           boxSizing: 'border-box',
-          background: 'var(--maqgo-bg)',
+          /* Fondo: gradiente móvil / sólido desktop en maqgo.css (.maqgo-screen.welcome-screen) */
           padding: isDesktop
             ? `max(72px, env(safe-area-inset-top)) ${pad}px max(16px, env(safe-area-inset-bottom))`
             : `max(${isShortViewport ? 6 : 12}px, env(safe-area-inset-top, 12px)) ${pad}px max(${isShortViewport ? 6 : 10}px, env(safe-area-inset-bottom, 10px))`,
           overflow: 'hidden',
-          opacity: mounted ? 1 : 0,
-          transition: 'opacity 0.3s ease-out'
+          /* Fondo/opacidad del contenedor siempre 1: el stagger va en .welcome-reveal (evita parpadeo “pantalla vacía”) */
+          opacity: 1,
+          transition: 'none'
         }}
       >
         {/* Hero - compacto en viewports cortos */}
@@ -147,59 +146,75 @@ function WelcomeScreen() {
           flexDirection: 'column',
           alignItems: 'center',
           textAlign: 'center',
-          paddingBottom: isShortViewport ? 12 : (isNarrowMobile ? 20 : (isDesktop ? 40 : 28)),
+          paddingBottom: isShortViewport ? 16 : (isNarrowMobile ? 24 : (isDesktop ? 48 : 36)),
           width: '100%'
         }}>
-          <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 14) : heroLogoBottom }} />
-          {/* Caluga premium — disponibilidad en tiempo real */}
           <div
-            className="welcome-hero-caluga"
-            role="note"
-            aria-label="Propuesta de valor"
+            className={mounted ? 'welcome-reveal' : ''}
             style={{
-              marginBottom: isShortViewport ? 10 : (isNarrowMobile ? 12 : 14),
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              ['--welcome-d']: '0ms',
+            }}
+          >
+            <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 12) : heroLogoBottom }} />
+          </div>
+          <div
+            className={`welcome-hero-caluga ${mounted ? 'welcome-reveal' : ''}`}
+            style={{
+              ['--welcome-d']: '70ms',
+              marginTop: isDesktop ? -4 : -6,
+              marginBottom: isDesktop ? 22 : (isShortViewport ? 14 : (isNarrowMobile ? 18 : 20)),
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              maxWidth: 'min(100%, 26rem)',
-              padding: isShortViewport ? '7px 14px' : '9px 20px',
+              maxWidth: 'min(100%, 30rem)',
+              padding: isDesktop
+                ? 'var(--maqgo-welcome-caluga-pad-y-desktop) var(--maqgo-welcome-caluga-pad-x-desktop)'
+                : (isShortViewport ? '7px 12px' : '8px 16px'),
               borderRadius: 9999,
-              background: 'linear-gradient(135deg, #F0843A 0%, #EC6819 45%, #B8430E 100%)',
-              boxShadow:
-                '0 8px 28px rgba(236, 104, 25, 0.38), inset 0 1px 0 rgba(255,255,255,0.28)',
-              border: '1px solid rgba(255,255,255,0.14)',
+              background: 'var(--maqgo-welcome-caluga-bg)',
+              boxShadow: 'var(--maqgo-welcome-caluga-box-shadow)',
+              border: 'var(--maqgo-welcome-caluga-border)',
             }}
           >
             <span
               style={{
                 fontFamily: "'Inter', sans-serif",
-                fontSize: isDesktop ? 12.5 : scalePx(isShortViewport ? 10.5 : 11, 10, 12.5),
-                fontWeight: 600,
-                letterSpacing: '0.03em',
-                lineHeight: 1.35,
-                color: '#FFFBF7',
+                fontSize: isDesktop
+                  ? 'var(--maqgo-welcome-caluga-font-size-desktop)'
+                  : scalePx(isShortViewport ? 10.5 : 11, 10, 12.5),
+                fontWeight: 'var(--maqgo-welcome-caluga-font-weight)',
+                letterSpacing: 'var(--maqgo-welcome-caluga-letter-spacing)',
+                lineHeight: 'var(--maqgo-welcome-caluga-line-height)',
+                color: '#F5F5F7',
                 textAlign: 'center',
-                textShadow: '0 1px 2px rgba(0,0,0,0.18)',
+                textShadow: 'none',
               }}
             >
-              Elige en pocos pasos con disponibilidad en tiempo real
+              Arrienda maquinaria en minutos con disponibilidad en tiempo real.
             </span>
           </div>
-          <div style={{
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: isShortViewport ? 8 : (isNarrowMobile ? 10 : 12),
-          }}>
+          <div
+            className={mounted ? 'welcome-reveal' : ''}
+            style={{
+              ['--welcome-d']: '130ms',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: isShortViewport ? 8 : (isNarrowMobile ? 10 : 12),
+            }}
+          >
           <h1 style={{
             fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: isDesktop ? 26 : scalePx(isShortViewport ? 17 : 20, 16, 23),
+            fontSize: isDesktop ? 28 : scalePx(isShortViewport ? 18 : 21, 17, 24),
             fontWeight: 600,
             color: '#FAFAFA',
             margin: 0,
-            lineHeight: 1.24,
-            letterSpacing: '-0.02em',
+            lineHeight: 1.18,
+            letterSpacing: '-0.028em',
             maxWidth: '100%',
             overflowWrap: 'break-word',
             padding: '0 4px'
@@ -209,56 +224,6 @@ function WelcomeScreen() {
             {' con '}
             <span style={{ color: '#fff' }}>operador incluido</span>
           </h1>
-          <p style={{
-            fontSize: isDesktop ? 15 : scalePx(isShortViewport ? 12 : 13, 12, 15),
-            color: '#B0B0B8',
-            margin: 0,
-            lineHeight: 1.5,
-            maxWidth: isDesktop ? '36ch' : '28ch'
-          }}>
-            Arrienda maquinaria en minutos, para hoy o en la fecha que indiques.
-          </p>
-          {/* Chips de apoyo — barra premium (vidrio + acento naranja) */}
-          <div
-            className="welcome-value-chips"
-            style={{
-              marginTop: isDesktop ? 12 : scalePx(isShortViewport ? 7 : 9, 7, 12),
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexWrap: 'wrap',
-              gap: isDesktop ? 8 : scalePx(7, 6, 9),
-              padding: isDesktop ? '6px 8px' : `${scalePx(5, 4, 6)}px ${scalePx(7, 6, 9)}px`,
-              borderRadius: 999,
-            }}
-          >
-            <span
-              style={{
-                fontSize: isDesktop ? 11 : scalePx(11, 10, 12),
-                color: 'rgba(255,255,255,0.86)',
-                border: '1px solid rgba(236,104,25,0.35)',
-                background: 'rgba(236,104,25,0.10)',
-                borderRadius: 999,
-                padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`,
-                boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
-              }}
-            >
-              Hoy o programado
-            </span>
-            <span
-              style={{
-                fontSize: isDesktop ? 11 : scalePx(11, 10, 12),
-                color: 'rgba(255,255,255,0.86)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                background: 'rgba(255,255,255,0.04)',
-                borderRadius: 999,
-                padding: `${isDesktop ? 6 : scalePx(6, 5, 7)}px ${isDesktop ? 10 : scalePx(10, 8, 11)}px`,
-                boxShadow: 'inset 0 0 0 0.5px rgba(255,255,255,0.06)',
-              }}
-            >
-              Reserva simple
-            </span>
-          </div>
           </div>
         </header>
 
@@ -272,7 +237,9 @@ function WelcomeScreen() {
           justifyContent: isDesktop ? 'center' : (isShortViewport ? 'center' : 'flex-start'),
           gap: isShortViewport ? 8 : (isNarrowMobile ? 12 : 16),
           overflow: 'visible',
-          marginTop: isDesktop ? 48 : (isShortViewport ? 28 : (isNarrowMobile ? 36 : 44))
+          marginTop: isDesktop ? 52 : (isShortViewport ? 24 : (isNarrowMobile ? 40 : 48)),
+          /* Aire antes del footer: los CTAs no deben verse pegados al pie */
+          paddingBottom: isDesktop ? 52 : (isShortViewport ? 28 : (isNarrowMobile ? 36 : 40))
         }}>
           <button
             onClick={() => {
@@ -283,16 +250,17 @@ function WelcomeScreen() {
               }
               navigate(target);
             }}
-            className="welcome-cta-primary"
+            className={`welcome-cta-primary ${mounted ? 'welcome-reveal' : ''}`}
+            style={{ ['--welcome-d']: '200ms' }}
             data-testid="start-client-btn"
-            aria-label="Arrendar maquinaria"
+            aria-label="Arrendar maquinaria. Para hoy o en la fecha que indiques."
           >
             <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.22)' }}>
               <IconExcavator />
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
               <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Arrendar maquinaria</div>
-              <div style={{ fontSize: 12, opacity: 0.95 }}>Para hoy o en la fecha que indiques</div>
+              <div style={{ fontSize: 12, opacity: 0.95, lineHeight: 1.35 }}>Para hoy o en la fecha que indiques</div>
             </div>
           </button>
 
@@ -302,9 +270,10 @@ function WelcomeScreen() {
               localStorage.setItem('desiredRole', 'provider');
               navigate('/register');
             }}
-            className="welcome-cta-secondary"
+            className={`welcome-cta-secondary ${mounted ? 'welcome-reveal' : ''}`}
+            style={{ ['--welcome-d']: '270ms' }}
             data-testid="start-provider-btn"
-            aria-label="Ofrecer mi maquinaria"
+            aria-label="Ofrecer mi maquinaria. Regístrate y recibe solicitudes de clientes."
           >
             <div className="welcome-cta-icon" style={{ background: 'rgba(144, 189, 211, 0.18)', color: '#90BDD3' }}>
               <IconBuilding />
@@ -317,9 +286,10 @@ function WelcomeScreen() {
 
           <button
             onClick={() => navigate('/operator/join')}
-            className="welcome-cta-secondary"
+            className={`welcome-cta-secondary ${mounted ? 'welcome-reveal' : ''}`}
+            style={{ ['--welcome-d']: '340ms' }}
             data-testid="operator-join-btn"
-            aria-label="Soy operador"
+            aria-label="Soy operador. Unirme con código de equipo."
           >
             <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.08)', color: '#C8C8C8' }}>
               <IconUser />
@@ -333,7 +303,9 @@ function WelcomeScreen() {
 
         {/* Footer - compacto en viewports cortos */}
         <footer
+          className={mounted ? 'welcome-reveal' : ''}
           style={{
+            ['--welcome-d']: '410ms',
             flexShrink: 0,
             display: 'flex',
             flexDirection: isDesktop ? 'row' : 'column',
@@ -341,10 +313,10 @@ function WelcomeScreen() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: isShortViewport ? 4 : (isDesktop ? (isNarrowMobile ? '8px 12px' : '12px 20px') : 8),
-            paddingTop: isShortViewport ? 6 : (isNarrowMobile ? 12 : 18),
+            paddingTop: isDesktop ? 40 : (isShortViewport ? 22 : (isNarrowMobile ? 28 : 32)),
             paddingBottom: isShortViewport ? 8 : 12,
             marginTop: 'auto',
-            borderTop: '1px solid rgba(255,255,255,0.06)'
+            borderTop: '1px solid rgba(255,255,255,0.045)'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: isNarrowMobile ? '6px 10px' : '8px 14px', fontSize: isNarrowMobile ? 12 : 13 }}>
@@ -352,37 +324,47 @@ function WelcomeScreen() {
               type="button"
               onClick={handleAccount}
               className="welcome-footer-btn welcome-footer-btn-primary"
-              data-testid="login-btn"
-              aria-label="Iniciar sesión"
+              data-testid={hasSession ? 'welcome-mi-cuenta-btn' : 'login-btn'}
+              aria-label={hasSession ? 'Ir a mi cuenta o panel' : 'Iniciar sesión'}
             >
-              Iniciar sesión
+              {hasSession ? 'Mi cuenta' : 'Iniciar sesión'}
             </button>
-            <span style={{ color: '#404040', fontSize: 9 }}>·</span>
-            <button
-              type="button"
-              onClick={() => navigate('/register')}
-              className="welcome-footer-btn"
-              aria-label="Registrarse"
-            >
-              ¿No tienes cuenta? Regístrate
-            </button>
+            {!hasSession && (
+              <>
+                <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 9 }} aria-hidden="true">·</span>
+                <button
+                  type="button"
+                  onClick={() => navigate('/register')}
+                  className="welcome-footer-btn"
+                  aria-label="Registrarse"
+                  data-testid="welcome-register-link"
+                >
+                  ¿No tienes cuenta? Regístrate
+                </button>
+              </>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: isNarrowMobile ? '6px 10px' : '8px 14px', fontSize: isNarrowMobile ? 11 : 12 }}>
             <button type="button" onClick={() => navigate('/faq')} className="welcome-footer-btn" aria-label="Preguntas frecuentes">FAQ</button>
-            <span style={{ color: '#404040', fontSize: 9 }}>·</span>
+            <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 9 }} aria-hidden="true">·</span>
             <button type="button" onClick={() => navigate('/terms')} className="welcome-footer-btn" aria-label="Términos y condiciones">Términos y Condiciones</button>
-            <span style={{ color: '#404040', fontSize: 9 }}>·</span>
+            <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 9 }} aria-hidden="true">·</span>
             <button type="button" onClick={() => navigate('/privacy')} className="welcome-footer-btn" aria-label="Política de privacidad">Política de Privacidad</button>
-            <span style={{ color: '#404040', fontSize: 9 }}>·</span>
-            <button
-              type="button"
-              onClick={() => navigate('/admin')}
-              className="welcome-footer-btn"
-              style={{ color: adminPending > 0 ? '#EC6819' : undefined }}
-              aria-label={adminPending > 0 ? `Admin con ${adminPending} pendientes` : 'Panel de administración'}
-            >
-              Admin{adminPending > 0 ? ` (${adminPending})` : ''}
-            </button>
+            {showAdminInFooter && (
+              <>
+                <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 9 }} aria-hidden="true">·</span>
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin')}
+                  className="welcome-footer-btn"
+                  style={{ color: adminPending > 0 ? '#EC6819' : undefined }}
+                  aria-label={adminPending > 0 ? `Admin con ${adminPending} pendientes` : 'Panel de administración'}
+                  data-testid="welcome-admin-link"
+                >
+                  Admin{adminPending > 0 ? ` (${adminPending})` : ''}
+                </button>
+              </>
+            )}
           </div>
         </footer>
       </div>
@@ -438,11 +420,11 @@ function WelcomeScreen() {
         }
         .welcome-cta-primary {
           width: 100%;
-          padding: 14px 16px;
+          padding: 15px 18px;
           flex-shrink: 0;
           background: linear-gradient(135deg, #EC6819 0%, #D45A10 100%);
           border: none;
-          border-radius: 12px;
+          border-radius: 14px;
           color: #fff;
           font-family: 'Inter', sans-serif;
           cursor: pointer;
@@ -450,23 +432,26 @@ function WelcomeScreen() {
           display: flex;
           align-items: center;
           gap: 14px;
-          box-shadow: 0 4px 16px rgba(236, 104, 25, 0.3);
-          transition: transform 0.2s, box-shadow 0.2s;
+          box-shadow: 0 4px 22px rgba(236, 104, 25, 0.28), 0 1px 0 rgba(255,255,255,0.12) inset;
+          transition:
+            transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+            box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1);
         }
         .welcome-cta-primary:hover {
           transform: translateY(-1px);
-          box-shadow: 0 6px 20px rgba(236, 104, 25, 0.4);
+          box-shadow: 0 8px 24px rgba(236, 104, 25, 0.38);
         }
         .welcome-cta-primary:active {
           transform: translateY(0);
+          box-shadow: 0 3px 14px rgba(236, 104, 25, 0.32);
         }
         .welcome-cta-secondary {
           width: 100%;
-          padding: 14px 16px;
+          padding: 15px 18px;
           flex-shrink: 0;
-          background: rgba(26, 26, 31, 0.8);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 12px;
+          background: rgba(22, 22, 28, 0.72);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 14px;
           color: #FAFAFA;
           font-family: 'Inter', sans-serif;
           cursor: pointer;
@@ -474,11 +459,11 @@ function WelcomeScreen() {
           display: flex;
           align-items: center;
           gap: 14px;
-          transition: all 0.2s;
+          transition: background 0.22s ease, border-color 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
         }
         .welcome-cta-secondary:hover {
-          background: rgba(34, 34, 40, 0.9);
-          border-color: rgba(255,255,255,0.12);
+          background: rgba(30, 30, 38, 0.88);
+          border-color: rgba(255,255,255,0.11);
         }
         .welcome-cta-primary:focus-visible,
         .welcome-cta-secondary:focus-visible,
@@ -493,7 +478,7 @@ function WelcomeScreen() {
           min-width: 40px;
           min-height: 40px;
           flex: 0 0 40px;
-          border-radius: 10px;
+          border-radius: 11px;
           display: flex;
           align-items: center;
           justify-content: center;
