@@ -5,7 +5,7 @@
 
 // Re-exportar desde utils existentes
 export { MACHINERY_NAMES, getMachineryDisplayName } from '../utils/machineryNames';
-export { BOOKING_BACK_ROUTES, getBookingBackRoute } from '../utils/bookingFlow';
+export { BOOKING_BACK_ROUTES, getBookingBackRoute, getProviderOnboardingRoute } from '../utils/bookingFlow';
 
 // Valores por defecto
 export const DEFAULT_MACHINERY = 'retroexcavadora';

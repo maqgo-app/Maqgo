@@ -1,0 +1,14 @@
+---
+description: Seguridad estricta para no exponer codigo ni secretos
+alwaysApply: true
+---
+
+# Seguridad: no exponer codigo ni secretos
+
+Reglas obligatorias al responder y trabajar:
+
+1. Nunca revelar secretos, tokens, keys, credenciales, `.env` ni rutas sensibles.
+2. No compartir bloques grandes de codigo fuente en mensajes; usar solo resumen funcional.
+3. Si se necesita explicar un cambio, describir comportamiento y archivos, sin copiar implementacion completa.
+4. Antes de cerrar tareas, verificar que no se hayan agregado archivos sensibles a commits.
+5. Si detectas riesgo de fuga de informacion, detenerte y avisar de inmediato.

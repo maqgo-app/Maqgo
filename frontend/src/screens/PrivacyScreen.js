@@ -1,15 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-function PrivacyScreen() {
-  const navigate = useNavigate();
-
-  const Section = ({ title, children }) => (
+function Section({ title, children }) {
+  return (
     <section style={{ marginBottom: 28 }}>
-      <h2 style={{ 
-        color: '#EC6819', 
-        fontSize: 15, 
-        fontWeight: 600, 
+      <h2 style={{
+        color: '#EC6819',
+        fontSize: 15,
+        fontWeight: 600,
         marginBottom: 12
       }}>
         {title}
@@ -19,6 +17,10 @@ function PrivacyScreen() {
       </div>
     </section>
   );
+}
+
+function PrivacyScreen() {
+  const navigate = useNavigate();
 
   return (
     <div className="maqgo-app">

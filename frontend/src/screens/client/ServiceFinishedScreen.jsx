@@ -6,9 +6,10 @@ import { playServiceCompletedSound, unlockAudio } from '../../utils/notification
 import { vibrate } from '../../utils/uberUX';
 
 import BACKEND_URL from '../../utils/api';
-import { MACHINERY_NAMES } from '../../utils/machineryNames';
-import { CON_FACTURA_FACTOR, getClientBreakdown, MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
+import { CON_FACTURA_FACTOR, getClientBreakdown } from '../../utils/pricing';
 import { getObject, getObjectFirst } from '../../utils/safeStorage';
+import { getClientProviderDisplayName } from '../../utils/privacy';
 
 /**
  * Arma un desglose que sume exactamente totalPagado (evita desglose incoherente con factura).
@@ -109,7 +110,8 @@ function ServiceFinishedScreen() {
               providerFromApi = {
                 id: res.data.providerId,
                 name: res.data.providerName || res.data.provider?.name,
-                operator_name: res.data.providerOperatorName || res.data.provider?.operator_name
+                operator_name: res.data.providerOperatorName || res.data.provider?.operator_name,
+                providerOperatorName: res.data.providerOperatorName,
               };
             }
             // Horarios reales conforme a lo arrendado:
@@ -133,7 +135,7 @@ function ServiceFinishedScreen() {
       const location = localStorage.getItem('serviceLocation') || 'Santiago';
       const pricing = getObject('servicePricing', {});
       const totalAmount = totalFromApi ?? parseInt(localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0');
-      const isPerTrip = MACHINERY_PER_TRIP.includes(machinery);
+      const isPerTrip = isPerTripMachineryType(machinery);
       const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
       // Prioridad: API (arrivalDetectedAt, finishedAt) > localStorage (solo demo o fallback)
       const serviceStartIso = arrivalIso ?? localStorage.getItem('serviceStartTime');
@@ -141,7 +143,9 @@ function ServiceFinishedScreen() {
       const { startTime, endTime, hasRealEnd } = getRealStartAndEnd(serviceStartIso, serviceEndIso);
 
       const service = pricing?.service_amount ?? pricing?.breakdown?.service_cost ?? (provider?.price_per_hour || 45000) * hours;
-      const transport = pricing?.transport_cost ?? pricing?.breakdown?.transport_cost ?? provider?.transport_fee ?? 0;
+      const transport = isPerTrip
+        ? 0
+        : (pricing?.transport_cost ?? pricing?.breakdown?.transport_cost ?? provider?.transport_fee ?? 0);
       const bonus = pricing?.immediate_bonus ?? pricing?.breakdown?.immediate_bonus ?? 0;
       const maqgoFeeStored = pricing?.client_commission ?? pricing?.breakdown?.client_commission ?? Math.round((service + transport + bonus) * 0.10);
       const maqgoFeeIvaStored = pricing?.client_commission_iva ?? pricing?.breakdown?.client_commission_iva ?? Math.round(maqgoFeeStored * 0.19);
@@ -287,7 +291,7 @@ function ServiceFinishedScreen() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Operador</span>
-              <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{serviceData.provider.operator_name || serviceData.provider.providerOperatorName || 'Operador asignado'}</span>
+              <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{getClientProviderDisplayName(serviceData.provider)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Ubicación de la obra</span>
@@ -452,7 +456,7 @@ function ServiceFinishedScreen() {
             </div>
             <div>
               <p style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: 0 }}>
-                {serviceData.provider.operator_name || serviceData.provider.providerOperatorName || 'Operador asignado'}
+                {getClientProviderDisplayName(serviceData.provider)}
               </p>
               <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0 }}>
                 {serviceData.machinery}

@@ -1,16 +1,25 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { COMUNAS_NOMBRES } from '../data/comunas';
 
-function getGoogleMapsApiKey() {
+export function getGoogleMapsApiKey() {
+  const sanitize = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (raw === 'undefined' || raw === 'null') return '';
+    // Soporta valores accidentalmente guardados con comillas en runtime-config.
+    return raw.replace(/^['"]|['"]$/g, '').trim();
+  };
+
   // 1) Build-time env (Vercel)
-  const fromEnv =
+  const fromEnvRaw =
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
     import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY ||
     '';
+  const fromEnv = sanitize(fromEnvRaw);
   if (fromEnv) return fromEnv;
 
   // 2) Runtime config (si queremos inyectar sin rebuild)
-  const fromRuntime = window.__MAQGO_RUNTIME_CONFIG__?.googleMapsApiKey || '';
+  const fromRuntime = sanitize(window.__MAQGO_RUNTIME_CONFIG__?.googleMapsApiKey || '');
   return String(fromRuntime || '');
 }
 
@@ -101,7 +110,7 @@ function loadGoogleMapsScript(apiKey) {
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Error cargando Google Maps'));
+    script.onerror = () => reject(new Error('GoogleMapsScriptLoadError'));
     document.head.appendChild(script);
   });
 }
@@ -114,12 +123,15 @@ function loadGoogleMapsScript(apiKey) {
  * 
  * onSelect: (result) => void
  *   result = { address, comuna, lat, lng }
+ * onPlacesStatusChange: ({ ready, phase, hasApiKey }) — ready=true cuando Autocomplete está activo
  */
 export function AddressAutocomplete({
   value = '',
   onChange,
-  onComunaChange,
   onSelect,
+  onPlacesReadyChange,
+  onPlacesStatusChange,
+  scriptRetryKey = 0,
   placeholder = 'Ej: Av. Providencia 1234',
   className = 'maqgo-input',
   style = {},
@@ -130,13 +142,71 @@ export function AddressAutocomplete({
   const [useGooglePlaces, setUseGooglePlaces] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [apiKey] = useState(() => getGoogleMapsApiKey());
+  const [lastMapsError, setLastMapsError] = useState('');
+  const lastMapsErrorRef = useRef('');
 
   useEffect(() => {
-    if (!apiKey) return;
+    lastMapsErrorRef.current = lastMapsError;
+  }, [lastMapsError]);
+
+  useEffect(() => {
+    if (!apiKey) {
+      onPlacesStatusChange?.({ ready: false, phase: 'no_key', hasApiKey: false, reason: 'NO_API_KEY' });
+      onPlacesReadyChange?.(false);
+      return;
+    }
+
+    const parseGoogleMapsError = (message) => {
+      const msg = String(message || '');
+      const mapsApiErrorMatch = msg.match(/Google Maps JavaScript API error:\s*([A-Za-z0-9_]+)/i);
+      if (mapsApiErrorMatch?.[1]) return mapsApiErrorMatch[1];
+      const mapsAuthFailureMatch = msg.match(/Google Maps JavaScript API warning:\s*([A-Za-z0-9_]+)/i);
+      if (mapsAuthFailureMatch?.[1]) return mapsAuthFailureMatch[1];
+      if (msg.includes('Google Maps')) return 'GoogleMapsUnknownError';
+      return '';
+    };
+
+    const errorListener = (event) => {
+      const extracted = parseGoogleMapsError(event?.message);
+      if (!extracted) return;
+      setLastMapsError(extracted);
+      onPlacesStatusChange?.({
+        ready: false,
+        phase: 'failed',
+        hasApiKey: true,
+        reason: extracted
+      });
+    };
+
+    window.addEventListener('error', errorListener);
+    onPlacesStatusChange?.({ ready: false, phase: 'loading', hasApiKey: true });
     loadGoogleMapsScript(apiKey)
-      .then(() => setScriptLoaded(true))
-      .catch(() => {});
-  }, [apiKey]);
+      .then(() => {
+        setScriptLoaded(true);
+        const ctorOk = !!window.google?.maps?.places?.Autocomplete;
+        // Listo de verdad solo cuando el Autocomplete está adjunto (segundo effect).
+        onPlacesReadyChange?.(false);
+        onPlacesStatusChange?.({
+          ready: false,
+          phase: ctorOk ? 'script_loaded' : 'failed',
+          hasApiKey: true,
+          reason: ctorOk ? '' : (lastMapsErrorRef.current || 'AutocompleteConstructorUnavailable')
+        });
+      })
+      .catch((error) => {
+        const reason = lastMapsErrorRef.current || error?.message || 'GoogleMapsLoadFailed';
+        setScriptLoaded(false);
+        onPlacesReadyChange?.(false);
+        onPlacesStatusChange?.({ ready: false, phase: 'failed', hasApiKey: true, reason });
+      });
+    return () => window.removeEventListener('error', errorListener);
+  }, [apiKey, scriptRetryKey, onPlacesReadyChange, onPlacesStatusChange]);
+
+  useEffect(() => {
+    // Al reintentar, mostrar modo manual hasta que Places se vuelva a adjuntar.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset de bandera antes de re-adjuntar Autocomplete
+    setUseGooglePlaces(false);
+  }, [scriptRetryKey]);
 
   useEffect(() => {
     if (!scriptLoaded || !apiKey || !inputRef.current || !window.google?.maps?.places) return;
@@ -145,19 +215,34 @@ export function AddressAutocomplete({
     if (typeof AutocompleteCtor !== 'function') {
       // Google puede no exponer Autocomplete (ej. migraciones / plan restringido).
       // Si eso pasa, dejamos el input como manual (no bloqueamos escritura).
+      onPlacesReadyChange?.(false);
+      onPlacesStatusChange?.({
+        ready: false,
+        phase: 'failed',
+        hasApiKey: true,
+        reason: lastMapsErrorRef.current || 'AutocompleteConstructorUnavailable'
+      });
       return;
     }
 
     let autocomplete;
     try {
+      // `geocode` cubre calles, lugares y puntos sin número; `address` a veces excluye direcciones rurales.
       autocomplete = new AutocompleteCtor(inputRef.current, {
-        types: ['address'],
+        types: ['geocode'],
         componentRestrictions: { country: 'cl' },
         fields: ['formatted_address', 'geometry', 'address_components'],
         language: 'es'
       });
-    } catch (e) {
+    } catch {
       // Si Google falla al instanciar, no rompemos la pantalla.
+      onPlacesReadyChange?.(false);
+      onPlacesStatusChange?.({
+        ready: false,
+        phase: 'failed',
+        hasApiKey: true,
+        reason: lastMapsErrorRef.current || 'AutocompleteInitFailed'
+      });
       return;
     }
 
@@ -183,13 +268,16 @@ export function AddressAutocomplete({
     autocompleteRef.current = autocomplete;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- sync after Places init
     setUseGooglePlaces(true);
+    onPlacesReadyChange?.(true);
+    onPlacesStatusChange?.({ ready: true, phase: 'ready', hasApiKey: true });
 
     return () => {
       if (window.google?.maps?.event && autocompleteRef.current) {
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
+      autocompleteRef.current = null;
     };
-  }, [scriptLoaded, apiKey]);
+  }, [scriptLoaded, apiKey, onChange, onSelect, onPlacesReadyChange, onPlacesStatusChange]);
 
   // Siempre el mismo input para que el ref sea estable; Autocomplete se adjunta cuando el script carga
   return (
@@ -213,7 +301,7 @@ export function AddressAutocomplete({
       )}
       {useGooglePlaces && scriptLoaded && (
         <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 6, marginBottom: 0 }}>
-          Recomendación: selecciona una dirección desde la lista para mayor precisión. Si lo prefieres, escribe la dirección y completa la comuna para continuar.
+          Elige una opción de la lista para fijar el punto en el mapa. Si no aparece, usa &quot;No encuentro mi dirección&quot; debajo.
         </p>
       )}
     </div>

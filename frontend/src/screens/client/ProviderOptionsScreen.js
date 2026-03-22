@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
 import axios from 'axios';
@@ -12,10 +12,10 @@ import { ProviderOptionsSkeleton } from '../../components/ListSkeleton';
 
 import BACKEND_URL from '../../utils/api';
 
-// MACHINERY_NO_TRANSPORT, MACHINERY_PER_TRIP y REFERENCE_PRICES desde pricing.js
-import { MACHINERY_NO_TRANSPORT, MACHINERY_PER_TRIP, REFERENCE_PRICES, getDemoProviders } from '../../utils/pricing';
+// MACHINERY_NO_TRANSPORT y REFERENCE_PRICES desde pricing.js; por-viaje: isPerTripMachineryType (machineryNames)
+import { MACHINERY_NO_TRANSPORT, REFERENCE_PRICES, getDemoProviders } from '../../utils/pricing';
 import { getPerTripDateLabel } from '../../utils/bookingDates';
-import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions } from '../../utils/machineryNames';
+import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions, isPerTripMachineryType } from '../../utils/machineryNames';
 
 /**
  * Muestra las 5 mejores opciones de proveedores
@@ -48,10 +48,81 @@ function ProviderOptionsScreen() {
     return getArray('selectedProviderIds', []);
   });
 
+  const fetchProviders = useCallback(async () => {
+    // Usar la ubicación exacta ingresada en ServiceLocationScreen.
+    // Si no existe (ej. fallback sin Google Places), usar coordenadas demo.
+    const savedLat = parseFloat(localStorage.getItem('serviceLat') || '');
+    const savedLng = parseFloat(localStorage.getItem('serviceLng') || '');
+    const clientLat = Number.isFinite(savedLat) ? savedLat : -33.4489;
+    const clientLng = Number.isFinite(savedLng) ? savedLng : -70.6693;
+    const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
+    const FAST_FALLBACK_MS = 2500; // Si la API tarda más, mostrar opciones de inmediato
+
+    const apiCall = axios.get(`${BACKEND_URL}/api/providers/match`, {
+      params: { machinery_type: selectedMachinery, client_lat: clientLat, client_lng: clientLng, max_radius: 30, limit: 5, needs_invoice: needsInvoice },
+      timeout: 5000
+    });
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), FAST_FALLBACK_MS)
+    );
+
+    try {
+      const response = await Promise.race([apiCall, timeoutPromise]);
+      
+      // Guardar flags de la API para mensaje "reservar mañana"
+      setIsDemoProviders(response.data?.is_demo ?? false);
+      setTomorrowAvailable(response.data?.tomorrow_available ?? false);
+      setTomorrowCount(response.data?.tomorrow_count ?? 0);
+
+      // Agregar cálculo de horas máximas y precio total a cada proveedor
+      let rawProviders = response.data?.providers || [];
+      if (rawProviders.length === 0) {
+        rawProviders = getDemoProvidersFallback();
+      }
+      // Maquinaria por viaje: si el backend envía precios por hora (ej. 42k), normalizar a precio por viaje de mercado
+      const refTrip = isPerTripMachineryType(selectedMachinery) ? REFERENCE_PRICES[selectedMachinery] : null;
+      const tripSpread = [0.85, 0.92, 1, 1.08, 1.15];
+      const providersWithData = rawProviders.map((provider, idx) => {
+        let price = provider.price_per_hour ?? 0;
+        if (refTrip && price > 0 && price < 100000) {
+          price = Math.round(refTrip * (tripSpread[Math.min(idx, 4)] || 1));
+        }
+        const p = { ...provider, price_per_hour: price };
+        return {
+          ...p,
+          max_hours: calculateMaxHours(p.closing_time || '20:00', p.eta_minutes || 40),
+          // UX: mostrar el mismo total bruto que se usa en P5 (con factura / mismo bruto).
+          total_price: totalConFactura(calculateTotalPrice(p, selectedMachinery)),
+          has_transport: needsTransport(),
+          primaryPhoto: p.machineData?.primaryPhoto || null
+        };
+      });
+      
+      setProviders(providersWithData);
+    } catch {
+      setIsDemoProviders(true);
+      setTomorrowAvailable(false);
+      const fallbackProviders = getDemoProvidersFallback();
+      const safeFallback = Array.isArray(fallbackProviders) && fallbackProviders.length
+        ? fallbackProviders
+        : getDemoProviders('retroexcavadora', 5, { extended: true });
+
+      setProviders(safeFallback.map(p => ({
+        ...p,
+        total_price: totalConFactura(calculateTotalPrice(p, selectedMachinery)),
+        has_transport: needsTransport(),
+        max_hours: calculateMaxHours(p.closing_time || '20:00', p.eta_minutes || 40)
+      })));
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedMachinery]);
+
   useEffect(() => {
     fetchProviders();
     saveBookingProgress('providers', { machinery: selectedMachinery });
-  }, []);
+  }, [fetchProviders, selectedMachinery]);
 
   // Preload pasos 5 y 6 para evitar flash al navegar
   useEffect(() => {
@@ -196,77 +267,6 @@ function ProviderOptionsScreen() {
     const availableHours = closeHourWithElasticity - arrivalHour - 1;
     
     return Math.max(1, Math.floor(availableHours));
-  };
-
-  const fetchProviders = async () => {
-    // Usar la ubicación exacta ingresada en ServiceLocationScreen.
-    // Si no existe (ej. fallback sin Google Places), usar coordenadas demo.
-    const savedLat = parseFloat(localStorage.getItem('serviceLat') || '');
-    const savedLng = parseFloat(localStorage.getItem('serviceLng') || '');
-    const clientLat = Number.isFinite(savedLat) ? savedLat : -33.4489;
-    const clientLng = Number.isFinite(savedLng) ? savedLng : -70.6693;
-    const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
-    const FAST_FALLBACK_MS = 2500; // Si la API tarda más, mostrar opciones de inmediato
-
-    const apiCall = axios.get(`${BACKEND_URL}/api/providers/match`, {
-      params: { machinery_type: selectedMachinery, client_lat: clientLat, client_lng: clientLng, max_radius: 30, limit: 5, needs_invoice: needsInvoice },
-      timeout: 5000
-    });
-
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('timeout')), FAST_FALLBACK_MS)
-    );
-
-    try {
-      const response = await Promise.race([apiCall, timeoutPromise]);
-      
-      // Guardar flags de la API para mensaje "reservar mañana"
-      setIsDemoProviders(response.data?.is_demo ?? false);
-      setTomorrowAvailable(response.data?.tomorrow_available ?? false);
-      setTomorrowCount(response.data?.tomorrow_count ?? 0);
-
-      // Agregar cálculo de horas máximas y precio total a cada proveedor
-      let rawProviders = response.data?.providers || [];
-      if (rawProviders.length === 0) {
-        rawProviders = getDemoProvidersFallback();
-      }
-      // Maquinaria por viaje: si el backend envía precios por hora (ej. 42k), normalizar a precio por viaje de mercado
-      const refTrip = MACHINERY_PER_TRIP.includes(selectedMachinery) ? REFERENCE_PRICES[selectedMachinery] : null;
-      const tripSpread = [0.85, 0.92, 1, 1.08, 1.15];
-      const providersWithData = rawProviders.map((provider, idx) => {
-        let price = provider.price_per_hour ?? 0;
-        if (refTrip && price > 0 && price < 100000) {
-          price = Math.round(refTrip * (tripSpread[Math.min(idx, 4)] || 1));
-        }
-        const p = { ...provider, price_per_hour: price };
-        return {
-          ...p,
-          max_hours: calculateMaxHours(p.closing_time || '20:00', p.eta_minutes || 40),
-          // UX: mostrar el mismo total bruto que se usa en P5 (con factura / mismo bruto).
-          total_price: totalConFactura(calculateTotalPrice(p, selectedMachinery)),
-          has_transport: needsTransport(),
-          primaryPhoto: p.machineData?.primaryPhoto || null
-        };
-      });
-      
-      setProviders(providersWithData);
-    } catch (error) {
-      setIsDemoProviders(true);
-      setTomorrowAvailable(false);
-      const fallbackProviders = getDemoProvidersFallback();
-      const safeFallback = Array.isArray(fallbackProviders) && fallbackProviders.length
-        ? fallbackProviders
-        : getDemoProviders('retroexcavadora', 5, { extended: true });
-
-      setProviders(safeFallback.map(p => ({
-        ...p,
-        total_price: totalConFactura(calculateTotalPrice(p, selectedMachinery)),
-        has_transport: needsTransport(),
-        max_hours: calculateMaxHours(p.closing_time || '20:00', p.eta_minutes || 40)
-      })));
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleReserveTomorrow = () => {
@@ -492,7 +492,7 @@ function ProviderOptionsScreen() {
           marginBottom: 10
         }}>
           <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: 500 }}>
-            {MACHINERY_PER_TRIP.includes(selectedMachinery)
+            {isPerTripMachineryType(selectedMachinery)
               ? (reservationType === 'scheduled' ? perTripScheduledLabel : 'Valor viaje · Inicio HOY')
               : reservationType === 'scheduled'
                 ? 'Reserva programada'
@@ -623,7 +623,7 @@ function ProviderOptionsScreen() {
                       </span>
                       {/* Subtítulo: qué incluye el precio (transparencia) */}
                       <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 4, lineHeight: 1.3 }}>
-                        {MACHINERY_PER_TRIP.includes(selectedMachinery) ? (
+                        {isPerTripMachineryType(selectedMachinery) ? (
                           <span>Incluye Tarifa por Servicio.</span>
                         ) : (
                           <span>
@@ -713,7 +713,7 @@ function ProviderOptionsScreen() {
         )}
 
         {/* Info de jornada - Simplificado */}
-        {!MACHINERY_PER_TRIP.includes(selectedMachinery) && (
+        {!isPerTripMachineryType(selectedMachinery) && (
           <div style={{
             background: '#2A2A2A',
             borderRadius: 10,

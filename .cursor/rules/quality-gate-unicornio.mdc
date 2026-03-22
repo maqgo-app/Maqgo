@@ -1,0 +1,25 @@
+---
+description: Gate de calidad: bugs, performance, seguridad, arquitectura y escalabilidad
+alwaysApply: true
+---
+
+# Gate de calidad (escala unicornio)
+
+Revisa siempre:
+
+- Bugs, crashes, logica rota, estado inconsistente, errores async y race conditions.
+- Performance: operaciones lentas, loops innecesarios, mal uso de async, fugas de memoria.
+- Seguridad: validacion de input, inyecciones, auth/autorizacion, exposicion de datos.
+- Arquitectura y escalabilidad: cuellos de botella, complejidad y duplicacion innecesaria.
+
+Clasifica severidad estricta:
+
+- CRITICAL: caida del sistema, pagos, APIs rotas, corrupcion o perdida de datos.
+- HIGH: errores de logica, async/estado, carreras relevantes.
+- MEDIUM: mantenibilidad y estructura.
+- LOW: formato.
+
+Autocorreccion:
+
+- LOW/MEDIUM: corrige automaticamente si el cambio es local y seguro.
+- HIGH/CRITICAL: detente, reporta y propone; no hagas fix riesgoso sin alinear.

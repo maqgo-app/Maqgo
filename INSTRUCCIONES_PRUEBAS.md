@@ -93,7 +93,7 @@ Deberías ver un JSON con `"status": "operational"`.
 
 | Rol      | Email              | Contraseña  |
 |----------|--------------------|-------------|
-| Admin    | admin@maqgo.cl     | maqgo2024   |
+| Admin    | admin@maqgo.cl     | maqgo2026   |
 | Cliente  | cliente@demo.cl    | demo123     |
 | Proveedor| proveedor@demo.cl  | demo123     |
 
@@ -105,7 +105,7 @@ Deberías ver un JSON con `"status": "operational"`.
 2. Pulsa **"Ya tengo cuenta"**
 3. Inicia sesión:
    - Email: `admin@maqgo.cl`
-   - Contraseña: `maqgo2024`
+   - Contraseña: `maqgo2026`
 4. Deberías entrar al **panel de administración** (servicios, usuarios, precios).
 5. Navega por las pestañas: Servicios, Usuarios, Precios, Informes.
 

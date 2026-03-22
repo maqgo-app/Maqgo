@@ -28,7 +28,7 @@ function ProviderVerifiedScreen({ setUserRole, setUserId }) {
         localStorage.setItem('userRole', 'provider');
         localStorage.setItem('providerCameFromWelcome', 'true');
         if (res.data.token) localStorage.setItem('token', res.data.token);
-      } catch (e) {
+      } catch {
         // Si ya tenemos userId (ej. de auth/register), no sobrescribir con fallback
         const existingId = localStorage.getItem('userId');
         const id = existingId || `provider-${Date.now()}`;

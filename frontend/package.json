@@ -10,6 +10,7 @@
     "dev": "vite",
     "start": "vite",
     "build": "vite build",
+    "gate:deploy": "npm run test:unit && npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "npm run test:unit",

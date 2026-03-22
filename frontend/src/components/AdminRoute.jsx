@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 
 /**
  * Protege las rutas administrativas. Solo usuarios con role 'admin' pueden acceder.
@@ -10,12 +11,79 @@ function AdminRoute({ children }) {
   const location = useLocation();
   const userId = localStorage.getItem('userId');
   const userRole = localStorage.getItem('userRole');
+  const token = localStorage.getItem('token');
+  const userRolesRaw = localStorage.getItem('userRoles');
+  const [verifiedAdmin, setVerifiedAdmin] = useState(false);
+
+  const userRoles = useMemo(() => {
+    try {
+      return userRolesRaw ? JSON.parse(userRolesRaw) : [];
+    } catch {
+      return [];
+    }
+  }, [userRolesRaw]);
+
+  const isAdminByStorage =
+    userRole === 'admin' || (Array.isArray(userRoles) && userRoles.includes('admin'));
+  const shouldVerifyAdmin = Boolean(userId && token);
+  const [checkingAdmin, setCheckingAdmin] = useState(shouldVerifyAdmin);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!shouldVerifyAdmin) {
+      return () => {};
+    }
+
+    (async () => {
+      try {
+        const res = await fetchWithAuth(
+          `${BACKEND_URL}/api/admin/stats`,
+          { method: 'GET', redirectOn401: false },
+          5000
+        );
+        if (!mounted) return;
+        if (res.ok) {
+          localStorage.setItem('userRole', 'admin');
+          setVerifiedAdmin(true);
+        } else {
+          // Solo revocamos el rol local si backend confirma falta de permisos/sesión.
+          if (res.status === 401 || res.status === 403) {
+            if (isAdminByStorage) localStorage.removeItem('userRole');
+            setVerifiedAdmin(false);
+            return;
+          }
+          // Ante errores del servidor, preservamos el rol local para evitar falsos bloqueos.
+          setVerifiedAdmin(isAdminByStorage);
+        }
+      } catch {
+        if (!mounted) return;
+        // Evita falsos "Acceso restringido" por fallas transitorias de red/CORS.
+        setVerifiedAdmin(isAdminByStorage);
+      } finally {
+        if (mounted) setCheckingAdmin(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [token, shouldVerifyAdmin, isAdminByStorage]);
+
+  const isAdmin = verifiedAdmin || isAdminByStorage;
 
   if (!userId) {
     return <Navigate to="/login" state={{ from: location.pathname, redirect: '/admin' }} replace />;
   }
 
-  if (userRole !== 'admin') {
+  if (checkingAdmin) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--maqgo-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+        Verificando permisos...
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
     return (
       <div style={{
         minHeight: '100vh',

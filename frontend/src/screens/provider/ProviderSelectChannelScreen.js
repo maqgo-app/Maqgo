@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
 
-import BACKEND_URL from '../../utils/api';
+import BACKEND_URL, { fetchWithTimeout } from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
 
 /**
@@ -29,7 +29,7 @@ function ProviderSelectChannelScreen() {
     setError('');
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/communications/sms/send-otp`, {
+      const response = await fetchWithTimeout(`${BACKEND_URL}/api/communications/sms/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -38,18 +38,29 @@ function ProviderSelectChannelScreen() {
         })
       });
 
-      const data = await response.json();
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        // Posibles respuestas no-JSON en errores de infraestructura.
+      }
 
-      if (data.success) {
+      if (response.ok && data?.success) {
         localStorage.setItem('verificationChannel', channel);
         toast.success('Código enviado a tu celular');
         navigate('/provider/verify-sms');
       } else {
-        setError(data.detail || data.error || 'Error al enviar el código SMS');
+        setError(data?.detail || data?.error || `Error al enviar el código SMS (${response.status})`);
       }
     } catch (err) {
       console.error('Error:', err);
-      setError('Error de conexión. Intenta nuevamente.');
+      const isNetworkError = err?.name === 'TypeError' || err?.message?.includes('Failed to fetch');
+      const msg = isNetworkError
+        ? 'No se pudo conectar al servidor. Intenta nuevamente.'
+        : err?.name === 'AbortError'
+          ? 'El servidor tardó demasiado en responder. Intenta nuevamente.'
+          : 'Error de conexión. Intenta nuevamente.';
+      setError(msg);
     } finally {
       setLoading(false);
     }

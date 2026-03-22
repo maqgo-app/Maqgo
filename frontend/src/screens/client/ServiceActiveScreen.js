@@ -6,6 +6,7 @@ import { getMachineryDisplayName } from '../../utils/machineryNames';
 
 import BACKEND_URL from '../../utils/api';
 import { getObjectFirst } from '../../utils/safeStorage';
+import { getClientProviderDisplayName } from '../../utils/privacy';
 import OpenServiceChatButton from '../../components/OpenServiceChatButton';
 
 /**
@@ -34,8 +35,7 @@ function ServiceActiveScreen() {
           setService({
             machineryType: getMachineryDisplayName(localStorage.getItem('selectedMachinery') || 'retroexcavadora'),
             status: 'in_progress',
-            // Privacidad: el cliente no debe ver el nombre del operador/proveedor
-            providerName: 'Proveedor MAQGO'
+            providerOperatorName: getClientProviderDisplayName(savedProvider),
           });
         }
       } catch (e) {
@@ -54,11 +54,8 @@ function ServiceActiveScreen() {
     navigate('/client/service-finished');
   };
 
-  const providerDisplayName = service?.providerName || (() => {
-    const p = getObjectFirst(['acceptedProvider', 'selectedProvider'], {});
-    // Privacidad: el cliente siempre ve un nombre genérico
-    return 'Proveedor MAQGO';
-  })();
+  const providerDisplayName = service?.providerOperatorName
+    || getClientProviderDisplayName(getObjectFirst(['acceptedProvider', 'selectedProvider'], {}));
 
   return (
     <div className="maqgo-app">

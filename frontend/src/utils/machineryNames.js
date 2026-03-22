@@ -3,6 +3,8 @@
  * Siempre primera letra en mayúscula.
  */
 
+import { MACHINERY_PER_SERVICE } from './machineryConstants';
+
 /**
  * Nombres canónicos de maquinaria. Fuente única de verdad.
  * Usar: import { MACHINERY_NAMES } from '../../utils/machineryNames';
@@ -114,6 +116,12 @@ export function getMachineryId(displayOrId) {
   if (MACHINERY_NAMES[n]) return n;
   const entry = Object.entries(MACHINERY_NAMES).find(([, v]) => v === displayOrId);
   return entry ? entry[0] : n;
+}
+
+/** true si la maquinaria corresponde a cobro por viaje (id o nombre visible). Lista: machineryConstants.MACHINERY_PER_SERVICE. */
+export function isPerTripMachineryType(displayOrId) {
+  const id = getMachineryId(displayOrId);
+  return Boolean(id && MACHINERY_PER_SERVICE.includes(id));
 }
 
 /** Devuelve la config de capacidad para un tipo de maquinaria, o null. */

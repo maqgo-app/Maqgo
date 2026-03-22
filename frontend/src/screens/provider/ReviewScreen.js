@@ -25,7 +25,7 @@ function ReviewScreen() {
       try {
         const raw = localStorage.getItem(key);
         return raw ? JSON.parse(raw) : fallback;
-      } catch (_) {
+      } catch {
         return fallback;
       }
     };
@@ -87,7 +87,7 @@ function ReviewScreen() {
       } else {
         navigate('/provider/home');
       }
-    } catch (error) {
+    } catch {
       // Continuar de todos modos para demo
       localStorage.setItem('providerOnboardingCompleted', 'true');
       localStorage.removeItem('providerOnboardingStep');

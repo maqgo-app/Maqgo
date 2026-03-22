@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import { ComunaAutocomplete } from '../../components/ComunaAutocomplete';
-import { AddressAutocomplete } from '../../components/AddressAutocomplete';
+import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/AddressAutocomplete';
 import BookingProgress from '../../components/BookingProgress';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
 import { getArray } from '../../utils/safeStorage';
 import { COMUNAS_NOMBRES } from '../../data/comunas';
-import { MACHINERY_NAMES } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getPerTripDateLabel } from '../../utils/bookingDates';
+import { validateServiceLocationContinue } from '../../utils/serviceLocationValidation';
 
 /**
  * Pantalla: Ubicación del Servicio
@@ -23,11 +23,18 @@ function ServiceLocationScreen() {
   const { pathname } = useLocation();
   const toast = useToast();
   const backRoute = getBookingBackRoute(pathname);
-  const HAS_GOOGLE_PLACES = !!(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY);
   const [location, setLocation] = useState('');
   const [comuna, setComuna] = useState('');
   const [serviceLat, setServiceLat] = useState(null);
   const [serviceLng, setServiceLng] = useState(null);
+  /** 'loading' | 'script_loaded' | 'ready' | 'failed' | 'no_key' */
+  const [placesPhase, setPlacesPhase] = useState(() =>
+    getGoogleMapsApiKey() ? 'loading' : 'no_key'
+  );
+  const [placesReason, setPlacesReason] = useState('');
+  const [scriptRetryKey, setScriptRetryKey] = useState(0);
+  /** Usuario no encuentra su calle en Places pero el mapa sí carga */
+  const [manualAddressNotFound, setManualAddressNotFound] = useState(false);
   const [comunaError, setComunaError] = useState('');
   const [reference, setReference] = useState('');
   const [machinery, setMachinery] = useState('');
@@ -36,6 +43,31 @@ function ServiceLocationScreen() {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
 
+  useEffect(() => {
+    // Autosave defensivo para no perder avance al navegar entre pantallas.
+    localStorage.setItem('serviceLocation', location || '');
+  }, [location]);
+
+  useEffect(() => {
+    localStorage.setItem('serviceComuna', comuna || '');
+  }, [comuna]);
+
+  useEffect(() => {
+    localStorage.setItem('serviceReference', reference || '');
+  }, [reference]);
+
+  useEffect(() => {
+    if (serviceLat != null) localStorage.setItem('serviceLat', String(serviceLat));
+    else localStorage.removeItem('serviceLat');
+  }, [serviceLat]);
+
+  useEffect(() => {
+    if (serviceLng != null) localStorage.setItem('serviceLng', String(serviceLng));
+    else localStorage.removeItem('serviceLng');
+  }, [serviceLng]);
+
+  /* Hydratación desde localStorage al montar (patrón SPA). */
+  /* eslint-disable react-hooks/set-state-in-effect -- valores iniciales desde storage */
   useEffect(() => {
     const savedMachinery = localStorage.getItem('selectedMachinery') || '';
     const savedHours = parseInt(localStorage.getItem('selectedHours') || '4');
@@ -67,6 +99,44 @@ function ServiceLocationScreen() {
     
     saveBookingProgress('location', { machinery: savedMachinery });
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const hasApiKey = useMemo(() => !!getGoogleMapsApiKey(), []);
+  const apiKeyMasked = useMemo(() => {
+    const key = getGoogleMapsApiKey();
+    if (!key) return '';
+    const tail = key.slice(-4);
+    return `AIza...${tail}`;
+  }, []);
+
+  const onPlacesStatusChange = useCallback((status) => {
+    const phase = status?.phase;
+    setPlacesReason(String(status?.reason || ''));
+    if (phase === 'no_key') setPlacesPhase('no_key');
+    else if (phase === 'loading') setPlacesPhase('loading');
+    else if (phase === 'script_loaded') setPlacesPhase('script_loaded');
+    else if (phase === 'failed') setPlacesPhase('failed');
+    else if (phase === 'ready' && status?.ready) setPlacesPhase('ready');
+  }, []);
+
+  const diagnosticReason = useMemo(() => {
+    if (!placesReason) return '';
+    const known = {
+      RefererNotAllowedMapError: 'La key no permite este dominio/puerto (HTTP referrer).',
+      BillingNotEnabledMapError: 'El proyecto de Google Cloud no tiene facturación activa.',
+      ApiNotActivatedMapError: 'Falta habilitar Maps JavaScript API o Places API.',
+      InvalidKeyMapError: 'La API key es inválida o fue eliminada.',
+      ExpiredKeyMapError: 'La API key expiró.',
+      RequestDeniedMapError: 'Google rechazó la solicitud por restricciones de key.',
+      GoogleMapsScriptLoadError: 'No se pudo descargar el script de Google Maps (red, bloqueador o CSP).',
+      AutocompleteConstructorUnavailable: 'Google cargó, pero Places Autocomplete no quedó disponible.',
+      AutocompleteInitFailed: 'No se pudo inicializar el autocompletado.'
+    };
+    return known[placesReason] || 'Error de Google Maps no clasificado.';
+  }, [placesReason]);
+
+  const waitingForPlaces =
+    hasApiKey && (placesPhase === 'loading' || placesPhase === 'script_loaded');
 
   const formatDateShort = (dateStr) => {
     if (!dateStr) return 'Programado';
@@ -103,27 +173,43 @@ function ServiceLocationScreen() {
 
   const handleContinue = () => {
     setComunaError('');
-    if (!location.trim()) {
-      toast.warning('Por favor ingresa la dirección de la reserva');
-      return;
-    }
-    if (!comuna.trim()) {
-      toast.warning('Por favor ingresa la comuna');
-      return;
-    }
-    // Validar que la comuna esté en la lista oficial
     const normalizedComuna = comuna.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const isValidComuna = COMUNAS_NOMBRES.some(
       nombre => nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === normalizedComuna
     );
-    if (!isValidComuna) {
-      setComunaError('Selecciona una comuna de la lista para continuar');
-      return;
-    }
 
-    // Si hay Google Places activo, exigir que el cliente seleccione una dirección exacta (con coordenadas)
-    if (HAS_GOOGLE_PLACES && (serviceLat == null || serviceLng == null)) {
-      toast.warning('Selecciona una dirección de la lista para continuar');
+    const refLen = reference.trim().length;
+    const validation = validateServiceLocationContinue({
+      locationTrimmed: location.trim(),
+      comunaTrimmed: comuna.trim(),
+      refLen,
+      hasApiKey,
+      placesPhase,
+      waitingForPlaces,
+      serviceLat,
+      serviceLng,
+      manualAddressNotFound,
+      isValidComuna
+    });
+
+    if (!validation.ok) {
+      const { code } = validation;
+      if (code === 'INVALID_COMUNA') {
+        setComunaError('Selecciona una comuna de la lista para continuar');
+        return;
+      }
+      const messages = {
+        NO_LOCATION: 'Por favor ingresa la dirección de la reserva',
+        NO_COMUNA: 'Por favor ingresa la comuna',
+        WAITING_PLACES: 'Espera a que cargue el buscador de direcciones o pulsa Reintentar.',
+        REF_NO_KEY: 'Sin mapa, indica una referencia detallada (mín. 15 caracteres) para que el operador te encuentre.',
+        REF_MAP_FAILED:
+          'No se pudo cargar el mapa. Escribe una referencia muy detallada (mín. 25 caracteres): accesos, color de portón, empresa cercana, etc.',
+        NEED_PLACE_OR_MANUAL:
+          'Selecciona una dirección de la lista o marca “No encuentro mi dirección” y completa la referencia.',
+        REF_MANUAL_SHORT: 'Describe cómo llegar con al menos 20 caracteres (calle, esquina, referencias).'
+      };
+      toast.warning(messages[code] || 'Revisa los datos de ubicación');
       return;
     }
 
@@ -134,8 +220,17 @@ function ServiceLocationScreen() {
     localStorage.setItem('serviceLocation', fullLocation);
     localStorage.setItem('serviceComuna', comuna);
     localStorage.setItem('serviceReference', reference);
+    const manualFb =
+      serviceLat == null ||
+      serviceLng == null ||
+      manualAddressNotFound ||
+      placesPhase === 'failed' ||
+      !hasApiKey;
+    localStorage.setItem('serviceLocationManualFallback', manualFb ? 'true' : 'false');
     if (serviceLat != null) localStorage.setItem('serviceLat', serviceLat.toString());
+    else localStorage.removeItem('serviceLat');
     if (serviceLng != null) localStorage.setItem('serviceLng', serviceLng.toString());
+    else localStorage.removeItem('serviceLng');
     
     // Ir a ver proveedores
     navigate('/client/providers');
@@ -183,10 +278,124 @@ function ServiceLocationScreen() {
           color: 'rgba(255,255,255,0.9)',
           fontSize: 14,
           textAlign: 'center',
-          marginBottom: 24
+          marginBottom: 16
         }}>
           Dirección exacta para que el operador llegue sin problemas.
         </p>
+
+        <div
+          style={{
+            marginBottom: 14,
+            padding: '8px 10px',
+            borderRadius: 8,
+            border: hasApiKey ? '1px solid rgba(46, 204, 113, 0.35)' : '1px solid rgba(255,255,255,0.12)',
+            background: hasApiKey ? 'rgba(46, 204, 113, 0.1)' : 'rgba(255,255,255,0.04)',
+            color: 'rgba(255,255,255,0.9)',
+            fontSize: 12
+          }}
+          data-testid="maps-api-key-status"
+        >
+          {hasApiKey
+            ? `API key de Google Maps detectada (${apiKeyMasked}).`
+            : 'API key de Google Maps no detectada. Se permite dirección manual.'}
+        </div>
+
+        {/* Estado del buscador Google Places */}
+        {hasApiKey && (placesPhase === 'loading' || placesPhase === 'script_loaded') && (
+          <div
+            style={{
+              background: 'rgba(236, 104, 25, 0.15)',
+              border: '1px solid rgba(236, 104, 25, 0.45)',
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 20,
+              color: 'rgba(255,255,255,0.95)',
+              fontSize: 13,
+              lineHeight: 1.45
+            }}
+          >
+            <strong style={{ color: '#EC6819' }}>Cargando buscador de direcciones…</strong>
+            <div style={{ marginTop: 6 }}>Conectando con Google Places para sugerir calles y puntos en Chile.</div>
+          </div>
+        )}
+        {hasApiKey && placesPhase === 'ready' && (
+          <div
+            style={{
+              background: 'rgba(46, 204, 113, 0.12)',
+              border: '1px solid rgba(46, 204, 113, 0.35)',
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 20,
+              color: 'rgba(255,255,255,0.95)',
+              fontSize: 13,
+              lineHeight: 1.45
+            }}
+          >
+            <strong style={{ color: '#2ecc71' }}>Buscador activo</strong>
+            <div style={{ marginTop: 6 }}>
+              Elige una sugerencia de la lista para fijar el punto. Si no aparece tu calle, prueba sin número o un lugar
+              cercano; si aún no, usa la opción de abajo.
+            </div>
+          </div>
+        )}
+        {hasApiKey && placesPhase === 'failed' && (
+          <div
+            style={{
+              background: 'rgba(231, 76, 60, 0.12)',
+              border: '1px solid rgba(231, 76, 60, 0.4)',
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 20,
+              color: 'rgba(255,255,255,0.95)',
+              fontSize: 13,
+              lineHeight: 1.45
+            }}
+          >
+            <strong style={{ color: '#e74c3c' }}>No se pudo cargar el mapa</strong>
+            <div style={{ marginTop: 6 }}>
+              Puedes reintentar la carga. Si sigue fallando, escribe la dirección y una referencia muy detallada (mín. 25
+              caracteres).
+            </div>
+            <button
+              type="button"
+              onClick={() => setScriptRetryKey((k) => k + 1)}
+              className="maqgo-btn-secondary"
+              style={{ marginTop: 10, width: '100%', padding: '10px 12px', fontSize: 14 }}
+            >
+              Reintentar carga del mapa
+            </button>
+            {!!placesReason && (
+              <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.9)' }}>
+                Diagnóstico: <code>{placesReason}</code>
+                {!!diagnosticReason && (
+                  <div style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)' }}>
+                    {diagnosticReason}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {!hasApiKey && (
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 20,
+              color: 'rgba(255,255,255,0.9)',
+              fontSize: 13,
+              lineHeight: 1.45
+            }}
+          >
+            <strong>Modo sin mapa</strong>
+            <div style={{ marginTop: 6 }}>
+              Escribe la dirección completa y una referencia clara (mín. 15 caracteres) para que el operador pueda
+              ubicarte.
+            </div>
+          </div>
+        )}
 
         {/* Resumen de selección - Colores World-Class */}
         <div style={{
@@ -219,7 +428,7 @@ function ServiceLocationScreen() {
               {MACHINERY_NAMES[machinery] || machinery}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>
-              {MACHINERY_PER_TRIP.includes(machinery) 
+              {isPerTripMachineryType(machinery) 
                 ? (isScheduled 
                     ? (selectedDates?.length > 0 ? perTripDateSummary : `Valor viaje · ${getDateSummary()}`)
                     : 'Valor viaje · Inicio HOY')
@@ -249,19 +458,60 @@ function ServiceLocationScreen() {
           </label>
           <AddressAutocomplete
             value={location}
-            comunaValue={comuna}
             onChange={setLocation}
-            onComunaChange={(v) => { setComuna(v); setComunaError(''); }}
+            onPlacesStatusChange={onPlacesStatusChange}
+            scriptRetryKey={scriptRetryKey}
             onSelect={({ address, comuna: c, lat, lng }) => {
               setLocation(address);
               if (c) setComuna(c);
               if (lat != null) setServiceLat(lat);
               if (lng != null) setServiceLng(lng);
+              setManualAddressNotFound(false);
             }}
             placeholder="Ej: Av. Providencia 1234"
             style={{ fontSize: 16 }}
           />
         </div>
+
+        {hasApiKey && placesPhase === 'ready' && (
+          <div style={{ marginBottom: 16 }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                cursor: 'pointer',
+                color: 'rgba(255,255,255,0.92)',
+                fontSize: 14,
+                lineHeight: 1.4
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={manualAddressNotFound}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setManualAddressNotFound(on);
+                  if (on) {
+                    setServiceLat(null);
+                    setServiceLng(null);
+                  }
+                }}
+                style={{ marginTop: 3, width: 18, height: 18, flexShrink: 0 }}
+                aria-label="No encuentro mi dirección en la lista de Google"
+              />
+              <span>
+                <strong>No encuentro mi dirección</strong> en la lista (se pedirá una referencia detallada para ubicarte).
+              </span>
+            </label>
+            {manualAddressNotFound && (
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '8px 0 0 28px', lineHeight: 1.45 }}>
+                Consejos: prueba buscar solo la calle sin número, un barrio cercano, o un punto de referencia (mall, plaza,
+                empresa). Luego completa la referencia abajo con accesos y señas.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Input Comuna con Autocomplete (solo si no se obtuvo de Google Places) */}
         <div style={{ marginBottom: 16 }}>
@@ -294,20 +544,38 @@ function ServiceLocationScreen() {
             marginBottom: 8,
             fontWeight: 500
           }}>
-            Referencia (opcional)
+            Referencia{' '}
+            {(!hasApiKey ||
+              placesPhase === 'failed' ||
+              (placesPhase === 'ready' && manualAddressNotFound)) && (
+              <span style={{ color: '#EC6819' }}>*</span>
+            )}
+            {(hasApiKey && placesPhase === 'ready' && !manualAddressNotFound) && (
+              <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 400 }}>(opcional si elegiste dirección en el mapa)</span>
+            )}
           </label>
           <input
             id="service-reference-input"
             type="text"
             value={reference}
             onChange={(e) => setReference(e.target.value)}
-            placeholder="Ej: Frente al edificio azul, portón verde"
+            placeholder={
+              !hasApiKey || placesPhase === 'failed'
+                ? 'Obligatoria: accesos, color de portón, empresa cercana, etc.'
+                : manualAddressNotFound
+                  ? 'Obligatoria: cómo llegar, esquinas, color de reja, referencias'
+                  : 'Ej: Frente al edificio azul, portón verde'
+            }
             className="maqgo-input"
             style={{ 
               fontSize: 16
             }}
             data-testid="service-reference-input"
-            aria-label="Referencia de ubicación (opcional)"
+            aria-label={
+              !hasApiKey || placesPhase === 'failed' || manualAddressNotFound
+                ? 'Referencia de ubicación obligatoria'
+                : 'Referencia de ubicación opcional'
+            }
           />
         </div>
 
@@ -345,10 +613,10 @@ function ServiceLocationScreen() {
         <button 
           className="maqgo-btn-primary"
           onClick={handleContinue}
-          disabled={!location.trim() || !comuna.trim()}
+          disabled={!location.trim() || !comuna.trim() || waitingForPlaces}
           style={{
-            opacity: (location.trim() && comuna.trim()) ? 1 : 0.5,
-            cursor: (location.trim() && comuna.trim()) ? 'pointer' : 'not-allowed'
+            opacity: location.trim() && comuna.trim() && !waitingForPlaces ? 1 : 0.5,
+            cursor: location.trim() && comuna.trim() && !waitingForPlaces ? 'pointer' : 'not-allowed'
           }}
           data-testid="continue-to-providers-btn"
         >

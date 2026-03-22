@@ -10,11 +10,7 @@ function AdminUsersScreen() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('clients'); // 'clients' | 'providers'
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
+  async function fetchUsers() {
     try {
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/users`);
       const json = await res.json();
@@ -24,7 +20,13 @@ function AdminUsersScreen() {
       setData({ clients: [], providers: [], total_clients: 0, total_providers: 0 });
     }
     setLoading(false);
-  };
+  }
+
+  useEffect(() => {
+    setTimeout(() => {
+      fetchUsers();
+    }, 0);
+  }, []);
 
   const formatDate = (str) => {
     if (!str) return '-';
@@ -40,10 +42,6 @@ function AdminUsersScreen() {
   };
 
   const users = tab === 'clients' ? data.clients : data.providers;
-  const columns = tab === 'clients'
-    ? ['name', 'email', 'phone', 'createdAt']
-    : ['name', 'email', 'phone', 'machineryType', 'isAvailable', 'provider_role', 'createdAt'];
-
   return (
     <div style={{ minHeight: '100vh', background: '#1a1a1a', color: '#fff', fontFamily: "'Inter', sans-serif" }}>
       <div style={{

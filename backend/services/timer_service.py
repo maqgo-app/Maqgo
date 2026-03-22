@@ -30,7 +30,7 @@ class TimerService:
         Evita servicios muertos en DB.
         """
         from pricing.business_rules import CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES
-        from services.payment_service import PaymentService
+        from services.refund_request_service import RefundRequestService
 
         now = datetime.now(timezone.utc)
         threshold = now - timedelta(minutes=CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES)
@@ -43,7 +43,7 @@ class TimerService:
             ]
         }, {'_id': 0, 'id': 1, 'confirmedAt': 1, 'createdAt': 1, 'totalAmount': 1}).to_list(100)
 
-        payment_service = PaymentService(self.db)
+        refund_request_service = RefundRequestService(self.db)
         cancelled_count = 0
 
         for service in services:
@@ -59,19 +59,16 @@ class TimerService:
             total_amount = float(service.get('totalAmount', 0))
             cancel_event = {'type': 'cancelled_no_arrival', 'at': now.isoformat()}
 
-            refund_rr = None
             if total_amount > 0:
-                refund_rr = await payment_service.rollback_charge(
-                    service['id'],
-                    reason='no_arrival_timeout',
-                    refund_amount=total_amount,
-                    skip_service_request_update=True,
+                await refund_request_service.create_request(
+                    service_request_id=service['id'],
+                    amount=total_amount,
+                    reason="no_arrival_timeout",
+                    requested_by_user_id=None,
+                    source="timer_no_arrival",
+                    meta={"timeout_minutes": CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES},
                 )
-            pay_status = (
-                'refunded'
-                if (total_amount <= 0 or (refund_rr and refund_rr.get('success')))
-                else 'refund_pending'
-            )
+            pay_status = 'refund_requested' if total_amount > 0 else 'none'
 
             await self.db.service_requests.update_one(
                 {'id': service['id'], 'status': 'confirmed'},

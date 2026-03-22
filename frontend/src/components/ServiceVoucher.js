@@ -1,7 +1,6 @@
 import React from 'react';
 import { MAQGO_BILLING } from '../utils/commissions';
-import { getMachineryId } from '../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../utils/pricing';
+import { isPerTripMachineryType } from '../utils/machineryNames';
 
 /**
  * Componente: Voucher de Servicio para Proveedor
@@ -60,7 +59,7 @@ const ServiceVoucher = ({ service, onDownload, onUploadInvoice }) => {
       {/* Info del servicio */}
       <div style={{ marginBottom: 16 }}>
         <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>
-          {service.machineryType} · {service && MACHINERY_PER_TRIP.includes(getMachineryId(service.machinery_type || service.machineryType)) ? 'Valor viaje' : `${service.hours} horas`}
+          {service.machineryType} · {service && isPerTripMachineryType(service.machinery_type || service.machineryType) ? 'Valor viaje' : `${service.hours} horas`}
         </p>
         <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
           Operador: {service.operatorName || 'Sin asignar'}
@@ -88,7 +87,7 @@ const ServiceVoucher = ({ service, onDownload, onUploadInvoice }) => {
         
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>
-            {service && MACHINERY_PER_TRIP.includes(getMachineryId(service.machinery_type || service.machineryType)) ? 'Servicio (viaje)' : `Servicio (${service.hours}h)`}
+            {service && isPerTripMachineryType(service.machinery_type || service.machineryType) ? 'Servicio (viaje)' : `Servicio (${service.hours}h)`}
           </span>
           <span style={{ color: '#fff', fontSize: 13 }}>{formatPrice(serviceAmount)}</span>
         </div>

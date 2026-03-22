@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 
-import BACKEND_URL from '../../utils/api';
+import BACKEND_URL, { fetchWithTimeout } from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
 
 /**
@@ -115,7 +115,7 @@ function ProviderVerifySMSScreen() {
     setError('');
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/communications/sms/verify-otp`, {
+      const response = await fetchWithTimeout(`${BACKEND_URL}/api/communications/sms/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -124,9 +124,14 @@ function ProviderVerifySMSScreen() {
         })
       });
 
-      const data = await response.json();
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        // Evitar error adicional si backend no retorna JSON.
+      }
 
-      if (data.valid) {
+      if (response.ok && data?.valid) {
         localStorage.setItem('phoneVerified', 'true');
         if (data.token) {
           localStorage.setItem('token', data.token);
@@ -134,13 +139,19 @@ function ProviderVerifySMSScreen() {
         }
         navigate('/provider/verified');
       } else {
-        setError(data.error || 'Código incorrecto. Intenta nuevamente.');
+        setError(data?.detail || data?.error || `Código inválido o expirado (${response.status})`);
         setCode(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
       }
     } catch (err) {
       console.error('Error:', err);
-      setError('Error de conexión. Intenta nuevamente.');
+      const isNetworkError = err?.name === 'TypeError' || err?.message?.includes('Failed to fetch');
+      const msg = isNetworkError
+        ? 'No se pudo conectar al servidor. Intenta nuevamente.'
+        : err?.name === 'AbortError'
+          ? 'El servidor tardó demasiado en responder. Intenta nuevamente.'
+          : 'Error de conexión. Intenta nuevamente.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -153,7 +164,7 @@ function ProviderVerifySMSScreen() {
     setError('');
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/communications/sms/send-otp`, {
+      const response = await fetchWithTimeout(`${BACKEND_URL}/api/communications/sms/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -162,18 +173,29 @@ function ProviderVerifySMSScreen() {
         })
       });
 
-      const data = await response.json();
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        // Evitar falsos errores por parseo de respuesta.
+      }
 
-      if (data.success) {
+      if (response.ok && data?.success) {
         setExpiry(300);
         setCooldown(30);
         setCode(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
       } else {
-        setError(data.error || data.detail || 'Error al reenviar el código');
+        setError(data?.detail || data?.error || `Error al reenviar el código (${response.status})`);
       }
     } catch (err) {
-      setError('Error de conexión');
+      const isNetworkError = err?.name === 'TypeError' || err?.message?.includes('Failed to fetch');
+      const msg = isNetworkError
+        ? 'No se pudo conectar al servidor. Intenta nuevamente.'
+        : err?.name === 'AbortError'
+          ? 'El servidor tardó demasiado en responder. Intenta nuevamente.'
+          : 'Error de conexión. Intenta nuevamente.';
+      setError(msg);
     } finally {
       setResending(false);
     }

@@ -23,7 +23,19 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' }],
+    },
+  },
+  {
+    files: ['vite.config.js', 'playwright.config.js', 'qa-artifacts/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
+    files: ['src/components/ui/**/*.{js,jsx}', 'src/components/Toast.jsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])

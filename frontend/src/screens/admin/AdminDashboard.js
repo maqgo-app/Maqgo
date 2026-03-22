@@ -4,8 +4,8 @@ import { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 
 import BACKEND_URL from '../../utils/api';
-import { getMachineryId } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { isPerTripMachineryType } from '../../utils/machineryNames';
+import SystemHealthPanel from '../../components/admin/SystemHealthPanel';
 
 // Estados y colores
 const STATUS_CONFIG = {
@@ -403,6 +403,8 @@ function AdminDashboard() {
           </div>
         )}
 
+        <SystemHealthPanel stats={stats} finances={finances} />
+
         {/* MÉTRICAS FINANCIERAS MAQGO */}
         <div style={{ 
           background: '#2A2A2A', 
@@ -706,7 +708,7 @@ function AdminDashboard() {
                       {service.client_name}
                     </p>
                     <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: 0 }}>
-                      {service.machinery_type} · {MACHINERY_PER_TRIP.includes(getMachineryId(service.machinery_type)) ? 'viaje' : `${service.hours}h`}
+                      {service.machinery_type} · {isPerTripMachineryType(service.machinery_type) ? 'viaje' : `${service.hours}h`}
                     </p>
                   </div>
 
@@ -889,7 +891,7 @@ function AdminDashboard() {
             <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, lineHeight: 1.8 }}>
               <p><strong>Cliente:</strong> {selectedService.client_name}</p>
               <p><strong>Maquinaria:</strong> {selectedService.machinery_type}</p>
-              <p><strong>{MACHINERY_PER_TRIP.includes(getMachineryId(selectedService.machinery_type)) ? 'Tipo' : 'Horas'}:</strong> {MACHINERY_PER_TRIP.includes(getMachineryId(selectedService.machinery_type)) ? 'Valor viaje' : selectedService.hours}</p>
+              <p><strong>{isPerTripMachineryType(selectedService.machinery_type) ? 'Tipo' : 'Horas'}:</strong> {isPerTripMachineryType(selectedService.machinery_type) ? 'Valor viaje' : selectedService.hours}</p>
               <p><strong>Monto a pagar:</strong> {formatPrice(selectedService.net_total)}</p>
             </div>
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/authHooks';
 import { useToast } from '../../components/Toast';
 
 import BACKEND_URL from '../../utils/api';
@@ -118,24 +118,6 @@ function TeamManagementScreen() {
       loadTeam();
     } catch (e) {
       console.error('Error canceling invitation:', e);
-    }
-  };
-
-  const getRoleLabel = (role) => {
-    switch(role) {
-      case 'super_master': return 'Titular';
-      case 'master': return 'Gerente';
-      case 'operator': return 'Operador';
-      default: return role;
-    }
-  };
-
-  const getRoleColor = (role) => {
-    switch(role) {
-      case 'super_master': return '#EC6819';
-      case 'master': return '#9C27B0';
-      case 'operator': return '#90BDD3';
-      default: return '#888';
     }
   };
 

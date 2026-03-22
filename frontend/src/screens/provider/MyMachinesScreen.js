@@ -29,8 +29,12 @@ function MyMachinesScreen() {
   const loadMachines = () => setMachines(getMachines());
 
   useEffect(() => {
-    setDefaultByMachinery(getObject(STORAGE_KEY_DEFAULT_BY_MACHINERY, {}));
-    loadMachines();
+    setTimeout(() => {
+      setDefaultByMachinery(getObject(STORAGE_KEY_DEFAULT_BY_MACHINERY, {}));
+    }, 0);
+    setTimeout(() => {
+      loadMachines();
+    }, 0);
   }, []);
 
   const setDefaultOperator = (machineryId, operatorId) => {
@@ -109,7 +113,7 @@ function MyMachinesScreen() {
     setDeleteMachineConfirm(null);
   };
 
-  const handleDeleteOperator = (machineId, operatorId, operatorName) => {
+  const handleDeleteOperator = (machineId, operatorId) => {
     deleteOperator(machineId, operatorId);
     setDeleteOperatorConfirm(null);
   };
@@ -246,12 +250,12 @@ function MyMachinesScreen() {
             {/* Precios */}
             <div style={{ marginBottom: 12 }}>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Valor hora y traslado
+                Valores netos (hora/servicio y traslado)
               </p>
               <div style={{ background: '#2A2A2A', borderRadius: 8, padding: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
                   <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>
-                    {machine.pricePerHour ? 'Precio/hora' : 'Precio/servicio'}
+                    {machine.pricePerHour ? 'Precio/hora neto' : 'Precio/servicio neto'}
                   </span>
                   <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>
                     {formatPrice(machine.pricePerHour || machine.pricePerService)}
@@ -394,7 +398,7 @@ function MyMachinesScreen() {
                   color: '#EC6819', fontSize: 13, fontWeight: 600, cursor: 'pointer'
                 }}
               >
-                Editar precios
+                Editar precios netos
               </button>
             </div>
           </div>
@@ -443,7 +447,7 @@ function MyMachinesScreen() {
         <ConfirmModal
           title="Eliminar operador"
           message={`¿Quitar a ${deleteOperatorConfirm.operator.name} de esta máquina?`}
-          onConfirm={() => handleDeleteOperator(deleteOperatorConfirm.machine.id, deleteOperatorConfirm.operator.id, deleteOperatorConfirm.operator.name)}
+          onConfirm={() => handleDeleteOperator(deleteOperatorConfirm.machine.id, deleteOperatorConfirm.operator.id)}
           onCancel={() => setDeleteOperatorConfirm(null)}
         />
       )}
@@ -482,12 +486,12 @@ function EditPricingModal({ machine, priceVal: initialPrice, transportVal: initi
   return (
     <ModalOverlay onClick={onClose}>
       <div style={modalStyle} onClick={e => e.stopPropagation()}>
-        <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: '0 0 6px' }}>Editar precios</h3>
+        <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: '0 0 6px' }}>Editar precios netos</h3>
         <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '0 0 8px' }}>{machine.type} · {machine.brand}</p>
               {/* Mensaje de tracción general eliminado; se usan solo alertas de precio contextuales */}
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>
-            {isPerHour ? 'Valor por hora (CLP)' : 'Precio por servicio (CLP)'}
+            {isPerHour ? 'Valor por hora neto (CLP, sin IVA)' : 'Precio por servicio neto (CLP, sin IVA)'}
           </label>
           <input type="number" placeholder={isPerHour ? '80000' : '260000'} value={priceVal} onChange={e => setPriceVal(e.target.value.replace(/\D/g, ''))} className="maqgo-input" style={{ width: '100%' }} />
           {priceAlert && (
@@ -498,7 +502,7 @@ function EditPricingModal({ machine, priceVal: initialPrice, transportVal: initi
         </div>
         {machineNeedsTransport && (
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Costo de traslado (CLP)</label>
+            <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Costo de traslado neto (CLP, sin IVA)</label>
             <input type="number" placeholder="25000" value={transportVal} onChange={e => setTransportVal(e.target.value.replace(/\D/g, ''))} className="maqgo-input" style={{ width: '100%' }} />
             {transportAlert && (
               <div style={{ marginTop: 8, padding: 8, borderRadius: 8, minHeight: 36, background: `${transportAlert.color}20`, border: `1px solid ${transportAlert.color}60`, display: 'flex', alignItems: 'center' }}>

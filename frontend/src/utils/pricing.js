@@ -8,9 +8,24 @@
  * para garantizar consistencia entre alternativas de arriendo y preview final.
  */
 
+import {
+  MACHINERY_PER_HOUR,
+  MACHINERY_PER_SERVICE,
+  MACHINERY_NEEDS_TRANSPORT,
+  MACHINERY_NO_TRANSPORT,
+} from './machineryConstants.js';
+import { getMachineryId } from './machineryNames.js';
+
 // ===========================================
 // CONSTANTES (alineadas con backend)
 // ===========================================
+
+export {
+  MACHINERY_PER_HOUR,
+  MACHINERY_PER_SERVICE,
+  MACHINERY_NEEDS_TRANSPORT,
+  MACHINERY_NO_TRANSPORT,
+};
 
 export const IMMEDIATE_MULTIPLIERS = {
   4: 1.20,   // +20%
@@ -19,20 +34,6 @@ export const IMMEDIATE_MULTIPLIERS = {
   7: 1.125,  // +12.5%
   8: 1.10,   // +10%
 };
-
-export const MACHINERY_PER_HOUR = [
-  'retroexcavadora', 'excavadora', 'bulldozer', 'motoniveladora',
-  'compactadora', 'minicargador', 'grua'
-];
-
-export const MACHINERY_PER_SERVICE = ['camion_pluma', 'camion_aljibe', 'camion_tolva'];
-
-export const MACHINERY_NEEDS_TRANSPORT = [
-  'retroexcavadora', 'excavadora', 'bulldozer', 'motoniveladora',
-  'compactadora', 'minicargador', 'grua'
-];
-
-export const MACHINERY_NO_TRANSPORT = ['camion_pluma', 'camion_aljibe', 'camion_tolva'];
 
 export const MAQGO_CLIENT_COMMISSION_RATE = 0.10;
 export const IVA_RATE = 0.19;
@@ -65,16 +66,16 @@ export const REFERENCE_PRICES = {
 // Alias para compatibilidad
 export const MACHINERY_PER_TRIP = MACHINERY_PER_SERVICE;
 
-/** true si la maquinaria se cobra por viaje (pluma, aljibe, tolva) */
+/** true si la maquinaria se cobra por viaje (pluma, aljibe, tolva). Acepta id o nombre visible. */
 export function isPerTripMachinery(machinery) {
-  const key = (machinery || '').toLowerCase().replace(/\s+/g, '_');
-  return key && MACHINERY_PER_SERVICE.includes(key);
+  const id = getMachineryId(machinery);
+  return Boolean(id && MACHINERY_PER_SERVICE.includes(id));
 }
 
-/** true si la maquinaria lleva costo de traslado (no es camión pluma/aljibe/tolva) */
+/** true si la maquinaria lleva costo de traslado (no es camión pluma/aljibe/tolva). Acepta id o nombre visible. */
 export function needsTransportMachinery(machinery) {
-  const key = (machinery || '').toLowerCase().replace(/\s+/g, '_');
-  return key ? MACHINERY_NEEDS_TRANSPORT.includes(key) : false;
+  const id = getMachineryId(machinery);
+  return Boolean(id && MACHINERY_NEEDS_TRANSPORT.includes(id));
 }
 
 // ===========================================
@@ -96,9 +97,9 @@ const TRIP_PRICE_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
  * Usar en ProviderOptionsScreen y SearchingProviderScreen para listas demo.
  */
 export function getDemoPriceList(machinery) {
-  const key = (machinery || '').toLowerCase().replace(/\s+/g, '_');
-  const ref = REFERENCE_PRICES[key];
-  const isPerTrip = key && MACHINERY_PER_SERVICE.includes(key);
+  const id = getMachineryId(machinery);
+  const ref = REFERENCE_PRICES[id];
+  const isPerTrip = id && MACHINERY_PER_SERVICE.includes(id);
   if (isPerTrip && ref) {
     return TRIP_PRICE_SPREAD.map(mult => Math.round(ref * mult));
   }
@@ -179,11 +180,11 @@ export function getTransportAlert(transport, refTransport = REFERENCE_TRANSPORT)
 
 /** Referencia de precio final al cliente (subtotal ref + 10% + IVA comisión) para comparar con mercado. */
 function getReferenceClientTotal(machineryType, hours, transportFee, reservationType) {
-  const key = (machineryType || '').toLowerCase().replace(/\s+/g, '_');
-  const refPrice = REFERENCE_PRICES[key];
+  const id = getMachineryId(machineryType);
+  const refPrice = REFERENCE_PRICES[id];
   if (!refPrice) return null;
-  const isPerHour = MACHINERY_PER_HOUR.includes(machineryType);
-  const needsTransport = MACHINERY_NEEDS_TRANSPORT.includes(machineryType);
+  const isPerHour = Boolean(id && MACHINERY_PER_HOUR.includes(id));
+  const needsTransport = Boolean(id && MACHINERY_NEEDS_TRANSPORT.includes(id));
   const transport = needsTransport ? (transportFee ?? REFERENCE_TRANSPORT) : 0;
   let refSubtotal;
   if (reservationType === 'immediate') {
@@ -200,7 +201,7 @@ function getReferenceClientTotal(machineryType, hours, transportFee, reservation
  * Indica si el precio final al cliente (con recargos y tarifa MAQGO) es competitivo o fuera de mercado.
  * @returns {{ type: string, color: string, msg: string, pctVsRef: number } | null}
  */
-export function getFinalPriceMarketAlert({ machineryType, basePrice, transportFee = 0, hours = 4, reservationType = 'immediate', needsInvoice = false }) {
+export function getFinalPriceMarketAlert({ machineryType, basePrice, transportFee = 0, hours = 4, reservationType = 'immediate' }) {
   const finalPrice = calculateClientPrice({
     machineryType,
     basePrice,
@@ -246,8 +247,9 @@ export function getFinalPriceMarketAlert({ machineryType, basePrice, transportFe
  * @returns {number} Precio final redondeado
  */
 export function calculateClientPrice({ machineryType, basePrice, transportFee = 0, hours = 4, days = 1, reservationType = 'immediate' }) {
-  const isPerHour = MACHINERY_PER_HOUR.includes(machineryType);
-  const needsTransport = MACHINERY_NEEDS_TRANSPORT.includes(machineryType);
+  const id = getMachineryId(machineryType);
+  const isPerHour = Boolean(id && MACHINERY_PER_HOUR.includes(id));
+  const needsTransport = Boolean(id && MACHINERY_NEEDS_TRANSPORT.includes(id));
   const transport = needsTransport ? (transportFee || 0) : 0;
 
   let serviceCost;
@@ -327,9 +329,10 @@ export function getClientBreakdown(pricing) {
  * Retorna estructura compatible con la respuesta del backend.
  */
 export function buildPricingFallback({ machineryType, basePrice, transportFee, hours, days, reservationType, isHybrid, additionalDays }) {
-  const isPerHour = MACHINERY_PER_HOUR.includes(machineryType);
+  const id = getMachineryId(machineryType);
+  const isPerHour = Boolean(id && MACHINERY_PER_HOUR.includes(id));
   const multiplier = IMMEDIATE_MULTIPLIERS[hours] || 1.20;
-  const needsTransport = MACHINERY_NEEDS_TRANSPORT.includes(machineryType);
+  const needsTransport = Boolean(id && MACHINERY_NEEDS_TRANSPORT.includes(id));
   const transport = needsTransport ? (transportFee || 0) : 0;
 
   if (isHybrid && additionalDays > 0) {

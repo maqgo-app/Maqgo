@@ -1,15 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-function TermsScreen() {
-  const navigate = useNavigate();
-
-  const Section = ({ title, children }) => (
+function Section({ title, children }) {
+  return (
     <section style={{ marginBottom: 28 }}>
-      <h2 style={{ 
-        color: '#EC6819', 
-        fontSize: 15, 
-        fontWeight: 600, 
+      <h2 style={{
+        color: '#EC6819',
+        fontSize: 15,
+        fontWeight: 600,
         marginBottom: 12
       }}>
         {title}
@@ -19,6 +17,10 @@ function TermsScreen() {
       </div>
     </section>
   );
+}
+
+function TermsScreen() {
+  const navigate = useNavigate();
 
   return (
     <div className="maqgo-app">
@@ -164,11 +166,11 @@ function TermsScreen() {
           </p>
         </Section>
 
-        <Section title="7. Regla de los 30 minutos">
+        <Section title="7. Regla de los 30 minutos e inicio automático">
           <p>
-            Cuando el operador llega, tienes 30 min para autorizar su ingreso en la app. 
-            Si no respondes, el servicio inicia solo y se cobra según lo acordado. Así cuidamos 
-            el tiempo del operador.
+            Cuando el operador llega a la obra, tienes 30 min para autorizar su ingreso en la app. 
+            Si no lo dejas entrar en ese plazo, aplica la regla de negocio de inicio automático: 
+            el servicio se inicia solo y se cobra según lo acordado. Así cuidamos el tiempo del operador.
           </p>
         </Section>
 

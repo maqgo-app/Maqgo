@@ -93,6 +93,35 @@ lsof -ti:5174 | xargs kill -9
 
 ---
 
+## Quality Gate (recomendado antes de merge/deploy)
+
+En la raiz del proyecto:
+
+```bash
+./scripts/quality-gate.sh
+```
+
+Este comando valida:
+
+- tests backend (unit + escenarios),
+- lint frontend,
+- tests unitarios frontend,
+- build frontend.
+
+Para pre-lanzamiento puedes usar:
+
+```bash
+./scripts/pre-deploy.sh
+```
+
+Para flujo controlado de despliegue (rol CTO):
+
+```bash
+./scripts/deploy-cto.sh production
+```
+
+---
+
 ## Si el frontend no arranca
 
 1. **Reinstalar dependencias:**

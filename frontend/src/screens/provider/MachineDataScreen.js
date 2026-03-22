@@ -64,7 +64,7 @@ function MachineDataScreen() {
       const [brand = '', model = ''] = brandModel.includes(' ') 
         ? brandModel.split(/\s+(.+)/).slice(0, 2) 
         : [brandModel, ''];
-      setForm({
+      setTimeout(() => setForm({
         machineryType,
         brand: brand.trim(),
         model: model.trim(),
@@ -79,10 +79,10 @@ function MachineDataScreen() {
         bladeWidthM: editMachine.bladeWidthM != null ? String(editMachine.bladeWidthM) : '',
         craneTon: editMachine.craneTon != null ? String(editMachine.craneTon) : '',
         rollerTon: editMachine.rollerTon != null ? String(editMachine.rollerTon) : ''
-      });
+      }), 0);
     } else {
       const saved = getObject('machineData', {});
-      if (saved.machineryType) setForm(saved);
+      if (saved.machineryType) setTimeout(() => setForm(saved), 0);
     }
   }, [isEditMode, editMachine]);
 

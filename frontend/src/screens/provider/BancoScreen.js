@@ -38,21 +38,21 @@ function BancoScreen() {
     
     if (savedBank.bank) {
       const parts = (savedBank.holderName || '').trim().split(/\s+/);
-      setData(prev => ({
+      setTimeout(() => setData(prev => ({
         ...savedBank,
         holderNombre: parts[0] || '',
         holderApellido: parts.slice(1).join(' ') || '',
         holderRut: savedBank.holderRut || prev.holderRut
-      }));
+      })), 0);
     } else {
       const biz = (provider.businessName || '').trim();
       const parts = biz.split(/\s+/);
-      setData(prev => ({
+      setTimeout(() => setData(prev => ({
         ...prev,
         holderNombre: parts[0] || '',
         holderApellido: parts.slice(1).join(' ') || '',
         holderRut: provider.rut || ''
-      }));
+      })), 0);
     }
   }, []);
 

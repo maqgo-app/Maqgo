@@ -7,8 +7,8 @@ import { vibrate } from '../../utils/uberUX';
 import { ProviderRequestExpired } from '../../components/ErrorStates';
 
 import BACKEND_URL from '../../utils/api';
-import { MACHINERY_NAMES, getMachineryId } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP, IMMEDIATE_MULTIPLIERS } from '../../utils/pricing';
+import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
+import { IMMEDIATE_MULTIPLIERS } from '../../utils/pricing';
 const MIN_HOURS_FOR_LUNCH = 6;
 
 /**
@@ -31,7 +31,7 @@ function RequestReceivedScreen() {
   useEffect(() => {
     const parsed = getJSON('incomingRequest', null);
     if (parsed) {
-      setRequest(parsed);
+      setTimeout(() => setRequest(parsed), 0);
     } else {
       // Demo data - usar tipo de maquinaria del proveedor
       const machineData = getObject('machineData', {});
@@ -45,7 +45,7 @@ function RequestReceivedScreen() {
         ? { lat: serviceLat, lng: serviceLng } : null;
       const clientPhone = localStorage.getItem('userPhone') || '+56987654321';
       const serviceReference = localStorage.getItem('serviceReference') || '';
-      setRequest({
+      setTimeout(() => setRequest({
         id: `req-${Date.now()}`,
         machineryType: MACHINERY_NAMES[machineryType] || machineryType,
         machineryId: machineryType,
@@ -64,7 +64,7 @@ function RequestReceivedScreen() {
         client_lng: workCoords?.lng,
         workCoords,
         reference: serviceReference
-      });
+      }), 0);
     }
     
     // Reproducir sonido y vibración al recibir solicitud
@@ -75,7 +75,7 @@ function RequestReceivedScreen() {
 
   useEffect(() => {
     if (countdown <= 0) {
-      setExpired(true);
+      setTimeout(() => setExpired(true), 0);
       // Auto-redirigir después de 3 segundos (operador → operator/home, proveedor → provider/home)
       const home = localStorage.getItem('providerRole') === 'operator' ? '/operator/home' : '/provider/home';
       setTimeout(() => navigate(home), 3000);
@@ -191,9 +191,11 @@ function RequestReceivedScreen() {
   const handleReject = async () => {
     try {
       if (request?.id && !request.id.startsWith('req-')) {
-        await axios.post(`${BACKEND_URL}/api/service-requests/${request.id}/reject`);
+        await axios.put(`${BACKEND_URL}/api/service-requests/${request.id}/reject`, {}, { timeout: 12000 });
       }
-    } catch (e) {}
+    } catch {
+      // Ya manejamos fallback de navegación aunque falle el rechazo.
+    }
     localStorage.removeItem('incomingRequest');
     navigate(homeRoute);
   };
@@ -314,7 +316,7 @@ function RequestReceivedScreen() {
               +{formatMoney(earnings.bonus)}
             </p>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-              Ganas <strong style={{ color: '#90BDD3' }}>+{earnings.bonusPercent}%</strong> por inicio HOY ({MACHINERY_PER_TRIP.includes(getMachineryId(request?.machinery_type || request?.machineryType)) ? 'Valor viaje' : `${earnings.hours} horas`})
+              Ganas <strong style={{ color: '#90BDD3' }}>+{earnings.bonusPercent}%</strong> por inicio HOY ({isPerTripMachineryType(request?.machinery_type || request?.machineryType) ? 'Valor viaje' : `${earnings.hours} horas`})
             </p>
           </div>
         )}
@@ -379,7 +381,7 @@ function RequestReceivedScreen() {
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Duración</span>
             <span style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>
-              {MACHINERY_PER_TRIP.includes(getMachineryId(request?.machinery_type || request?.machineryType)) ? 'Valor viaje' : (<>{request?.hours} horas{request?.hours >= MIN_HOURS_FOR_LUNCH && <span style={{ color: '#90BDD3' }}> + 1h colación</span>}</>)}
+              {isPerTripMachineryType(request?.machinery_type || request?.machineryType) ? 'Valor viaje' : (<>{request?.hours} horas{request?.hours >= MIN_HOURS_FOR_LUNCH && <span style={{ color: '#90BDD3' }}> + 1h colación</span>}</>)}
             </span>
           </div>
 

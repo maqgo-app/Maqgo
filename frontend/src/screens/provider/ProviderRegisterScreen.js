@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { validateEmail, validateCelularChile } from '../../utils/chileanValidation';
 import { useToast } from '../../components/Toast';
+import { getPasswordHint, validatePassword } from '../../utils/passwordValidation';
 
 import BACKEND_URL from '../../utils/api';
 
@@ -11,14 +12,41 @@ import BACKEND_URL from '../../utils/api';
  * Pantalla P1 - Registro Proveedor
  */
 function ProviderRegisterScreen() {
+  const DRAFT_KEY = 'providerRegisterDraft';
   const navigate = useNavigate();
   const toast = useToast();
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     nombre: '', apellido: '', email: '', celular: '', password: ''
   });
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({ email: '', celular: '', password: '' });
+  const passwordHint = getPasswordHint(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft && typeof draft === 'object') {
+        setTimeout(() => {
+          setForm(prev => ({ ...prev, ...draft.form }));
+          setAccepted(Boolean(draft.accepted));
+        }, 0);
+      }
+    } catch {
+      // Ignorar drafts corruptos sin romper el flujo
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ form, accepted }));
+    } catch {
+      // Sin bloqueo por storage
+    }
+  }, [form, accepted]);
 
   const update = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -29,7 +57,7 @@ function ProviderRegisterScreen() {
     if (!accepted) return;
     const emailErr = validateEmail(form.email);
     const celularErr = validateCelularChile(form.celular);
-    const passwordErr = form.password.length < 8 ? 'La contraseña debe tener al menos 8 caracteres' : '';
+    const passwordErr = validatePassword(form.password, passwordHint);
     if (emailErr || celularErr || passwordErr) {
       setErrors({ email: emailErr, celular: celularErr, password: passwordErr });
       return;
@@ -49,7 +77,7 @@ function ProviderRegisterScreen() {
       const msg = e.response?.data?.detail;
       if (Array.isArray(msg)) {
         const pwdErr = msg.find(m => m.loc && m.loc[m.loc.length - 1] === 'password');
-        if (pwdErr) setErrors(prev => ({ ...prev, password: pwdErr.msg || 'La contraseña debe tener al menos 8 caracteres' }));
+        if (pwdErr) setErrors(prev => ({ ...prev, password: pwdErr.msg || passwordHint }));
       } else if (typeof msg === 'string' && msg.toLowerCase().includes('password')) {
         setErrors(prev => ({ ...prev, password: msg }));
       } else if (msg) {
@@ -65,7 +93,7 @@ function ProviderRegisterScreen() {
     setLoading(false);
   };
 
-  const isValid = form.nombre && form.apellido && form.email && form.celular && form.password.length >= 8 && accepted;
+  const isValid = form.nombre && form.apellido && form.email && form.celular && !validatePassword(form.password, passwordHint) && accepted;
 
   return (
     <div className="maqgo-app">
@@ -124,13 +152,51 @@ function ProviderRegisterScreen() {
           </div>
           {errors.celular ? <p style={{ color: '#f44336', fontSize: 12, marginTop: -8, marginBottom: 8 }}>{errors.celular}</p> : null}
           
-          <input
-            className="maqgo-input"
-            placeholder="Crear contraseña (mín. 8 caracteres)"
-            type="password"
-            value={form.password}
-            onChange={e => update('password', e.target.value)}
-          />
+          <div className="maqgo-input" style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: 0,
+            overflow: 'hidden',
+            marginBottom: errors.password ? 4 : 6
+          }}>
+            <input
+              placeholder={passwordHint}
+              type={showPassword ? 'text' : 'password'}
+              value={form.password}
+              onChange={e => update('password', e.target.value)}
+              style={{
+                flex: 1,
+                padding: '14px 12px',
+                background: 'transparent',
+                border: 'none',
+                color: '#fff',
+                fontSize: 15,
+                outline: 'none'
+              }}
+              autoComplete="new-password"
+              aria-label="Contrasena"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(prev => !prev)}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: '#90BDD3',
+                cursor: 'pointer',
+                padding: '0 12px',
+                height: '100%',
+                fontSize: 13,
+                fontWeight: 600
+              }}
+              aria-label={showPassword ? 'Ocultar contrasena' : 'Mostrar contrasena'}
+            >
+              {showPassword ? 'Ocultar' : 'Mostrar'}
+            </button>
+          </div>
+          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 0, marginBottom: errors.password ? 8 : 12 }}>
+            {passwordHint}
+          </p>
           {errors.password ? <p style={{ color: '#f44336', fontSize: 12, marginTop: -8, marginBottom: 8 }}>{errors.password}</p> : null}
 
           {/* Checkbox */}

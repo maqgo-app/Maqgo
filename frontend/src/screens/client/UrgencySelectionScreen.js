@@ -5,8 +5,7 @@ import { getArray } from '../../utils/safeStorage';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import BookingProgress from '../../components/BookingProgress';
-import { MACHINERY_NAMES, getMachineryKeySpec, getMachineryCapacityOptions } from '../../utils/machineryNames';
-import { MACHINERY_PER_TRIP } from '../../utils/pricing';
+import { MACHINERY_NAMES, getMachineryKeySpec, getMachineryCapacityOptions, isPerTripMachineryType } from '../../utils/machineryNames';
 
 /**
  * Pantalla: Selección de Urgencia
@@ -105,7 +104,7 @@ function UrgencySelectionScreen() {
     return single ? [parseInt(single, 10)] : [];
   });
 
-  const isPerTrip = machinery && MACHINERY_PER_TRIP.includes(machinery);
+  const isPerTrip = isPerTripMachineryType(machinery);
   const isTolva = machinery === 'camion_tolva';
   const isAljibe = machinery === 'camion_aljibe';
   const isPluma = machinery === 'camion_pluma';
@@ -118,18 +117,20 @@ function UrgencySelectionScreen() {
 
   useEffect(() => {
     const savedMachinery = localStorage.getItem('selectedMachinery') || '';
-    setMachinery(savedMachinery);
+    setTimeout(() => setMachinery(savedMachinery), 0);
     const arrM3 = getArray('clientRequiredM3List', []);
     if (arrM3.length) {
-      setSelectedCapacityM3List(arrM3);
+      setTimeout(() => setSelectedCapacityM3List(arrM3), 0);
     } else {
       const savedM3 = localStorage.getItem('clientRequiredM3');
-      if (savedM3) setSelectedCapacityM3List([parseInt(savedM3, 10)].filter((n) => !Number.isNaN(n)));
+      if (savedM3) {
+        setTimeout(() => setSelectedCapacityM3List([parseInt(savedM3, 10)].filter((n) => !Number.isNaN(n))), 0);
+      }
     }
     const arrLiters = getArray('clientRequiredLitersList', []);
-    if (arrLiters.length) setSelectedLitersList(arrLiters);
+    if (arrLiters.length) setTimeout(() => setSelectedLitersList(arrLiters), 0);
     const arrTonM = getArray('clientRequiredTonMList', []);
-    if (arrTonM.length) setSelectedTonMList(arrTonM);
+    if (arrTonM.length) setTimeout(() => setSelectedTonMList(arrTonM), 0);
     saveBookingProgress('urgency', { machinery: savedMachinery });
   }, []);
 

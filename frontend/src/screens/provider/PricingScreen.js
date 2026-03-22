@@ -56,9 +56,9 @@ function PricingScreen() {
     const savedPricing = getObject('machinePricing', {});
     const rawType = machineData.machineryType || machineData.type || 'retroexcavadora';
     const normalizedType = (typeof rawType === 'string' ? rawType : 'retroexcavadora').toLowerCase().trim();
-    setMachineType(normalizedType || 'retroexcavadora');
-    if (savedPricing.priceBase != null) setPriceBase(String(savedPricing.priceBase).replace(/\D/g, '').slice(0, 9));
-    if (savedPricing.transportCost != null) setTransportCost(String(savedPricing.transportCost).replace(/\D/g, '').slice(0, 9));
+    setTimeout(() => setMachineType(normalizedType || 'retroexcavadora'), 0);
+    if (savedPricing.priceBase != null) setTimeout(() => setPriceBase(String(savedPricing.priceBase).replace(/\D/g, '').slice(0, 9)), 0);
+    if (savedPricing.transportCost != null) setTimeout(() => setTransportCost(String(savedPricing.transportCost).replace(/\D/g, '').slice(0, 9)), 0);
   }, []);
 
   const isPerHour = MACHINERY_PER_HOUR.includes(machineType);
@@ -153,7 +153,7 @@ function PricingScreen() {
         {/* Input precio base */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, display: 'block', marginBottom: 8, fontWeight: 500 }}>
-            {isPerHour ? 'Precio por hora (sin IVA)' : 'Precio por servicio (sin IVA)'}
+            {isPerHour ? 'Precio por hora neto (sin IVA)' : 'Precio por servicio neto (sin IVA)'}
           </label>
           <div style={{ position: 'relative' }}>
             <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: 16 }}>$</span>
@@ -189,7 +189,7 @@ function PricingScreen() {
         {needsTransport && (
           <div style={{ marginBottom: 20 }}>
             <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, display: 'block', marginBottom: 8, fontWeight: 500 }}>
-              Costo de traslado (sin IVA)
+              Costo de traslado neto (sin IVA)
             </label>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: 16 }}>$</span>

@@ -76,6 +76,7 @@ function AppWithErrorBoundary() {
     </ErrorBoundary>
   );
 }
+export { AppWithErrorBoundary };
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>

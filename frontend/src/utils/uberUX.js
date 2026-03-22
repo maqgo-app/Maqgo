@@ -38,7 +38,7 @@ export const playAlert = (type = 'notification') => {
     audio.play().catch(() => {
       // Silenciar si no hay interacción del usuario
     });
-  } catch (e) {
+  } catch {
     console.log('Audio not available');
   }
 };
