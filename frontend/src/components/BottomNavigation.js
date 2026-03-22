@@ -101,6 +101,10 @@ function goToHome(navigate) {
     navigate('/welcome');
     return;
   }
+  if (userRole === 'admin') {
+    navigate('/admin');
+    return;
+  }
   if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager') {
     navigate(providerRole === 'operator' ? '/operator/home' : '/provider/home');
   } else {
@@ -277,11 +281,16 @@ export function ProviderNavigation() {
  */
 function BottomNavigation() {
   const userRole = localStorage.getItem('userRole') || 'client';
-  
+
+  // Admin no usa la barra de cliente/proveedor (evita “Inicio” → /client/home por error).
+  if (userRole === 'admin') {
+    return null;
+  }
+
   if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager') {
     return <ProviderNavigation />;
   }
-  
+
   return <ClientNavigation />;
 }
 

@@ -46,7 +46,7 @@ function WelcomeScreen() {
   const navigate = useNavigate();
   const [adminPending, setAdminPending] = useState(0);
   const { isDesktop, isNarrowMobile, isShortViewport, viewportHeight, viewportWidth } = useWelcomeLayout();
-  // useLayoutEffect: stagger listo antes del primer paint (sin frame vacío).
+  // welcome-reveal en DOM desde el 1er frame (opacity 0 en CSS); welcome-mounted tras layout dispara animación (evita flash visible→oculto).
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -115,9 +115,62 @@ function WelcomeScreen() {
     return Math.max(min, Math.min(max, scaled));
   };
   const heroLogoBottom = isDesktop ? 40 : (isShortViewport ? 16 : (isNarrowMobile ? 20 : 24));
+  const adminSessionBanner = hasSession && showAdminInFooter;
 
   return (
-    <div className={`maqgo-app ${isDesktop ? 'welcome-desktop' : ''} ${isShortViewport ? 'welcome-short' : ''}`}>
+    <div
+      className={`maqgo-app ${isDesktop ? 'welcome-desktop' : ''} ${isShortViewport ? 'welcome-short' : ''}`}
+      style={
+        adminSessionBanner
+          ? { display: 'flex', flexDirection: 'column', minHeight: isDesktop ? '100vh' : '100dvh' }
+          : undefined
+      }
+    >
+      {/* Sesión admin = dueño MAQGO: la portada es para el mercado; el trabajo operativo es el panel interno */}
+      {adminSessionBanner && (
+        <div
+          role="region"
+          aria-label="Panel interno MAQGO"
+          style={{
+            flexShrink: 0,
+            width: '100%',
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+            padding: isDesktop
+              ? '10px 20px'
+              : `max(8px, env(safe-area-inset-top, 8px)) 16px 8px`,
+            background: 'rgba(236, 104, 25, 0.12)',
+            borderBottom: '1px solid rgba(236, 104, 25, 0.35)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: isDesktop ? 13 : 12,
+              color: 'rgba(255,255,255,0.92)',
+              textAlign: 'center',
+              lineHeight: 1.35,
+              maxWidth: 540,
+            }}
+          >
+            <strong style={{ color: '#fff' }}>Portada pública</strong> (clientes y proveedores). Tu espacio como dueño MAQGO es el{' '}
+            <strong style={{ color: '#fff' }}>panel interno</strong> (reservas, facturación, usuarios).
+          </span>
+          <button
+            type="button"
+            className="maqgo-btn-primary"
+            onClick={() => navigate('/admin')}
+            style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600 }}
+          >
+            Ir al panel interno
+          </button>
+        </div>
+      )}
       <div
         className={`maqgo-screen welcome-screen ${mounted ? 'welcome-mounted' : ''}`}
         style={{
@@ -125,9 +178,13 @@ function WelcomeScreen() {
           flexDirection: 'column',
           width: '100%',
           maxWidth: '100%',
-          height: isDesktop ? '100vh' : '100dvh',
-          minHeight: isDesktop ? undefined : '100dvh',
-          maxHeight: isDesktop ? undefined : '100dvh',
+          ...(adminSessionBanner
+            ? { flex: 1, minHeight: 0, height: 'auto', maxHeight: 'none' }
+            : {
+                height: isDesktop ? '100vh' : '100dvh',
+                minHeight: isDesktop ? undefined : '100dvh',
+                maxHeight: isDesktop ? undefined : '100dvh',
+              }),
           boxSizing: 'border-box',
           /* Fondo: gradiente móvil / sólido desktop en maqgo.css (.maqgo-screen.welcome-screen) */
           padding: isDesktop
@@ -150,7 +207,7 @@ function WelcomeScreen() {
           width: '100%'
         }}>
           <div
-            className={mounted ? 'welcome-reveal' : ''}
+            className="welcome-reveal"
             style={{
               width: '100%',
               display: 'flex',
@@ -161,7 +218,7 @@ function WelcomeScreen() {
             <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 12) : heroLogoBottom }} />
           </div>
           <div
-            className={`welcome-hero-caluga ${mounted ? 'welcome-reveal' : ''}`}
+            className="welcome-hero-caluga welcome-reveal"
             style={{
               ['--welcome-d']: '70ms',
               marginTop: isDesktop ? -4 : -6,
@@ -197,7 +254,7 @@ function WelcomeScreen() {
             </span>
           </div>
           <div
-            className={mounted ? 'welcome-reveal' : ''}
+            className="welcome-reveal"
             style={{
               ['--welcome-d']: '130ms',
               width: '100%',
@@ -250,7 +307,7 @@ function WelcomeScreen() {
               }
               navigate(target);
             }}
-            className={`welcome-cta-primary ${mounted ? 'welcome-reveal' : ''}`}
+            className="welcome-cta-primary welcome-reveal"
             style={{ ['--welcome-d']: '200ms' }}
             data-testid="start-client-btn"
             aria-label="Arrendar maquinaria. Para hoy o en la fecha que indiques."
@@ -270,7 +327,7 @@ function WelcomeScreen() {
               localStorage.setItem('desiredRole', 'provider');
               navigate('/register');
             }}
-            className={`welcome-cta-secondary ${mounted ? 'welcome-reveal' : ''}`}
+            className="welcome-cta-secondary welcome-reveal"
             style={{ ['--welcome-d']: '270ms' }}
             data-testid="start-provider-btn"
             aria-label="Ofrecer mi maquinaria. Regístrate y recibe solicitudes de clientes."
@@ -286,7 +343,7 @@ function WelcomeScreen() {
 
           <button
             onClick={() => navigate('/operator/join')}
-            className={`welcome-cta-secondary ${mounted ? 'welcome-reveal' : ''}`}
+            className="welcome-cta-secondary welcome-reveal"
             style={{ ['--welcome-d']: '340ms' }}
             data-testid="operator-join-btn"
             aria-label="Soy operador. Unirme con código de equipo."
@@ -303,7 +360,7 @@ function WelcomeScreen() {
 
         {/* Footer - compacto en viewports cortos */}
         <footer
-          className={mounted ? 'welcome-reveal' : ''}
+          className="welcome-reveal"
           style={{
             ['--welcome-d']: '410ms',
             flexShrink: 0,
@@ -358,10 +415,14 @@ function WelcomeScreen() {
                   onClick={() => navigate('/admin')}
                   className="welcome-footer-btn"
                   style={{ color: adminPending > 0 ? '#EC6819' : undefined }}
-                  aria-label={adminPending > 0 ? `Admin con ${adminPending} pendientes` : 'Panel de administración'}
+                  aria-label={
+                    adminPending > 0
+                      ? `Panel interno MAQGO, ${adminPending} pendientes`
+                      : 'Panel interno MAQGO (solo dueño)'
+                  }
                   data-testid="welcome-admin-link"
                 >
-                  Admin{adminPending > 0 ? ` (${adminPending})` : ''}
+                  Panel MAQGO{adminPending > 0 ? ` (${adminPending})` : ''}
                 </button>
               </>
             )}

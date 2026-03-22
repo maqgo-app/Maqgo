@@ -17,6 +17,24 @@ Regla operativa: no se despliega sin quality gate en verde y validacion final.
 
 ## Historial
 
+- Fecha: 2026-03-22
+- Entorno: production (Vercel / frontend)
+- Responsable: CTO (Cursor)
+- Quality gate: PASS (`npm run gate:deploy` — vitest + vite build)
+- Cambio: rutas admin anidadas (`AdminRoute` + `Outlet`) menos latencia al navegar; `BottomNavigation` sin barra cliente para admin + `goToHome` → `/admin`; Welcome copy panel dueño + barra aclaratoria; fix flash Welcome (`welcome-reveal` desde 1er frame); AdminDashboard “Ver portada pública” + subtítulo panel interno; `ProfileScreen` logout → `/welcome`; `.gitignore` `frontend/test-results/`.
+- Resultado final: listo para push → merge a `main` y deploy Vercel
+
+- Fecha: 2026-03-22
+- Entorno: production (Vercel)
+- Hallazgo: commit vacío en `main` puede dejar **Remote Build Cache** con bundle viejo (`index-*.js` sin `welcome-screen`); el `index.html` en GitHub seguía con `vite.svg` mientras el workspace ya tenía canonical + `maqgo_logo_clean.svg`.
+- Acción: subir cambio **real** en `frontend/` (ej. `package.json` patch + `index.html` / `WelcomeScreen.jsx` alineados a `WELCOME_PANTALLA_FINAL.md`) y en Vercel **Redeploy → Clear build cache**.
+
+- Fecha: 2026-03-20
+- Entorno: production (Vercel, housekeeping)
+- Responsable: CTO
+- Cambio: eliminado en Vercel el proyecto legado **`frontend`** (`frontend-rho-vert-88.vercel.app`); producción sigue en proyecto **`maqgo`** → `https://maqgo.vercel.app`.
+- Resultado final: OK (sin impacto en repo; URL histórica ya no resuelve)
+
 - Fecha: 2026-03-20
 - Entorno: production
 - Responsable: CTO (Cursor)
@@ -47,4 +65,9 @@ Regla operativa: no se despliega sin quality gate en verde y validacion final.
 - Riesgos observados: backend Railway aun pendiente por autenticacion CLI
 - Resultado final: DEPLOY OK (frontend hotfix)
 - URL frontend production: https://maqgo.vercel.app
-- URL inspect deploy: https://vercel.com/maqgo-apps-projects/frontend/3kR3d78yAsTQqYK4TqAbq6hBCtdQ
+- URL inspect deploy: https://vercel.com/maqgo-apps-projects/frontend/3kR3d78yAsTQqYK4TqAbq6hBCtdQ (proyecto Vercel legado `frontend`; inspección actual: Dashboard → **maqgo**)
+
+## Referencia Vercel (operativa; revisión dependencias repo 2026-03-20)
+
+- **Proyecto activo:** `maqgo` → `https://maqgo.vercel.app` (repo `maqgo-app/Maqgo`). Código y ejemplos de env usan **solo** `maqgo.vercel.app`.
+- **Proyecto legado (eliminado 2026-03-20):** `frontend` / `frontend-rho-vert-88.vercel.app` — borrado en dashboard Vercel; la URL ya no debe usarse. Si algo externo (Google/Supabase/etc.) aún la tenía whitelist-eada, conviene limpiarla cuando aparezca un error.

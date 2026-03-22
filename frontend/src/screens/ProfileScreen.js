@@ -30,7 +30,7 @@ function ProfileScreen() {
 
   const handleLogout = () => {
     clearAuthSessionPreservingDraft();
-    navigate('/');
+    navigate('/welcome');
   };
 
   return (

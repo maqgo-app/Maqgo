@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 
 /**
  * Protege las rutas administrativas. Solo usuarios con role 'admin' pueden acceder.
  * - No logueado → redirige a /login con redirect a /admin
  * - Logueado pero no admin → muestra "Acceso restringido"
+ * Usar una sola vez como layout (`<Route path="/admin" element={<AdminRoute />}>` + rutas hijas)
+ * para no re-verificar en cada cambio de sub-ruta.
  */
-function AdminRoute({ children }) {
+function AdminRoute() {
   const location = useLocation();
   const userId = localStorage.getItem('userId');
   const userRole = localStorage.getItem('userRole');
@@ -26,7 +28,10 @@ function AdminRoute({ children }) {
   const isAdminByStorage =
     userRole === 'admin' || (Array.isArray(userRoles) && userRoles.includes('admin'));
   const shouldVerifyAdmin = Boolean(userId && token);
-  const [checkingAdmin, setCheckingAdmin] = useState(shouldVerifyAdmin);
+  // Si ya hay rol admin en storage, no bloquear la UI en cada montaje; la verificación sigue en background.
+  const [checkingAdmin, setCheckingAdmin] = useState(
+    () => Boolean(shouldVerifyAdmin && !isAdminByStorage)
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -100,7 +105,7 @@ function AdminRoute({ children }) {
           Acceso restringido
         </p>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 15, margin: 0, textAlign: 'center' }}>
-          Solo el equipo MAQGO puede acceder al panel de administración.
+          Este panel es solo para el dueño / equipo interno MAQGO.
         </p>
         <button type="button" className="maqgo-btn-secondary" onClick={() => window.history.back()} style={{ marginTop: 24 }}>
           Volver
@@ -109,7 +114,7 @@ function AdminRoute({ children }) {
     );
   }
 
-  return children;
+  return <Outlet />;
 }
 
 export default AdminRoute;
