@@ -252,10 +252,12 @@ function AppContent() {
         <Route path="/operator/history" element={<OperatorHistoryScreen />} />
         <Route path="/operator/completed" element={<OperatorServiceCompletedScreen />} />
 
-        {/* Admin (protegido: solo role admin) */}
-        <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-        <Route path="/admin/pricing" element={<AdminRoute><AdminPricingScreen /></AdminRoute>} />
-        <Route path="/admin/users" element={<AdminRoute><AdminUsersScreen /></AdminRoute>} />
+        {/* Admin: un solo AdminRoute (layout) evita re-fetch /api/admin/stats y "Verificando..." en cada sub-ruta */}
+        <Route path="/admin" element={<AdminRoute />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="pricing" element={<AdminPricingScreen />} />
+          <Route path="users" element={<AdminUsersScreen />} />
+        </Route>
 
         {/* Perfil y legales */}
         <Route path="/profile" element={<ProfileScreen />} />

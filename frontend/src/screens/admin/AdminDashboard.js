@@ -268,7 +268,7 @@ function AdminDashboard() {
               MAQGO Admin
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
-              Dashboard de reservas y facturación
+              Panel interno — reservas y facturación (solo dueño MAQGO)
             </p>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
@@ -330,15 +330,20 @@ function AdminDashboard() {
             >
               {loadingReport ? 'Cargando...' : '📋 Operación'}
             </button>
-            <button type="button" className="maqgo-btn-secondary" onClick={() => navigate('/')}>
-              Volver al inicio
+            <button
+              type="button"
+              className="maqgo-btn-secondary"
+              onClick={() => navigate('/welcome')}
+              aria-label="Abrir la portada pública de MAQGO (marketing, no el panel admin)"
+            >
+              Ver portada pública
             </button>
             <button
               onClick={() => {
                 localStorage.removeItem('userId');
                 localStorage.removeItem('userRole');
                 localStorage.removeItem('providerRole');
-                navigate('/');
+                navigate('/welcome');
               }}
               style={{
                 padding: '8px 16px',
