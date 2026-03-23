@@ -21,6 +21,7 @@ from typing import Optional
 import os
 import asyncio
 import base64
+import mimetypes
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
@@ -339,8 +340,13 @@ async def upload_invoice(
         invoice_filename=filename
     )
     
-    # Paso 4: Actualizar estado del servicio
+    # Paso 4: Actualizar estado del servicio (+ copia en BD para revisión/descarga en panel admin)
     now = datetime.now(timezone.utc).isoformat()
+    mime, _ = mimetypes.guess_type(filename or "")
+    if not mime:
+        low = (filename or "").lower()
+        mime = "application/pdf" if low.endswith(".pdf") else "image/jpeg"
+    invoice_b64 = base64.b64encode(file_content).decode("utf-8")
     update_payload = {
             "invoiceStatus": "validated",
             "invoiceFilename": filename,
@@ -348,8 +354,13 @@ async def upload_invoice(
             "invoiceSentToClient": email_result.get("status") == "success",
             "invoiceSentAt": now if email_result.get("status") == "success" else None,
             "status": "invoiced",
-            "updated_at": now
+            "updated_at": now,
+            # Misma convención que POST /services/{id}/invoice (data URL) para el modal admin
+            "invoice_image": f"data:{mime};base64,{invoice_b64}",
+            "invoice_uploaded_at": datetime.now(timezone.utc),
         }
+    if validation_result.folio:
+        update_payload["invoice_number"] = str(validation_result.folio)
     if "_id" in str(service_filter):
         update_payload["id"] = service_id  # asegurar id en doc
     await db.services.update_one(

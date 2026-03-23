@@ -1,4 +1,4 @@
-import React, { useState, createContext, useContext } from 'react';
+import React, { useState, createContext, useContext, useCallback, useMemo } from 'react';
 import { Z_INDEX } from '../constants/zIndex';
 
 const ToastContext = createContext();
@@ -19,21 +19,29 @@ export const useToast = () => {
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
-  const showToast = (message, type = 'info', duration = 3000, replaceId = null) => {
+  /**
+   * Referencias estables: si el objeto `toast` se recreara en cada render, cualquier
+   * useCallback(..., [toast]) en pantallas hijas cambiaría en cada toast mostrado y
+   * useEffect([...]) volvería a disparar fetches en bucle (ej. Marketing & CAC).
+   */
+  const showToast = useCallback((message, type = 'info', duration = 3000, replaceId = null) => {
     const id = Date.now();
-    setToasts(prev => {
-      const filtered = replaceId ? prev.filter(t => t.replaceId !== replaceId) : prev;
+    setToasts((prev) => {
+      const filtered = replaceId ? prev.filter((t) => t.replaceId !== replaceId) : prev;
       return [...filtered, { id, message, type, replaceId }];
     });
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration);
-  };
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
+  }, []);
 
-  const toast = {
-    success: (msg, replaceId) => showToast(msg, 'success', 3000, replaceId),
-    error: (msg, replaceId) => showToast(msg, 'error', 3000, replaceId),
-    warning: (msg, replaceId) => showToast(msg, 'warning', 3000, replaceId),
-    info: (msg, replaceId) => showToast(msg, 'info', 3000, replaceId)
-  };
+  const toast = useMemo(
+    () => ({
+      success: (msg, replaceId) => showToast(msg, 'success', 3000, replaceId),
+      error: (msg, replaceId) => showToast(msg, 'error', 3000, replaceId),
+      warning: (msg, replaceId) => showToast(msg, 'warning', 3000, replaceId),
+      info: (msg, replaceId) => showToast(msg, 'info', 3000, replaceId),
+    }),
+    [showToast],
+  );
 
   return (
     <ToastContext.Provider value={toast}>

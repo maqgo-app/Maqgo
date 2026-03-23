@@ -99,9 +99,9 @@ function deriveHealth(stats, finances) {
 }
 
 const statusStyle = {
-  STABLE: { bg: 'rgba(76, 175, 80, 0.12)', border: 'rgba(76, 175, 80, 0.45)', color: '#81C784' },
-  WARNING: { bg: 'rgba(255, 167, 38, 0.12)', border: 'rgba(255, 167, 38, 0.45)', color: '#FFB74D' },
-  CRITICAL: { bg: 'rgba(244, 67, 54, 0.12)', border: 'rgba(244, 67, 54, 0.45)', color: '#E57373' }
+  STABLE: { bg: 'rgba(102, 187, 106, 0.12)', border: 'rgba(102, 187, 106, 0.4)', color: '#81C784' },
+  WARNING: { bg: 'rgba(232, 163, 75, 0.12)', border: 'rgba(232, 163, 75, 0.4)', color: '#E8A34B' },
+  CRITICAL: { bg: 'rgba(229, 115, 115, 0.12)', border: 'rgba(229, 115, 115, 0.4)', color: '#E57373' }
 };
 
 function RiskBlock({ title, items, emptyLabel }) {

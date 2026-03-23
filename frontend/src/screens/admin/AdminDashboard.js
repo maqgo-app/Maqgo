@@ -1,20 +1,41 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth, clearLocalSession } from '../../utils/api';
+import { friendlyFetchError, isDemoServiceId } from '../../utils/fetchErrors';
 import { useToast } from '../../components/Toast';
 import { isPerTripMachineryType } from '../../utils/machineryNames';
 import SystemHealthPanel from '../../components/admin/SystemHealthPanel';
 
-// Estados y colores
+/** Paleta admin unificada: menos acentos competidor entre sí (CTO UX) */
+const ADMIN_PALETTE = {
+  brand: '#EC6819',
+  info: '#7EB8D4',
+  success: '#66BB6A',
+  warning: '#E8A34B',
+  danger: '#E57373',
+};
+
+// Estados de pipeline (misma familia cromática: info = cola, brand = cobro pendiente, success = cerrado)
 const STATUS_CONFIG = {
-  pending_review: { label: 'En revisión', color: '#FFA726', bg: 'rgba(255, 167, 38, 0.1)' },
-  approved: { label: 'Aprobado', color: '#90BDD3', bg: 'rgba(144, 189, 211, 0.1)' },
-  invoiced: { label: 'Facturado', color: '#9C27B0', bg: 'rgba(156, 39, 176, 0.1)' },
-  paid: { label: 'Pagado', color: '#4CAF50', bg: 'rgba(76, 175, 80, 0.1)' },
-  disputed: { label: 'En disputa', color: '#F44336', bg: 'rgba(244, 67, 54, 0.1)' }
+  pending_review: { label: 'En revisión', color: ADMIN_PALETTE.warning, bg: 'rgba(232, 163, 75, 0.12)' },
+  approved: { label: 'Aprobado', color: ADMIN_PALETTE.info, bg: 'rgba(126, 184, 212, 0.12)' },
+  invoiced: { label: 'Facturado', color: ADMIN_PALETTE.brand, bg: 'rgba(236, 104, 25, 0.14)' },
+  paid: { label: 'Pagado', color: ADMIN_PALETTE.success, bg: 'rgba(102, 187, 106, 0.12)' },
+  disputed: { label: 'En disputa', color: ADMIN_PALETTE.danger, bg: 'rgba(229, 115, 115, 0.12)' }
 };
 
 const PAGE_SIZE = 50;
+
+function normalizeInvoiceImageSrc(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  const t = raw.trim();
+  if (t.startsWith('data:') || t.startsWith('http://') || t.startsWith('https://')) return t;
+  return `data:image/jpeg;base64,${t}`;
+}
+
+function isPdfDataUrl(src) {
+  return typeof src === 'string' && src.startsWith('data:application/pdf');
+}
 
 function AdminDashboard() {
   const navigate = useNavigate();
@@ -42,6 +63,11 @@ function AdminDashboard() {
   const [listTotal, setListTotal] = useState(0);
   const [sla, setSla] = useState(null);
   const [weekComparison, setWeekComparison] = useState(null);
+  /** Solo true cuando falló la red: datos demo locales; las mutaciones al API fallarían con IDs demo. */
+  const [usingOfflineDemo, setUsingOfflineDemo] = useState(false);
+  const [invoiceModalSrc, setInvoiceModalSrc] = useState('');
+  const [invoiceModalLoading, setInvoiceModalLoading] = useState(false);
+  const [invoiceModalHint, setInvoiceModalHint] = useState('');
 
   // Fallback si el backend no envía `finances` (versiones viejas / demo)
   const calculateFinances = useCallback((serviceList) => {
@@ -94,8 +120,9 @@ function AdminDashboard() {
       const response = await fetchWithAuth(`${BACKEND_URL}/api/services/admin/all?${qs.toString()}`);
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.detail || 'Error al cargar reservas');
+        throw new Error(data.detail || `Error al cargar reservas (${response.status})`);
       }
+      setUsingOfflineDemo(false);
       const serviceList = data.services || [];
       setServices(serviceList);
       setStats(data.stats || {});
@@ -130,75 +157,173 @@ function AdminDashboard() {
       }
     } catch (error) {
       console.error('Error:', error);
-      const demoServices = [
-        {
-          _id: 'demo-1',
-          status: 'invoiced',
-          provider_id: 'prov-1',
-          client_name: 'Carlos González',
-          machinery_type: 'retroexcavadora',
-          hours: 4,
-          gross_total: 126000,
-          service_fee: 18900,
-          net_total: 107100,
-          invoice_number: '12345',
-          created_at: new Date().toISOString()
-        },
-        {
-          _id: 'demo-2',
-          status: 'pending_review',
-          provider_id: 'prov-1',
-          client_name: 'María López',
-          machinery_type: 'excavadora',
-          hours: 6,
-          gross_total: 189000,
-          service_fee: 28350,
-          net_total: 160650,
-          created_at: new Date(Date.now() - 7200000).toISOString()
-        }
-      ];
-      setServices(demoServices);
-      setStats({ pending_review: 1, approved: 0, invoiced: 1, paid: 0, disputed: 0, total: 2, maqgo_to_invoice: 0 });
-      setListTotal(demoServices.length);
-      calculateFinances(demoServices);
-      setSla(null);
-      setWeekComparison(null);
+      if (error.message === 'Sesión expirada') {
+        setLoading(false);
+        return;
+      }
+      const msg = error.message || '';
+      const isNetwork =
+        msg === 'Failed to fetch' || error.name === 'TypeError' || msg.includes('NetworkError');
+      if (isNetwork) {
+        setUsingOfflineDemo(true);
+        const demoServices = [
+          {
+            _id: 'demo-1',
+            status: 'invoiced',
+            provider_id: 'prov-1',
+            client_name: 'Carlos González',
+            machinery_type: 'retroexcavadora',
+            hours: 4,
+            gross_total: 126000,
+            service_fee: 18900,
+            net_total: 107100,
+            invoice_number: '12345',
+            created_at: new Date().toISOString()
+          },
+          {
+            _id: 'demo-2',
+            status: 'pending_review',
+            provider_id: 'prov-1',
+            client_name: 'María López',
+            machinery_type: 'excavadora',
+            hours: 6,
+            gross_total: 189000,
+            service_fee: 28350,
+            net_total: 160650,
+            created_at: new Date(Date.now() - 7200000).toISOString()
+          }
+        ];
+        setServices(demoServices);
+        setStats({ pending_review: 1, approved: 0, invoiced: 1, paid: 0, disputed: 0, total: 2, maqgo_to_invoice: 0 });
+        setListTotal(demoServices.length);
+        calculateFinances(demoServices);
+        setSla(null);
+        setWeekComparison(null);
+      } else {
+        setUsingOfflineDemo(false);
+        setServices([]);
+        setStats({});
+        setListTotal(0);
+        setSla(null);
+        setWeekComparison(null);
+        calculateFinances([]);
+        toast.error(friendlyFetchError(error, 'No se pudieron cargar las reservas'), 'admin-dashboard-load');
+      }
     } finally {
       setLoading(false);
     }
-  }, [filter, page, calculateFinances]);
+  }, [filter, page, calculateFinances, toast]);
 
   useEffect(() => {
     fetchServices();
   }, [fetchServices]);
 
+  const closeInvoiceModal = useCallback(() => {
+    setShowInvoiceModal(false);
+    setSelectedService(null);
+    setInvoiceModalSrc('');
+    setInvoiceModalHint('');
+    setInvoiceModalLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!showInvoiceModal || !selectedService?._id) return undefined;
+    const id = selectedService._id;
+    if (String(id).startsWith('demo-')) {
+      setInvoiceModalLoading(false);
+      setInvoiceModalSrc('');
+      setInvoiceModalHint(
+        'Modo demo (API no disponible): no hay archivo. Con el backend activo, la factura se carga desde el servidor.'
+      );
+      return undefined;
+    }
+    let cancelled = false;
+    setInvoiceModalLoading(true);
+    setInvoiceModalHint('');
+    setInvoiceModalSrc('');
+    (async () => {
+      try {
+        const res = await fetchWithAuth(
+          `${BACKEND_URL}/api/services/admin/${id}/invoice-image`,
+          { method: 'GET' },
+          60000
+        );
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setInvoiceModalHint(data.detail || `No se pudo cargar la factura (${res.status})`);
+          return;
+        }
+        const raw = data.invoice_image;
+        if (!raw) {
+          setInvoiceModalHint(
+            'No hay archivo guardado en este servicio. Facturas antiguas (solo envío por correo) pueden no tener copia en BD; vuelve a subir desde proveedor o restaura desde email.'
+          );
+          return;
+        }
+        setInvoiceModalSrc(normalizeInvoiceImageSrc(raw));
+      } catch (e) {
+        if (!cancelled) setInvoiceModalHint(e.message || 'Error de red al cargar la factura');
+      } finally {
+        if (!cancelled) setInvoiceModalLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showInvoiceModal, selectedService]);
+
   const updateStatus = async (serviceId, newStatus) => {
+    if (usingOfflineDemo || isDemoServiceId(serviceId)) {
+      toast.warning('Sin API o datos demo: esta acción no está disponible.');
+      return false;
+    }
     try {
-      await fetchWithAuth(`${BACKEND_URL}/api/services/admin/${serviceId}`, {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/services/admin/${serviceId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.detail || 'Error actualizando estado');
+        return false;
+      }
       fetchServices();
       toast.success(`Estado actualizado a "${STATUS_CONFIG[newStatus]?.label || newStatus}"`);
+      return true;
     } catch (error) {
-      toast.error('Error actualizando estado');
+      toast.error(friendlyFetchError(error, 'Error actualizando estado'));
+      return false;
     }
   };
 
   const markClientInvoiced = async (serviceId) => {
+    if (usingOfflineDemo || isDemoServiceId(serviceId)) {
+      toast.warning('Sin API o datos demo: esta acción no está disponible.');
+      return;
+    }
     try {
-      await fetchWithAuth(`${BACKEND_URL}/api/services/admin/${serviceId}/client-invoiced`, {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/services/admin/${serviceId}/client-invoiced`, {
         method: 'PATCH'
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.detail || 'Error al marcar cliente facturado');
+        return;
+      }
       fetchServices();
-      toast.success('Cliente facturado por MAQGO');
+      toast.success(data.message || 'Cliente facturado por MAQGO');
     } catch (error) {
-      toast.error('Error al marcar cliente facturado');
+      toast.error(friendlyFetchError(error, 'Error al marcar cliente facturado'));
     }
   };
 
   const payWithoutInvoice = async (serviceId) => {
+    if (usingOfflineDemo || isDemoServiceId(serviceId)) {
+      toast.warning('Sin API o datos demo: esta acción no está disponible.');
+      return;
+    }
     if (!window.confirm('¿Pagar sin factura? Se retendrá el 19% (IVA) del pago al proveedor. MAQGO factura al cliente.')) return;
     try {
       const res = await fetchWithAuth(`${BACKEND_URL}/api/services/admin/${serviceId}/pay-without-invoice`, {
@@ -209,13 +334,27 @@ function AdminDashboard() {
       fetchServices();
       toast.success(data.message);
     } catch (error) {
-      toast.error(error.message || 'Error al pagar sin factura');
+      toast.error(friendlyFetchError(error, 'Error al pagar sin factura'));
     }
   };
 
-  const viewInvoice = async (service) => {
+  const viewInvoice = (service) => {
     setSelectedService(service);
     setShowInvoiceModal(true);
+  };
+
+  const downloadInvoiceFile = () => {
+    if (!invoiceModalSrc || !selectedService) return;
+    const base = selectedService.invoice_number || selectedService.invoiceFilename || 'factura';
+    const safe = String(base).replace(/[^\w.\-]+/g, '_').slice(0, 80);
+    const ext = isPdfDataUrl(invoiceModalSrc) ? 'pdf' : 'jpg';
+    const a = document.createElement('a');
+    a.href = invoiceModalSrc;
+    a.download = `maqgo_factura_${safe}.${ext}`;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
   const fetchWeeklyReport = async (weeksAgo = 0) => {
@@ -223,11 +362,14 @@ function AdminDashboard() {
     try {
       const response = await fetchWithAuth(`${BACKEND_URL}/api/admin/reports/weekly?weeks_ago=${weeksAgo}`);
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || `Error ${response.status}`);
+      }
       setWeeklyReport(data);
       setShowWeeklyReport(true);
     } catch (error) {
       console.error('Error:', error);
-      toast.error('Error al cargar el informe');
+      toast.error(friendlyFetchError(error, 'Error al cargar el informe'), 'admin-weekly-report');
     }
     setLoadingReport(false);
   };
@@ -236,7 +378,10 @@ function AdminDashboard() {
     try {
       const url = `${BACKEND_URL}/api/admin/reports/payments-planilla?format=csv`;
       const res = await fetchWithAuth(url);
-      if (!res.ok) throw new Error('Error al generar planilla');
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.detail || `Error ${res.status}`);
+      }
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -245,7 +390,7 @@ function AdminDashboard() {
       URL.revokeObjectURL(a.href);
     } catch (e) {
       console.error(e);
-      toast.error('Error al descargar planilla');
+      toast.error(friendlyFetchError(e, 'Error al descargar planilla'), 'admin-planilla');
     }
   };
 
@@ -270,6 +415,24 @@ function AdminDashboard() {
   const maxPage = Math.max(1, Math.ceil(listTotal / PAGE_SIZE));
   const rangeStart = listTotal === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const rangeEnd = listTotal === 0 ? 0 : (page - 1) * PAGE_SIZE + services.length;
+
+  const actionsLocked = usingOfflineDemo;
+
+  const fetchWeeklyReportGuarded = async (weeksAgo = 0) => {
+    if (actionsLocked) {
+      toast.warning('Sin conexión al servidor: no se puede cargar el informe.');
+      return;
+    }
+    return fetchWeeklyReport(weeksAgo);
+  };
+
+  const downloadPlanillaGuarded = async () => {
+    if (actionsLocked) {
+      toast.warning('Sin conexión al servidor: no hay planilla para descargar.');
+      return;
+    }
+    return downloadPlanillaPagos();
+  };
 
   return (
     <div style={{ 
@@ -305,61 +468,75 @@ function AdminDashboard() {
               Panel interno — reservas y facturación (solo dueño MAQGO)
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <button
-              onClick={() => navigate('/admin/users')}
+              type="button"
+              disabled={actionsLocked}
+              title={actionsLocked ? 'Requiere conexión al API' : undefined}
+              onClick={() => !actionsLocked && navigate('/admin/users')}
               style={{
                 padding: '8px 16px',
                 background: 'transparent',
                 border: '1px solid rgba(255,255,255,0.2)',
                 borderRadius: 8,
                 color: '#fff',
-                cursor: 'pointer',
-                fontSize: 13
+                cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                opacity: actionsLocked ? 0.45 : 1,
               }}
             >
               👥 Usuarios
             </button>
             <button
-              onClick={() => navigate('/admin/pricing')}
+              type="button"
+              disabled={actionsLocked}
+              title={actionsLocked ? 'Requiere conexión al API' : undefined}
+              onClick={() => !actionsLocked && navigate('/admin/pricing')}
               style={{
                 padding: '8px 16px',
                 background: 'transparent',
                 border: '1px solid rgba(255,255,255,0.2)',
                 borderRadius: 8,
                 color: '#fff',
-                cursor: 'pointer',
-                fontSize: 13
+                cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                opacity: actionsLocked ? 0.45 : 1,
               }}
             >
               💰 Precios
             </button>
             <button
               type="button"
-              onClick={() => navigate('/admin/marketing')}
+              disabled={actionsLocked}
+              title={actionsLocked ? 'Requiere conexión al API' : 'Inversión semanal por canal, audiencia y CAC'}
+              onClick={() => !actionsLocked && navigate('/admin/marketing')}
               style={{
                 padding: '8px 16px',
                 background: 'transparent',
-                border: '1px solid rgba(144, 189, 211, 0.45)',
+                border: '1px solid rgba(126, 184, 212, 0.45)',
                 borderRadius: 8,
-                color: '#90BDD3',
-                cursor: 'pointer',
-                fontSize: 13
+                color: ADMIN_PALETTE.info,
+                cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                opacity: actionsLocked ? 0.45 : 1,
               }}
-              title="Inversión semanal por canal, audiencia y CAC"
             >
               📈 Marketing & CAC
             </button>
             <button
-              onClick={downloadPlanillaPagos}
+              type="button"
+              onClick={downloadPlanillaGuarded}
+              disabled={actionsLocked}
+              title={actionsLocked ? 'Sin conexión al servidor' : undefined}
               style={{
                 padding: '8px 16px',
-                background: stats.invoiced > 0 ? '#9C27B0' : 'transparent',
-                border: '1px solid rgba(156, 39, 176, 0.5)',
+                background: stats.invoiced > 0 ? 'rgba(236, 104, 25, 0.22)' : 'transparent',
+                border: `1px solid ${stats.invoiced > 0 ? 'rgba(236, 104, 25, 0.55)' : 'rgba(255,255,255,0.2)'}`,
                 borderRadius: 8,
                 color: stats.invoiced > 0 ? '#fff' : 'rgba(255,255,255,0.8)',
-                cursor: 'pointer',
-                fontSize: 13
+                cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                opacity: actionsLocked ? 0.45 : 1,
               }}
             >
               📥 Planilla pagos
@@ -367,17 +544,18 @@ function AdminDashboard() {
             <button
               type="button"
               id="admin-operacion"
-              onClick={() => fetchWeeklyReport(0)}
-              disabled={loadingReport}
+              onClick={() => fetchWeeklyReportGuarded(0)}
+              disabled={loadingReport || actionsLocked}
               style={{
                 padding: '8px 16px',
                 background: '#EC6819',
                 border: 'none',
                 borderRadius: 8,
                 color: '#fff',
-                cursor: 'pointer',
+                cursor: loadingReport || actionsLocked ? 'not-allowed' : 'pointer',
                 fontSize: 13,
-                fontWeight: 600
+                fontWeight: 600,
+                opacity: actionsLocked ? 0.45 : 1,
               }}
               title="Informe semanal de operación (latencias, cuellos de botella)"
             >
@@ -399,9 +577,9 @@ function AdminDashboard() {
               style={{
                 padding: '8px 16px',
                 background: 'transparent',
-                border: '1px solid rgba(244,67,54,0.5)',
+                border: `1px solid rgba(229, 115, 115, 0.45)`,
                 borderRadius: 8,
-                color: '#F44336',
+                color: ADMIN_PALETTE.danger,
                 cursor: 'pointer',
                 fontSize: 13
               }}
@@ -414,7 +592,26 @@ function AdminDashboard() {
 
       {/* Content */}
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
-        
+        {usingOfflineDemo && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 20,
+              padding: '14px 18px',
+              borderRadius: 12,
+              background: 'rgba(232, 163, 75, 0.15)',
+              border: '1px solid rgba(232, 163, 75, 0.45)',
+              color: 'rgba(255,255,255,0.95)',
+              fontSize: 14,
+              lineHeight: 1.5,
+            }}
+          >
+            <strong style={{ color: '#E8A34B' }}>Sin conexión al servidor.</strong>{' '}
+            Estás viendo datos de demostración. Los botones que llaman al API están desactivados hasta que el backend
+            responda (revisa <code style={{ color: '#7EB8D4' }}>REACT_APP_BACKEND_URL</code> en Vercel y que Railway esté en línea).
+          </div>
+        )}
+
         {/* Alerta: facturas por revisar y pagar */}
         {(stats.invoiced > 0 || stats.pending_review > 0 || (stats.maqgo_to_invoice || 0) > 0) && (
           <div
@@ -428,11 +625,11 @@ function AdminDashboard() {
             }}
             style={{
               background: stats.invoiced > 0
-                ? 'linear-gradient(135deg, rgba(156, 39, 176, 0.2) 0%, rgba(156, 39, 176, 0.05) 100%)'
+                ? 'linear-gradient(135deg, rgba(236, 104, 25, 0.18) 0%, rgba(236, 104, 25, 0.05) 100%)'
                 : (stats.maqgo_to_invoice || 0) > 0
-                  ? 'linear-gradient(135deg, rgba(0, 188, 212, 0.2) 0%, rgba(0, 188, 212, 0.05) 100%)'
-                  : 'linear-gradient(135deg, rgba(255, 167, 38, 0.2) 0%, rgba(255, 167, 38, 0.05) 100%)',
-              border: `1px solid ${stats.invoiced > 0 ? 'rgba(156, 39, 176, 0.4)' : (stats.maqgo_to_invoice || 0) > 0 ? 'rgba(0, 188, 212, 0.4)' : 'rgba(255, 167, 38, 0.4)'}`,
+                  ? 'linear-gradient(135deg, rgba(126, 184, 212, 0.16) 0%, rgba(126, 184, 212, 0.05) 100%)'
+                  : 'linear-gradient(135deg, rgba(232, 163, 75, 0.18) 0%, rgba(232, 163, 75, 0.05) 100%)',
+              border: `1px solid ${stats.invoiced > 0 ? 'rgba(236, 104, 25, 0.4)' : (stats.maqgo_to_invoice || 0) > 0 ? 'rgba(126, 184, 212, 0.4)' : 'rgba(232, 163, 75, 0.4)'}`,
               borderRadius: 12,
               padding: '14px 20px',
               marginBottom: 24,
@@ -504,7 +701,7 @@ function AdminDashboard() {
               <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 11, margin: '0 0 6px', textTransform: 'uppercase' }}>
                 Comisión Cliente
               </p>
-              <p style={{ color: '#90BDD3', fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
+              <p style={{ color: ADMIN_PALETTE.info, fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
                 {formatPrice(finances.clientCommission)}
               </p>
             </div>
@@ -514,7 +711,7 @@ function AdminDashboard() {
               <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 11, margin: '0 0 6px', textTransform: 'uppercase' }}>
                 Comisión Proveedor
               </p>
-              <p style={{ color: '#9C27B0', fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
+              <p style={{ color: ADMIN_PALETTE.warning, fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
                 {formatPrice(finances.providerCommission)}
               </p>
             </div>
@@ -539,21 +736,21 @@ function AdminDashboard() {
             borderTop: '1px solid rgba(255,255,255,0.1)' 
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#4CAF50', fontSize: 18 }}>✓</span>
+              <span style={{ color: ADMIN_PALETTE.success, fontSize: 18 }}>✓</span>
               <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>
-                Completados: <strong style={{ color: '#4CAF50' }}>{finances.completed}</strong>
+                Completados: <strong style={{ color: ADMIN_PALETTE.success }}>{finances.completed}</strong>
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#F44336', fontSize: 18 }}>✕</span>
+              <span style={{ color: ADMIN_PALETTE.danger, fontSize: 18 }}>✕</span>
               <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>
-                Cancelados: <strong style={{ color: '#F44336' }}>{finances.cancelled}</strong>
+                Cancelados: <strong style={{ color: ADMIN_PALETTE.danger }}>{finances.cancelled}</strong>
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#FFA726', fontSize: 18 }}>⚠</span>
+              <span style={{ color: ADMIN_PALETTE.warning, fontSize: 18 }}>⚠</span>
               <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>
-                Reclamos: <strong style={{ color: '#FFA726' }}>{finances.disputed}</strong>
+                Reclamos: <strong style={{ color: ADMIN_PALETTE.warning }}>{finances.disputed}</strong>
               </span>
             </div>
           </div>
@@ -588,36 +785,36 @@ function AdminDashboard() {
               )}
               {stats.invoiced > 0 && (
                 <div style={{ 
-                  background: 'rgba(156, 39, 176, 0.1)', 
-                  border: '1px solid rgba(156, 39, 176, 0.3)',
+                  background: 'rgba(236, 104, 25, 0.12)', 
+                  border: '1px solid rgba(236, 104, 25, 0.35)',
                   borderRadius: 8, 
                   padding: '8px 12px',
                   fontSize: 12,
-                  color: '#9C27B0'
+                  color: ADMIN_PALETTE.brand
                 }}>
                   {stats.invoiced} facturas por cobrar
                 </div>
               )}
               {(stats.maqgo_to_invoice || 0) > 0 && (
                 <div style={{ 
-                  background: 'rgba(0, 188, 212, 0.1)', 
-                  border: '1px solid rgba(0, 188, 212, 0.3)',
+                  background: 'rgba(126, 184, 212, 0.12)', 
+                  border: '1px solid rgba(126, 184, 212, 0.35)',
                   borderRadius: 8, 
                   padding: '8px 12px',
                   fontSize: 12,
-                  color: '#00ACC1'
+                  color: ADMIN_PALETTE.info
                 }}>
                   {stats.maqgo_to_invoice} MAQGO debe facturar al cliente
                 </div>
               )}
               {stats.disputed > 0 && (
                 <div style={{ 
-                  background: 'rgba(244, 67, 54, 0.1)', 
-                  border: '1px solid rgba(244, 67, 54, 0.3)',
+                  background: 'rgba(229, 115, 115, 0.12)', 
+                  border: '1px solid rgba(229, 115, 115, 0.35)',
                   borderRadius: 8, 
                   padding: '8px 12px',
                   fontSize: 12,
-                  color: '#F44336'
+                  color: ADMIN_PALETTE.danger
                 }}>
                   {stats.disputed} reclamos por resolver
                 </div>
@@ -749,7 +946,7 @@ function AdminDashboard() {
             { key: 'disputed', label: 'En Disputa', icon: '⚠️' }
           ].map(item => {
             const config = STATUS_CONFIG[item.key] || (item.key === 'maqgo_to_invoice' 
-              ? { color: '#00ACC1', bg: 'rgba(0, 188, 212, 0.1)' } 
+              ? { color: ADMIN_PALETTE.info, bg: 'rgba(126, 184, 212, 0.12)' } 
               : STATUS_CONFIG.disputed);
             return (
               <div
@@ -884,7 +1081,7 @@ function AdminDashboard() {
                   {/* Monto */}
                   <div>
                     <span style={{ 
-                      color: '#4CAF50', 
+                      color: ADMIN_PALETTE.success, 
                       fontSize: 15, 
                       fontWeight: 600,
                       fontFamily: "'JetBrains Mono', monospace"
@@ -900,20 +1097,23 @@ function AdminDashboard() {
 
                   {/* Factura */}
                   <div>
-                    {service.invoice_number ? (
+                    {service.invoice_number || (service.status === 'invoiced' && service.invoiceFilename) ? (
                       <button
-                        onClick={() => viewInvoice(service)}
+                        type="button"
+                        disabled={actionsLocked}
+                        onClick={() => !actionsLocked && viewInvoice(service)}
                         style={{
-                          background: 'rgba(156, 39, 176, 0.2)',
-                          border: 'none',
+                          background: 'rgba(236, 104, 25, 0.18)',
+                          border: '1px solid rgba(236, 104, 25, 0.35)',
                           borderRadius: 6,
                           padding: '6px 10px',
-                          color: '#9C27B0',
+                          color: ADMIN_PALETTE.brand,
                           fontSize: 12,
-                          cursor: 'pointer'
+                          cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                          opacity: actionsLocked ? 0.45 : 1,
                         }}
                       >
-                        #{service.invoice_number}
+                        {service.invoice_number ? `#${service.invoice_number}` : '📎 Ver archivo'}
                       </button>
                     ) : (
                       <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>-</span>
@@ -936,6 +1136,8 @@ function AdminDashboard() {
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {service.status === 'approved' && (
                       <button
+                        type="button"
+                        disabled={actionsLocked}
                         onClick={() => payWithoutInvoice(service._id)}
                         style={{
                           background: 'rgba(255, 152, 0, 0.9)',
@@ -944,8 +1146,9 @@ function AdminDashboard() {
                           padding: '6px 12px',
                           color: '#fff',
                           fontSize: 12,
-                          cursor: 'pointer',
-                          fontWeight: 600
+                          cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                          fontWeight: 600,
+                          opacity: actionsLocked ? 0.45 : 1,
                         }}
                         title="Proveedor no subió factura. MAQGO retiene 19% IVA y paga el resto."
                       >
@@ -954,16 +1157,19 @@ function AdminDashboard() {
                     )}
                     {service.status === 'invoiced' && (
                       <button
+                        type="button"
+                        disabled={actionsLocked}
                         onClick={() => updateStatus(service._id, 'paid')}
                         style={{
-                          background: '#4CAF50',
+                          background: ADMIN_PALETTE.success,
                           border: 'none',
                           borderRadius: 6,
                           padding: '6px 12px',
                           color: '#fff',
                           fontSize: 12,
-                          cursor: 'pointer',
-                          fontWeight: 600
+                          cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                          fontWeight: 600,
+                          opacity: actionsLocked ? 0.45 : 1,
                         }}
                       >
                         Marcar Pagado
@@ -971,16 +1177,19 @@ function AdminDashboard() {
                     )}
                     {service.status === 'paid' && service.maqgo_client_invoice_pending !== false && (
                       <button
+                        type="button"
+                        disabled={actionsLocked}
                         onClick={() => markClientInvoiced(service._id)}
                         style={{
-                          background: '#00ACC1',
+                          background: ADMIN_PALETTE.info,
                           border: 'none',
                           borderRadius: 6,
                           padding: '6px 12px',
                           color: '#fff',
                           fontSize: 12,
-                          cursor: 'pointer',
-                          fontWeight: 600
+                          cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                          fontWeight: 600,
+                          opacity: actionsLocked ? 0.45 : 1,
                         }}
                       >
                         ✓ Cliente facturado
@@ -988,15 +1197,18 @@ function AdminDashboard() {
                     )}
                     {service.status === 'pending_review' && (
                       <button
+                        type="button"
+                        disabled={actionsLocked}
                         onClick={() => updateStatus(service._id, 'disputed')}
                         style={{
                           background: 'transparent',
-                          border: '1px solid #F44336',
+                          border: `1px solid ${ADMIN_PALETTE.danger}`,
                           borderRadius: 6,
                           padding: '6px 12px',
-                          color: '#F44336',
+                          color: ADMIN_PALETTE.danger,
                           fontSize: 12,
-                          cursor: 'pointer'
+                          cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                          opacity: actionsLocked ? 0.45 : 1,
                         }}
                       >
                         Disputar
@@ -1083,10 +1295,15 @@ function AdminDashboard() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ color: '#fff', margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
-                Factura #{selectedService.invoice_number}
+                {selectedService.invoice_number
+                  ? `Factura #${selectedService.invoice_number}`
+                  : selectedService.invoiceFilename
+                    ? `Factura (${selectedService.invoiceFilename})`
+                    : 'Revisar factura'}
               </h3>
               <button
-                onClick={() => setShowInvoiceModal(false)}
+                type="button"
+                onClick={closeInvoiceModal}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -1106,44 +1323,98 @@ function AdminDashboard() {
               <p><strong>Monto a pagar:</strong> {formatPrice(selectedService.net_total)}</p>
             </div>
 
-            {selectedService.invoice_image && (
+            {invoiceModalLoading && (
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 16 }}>Cargando archivo de factura…</p>
+            )}
+            {!invoiceModalLoading && invoiceModalHint && (
+              <div
+                style={{
+                  marginTop: 16,
+                  padding: 12,
+                  borderRadius: 8,
+                  background: 'rgba(232, 163, 75, 0.12)',
+                  border: '1px solid rgba(232, 163, 75, 0.35)',
+                  color: 'rgba(255,255,255,0.9)',
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                }}
+              >
+                {invoiceModalHint}
+              </div>
+            )}
+            {!invoiceModalLoading && invoiceModalSrc && (
               <div style={{ marginTop: 16 }}>
                 <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, marginBottom: 8 }}>
-                  Imagen de factura:
+                  {isPdfDataUrl(invoiceModalSrc) ? 'Documento PDF' : 'Imagen de factura'}
                 </p>
-                <img 
-                  src={selectedService.invoice_image} 
-                  alt="Factura"
-                  style={{ width: '100%', borderRadius: 8 }}
-                />
+                {isPdfDataUrl(invoiceModalSrc) ? (
+                  <>
+                    <embed
+                      title="Vista previa factura PDF"
+                      src={invoiceModalSrc}
+                      type="application/pdf"
+                      style={{ width: '100%', height: 420, borderRadius: 8, border: 'none' }}
+                    />
+                    <a
+                      href={invoiceModalSrc}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'block',
+                        marginTop: 8,
+                        color: ADMIN_PALETTE.info,
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Abrir PDF en nueva pestaña
+                    </a>
+                  </>
+                ) : (
+                  <img src={invoiceModalSrc} alt="Factura" style={{ width: '100%', borderRadius: 8 }} />
+                )}
+                <button
+                  type="button"
+                  className="maqgo-btn-secondary"
+                  onClick={downloadInvoiceFile}
+                  style={{ marginTop: 12, width: '100%' }}
+                >
+                  Descargar archivo
+                </button>
               </div>
             )}
 
-            <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
+            <div style={{ marginTop: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               {selectedService.status === 'invoiced' && (
                 <button
-                  onClick={() => {
-                    updateStatus(selectedService._id, 'paid');
-                    setShowInvoiceModal(false);
+                  type="button"
+                  disabled={actionsLocked}
+                  onClick={async () => {
+                    const ok = await updateStatus(selectedService._id, 'paid');
+                    if (ok) closeInvoiceModal();
                   }}
                   style={{
                     flex: 1,
+                    minWidth: 160,
                     padding: 12,
-                    background: '#4CAF50',
+                    background: ADMIN_PALETTE.success,
                     border: 'none',
                     borderRadius: 8,
                     color: '#fff',
                     fontWeight: 600,
-                    cursor: 'pointer'
+                    cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                    opacity: actionsLocked ? 0.45 : 1,
                   }}
                 >
                   ✓ Aprobar y Marcar Pagado
                 </button>
               )}
               <button
-                onClick={() => setShowInvoiceModal(false)}
+                type="button"
+                onClick={closeInvoiceModal}
                 style={{
                   flex: 1,
+                  minWidth: 120,
                   padding: 12,
                   background: 'transparent',
                   border: '1px solid rgba(255,255,255,0.2)',
@@ -1292,7 +1563,8 @@ function AdminDashboard() {
             {/* Botones */}
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
               <button
-                onClick={() => fetchWeeklyReport(1)}
+                type="button"
+                onClick={() => fetchWeeklyReportGuarded(1)}
                 style={{
                   flex: 1,
                   padding: 12,

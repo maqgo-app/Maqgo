@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { formatCartolaLabel } from '../../utils/weekCartola';
+import { friendlyFetchError } from '../../utils/fetchErrors';
 
 /** Lunes ISO de la semana que contiene `isoDate` (YYYY-MM-DD), hora local mediodía para evitar DST. */
 export function mondayISOFromCalendarDate(isoDate) {
@@ -114,7 +115,7 @@ function AdminMarketingScreen() {
     } catch (e) {
       if (seq !== spendLoadSeqRef.current) return;
       console.error(e);
-      toast.error(e.message || 'No se pudo cargar la semana');
+      toast.error(friendlyFetchError(e, 'No se pudo cargar la semana'), 'marketing-spend-load');
     } finally {
       if (seq === spendLoadSeqRef.current) setLoadingSpend(false);
     }
@@ -169,7 +170,7 @@ function AdminMarketingScreen() {
       setReport(await fetchMarketingReport());
     } catch (e) {
       console.error(e);
-      toast.error(e.message || 'Error al cargar KPIs');
+      toast.error(friendlyFetchError(e, 'Error al cargar KPIs'), 'marketing-report-load');
     } finally {
       setLoadingReport(false);
     }
@@ -214,7 +215,7 @@ function AdminMarketingScreen() {
       await refreshReportAfterSave();
     } catch (e) {
       console.error(e);
-      toast.error(e.message || 'Error al guardar');
+      toast.error(friendlyFetchError(e, 'Error al guardar'), 'marketing-spend-save');
     } finally {
       setSaving(false);
     }
@@ -248,7 +249,7 @@ function AdminMarketingScreen() {
     } catch (e) {
       if (seq !== importSeqRef.current) return;
       console.error(e);
-      toast.error(e.message || 'No se pudo importar');
+      toast.error(friendlyFetchError(e, 'No se pudo importar'), 'marketing-import');
     } finally {
       if (seq === importSeqRef.current) setLoadingImport(false);
     }
@@ -485,9 +486,9 @@ function AdminMarketingScreen() {
                 style={{
                   padding: '8px 14px',
                   background: 'transparent',
-                  border: '1px solid rgba(206, 147, 216, 0.45)',
+                  border: '1px solid rgba(126, 184, 212, 0.45)',
                   borderRadius: 8,
-                  color: '#CE93D8',
+                  color: '#7EB8D4',
                   cursor: loadingSpend || loadingImport ? 'wait' : 'pointer',
                   fontSize: 13,
                 }}
