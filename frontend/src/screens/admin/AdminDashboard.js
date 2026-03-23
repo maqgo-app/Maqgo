@@ -10,10 +10,18 @@ import SystemHealthPanel from '../../components/admin/SystemHealthPanel';
 /** Paleta admin unificada: menos acentos competidor entre sí (CTO UX) */
 const ADMIN_PALETTE = {
   brand: '#EC6819',
-  info: '#7EB8D4',
+  info: '#8FB3C9',
   success: '#66BB6A',
-  warning: '#E8A34B',
+  warning: '#D9A15A',
   danger: '#E57373',
+};
+const ADMIN_THEME = {
+  appBg: '#12151B',
+  panelBg: '#1B2028',
+  panelBgSoft: '#171B22',
+  border: 'rgba(255,255,255,0.08)',
+  borderStrong: 'rgba(255,255,255,0.14)',
+  textMuted: 'rgba(255,255,255,0.72)',
 };
 
 // Estados de pipeline (misma familia cromática: info = cola, brand = cobro pendiente, success = cerrado)
@@ -66,6 +74,9 @@ function AdminDashboard() {
   const [weekComparison, setWeekComparison] = useState(null);
   /** Solo true cuando falló la red: datos demo locales; las mutaciones al API fallarían con IDs demo. */
   const [usingOfflineDemo, setUsingOfflineDemo] = useState(false);
+  const [monthlyFinance, setMonthlyFinance] = useState(null);
+  const [loadingMonthlyFinance, setLoadingMonthlyFinance] = useState(false);
+  const [monthlyFinanceError, setMonthlyFinanceError] = useState('');
   /** Último resultado de GET /healthz (sin auth) — diagnóstico DNS/CORS vs rutas admin. */
   const [healthSnapshot, setHealthSnapshot] = useState(null);
   /** Error HTTP u otro fallo del listado admin (no red demo); banner persistente. */
@@ -123,7 +134,11 @@ function AdminDashboard() {
       if (filter && filter !== 'all') {
         qs.set('status', filter);
       }
-      const response = await fetchWithAuth(`${BACKEND_URL}/api/services/admin/all?${qs.toString()}`);
+      const response = await fetchWithAuth(
+        `${BACKEND_URL}/api/services/admin/all?${qs.toString()}`,
+        { method: 'GET' },
+        15000
+      );
       const data = await response.json();
       if (!response.ok) {
         const errMsg = data.detail || `Error al cargar reservas (${response.status})`;
@@ -179,8 +194,17 @@ function AdminDashboard() {
         return;
       }
       const msg = error.message || '';
+      const msgLow = String(msg).toLowerCase();
       const isNetwork =
-        msg === 'Failed to fetch' || error.name === 'TypeError' || msg.includes('NetworkError');
+        msg === 'Failed to fetch' ||
+        error.name === 'TypeError' ||
+        error.name === 'AbortError' ||
+        msg.includes('NetworkError') ||
+        msgLow.includes('aborted') ||
+        msgLow.includes('abort') ||
+        msgLow.includes('timeout') ||
+        msgLow.includes('timed out') ||
+        msgLow.includes('network');
       if (isNetwork) {
         setListHttpError(null);
         setUsingOfflineDemo(true);
@@ -212,15 +236,25 @@ function AdminDashboard() {
           }
         ];
         setServices(demoServices);
-        setStats({ pending_review: 1, approved: 0, invoiced: 1, paid: 0, disputed: 0, total: 2, maqgo_to_invoice: 0 });
+        setStats({
+          pending_review: 1,
+          approved: 0,
+          invoiced: 1,
+          paid: 0,
+          disputed: 0,
+          total: 2,
+          maqgo_to_invoice: 0,
+          maqgo_to_invoice_overdue: 0,
+        });
         setListTotal(demoServices.length);
         calculateFinances(demoServices);
         setSla(null);
         setWeekComparison(null);
       } else {
+        const friendlyMsg = friendlyFetchError(error, 'No se pudieron cargar las reservas');
         setUsingOfflineDemo(false);
         setListHttpError({
-          message: friendlyFetchError(error, 'No se pudieron cargar las reservas'),
+          message: friendlyMsg,
           status: null
         });
         setServices([]);
@@ -229,7 +263,7 @@ function AdminDashboard() {
         setSla(null);
         setWeekComparison(null);
         calculateFinances([]);
-        toast.error(friendlyFetchError(error, 'No se pudieron cargar las reservas'), 'admin-dashboard-load');
+        toast.error(friendlyMsg, 'admin-dashboard-load');
       }
     } finally {
       setLoading(false);
@@ -397,8 +431,12 @@ function AdminDashboard() {
   const fetchWeeklyReport = async (weeksAgo = 0) => {
     setLoadingReport(true);
     try {
-      const response = await fetchWithAuth(`${BACKEND_URL}/api/admin/reports/weekly?weeks_ago=${weeksAgo}`);
-      const data = await response.json();
+      const response = await fetchWithAuth(
+        `${BACKEND_URL}/api/admin/reports/weekly?weeks_ago=${weeksAgo}`,
+        { method: 'GET' },
+        20000
+      );
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.detail || `Error ${response.status}`);
       }
@@ -406,10 +444,43 @@ function AdminDashboard() {
       setShowWeeklyReport(true);
     } catch (error) {
       console.error('Error:', error);
-      toast.error(friendlyFetchError(error, 'Error al cargar el informe'), 'admin-weekly-report');
+      const isAbort =
+        error?.name === 'AbortError' ||
+        String(error?.message || '').toLowerCase().includes('aborted');
+      if (isAbort) {
+        toast.error(
+          'El informe tardó demasiado. Reintenta y, si persiste, revisa carga del backend.',
+          'admin-weekly-report'
+        );
+      } else {
+        toast.error(friendlyFetchError(error, 'Error al cargar el informe'), 'admin-weekly-report');
+      }
     }
     setLoadingReport(false);
   };
+
+  const fetchMonthlyFinance = useCallback(async () => {
+    if (usingOfflineDemo) {
+      setMonthlyFinance(null);
+      setMonthlyFinanceError('Modo demostración: métricas tributarias y margen no disponibles sin API.');
+      return;
+    }
+    setLoadingMonthlyFinance(true);
+    try {
+      const response = await fetchWithAuth(`${BACKEND_URL}/api/admin/reports/monthly-finance`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || `Error ${response.status}`);
+      }
+      setMonthlyFinance(data);
+      setMonthlyFinanceError('');
+    } catch (error) {
+      setMonthlyFinance(null);
+      setMonthlyFinanceError(friendlyFetchError(error, 'No se pudo cargar IVA/margen mensual'));
+    } finally {
+      setLoadingMonthlyFinance(false);
+    }
+  }, [usingOfflineDemo]);
 
   const downloadPlanillaPagos = async () => {
     try {
@@ -430,6 +501,10 @@ function AdminDashboard() {
       toast.error(friendlyFetchError(e, 'Error al descargar planilla'), 'admin-planilla');
     }
   };
+
+  useEffect(() => {
+    fetchMonthlyFinance();
+  }, [fetchMonthlyFinance]);
 
   const formatPrice = (amount) => {
     return new Intl.NumberFormat('es-CL', {
@@ -474,15 +549,15 @@ function AdminDashboard() {
   return (
     <div style={{ 
       minHeight: '100vh', 
-      background: '#1a1a1a', 
+      background: ADMIN_THEME.appBg,
       color: '#fff',
       fontFamily: "'Inter', sans-serif"
     }}>
       {/* Header */}
       <div style={{
-        background: '#2A2A2A',
+        background: ADMIN_THEME.panelBg,
         padding: '20px 24px',
-        borderBottom: '1px solid rgba(255,255,255,0.1)'
+        borderBottom: `1px solid ${ADMIN_THEME.border}`
       }}>
         <div style={{ 
           maxWidth: 1200, 
@@ -501,7 +576,7 @@ function AdminDashboard() {
             }}>
               MAQGO Admin
             </h1>
-            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
+            <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '4px 0 0' }}>
               Panel interno — reservas y facturación (solo dueño MAQGO)
             </p>
             {usingOfflineDemo && (
@@ -726,23 +801,42 @@ function AdminDashboard() {
         )}
 
         {/* Alerta: facturas por revisar y pagar (oculta en demo para evitar CTAs falsos) */}
-        {!usingOfflineDemo && (stats.invoiced > 0 || stats.pending_review > 0 || (stats.maqgo_to_invoice || 0) > 0) && (
+        {!usingOfflineDemo && (
+          (stats.maqgo_to_invoice_overdue || 0) > 0 ||
+          stats.invoiced > 0 ||
+          stats.pending_review > 0 ||
+          (stats.maqgo_to_invoice || 0) > 0
+        ) && (
           <div
             onClick={() => {
               setPage(1);
               setFilter(
-                stats.invoiced > 0 ? 'invoiced'
-                  : (stats.maqgo_to_invoice || 0) > 0 ? 'maqgo_to_invoice'
-                    : 'pending_review'
+                (stats.maqgo_to_invoice_overdue || 0) > 0
+                  ? 'maqgo_to_invoice_overdue'
+                  : stats.invoiced > 0
+                    ? 'invoiced'
+                    : (stats.maqgo_to_invoice || 0) > 0
+                      ? 'maqgo_to_invoice'
+                      : 'pending_review'
               );
             }}
             style={{
-              background: stats.invoiced > 0
-                ? 'linear-gradient(135deg, rgba(236, 104, 25, 0.18) 0%, rgba(236, 104, 25, 0.05) 100%)'
-                : (stats.maqgo_to_invoice || 0) > 0
-                  ? 'linear-gradient(135deg, rgba(126, 184, 212, 0.16) 0%, rgba(126, 184, 212, 0.05) 100%)'
-                  : 'linear-gradient(135deg, rgba(232, 163, 75, 0.18) 0%, rgba(232, 163, 75, 0.05) 100%)',
-              border: `1px solid ${stats.invoiced > 0 ? 'rgba(236, 104, 25, 0.4)' : (stats.maqgo_to_invoice || 0) > 0 ? 'rgba(126, 184, 212, 0.4)' : 'rgba(232, 163, 75, 0.4)'}`,
+              background: (stats.maqgo_to_invoice_overdue || 0) > 0
+                ? 'linear-gradient(135deg, rgba(229, 115, 115, 0.18) 0%, rgba(229, 115, 115, 0.05) 100%)'
+                : stats.invoiced > 0
+                  ? 'linear-gradient(135deg, rgba(236, 104, 25, 0.18) 0%, rgba(236, 104, 25, 0.05) 100%)'
+                  : (stats.maqgo_to_invoice || 0) > 0
+                    ? 'linear-gradient(135deg, rgba(126, 184, 212, 0.16) 0%, rgba(126, 184, 212, 0.05) 100%)'
+                    : 'linear-gradient(135deg, rgba(232, 163, 75, 0.18) 0%, rgba(232, 163, 75, 0.05) 100%)',
+              border: `1px solid ${
+                (stats.maqgo_to_invoice_overdue || 0) > 0
+                  ? 'rgba(229, 115, 115, 0.45)'
+                  : stats.invoiced > 0
+                    ? 'rgba(236, 104, 25, 0.4)'
+                    : (stats.maqgo_to_invoice || 0) > 0
+                      ? 'rgba(126, 184, 212, 0.4)'
+                      : 'rgba(232, 163, 75, 0.4)'
+              }`,
               borderRadius: 12,
               padding: '14px 20px',
               marginBottom: 24,
@@ -753,15 +847,17 @@ function AdminDashboard() {
             }}
           >
             <span style={{ fontSize: 28 }}>
-              {stats.invoiced > 0 ? '📄' : (stats.maqgo_to_invoice || 0) > 0 ? '📤' : '⏳'}
+              {(stats.maqgo_to_invoice_overdue || 0) > 0 ? '🚨' : stats.invoiced > 0 ? '📄' : (stats.maqgo_to_invoice || 0) > 0 ? '📤' : '⏳'}
             </span>
             <div style={{ flex: 1 }}>
               <p style={{ color: '#fff', margin: 0, fontSize: 15, fontWeight: 600 }}>
-                {stats.invoiced > 0
-                  ? `${stats.invoiced} factura(s) subida(s) · Revisar y marcar como pagado`
-                  : (stats.maqgo_to_invoice || 0) > 0
-                    ? `MAQGO debe facturar al cliente: ${stats.maqgo_to_invoice} reserva(s) (dentro del mes)`
-                    : `${stats.pending_review} reserva(s) por aprobar`
+                {(stats.maqgo_to_invoice_overdue || 0) > 0
+                  ? `ALERTA: ${stats.maqgo_to_invoice_overdue} pago(s) de meses anteriores sin factura cliente MAQGO`
+                  : stats.invoiced > 0
+                    ? `${stats.invoiced} factura(s) subida(s) · Revisar y marcar como pagado`
+                    : (stats.maqgo_to_invoice || 0) > 0
+                      ? `MAQGO debe facturar al cliente: ${stats.maqgo_to_invoice} reserva(s) (dentro del mes)`
+                      : `${stats.pending_review} reserva(s) por aprobar`
                 }
               </p>
               <p style={{ color: 'rgba(255,255,255,0.75)', margin: '4px 0 0', fontSize: 12 }}>
@@ -776,20 +872,33 @@ function AdminDashboard() {
 
         {/* MÉTRICAS FINANCIERAS MAQGO */}
         <div style={{ 
-          background: '#2A2A2A', 
+          background: ADMIN_THEME.panelBg, 
           borderRadius: 12, 
           padding: 20, 
-          marginBottom: 24 
+          marginBottom: 24,
+          border: `1px solid ${ADMIN_THEME.border}`
         }}>
-          <h2 style={{ 
-            color: '#EC6819', 
-            fontSize: 16, 
-            fontWeight: 700, 
-            margin: '0 0 16px',
-            fontFamily: "'Space Grotesk', sans-serif"
-          }}>
-            💰 Métricas Financieras MAQGO <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: 400 }}>(Neto sin IVA)</span>
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+            <h2 style={{ 
+              color: '#EC6819', 
+              fontSize: 16, 
+              fontWeight: 700, 
+              margin: 0,
+              fontFamily: "'Space Grotesk', sans-serif"
+            }}>
+              💰 Métricas Financieras MAQGO <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: 400 }}>(Neto sin IVA)</span>
+            </h2>
+            <button
+              type="button"
+              className="maqgo-btn-secondary"
+              onClick={fetchMonthlyFinance}
+              disabled={loadingMonthlyFinance || actionsLocked}
+              title={actionsLocked ? 'Requiere conexión al API' : 'Actualizar IVA y margen mensual'}
+              style={{ opacity: loadingMonthlyFinance || actionsLocked ? 0.6 : 1 }}
+            >
+              {loadingMonthlyFinance ? 'Actualizando...' : 'IVA y margen (mes)'}
+            </button>
+          </div>
           
           <div style={{ 
             display: 'grid', 
@@ -838,6 +947,62 @@ function AdminDashboard() {
                 {formatPrice(finances.totalCommission)}
               </p>
             </div>
+          </div>
+
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <h3 style={{ color: '#90BDD3', fontSize: 13, margin: '0 0 10px', fontWeight: 700 }}>
+              Conciliación tributaria y margen mensual
+            </h3>
+            {monthlyFinanceError ? (
+              <p style={{ margin: 0, color: '#E8A34B', fontSize: 12, lineHeight: 1.5 }}>{monthlyFinanceError}</p>
+            ) : monthlyFinance ? (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                  <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, margin: '0 0 6px', textTransform: 'uppercase' }}>
+                      IVA débito
+                    </p>
+                    <p style={{ color: '#fff', fontSize: 21, margin: 0, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                      {formatPrice(monthlyFinance.iva?.debito)}
+                    </p>
+                  </div>
+                  <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, margin: '0 0 6px', textTransform: 'uppercase' }}>
+                      IVA crédito estimado
+                    </p>
+                    <p style={{ color: ADMIN_PALETTE.info, fontSize: 21, margin: 0, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                      {formatPrice(monthlyFinance.iva?.credito_estimado)}
+                    </p>
+                  </div>
+                  <div style={{ background: 'linear-gradient(135deg, rgba(232, 163, 75, 0.18) 0%, rgba(232, 163, 75, 0.08) 100%)', borderRadius: 10, padding: 12, border: '1px solid rgba(232, 163, 75, 0.35)' }}>
+                    <p style={{ color: 'rgba(255,255,255,0.82)', fontSize: 11, margin: '0 0 6px', textTransform: 'uppercase' }}>
+                      IVA neto a pagar (estimado)
+                    </p>
+                    <p style={{ color: '#E8A34B', fontSize: 22, margin: 0, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace" }}>
+                      {formatPrice(monthlyFinance.iva?.neto_a_pagar_estimado)}
+                    </p>
+                  </div>
+                  <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, margin: '0 0 6px', textTransform: 'uppercase' }}>
+                      Margen contribución
+                    </p>
+                    <p style={{ color: ADMIN_PALETTE.success, fontSize: 21, margin: 0, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                      {formatPrice(monthlyFinance.contribution?.margin)}
+                    </p>
+                    <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, margin: '4px 0 0' }}>
+                      {monthlyFinance.contribution?.margin_pct ?? 0}% sobre venta neta del mes
+                    </p>
+                  </div>
+                </div>
+                <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, margin: '10px 0 0', lineHeight: 1.45 }}>
+                  {monthlyFinance.iva?.warning}
+                </p>
+              </>
+            ) : (
+              <p style={{ margin: 0, color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>
+                Cargando conciliación mensual...
+              </p>
+            )}
           </div>
 
           {/* Contadores de servicios */}
@@ -920,6 +1085,18 @@ function AdminDashboard() {
                   {stats.maqgo_to_invoice} MAQGO debe facturar al cliente
                 </div>
               )}
+              {(stats.maqgo_to_invoice_overdue || 0) > 0 && (
+                <div style={{
+                  background: 'rgba(229, 115, 115, 0.14)',
+                  border: '1px solid rgba(229, 115, 115, 0.38)',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  fontSize: 12,
+                  color: ADMIN_PALETTE.danger
+                }}>
+                  🚨 {stats.maqgo_to_invoice_overdue} pago(s) vencido(s) sin factura cliente
+                </div>
+              )}
               {stats.disputed > 0 && (
                 <div style={{ 
                   background: 'rgba(229, 115, 115, 0.12)', 
@@ -932,7 +1109,7 @@ function AdminDashboard() {
                   {stats.disputed} reclamos por resolver
                 </div>
               )}
-              {(!stats.pending_review && !stats.invoiced && !stats.disputed && !(stats.maqgo_to_invoice || 0)) && (
+              {(!stats.pending_review && !stats.invoiced && !stats.disputed && !(stats.maqgo_to_invoice || 0) && !(stats.maqgo_to_invoice_overdue || 0)) && (
                 <div style={{ 
                   color: 'rgba(255,255,255,0.95)', 
                   fontSize: 12,
@@ -948,11 +1125,11 @@ function AdminDashboard() {
         {/* SLA colas + comparativa semana (API admin/all) */}
         {(sla || weekComparison) && (
           <div style={{
-            background: '#2A2A2A',
+            background: ADMIN_THEME.panelBg,
             borderRadius: 12,
             padding: 20,
             marginBottom: 24,
-            border: '1px solid rgba(144, 189, 211, 0.25)'
+            border: `1px solid ${ADMIN_THEME.borderStrong}`
           }}>
             <h2 style={{
               color: '#90BDD3',
@@ -1056,11 +1233,14 @@ function AdminDashboard() {
             { key: 'invoiced', label: 'Por Pagar', icon: '📄' },
             { key: 'paid', label: 'Pagados', icon: '💰' },
             { key: 'maqgo_to_invoice', label: 'MAQGO → Facturar Cliente', icon: '📤' },
+            { key: 'maqgo_to_invoice_overdue', label: 'MAQGO Facturación Vencida', icon: '🚨' },
             { key: 'disputed', label: 'En Disputa', icon: '⚠️' }
           ].map(item => {
             const config = STATUS_CONFIG[item.key] || (item.key === 'maqgo_to_invoice' 
-              ? { color: ADMIN_PALETTE.info, bg: 'rgba(126, 184, 212, 0.12)' } 
-              : STATUS_CONFIG.disputed);
+              ? { color: ADMIN_PALETTE.info, bg: 'rgba(126, 184, 212, 0.12)' }
+              : item.key === 'maqgo_to_invoice_overdue'
+                ? { color: ADMIN_PALETTE.danger, bg: 'rgba(229, 115, 115, 0.14)' }
+                : STATUS_CONFIG.disputed);
             return (
               <div
                 key={item.key}
@@ -1088,7 +1268,11 @@ function AdminDashboard() {
                   margin: 0,
                   fontFamily: "'JetBrains Mono', monospace"
                 }}>
-                  {item.key === 'maqgo_to_invoice' ? (stats.maqgo_to_invoice || 0) : (stats[item.key] || 0)}
+                  {item.key === 'maqgo_to_invoice'
+                    ? (stats.maqgo_to_invoice || 0)
+                    : item.key === 'maqgo_to_invoice_overdue'
+                      ? (stats.maqgo_to_invoice_overdue || 0)
+                      : (stats[item.key] || 0)}
                 </p>
               </div>
             );
@@ -1119,9 +1303,10 @@ function AdminDashboard() {
 
         {/* Tabla de servicios */}
         <div style={{
-          background: '#2A2A2A',
+          background: ADMIN_THEME.panelBg,
           borderRadius: 12,
-          overflow: 'hidden'
+          overflow: 'hidden',
+          border: `1px solid ${ADMIN_THEME.border}`
         }}>
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
@@ -1136,6 +1321,8 @@ function AdminDashboard() {
                   ? 'No hay reservas registradas aún' 
                   : filter === 'maqgo_to_invoice' 
                     ? 'No hay reservas pendientes de facturar al cliente' 
+                    : filter === 'maqgo_to_invoice_overdue'
+                      ? 'No hay pagos vencidos pendientes de facturar al cliente'
                     : `No hay reservas "${STATUS_CONFIG[filter]?.label || filter}"`}
               </p>
             </div>
@@ -1398,13 +1585,14 @@ function AdminDashboard() {
           zIndex: 1000
         }}>
           <div style={{
-            background: '#2A2A2A',
+            background: ADMIN_THEME.panelBg,
             borderRadius: 16,
             padding: 24,
             maxWidth: 500,
             width: '90%',
             maxHeight: '80vh',
-            overflow: 'auto'
+            overflow: 'auto',
+            border: `1px solid ${ADMIN_THEME.border}`
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h3 style={{ color: '#fff', margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
@@ -1559,13 +1747,14 @@ function AdminDashboard() {
           padding: 20
         }}>
           <div style={{
-            background: '#2A2A2A',
+            background: ADMIN_THEME.panelBg,
             borderRadius: 16,
             padding: 24,
             width: '100%',
             maxWidth: 700,
             maxHeight: '90vh',
-            overflow: 'auto'
+            overflow: 'auto',
+            border: `1px solid ${ADMIN_THEME.border}`
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ margin: 0, color: '#EC6819', fontFamily: "'Space Grotesk', sans-serif" }}>

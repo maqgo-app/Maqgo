@@ -209,15 +209,42 @@ def _admin_list_filter(status: Optional[str]) -> dict:
     if s in ("", "all"):
         return {}
     if s == "maqgo_to_invoice":
-        return {"status": "paid", "maqgo_client_invoice_pending": {"$ne": False}}
+        now = datetime.utcnow()
+        start_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if start_this_month.month == 12:
+            end_this_month = start_this_month.replace(year=start_this_month.year + 1, month=1)
+        else:
+            end_this_month = start_this_month.replace(month=start_this_month.month + 1)
+        return {
+            "status": "paid",
+            "maqgo_client_invoice_pending": {"$ne": False},
+            "paid_at": {"$gte": start_this_month, "$lt": end_this_month},
+        }
+    if s == "maqgo_to_invoice_overdue":
+        now = datetime.utcnow()
+        start_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        return {
+            "status": "paid",
+            "maqgo_client_invoice_pending": {"$ne": False},
+            "paid_at": {"$lt": start_this_month},
+        }
     if s in STATUSES:
         return {"status": s}
-    raise HTTPException(status_code=400, detail=f"status inválido. Usar: all, {', '.join(STATUSES)}, maqgo_to_invoice")
+    raise HTTPException(
+        status_code=400,
+        detail=f"status inválido. Usar: all, {', '.join(STATUSES)}, maqgo_to_invoice, maqgo_to_invoice_overdue",
+    )
 
 
 def _admin_compute_stats() -> dict:
     """Conteos globales sin cargar todos los documentos."""
     total = services_collection.count_documents({})
+    now = datetime.utcnow()
+    start_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if start_this_month.month == 12:
+        end_this_month = start_this_month.replace(year=start_this_month.year + 1, month=1)
+    else:
+        end_this_month = start_this_month.replace(month=start_this_month.month + 1)
     return {
         "pending_review": services_collection.count_documents({"status": "pending_review"}),
         "approved": services_collection.count_documents({"status": "approved"}),
@@ -225,7 +252,18 @@ def _admin_compute_stats() -> dict:
         "paid": services_collection.count_documents({"status": "paid"}),
         "disputed": services_collection.count_documents({"status": "disputed"}),
         "maqgo_to_invoice": services_collection.count_documents(
-            {"status": "paid", "maqgo_client_invoice_pending": {"$ne": False}}
+            {
+                "status": "paid",
+                "maqgo_client_invoice_pending": {"$ne": False},
+                "paid_at": {"$gte": start_this_month, "$lt": end_this_month},
+            }
+        ),
+        "maqgo_to_invoice_overdue": services_collection.count_documents(
+            {
+                "status": "paid",
+                "maqgo_client_invoice_pending": {"$ne": False},
+                "paid_at": {"$lt": start_this_month},
+            }
         ),
         "total": total,
     }

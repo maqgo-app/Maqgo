@@ -26,3 +26,4 @@ dist-ssr
 
 # Artefactos de salida de lint locales (no commitear)
 lint*.txt
+.env*.local

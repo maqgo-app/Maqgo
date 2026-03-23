@@ -3,6 +3,10 @@
  */
 export function friendlyFetchError(err, fallback = 'Error de conexión') {
   const m = err && err.message ? String(err.message) : '';
+  const low = m.toLowerCase();
+  if (err?.name === 'AbortError' || low.includes('aborted') || low.includes('timeout')) {
+    return 'El servidor tardó demasiado en responder. Reintenta en unos segundos.';
+  }
   if (m === 'Failed to fetch' || err?.name === 'TypeError') {
     return 'Sin respuesta del servidor. Revisa que el backend esté en línea y REACT_APP_BACKEND_URL (Vercel) apunte al API con HTTPS.';
   }

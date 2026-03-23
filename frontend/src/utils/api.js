@@ -68,6 +68,11 @@ export async function fetchWithAuth(url, options = {}, timeoutMs = DEFAULT_TIMEO
   } catch (e) {
     clearTimeout(id);
     if (outerSignal) outerSignal.removeEventListener('abort', abortBoth);
+    if (e?.name === 'AbortError') {
+      const abortErr = new Error('Tiempo de espera agotado');
+      abortErr.name = 'AbortError';
+      throw abortErr;
+    }
     throw e;
   }
 }

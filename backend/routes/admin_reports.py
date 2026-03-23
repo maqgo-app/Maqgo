@@ -118,6 +118,122 @@ async def get_weekly_report(weeks_ago: int = 0, _: dict = Depends(get_current_ad
     return await _build_weekly_report(weeks_ago)
 
 
+@router.get("/monthly-finance")
+async def get_monthly_finance(
+    year: Optional[int] = Query(None, ge=2020, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
+    _: dict = Depends(get_current_admin),
+):
+    """
+    Métricas mensuales de conciliación:
+    - IVA débito / IVA crédito estimado / IVA neto a pagar (estimado)
+    - Margen de contribución mensual (ingreso neto venta - costo de venta proveedor)
+    """
+    now = datetime.utcnow()
+    y = year or now.year
+    m = month or now.month
+    start = datetime(y, m, 1, 0, 0, 0, 0)
+    if m == 12:
+        end = datetime(y + 1, 1, 1, 0, 0, 0, 0)
+    else:
+        end = datetime(y, m + 1, 1, 0, 0, 0, 0)
+
+    # Conciliación sobre servicios cerrados (pagados) en el mes.
+    services = await db.services.find({
+        "status": "paid",
+        "paid_at": {"$gte": start, "$lt": end},
+    }).to_list(5000)
+
+    sales_net = 0.0
+    sales_gross = 0.0
+    provider_payment_total = 0.0
+    iva_debito = 0.0
+    iva_credito_estimado = 0.0
+    client_commission_net = 0.0
+    provider_commission_net = 0.0
+    paid_without_invoice_count = 0
+    with_provider_invoice_count = 0
+
+    for s in services:
+        net_total = float(s.get("net_total") or 0)
+        gross_total = float(s.get("gross_total") or 0)
+        if gross_total <= 0 and net_total > 0:
+            gross_total = round(net_total * 1.19, 0)
+
+        service_fee = float(s.get("service_fee") or 0)
+        paid_without_invoice = bool(s.get("paid_without_invoice", False))
+
+        provider_paid = (
+            float(s.get("amount_paid_to_provider"))
+            if s.get("amount_paid_to_provider") is not None
+            else net_total
+        )
+
+        sales_net += net_total
+        sales_gross += gross_total
+        provider_payment_total += provider_paid
+
+        iva_servicio = max(0.0, gross_total - net_total)
+        iva_debito += iva_servicio
+
+        # Crédito fiscal estimado: solo cuando hay factura proveedor (no aplica pago sin factura).
+        if paid_without_invoice:
+            paid_without_invoice_count += 1
+        else:
+            has_provider_invoice = bool(s.get("invoice_number")) or bool(s.get("invoice_uploaded_at"))
+            if has_provider_invoice:
+                iva_credito_estimado += iva_servicio
+                with_provider_invoice_count += 1
+
+        # Igual que cálculo del dashboard (mantiene consistencia entre pantallas).
+        gross_sin_iva = (gross_total / 1.19) if gross_total else 0.0
+        subtotal_base = gross_sin_iva / 1.10 if gross_sin_iva else 0.0
+        client_commission_net += subtotal_base * 0.10
+        provider_commission_net += (service_fee / 1.19) if service_fee else 0.0
+
+    iva_neto_a_pagar_estimado = max(0.0, iva_debito - iva_credito_estimado)
+    contribution_margin = sales_net - provider_payment_total
+    contribution_margin_pct = (contribution_margin / sales_net * 100.0) if sales_net > 0 else 0.0
+    maqgo_operating_revenue = client_commission_net + provider_commission_net
+
+    return {
+        "periodo": {
+            "year": y,
+            "month": m,
+            "inicio": start.isoformat(),
+            "fin": end.isoformat(),
+            "label": f"{y}-{m:02d}",
+        },
+        "volume": {
+            "services_paid": len(services),
+            "with_provider_invoice": with_provider_invoice_count,
+            "paid_without_invoice": paid_without_invoice_count,
+        },
+        "sales": {
+            "net": round(sales_net, 0),
+            "gross": round(sales_gross, 0),
+        },
+        "iva": {
+            "debito": round(iva_debito, 0),
+            "credito_estimado": round(iva_credito_estimado, 0),
+            "neto_a_pagar_estimado": round(iva_neto_a_pagar_estimado, 0),
+            "warning": "Estimado contable. Validar con SII/libro compra-venta y documentos tributarios.",
+        },
+        "contribution": {
+            "sales_net": round(sales_net, 0),
+            "cost_of_sales": round(provider_payment_total, 0),
+            "margin": round(contribution_margin, 0),
+            "margin_pct": round(contribution_margin_pct, 2),
+        },
+        "maqgo_revenue": {
+            "client_commission_net": round(client_commission_net, 0),
+            "provider_commission_net": round(provider_commission_net, 0),
+            "total_net": round(maqgo_operating_revenue, 0),
+        },
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
 async def generate_alerts(db, start_date, end_date, umbral_revision_h=72):
     """
     Alertas alineadas al pipeline de facturación (colección `services`).
@@ -148,14 +264,31 @@ async def generate_alerts(db, start_date, end_date, umbral_revision_h=72):
             "detalle": [],
         })
 
+    start_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if start_month.month == 12:
+        end_month = start_month.replace(year=start_month.year + 1, month=1)
+    else:
+        end_month = start_month.replace(month=start_month.month + 1)
     mq_inv = await db.services.count_documents({
         "status": "paid",
         "maqgo_client_invoice_pending": {"$ne": False},
+        "paid_at": {"$gte": start_month, "$lt": end_month},
     })
     if mq_inv > 0:
         alertas.append({
             "tipo": "FACTURACION_MAQGO_CLIENTE",
             "mensaje": f"{mq_inv} pago(s) donde MAQGO debe facturar al cliente (pendiente).",
+            "detalle": [],
+        })
+    mq_inv_overdue = await db.services.count_documents({
+        "status": "paid",
+        "maqgo_client_invoice_pending": {"$ne": False},
+        "paid_at": {"$lt": start_month},
+    })
+    if mq_inv_overdue > 0:
+        alertas.append({
+            "tipo": "FACTURACION_MAQGO_VENCIDA",
+            "mensaje": f"{mq_inv_overdue} pago(s) de meses anteriores siguen sin factura cliente MAQGO.",
             "detalle": [],
         })
 
@@ -184,8 +317,8 @@ async def get_payments_planilla(
     _: dict = Depends(get_current_admin),
 ):
     """
-    Planilla de pagos pendientes (servicios con factura subida, status=invoiced).
-    Para descarga diaria de lo que se debe pagar a proveedores.
+    Planilla de pagos pendientes (status=invoiced) para conciliación financiera.
+    Incluye desglose neto/IVA/bruto y visibilidad de facturación MAQGO al cliente.
     """
     query = {"status": "invoiced"}
     if date:
@@ -210,29 +343,78 @@ async def get_payments_planilla(
 
     for s in services:
         prov = providers.get(s.get("provider_id", ""), {})
+        net_amount = float(s.get("net_total") or 0)
+        service_fee = float(s.get("service_fee") or 0)
+        gross_total = float(s.get("gross_total") or 0)
+        # Si el backend viejo no trae gross_total, lo reconstruimos desde neto.
+        if gross_total <= 0 and net_amount > 0:
+            gross_total = round(net_amount * 1.19, 0)
+        iva_amount = max(0.0, round(gross_total - net_amount, 0))
+        maqgo_invoice_pending = bool(s.get("maqgo_client_invoice_pending", False))
+        paid_without_invoice = bool(s.get("paid_without_invoice", False))
+        retention_amount = float(s.get("retention_amount") or 0)
+        amount_paid_to_provider = (
+            float(s.get("amount_paid_to_provider"))
+            if s.get("amount_paid_to_provider") is not None
+            else net_amount
+        )
         rows.append({
             "id": str(s.get("_id", s.get("id", ""))),
             "fecha_creacion": s.get("created_at", ""),
             "fecha_factura": s.get("invoice_uploaded_at", ""),
+            "fecha_servicio": s.get("service_date", ""),
             "proveedor": prov.get("name", "–"),
             "proveedor_email": prov.get("email", "–"),
             "proveedor_telefono": prov.get("phone", "–"),
             "cliente": s.get("client_name", "–"),
             "maquinaria": s.get("machinery_type", "–"),
             "horas": s.get("hours", 0),
-            "monto_neto": s.get("net_total", 0),
+            "monto_neto": round(net_amount, 0),
+            "monto_iva": iva_amount,
+            "monto_bruto": round(gross_total, 0),
+            "comision_maqgo_proveedor": round(service_fee, 0),
+            "monto_pago_proveedor": round(amount_paid_to_provider, 0),
+            "pagado_sin_factura": "SI" if paid_without_invoice else "NO",
+            "retencion_iva_sin_factura": round(retention_amount, 0) if paid_without_invoice else 0,
             "n_factura": s.get("invoice_number", "–"),
+            "maqgo_facturo_cliente": "NO" if maqgo_invoice_pending else "SI",
+            "fecha_factura_cliente_maqgo": s.get("maqgo_client_invoiced_at", ""),
+            "estado_servicio": s.get("status", "–"),
         })
 
     if format == "csv":
         output = io.StringIO()
         writer = csv.writer(output)
-        header = ["ID", "Fecha creación", "Fecha factura", "Proveedor", "Email", "Teléfono", "Cliente", "Maquinaria", "Horas", "Monto neto (CLP)", "Nº Factura"]
+        header = [
+            "ID",
+            "Estado servicio",
+            "Fecha creación",
+            "Fecha servicio",
+            "Fecha factura proveedor",
+            "Proveedor",
+            "Email",
+            "Teléfono",
+            "Cliente",
+            "Maquinaria",
+            "Horas",
+            "Monto neto (CLP)",
+            "IVA 19% (CLP)",
+            "Monto bruto cliente (CLP)",
+            "Comisión MAQGO proveedor (CLP)",
+            "Monto a pagar proveedor (CLP)",
+            "Pagado sin factura",
+            "Retención IVA sin factura (CLP)",
+            "Nº factura proveedor",
+            "MAQGO facturó cliente",
+            "Fecha factura cliente MAQGO",
+        ]
         writer.writerow(header)
         for r in rows:
             writer.writerow([
                 r["id"],
+                r["estado_servicio"],
                 str(r["fecha_creacion"])[:19] if r["fecha_creacion"] else "",
+                str(r["fecha_servicio"])[:19] if r["fecha_servicio"] else "",
                 str(r["fecha_factura"])[:19] if r["fecha_factura"] else "",
                 r["proveedor"],
                 r["proveedor_email"],
@@ -241,7 +423,15 @@ async def get_payments_planilla(
                 r["maquinaria"],
                 r["horas"],
                 r["monto_neto"],
+                r["monto_iva"],
+                r["monto_bruto"],
+                r["comision_maqgo_proveedor"],
+                r["monto_pago_proveedor"],
+                r["pagado_sin_factura"],
+                r["retencion_iva_sin_factura"],
                 r["n_factura"],
+                r["maqgo_facturo_cliente"],
+                str(r["fecha_factura_cliente_maqgo"])[:19] if r["fecha_factura_cliente_maqgo"] else "",
             ])
         output.seek(0)
         filename = f"maqgo_planilla_pagos_{date or datetime.now().strftime('%Y-%m-%d')}.csv"
@@ -250,7 +440,14 @@ async def get_payments_planilla(
             media_type="text/csv",
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
-    return {"rows": rows, "total": len(rows), "total_monto": sum(r["monto_neto"] for r in rows)}
+    return {
+        "rows": rows,
+        "total": len(rows),
+        "total_neto": sum(r["monto_neto"] for r in rows),
+        "total_iva": sum(r["monto_iva"] for r in rows),
+        "total_bruto": sum(r["monto_bruto"] for r in rows),
+        "total_pago_proveedor": sum(r["monto_pago_proveedor"] for r in rows),
+    }
 
 
 @router.post("/weekly/send-email")

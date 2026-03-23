@@ -8,7 +8,36 @@ import {
   clearAdminDemoBypass,
 } from '../utils/apiHealth';
 
-const VERIFY_TIMEOUT_MS = 8000;
+const VERIFY_TIMEOUT_MS = 3500;
+const ADMIN_VERIFY_CACHE_KEY = 'maqgo_admin_verified_at';
+const ADMIN_VERIFY_CACHE_TTL_MS = 90 * 1000;
+
+function getAdminVerifiedAt() {
+  try {
+    const raw = sessionStorage.getItem(ADMIN_VERIFY_CACHE_KEY);
+    if (!raw) return 0;
+    const ts = Number(raw);
+    return Number.isFinite(ts) ? ts : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setAdminVerifiedNow() {
+  try {
+    sessionStorage.setItem(ADMIN_VERIFY_CACHE_KEY, String(Date.now()));
+  } catch {
+    /* private mode */
+  }
+}
+
+function clearAdminVerifiedCache() {
+  try {
+    sessionStorage.removeItem(ADMIN_VERIFY_CACHE_KEY);
+  } catch {
+    /* private mode */
+  }
+}
 
 /**
  * Protege rutas /admin. Verifica /api/admin/stats antes de mostrar el panel.
@@ -40,14 +69,26 @@ function AdminRoute() {
     userRole === 'admin' || (Array.isArray(userRoles) && userRoles.includes('admin'));
   const shouldVerifyAdmin = Boolean(userId && token);
 
-  /** Todos los usuarios con sesión esperan la 1ª verificación (evita flash de panel sin API). */
-  const [checkingAdmin, setCheckingAdmin] = useState(() => Boolean(shouldVerifyAdmin));
+  /** Solo muestra bloqueo en la primera entrada o cuando vence el cache. */
+  const [checkingAdmin, setCheckingAdmin] = useState(() => {
+    if (!shouldVerifyAdmin) return false;
+    if (!isAdminByStorage) return true;
+    return Date.now() - getAdminVerifiedAt() > ADMIN_VERIFY_CACHE_TTL_MS;
+  });
 
   useEffect(() => {
     let mounted = true;
     if (!shouldVerifyAdmin) {
       setCheckingAdmin(false);
       setStatsNetworkFailure(false);
+      return () => {};
+    }
+
+    const cacheFresh =
+      isAdminByStorage && Date.now() - getAdminVerifiedAt() <= ADMIN_VERIFY_CACHE_TTL_MS;
+    if (cacheFresh && retryNonce === 0) {
+      setVerifiedAdmin(true);
+      setCheckingAdmin(false);
       return () => {};
     }
 
@@ -65,6 +106,7 @@ function AdminRoute() {
         if (res.ok) {
           localStorage.setItem('userRole', 'admin');
           setVerifiedAdmin(true);
+          setAdminVerifiedNow();
           setStatsNetworkFailure(false);
           clearAdminDemoBypass();
           setDemoBypassState(false);
@@ -85,16 +127,19 @@ function AdminRoute() {
             localStorage.removeItem('userRoles');
           }
           setVerifiedAdmin(false);
+          clearAdminVerifiedCache();
           setStatsNetworkFailure(false);
           clearAdminDemoBypass();
           setDemoBypassState(false);
         } else {
           setVerifiedAdmin(isAdminByStorage);
+          if (!isAdminByStorage) clearAdminVerifiedCache();
           setStatsNetworkFailure(false);
         }
       } catch {
         if (!mounted) return;
         setVerifiedAdmin(isAdminByStorage);
+        if (!isAdminByStorage) clearAdminVerifiedCache();
         setStatsNetworkFailure(Boolean(isAdminByStorage));
       } finally {
         if (mounted) setCheckingAdmin(false);
@@ -116,6 +161,7 @@ function AdminRoute() {
 
   const retryVerify = () => {
     clearAdminDemoBypass();
+    clearAdminVerifiedCache();
     setDemoBypassState(false);
     setStatsNetworkFailure(false);
     setRetryNonce((n) => n + 1);
