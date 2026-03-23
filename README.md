@@ -1,5 +1,7 @@
 # MAQGO - Marketplace de Maquinaria Pesada 🚜
 
+**Trabajo local:** esta carpeta **`Maqgo/`** es la que debés conservar; el remoto es **`maqgo-app/Maqgo`**. Carpetas duplicadas (`Maqgo1-main`, etc.) son opcionales — si borrás una copia extra, no perdés el proyecto mientras tengas el repo en GitHub y clones de nuevo cuando quieras.
+
 Aplicación móvil (PWA) para arriendo de maquinaria pesada con operador en Chile.
 
 ## URL de producción (frontend Vercel)

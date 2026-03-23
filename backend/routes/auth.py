@@ -229,11 +229,14 @@ async def login(request: Request, body: LoginRequest):
     })
     
     roles = _user_roles(user)
+    # Si `admin` está en roles[], el rol efectivo para el front debe ser admin aunque `role` legacy diga client/provider.
+    legacy_role = user.get("role") or "client"
+    effective_role = "admin" if "admin" in roles else legacy_role
     return {
         "id": user["id"],
         "name": user.get("name"),
         "email": user.get("email"),
-        "role": user.get("role", "client"),
+        "role": effective_role,
         "roles": roles,
         "token": token
     }

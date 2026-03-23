@@ -25,12 +25,18 @@ function getAuthHeaders() {
   return { Authorization: `Bearer ${token}` };
 }
 
-function handle401() {
+/** Limpia sesión local (token + roles). Usar al cerrar sesión o tras 401. */
+export function clearLocalSession() {
   localStorage.removeItem('token');
   localStorage.removeItem('userId');
   localStorage.removeItem('userRole');
+  localStorage.removeItem('userRoles');
   localStorage.removeItem('providerRole');
   localStorage.removeItem('ownerId');
+}
+
+function handle401() {
+  clearLocalSession();
   if (window.location.pathname !== '/login' && !window.location.pathname.startsWith('/register')) {
     window.location.href = '/login?expired=1';
   }

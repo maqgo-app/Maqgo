@@ -32,6 +32,16 @@ export default defineConfig([
       globals: globals.node,
     },
   },
+  /** Vite define inyecta process.env.REACT_APP_* en build; el linter necesita conocer `process`. */
+  {
+    files: ['src/utils/api.js'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        process: 'readonly',
+      },
+    },
+  },
   {
     files: ['src/components/ui/**/*.{js,jsx}', 'src/components/Toast.jsx'],
     rules: {

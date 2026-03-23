@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 
 /**
@@ -11,6 +11,7 @@ import BACKEND_URL, { fetchWithAuth } from '../utils/api';
  */
 function AdminRoute() {
   const location = useLocation();
+  const navigate = useNavigate();
   const userId = localStorage.getItem('userId');
   const userRole = localStorage.getItem('userRole');
   const token = localStorage.getItem('token');
@@ -53,7 +54,21 @@ function AdminRoute() {
         } else {
           // Solo revocamos el rol local si backend confirma falta de permisos/sesión.
           if (res.status === 401 || res.status === 403) {
-            if (isAdminByStorage) localStorage.removeItem('userRole');
+            try {
+              const raw = localStorage.getItem('userRoles');
+              const parsed = raw ? JSON.parse(raw) : [];
+              const next = Array.isArray(parsed) ? parsed.filter((x) => x !== 'admin') : [];
+              localStorage.removeItem('userRole');
+              if (next.length) {
+                localStorage.setItem('userRoles', JSON.stringify(next));
+                localStorage.setItem('userRole', next[0]);
+              } else {
+                localStorage.removeItem('userRoles');
+              }
+            } catch {
+              localStorage.removeItem('userRole');
+              localStorage.removeItem('userRoles');
+            }
             setVerifiedAdmin(false);
             return;
           }
@@ -107,8 +122,13 @@ function AdminRoute() {
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 15, margin: 0, textAlign: 'center' }}>
           Este panel es solo para el dueño / equipo interno MAQGO.
         </p>
-        <button type="button" className="maqgo-btn-secondary" onClick={() => window.history.back()} style={{ marginTop: 24 }}>
-          Volver
+        <button
+          type="button"
+          className="maqgo-btn-secondary"
+          onClick={() => navigate('/', { replace: true })}
+          style={{ marginTop: 24 }}
+        >
+          Volver a la portada
         </button>
       </div>
     );

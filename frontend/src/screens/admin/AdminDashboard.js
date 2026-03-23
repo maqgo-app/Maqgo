@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWithAuth } from '../../utils/api';
+import BACKEND_URL, { fetchWithAuth, clearLocalSession } from '../../utils/api';
 import { useToast } from '../../components/Toast';
-
-import BACKEND_URL from '../../utils/api';
 import { isPerTripMachineryType } from '../../utils/machineryNames';
 import SystemHealthPanel from '../../components/admin/SystemHealthPanel';
 
@@ -395,10 +393,8 @@ function AdminDashboard() {
             </button>
             <button
               onClick={() => {
-                localStorage.removeItem('userId');
-                localStorage.removeItem('userRole');
-                localStorage.removeItem('providerRole');
-                navigate('/welcome');
+                clearLocalSession();
+                navigate('/welcome', { replace: true });
               }}
               style={{
                 padding: '8px 16px',
