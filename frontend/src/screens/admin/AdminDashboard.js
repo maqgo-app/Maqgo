@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth, clearLocalSession } from '../../utils/api';
+import { pingBackendHealth, maskBackendHost } from '../../utils/apiHealth';
 import { friendlyFetchError, isDemoServiceId } from '../../utils/fetchErrors';
 import { useToast } from '../../components/Toast';
 import { isPerTripMachineryType } from '../../utils/machineryNames';
@@ -65,6 +66,11 @@ function AdminDashboard() {
   const [weekComparison, setWeekComparison] = useState(null);
   /** Solo true cuando falló la red: datos demo locales; las mutaciones al API fallarían con IDs demo. */
   const [usingOfflineDemo, setUsingOfflineDemo] = useState(false);
+  /** Último resultado de GET /healthz (sin auth) — diagnóstico DNS/CORS vs rutas admin. */
+  const [healthSnapshot, setHealthSnapshot] = useState(null);
+  /** Error HTTP u otro fallo del listado admin (no red demo); banner persistente. */
+  const [listHttpError, setListHttpError] = useState(null);
+  const [connDiagNonce, setConnDiagNonce] = useState(0);
   const [invoiceModalSrc, setInvoiceModalSrc] = useState('');
   const [invoiceModalLoading, setInvoiceModalLoading] = useState(false);
   const [invoiceModalHint, setInvoiceModalHint] = useState('');
@@ -120,8 +126,19 @@ function AdminDashboard() {
       const response = await fetchWithAuth(`${BACKEND_URL}/api/services/admin/all?${qs.toString()}`);
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.detail || `Error al cargar reservas (${response.status})`);
+        const errMsg = data.detail || `Error al cargar reservas (${response.status})`;
+        setListHttpError({ message: errMsg, status: response.status });
+        setUsingOfflineDemo(false);
+        setServices([]);
+        setStats({});
+        setListTotal(0);
+        setSla(null);
+        setWeekComparison(null);
+        calculateFinances([]);
+        toast.error(errMsg, 'admin-dashboard-load');
+        return;
       }
+      setListHttpError(null);
       setUsingOfflineDemo(false);
       const serviceList = data.services || [];
       setServices(serviceList);
@@ -165,6 +182,7 @@ function AdminDashboard() {
       const isNetwork =
         msg === 'Failed to fetch' || error.name === 'TypeError' || msg.includes('NetworkError');
       if (isNetwork) {
+        setListHttpError(null);
         setUsingOfflineDemo(true);
         const demoServices = [
           {
@@ -201,6 +219,10 @@ function AdminDashboard() {
         setWeekComparison(null);
       } else {
         setUsingOfflineDemo(false);
+        setListHttpError({
+          message: friendlyFetchError(error, 'No se pudieron cargar las reservas'),
+          status: null
+        });
         setServices([]);
         setStats({});
         setListTotal(0);
@@ -215,6 +237,21 @@ function AdminDashboard() {
   }, [filter, page, calculateFinances, toast]);
 
   useEffect(() => {
+    let cancelled = false;
+    pingBackendHealth(BACKEND_URL).then((r) => {
+      if (!cancelled) setHealthSnapshot(r);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [connDiagNonce]);
+
+  useEffect(() => {
+    fetchServices();
+  }, [fetchServices]);
+
+  const retryConnection = useCallback(() => {
+    setConnDiagNonce((n) => n + 1);
     fetchServices();
   }, [fetchServices]);
 
@@ -346,7 +383,7 @@ function AdminDashboard() {
   const downloadInvoiceFile = () => {
     if (!invoiceModalSrc || !selectedService) return;
     const base = selectedService.invoice_number || selectedService.invoiceFilename || 'factura';
-    const safe = String(base).replace(/[^\w.\-]+/g, '_').slice(0, 80);
+    const safe = String(base).replace(/[^\w.-]+/g, '_').slice(0, 80);
     const ext = isPdfDataUrl(invoiceModalSrc) ? 'pdf' : 'jpg';
     const a = document.createElement('a');
     a.href = invoiceModalSrc;
@@ -467,6 +504,20 @@ function AdminDashboard() {
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
               Panel interno — reservas y facturación (solo dueño MAQGO)
             </p>
+            {usingOfflineDemo && (
+              <p
+                style={{
+                  color: '#E8A34B',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  margin: '8px 0 0',
+                  letterSpacing: 0.6,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Datos de demostración — no operativo
+              </p>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <button
@@ -606,14 +657,76 @@ function AdminDashboard() {
               lineHeight: 1.5,
             }}
           >
-            <strong style={{ color: '#E8A34B' }}>Sin conexión al servidor.</strong>{' '}
-            Estás viendo datos de demostración. Los botones que llaman al API están desactivados hasta que el backend
-            responda (revisa <code style={{ color: '#7EB8D4' }}>REACT_APP_BACKEND_URL</code> en Vercel y que Railway esté en línea).
+            <p style={{ margin: '0 0 10px', fontWeight: 700, color: '#E8A34B', letterSpacing: 0.5 }}>
+              DATOS DE DEMOSTRACIÓN
+            </p>
+            <p style={{ margin: '0 0 10px' }}>
+              Sin conexión al listado admin o modo sin API. Las filas y métricas son de ejemplo; no reflejan producción.
+              API configurado:{' '}
+              <code style={{ color: '#7EB8D4' }}>{maskBackendHost(BACKEND_URL)}</code>.
+            </p>
+            {healthSnapshot?.ok ? (
+              <p style={{ margin: '0 0 10px', color: 'rgba(255,255,255,0.85)' }}>
+                <strong>/healthz responde</strong> ({healthSnapshot.latencyMs != null ? `${healthSnapshot.latencyMs} ms` : 'OK'}
+                ). El fallo está en rutas autenticadas o CORS del listado — revisa token,{' '}
+                <code style={{ color: '#7EB8D4' }}>CORS_ORIGINS</code> y despliegue del backend.
+              </p>
+            ) : healthSnapshot ? (
+              <p style={{ margin: '0 0 10px', color: 'rgba(255,255,255,0.85)' }}>
+                <strong>/healthz no OK</strong>
+                {healthSnapshot.error ? ` (${healthSnapshot.error})` : ''}. Revisa DNS (sin NXDOMAIN),{' '}
+                <code style={{ color: '#7EB8D4' }}>REACT_APP_BACKEND_URL</code> en Vercel y redeploy del frontend tras
+                cambiar env.
+              </p>
+            ) : (
+              <p style={{ margin: '0 0 10px', color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>
+                Comprobando salud pública del backend…
+              </p>
+            )}
+            <button
+              type="button"
+              className="maqgo-btn-primary"
+              onClick={retryConnection}
+              disabled={loading}
+              style={{ padding: '10px 18px', fontWeight: 600, marginTop: 4 }}
+            >
+              {loading ? 'Reintentando…' : 'Reintentar conexión'}
+            </button>
           </div>
         )}
 
-        {/* Alerta: facturas por revisar y pagar */}
-        {(stats.invoiced > 0 || stats.pending_review > 0 || (stats.maqgo_to_invoice || 0) > 0) && (
+        {listHttpError && !usingOfflineDemo && (
+          <div
+            role="alert"
+            style={{
+              marginBottom: 20,
+              padding: '14px 18px',
+              borderRadius: 12,
+              background: 'rgba(229, 115, 115, 0.12)',
+              border: '1px solid rgba(229, 115, 115, 0.45)',
+              color: 'rgba(255,255,255,0.95)',
+              fontSize: 14,
+              lineHeight: 1.5,
+            }}
+          >
+            <strong style={{ color: '#E57373' }}>
+              Error al cargar el panel{listHttpError.status != null ? ` (${listHttpError.status})` : ''}
+            </strong>
+            <p style={{ margin: '8px 0 12px' }}>{listHttpError.message}</p>
+            <button
+              type="button"
+              className="maqgo-btn-secondary"
+              onClick={retryConnection}
+              disabled={loading}
+              style={{ padding: '10px 18px' }}
+            >
+              {loading ? 'Reintentando…' : 'Reintentar conexión'}
+            </button>
+          </div>
+        )}
+
+        {/* Alerta: facturas por revisar y pagar (oculta en demo para evitar CTAs falsos) */}
+        {!usingOfflineDemo && (stats.invoiced > 0 || stats.pending_review > 0 || (stats.maqgo_to_invoice || 0) > 0) && (
           <div
             onClick={() => {
               setPage(1);
@@ -659,7 +772,7 @@ function AdminDashboard() {
           </div>
         )}
 
-        <SystemHealthPanel stats={stats} finances={finances} />
+        <SystemHealthPanel stats={stats} finances={finances} isDemoData={usingOfflineDemo} />
 
         {/* MÉTRICAS FINANCIERAS MAQGO */}
         <div style={{ 

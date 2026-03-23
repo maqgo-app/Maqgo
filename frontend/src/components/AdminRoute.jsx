@@ -1,13 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
+import {
+  maskBackendHost,
+  getAdminDemoBypass,
+  setAdminDemoBypass,
+  clearAdminDemoBypass,
+} from '../utils/apiHealth';
+
+const VERIFY_TIMEOUT_MS = 8000;
 
 /**
- * Protege las rutas administrativas. Solo usuarios con role 'admin' pueden acceder.
- * - No logueado → redirige a /login con redirect a /admin
- * - Logueado pero no admin → muestra "Acceso restringido"
- * Usar una sola vez como layout (`<Route path="/admin" element={<AdminRoute />}>` + rutas hijas)
- * para no re-verificar en cada cambio de sub-ruta.
+ * Protege rutas /admin. Verifica /api/admin/stats antes de mostrar el panel.
+ * - Red caída/DNS: pantalla de bloqueo con reintentar o modo demostración (evita falsa sensación de "panel vivo").
+ * - 401/403: revoca admin local y muestra acceso restringido.
  */
 function AdminRoute() {
   const location = useLocation();
@@ -17,6 +23,10 @@ function AdminRoute() {
   const token = localStorage.getItem('token');
   const userRolesRaw = localStorage.getItem('userRoles');
   const [verifiedAdmin, setVerifiedAdmin] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
+  /** Tras primer intento de verificación: true si falló la red y el usuario creía ser admin. */
+  const [statsNetworkFailure, setStatsNetworkFailure] = useState(false);
+  const [demoBypass, setDemoBypassState] = useState(() => getAdminDemoBypass());
 
   const userRoles = useMemo(() => {
     try {
@@ -29,56 +39,63 @@ function AdminRoute() {
   const isAdminByStorage =
     userRole === 'admin' || (Array.isArray(userRoles) && userRoles.includes('admin'));
   const shouldVerifyAdmin = Boolean(userId && token);
-  // Si ya hay rol admin en storage, no bloquear la UI en cada montaje; la verificación sigue en background.
-  const [checkingAdmin, setCheckingAdmin] = useState(
-    () => Boolean(shouldVerifyAdmin && !isAdminByStorage)
-  );
+
+  /** Todos los usuarios con sesión esperan la 1ª verificación (evita flash de panel sin API). */
+  const [checkingAdmin, setCheckingAdmin] = useState(() => Boolean(shouldVerifyAdmin));
 
   useEffect(() => {
     let mounted = true;
     if (!shouldVerifyAdmin) {
+      setCheckingAdmin(false);
+      setStatsNetworkFailure(false);
       return () => {};
     }
+
+    setCheckingAdmin(true);
 
     (async () => {
       try {
         const res = await fetchWithAuth(
           `${BACKEND_URL}/api/admin/stats`,
           { method: 'GET', redirectOn401: false },
-          5000
+          VERIFY_TIMEOUT_MS
         );
         if (!mounted) return;
+
         if (res.ok) {
           localStorage.setItem('userRole', 'admin');
           setVerifiedAdmin(true);
-        } else {
-          // Solo revocamos el rol local si backend confirma falta de permisos/sesión.
-          if (res.status === 401 || res.status === 403) {
-            try {
-              const raw = localStorage.getItem('userRoles');
-              const parsed = raw ? JSON.parse(raw) : [];
-              const next = Array.isArray(parsed) ? parsed.filter((x) => x !== 'admin') : [];
-              localStorage.removeItem('userRole');
-              if (next.length) {
-                localStorage.setItem('userRoles', JSON.stringify(next));
-                localStorage.setItem('userRole', next[0]);
-              } else {
-                localStorage.removeItem('userRoles');
-              }
-            } catch {
-              localStorage.removeItem('userRole');
+          setStatsNetworkFailure(false);
+          clearAdminDemoBypass();
+          setDemoBypassState(false);
+        } else if (res.status === 401 || res.status === 403) {
+          try {
+            const raw = localStorage.getItem('userRoles');
+            const parsed = raw ? JSON.parse(raw) : [];
+            const next = Array.isArray(parsed) ? parsed.filter((x) => x !== 'admin') : [];
+            localStorage.removeItem('userRole');
+            if (next.length) {
+              localStorage.setItem('userRoles', JSON.stringify(next));
+              localStorage.setItem('userRole', next[0]);
+            } else {
               localStorage.removeItem('userRoles');
             }
-            setVerifiedAdmin(false);
-            return;
+          } catch {
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('userRoles');
           }
-          // Ante errores del servidor, preservamos el rol local para evitar falsos bloqueos.
+          setVerifiedAdmin(false);
+          setStatsNetworkFailure(false);
+          clearAdminDemoBypass();
+          setDemoBypassState(false);
+        } else {
           setVerifiedAdmin(isAdminByStorage);
+          setStatsNetworkFailure(false);
         }
       } catch {
         if (!mounted) return;
-        // Evita falsos "Acceso restringido" por fallas transitorias de red/CORS.
         setVerifiedAdmin(isAdminByStorage);
+        setStatsNetworkFailure(Boolean(isAdminByStorage));
       } finally {
         if (mounted) setCheckingAdmin(false);
       }
@@ -87,9 +104,22 @@ function AdminRoute() {
     return () => {
       mounted = false;
     };
-  }, [token, shouldVerifyAdmin, isAdminByStorage]);
+  }, [token, shouldVerifyAdmin, isAdminByStorage, retryNonce]);
 
   const isAdmin = verifiedAdmin || isAdminByStorage;
+
+  const enableDemoBypass = () => {
+    setAdminDemoBypass(true);
+    setDemoBypassState(true);
+    setStatsNetworkFailure(false);
+  };
+
+  const retryVerify = () => {
+    clearAdminDemoBypass();
+    setDemoBypassState(false);
+    setStatsNetworkFailure(false);
+    setRetryNonce((n) => n + 1);
+  };
 
   if (!userId) {
     return <Navigate to="/login" state={{ from: location.pathname, redirect: '/admin' }} replace />;
@@ -97,28 +127,105 @@ function AdminRoute() {
 
   if (checkingAdmin) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--maqgo-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-        Verificando permisos...
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'var(--maqgo-bg)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#fff',
+          padding: 24,
+          textAlign: 'center',
+        }}
+      >
+        <p style={{ fontSize: 16, margin: 0 }}>Verificando conexión con el panel MAQGO…</p>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', margin: '12px 0 0', maxWidth: 360 }}>
+          Comprobando permisos y alcance del API (
+          <code style={{ color: '#7EB8D4' }}>{maskBackendHost(BACKEND_URL)}</code>
+          ).
+        </p>
+      </div>
+    );
+  }
+
+  if (statsNetworkFailure && isAdmin && !demoBypass) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'var(--maqgo-bg)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          color: '#fff',
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        <div style={{ maxWidth: 440, textAlign: 'center' }}>
+          <p style={{ fontSize: 22, fontWeight: 700, margin: '0 0 12px', color: '#E8A34B' }}>
+            No hay conexión con el servidor MAQGO
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, lineHeight: 1.5, margin: '0 0 8px' }}>
+            No pudimos alcanzar el API en{' '}
+            <strong style={{ color: '#fff' }}>{maskBackendHost(BACKEND_URL)}</strong>. Revisa DNS (sin NXDOMAIN),
+            variable <code style={{ color: '#7EB8D4' }}>REACT_APP_BACKEND_URL</code> en Vercel y que Railway esté en
+            línea.
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: '0 0 24px' }}>
+            CORS: el backend debe permitir el origen de tu web (ej. <code>https://maqgo.vercel.app</code>) en{' '}
+            <code>CORS_ORIGINS</code>.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              type="button"
+              className="maqgo-btn-primary"
+              onClick={retryVerify}
+              style={{ padding: '12px 20px', fontWeight: 600 }}
+            >
+              Reintentar conexión
+            </button>
+            <button
+              type="button"
+              className="maqgo-btn-secondary"
+              onClick={enableDemoBypass}
+              style={{ padding: '12px 20px' }}
+            >
+              Entrar en modo demostración (solo vista, sin API)
+            </button>
+            <button
+              type="button"
+              className="maqgo-btn-secondary"
+              onClick={() => navigate('/', { replace: true })}
+              style={{ padding: '10px 20px', marginTop: 8 }}
+            >
+              Volver a la portada
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!isAdmin) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: 'var(--maqgo-bg)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        color: '#fff',
-        fontFamily: "'Inter', sans-serif"
-      }}>
-        <p style={{ fontSize: 24, fontWeight: 700, margin: '0 0 12px', color: '#F44336' }}>
-          Acceso restringido
-        </p>
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'var(--maqgo-bg)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          color: '#fff',
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        <p style={{ fontSize: 24, fontWeight: 700, margin: '0 0 12px', color: '#E57373' }}>Acceso restringido</p>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 15, margin: 0, textAlign: 'center' }}>
           Este panel es solo para el dueño / equipo interno MAQGO.
         </p>

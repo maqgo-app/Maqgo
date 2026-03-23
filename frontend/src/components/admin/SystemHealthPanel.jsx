@@ -124,7 +124,7 @@ function RiskBlock({ title, items, emptyLabel }) {
   );
 }
 
-export default function SystemHealthPanel({ stats, finances }) {
+export default function SystemHealthPanel({ stats, finances, isDemoData = false }) {
   const h = useMemo(() => deriveHealth(stats || {}, finances || {}), [stats, finances]);
   const st = statusStyle[h.status] || statusStyle.STABLE;
   const [detailOpen, setDetailOpen] = useState(true);
@@ -148,6 +148,26 @@ export default function SystemHealthPanel({ stats, finances }) {
         border: `1px solid ${st.border}`
       }}
     >
+      {isDemoData && (
+        <div
+          role="status"
+          style={{
+            marginBottom: 16,
+            padding: '10px 14px',
+            borderRadius: 10,
+            background: 'rgba(232, 163, 75, 0.18)',
+            border: '1px solid rgba(232, 163, 75, 0.5)',
+            color: 'rgba(255,255,255,0.95)',
+            fontSize: 13,
+            lineHeight: 1.45,
+          }}
+        >
+          <strong style={{ color: '#E8A34B', letterSpacing: 0.4 }}>DATOS DE DEMOSTRACIÓN</strong>
+          {' — '}
+          Las métricas, riesgos y acciones sugeridas se calculan sobre filas de ejemplo, no sobre producción. No usar
+          para decisiones operativas hasta reconectar el API.
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
         <div>
           <h2
