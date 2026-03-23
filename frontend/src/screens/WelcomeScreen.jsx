@@ -56,8 +56,7 @@ function WelcomeScreen() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    const role = localStorage.getItem('userRole');
-    if (!token || role !== 'admin') return undefined;
+    if (!token || !isAdminRoleStored()) return undefined;
     const ac = new AbortController();
     fetchWithAuth(`${BACKEND_URL}/api/admin/stats`, {
       redirectOn401: false,
@@ -169,7 +168,7 @@ function WelcomeScreen() {
           <button
             type="button"
             className="maqgo-btn-primary"
-            onClick={() => navigate('/admin')}
+            onClick={() => navigate(getWelcomeAppHomePath())}
             style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600 }}
           >
             Ir al panel interno
@@ -429,7 +428,7 @@ function WelcomeScreen() {
                 <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 9 }} aria-hidden="true">·</span>
                 <button
                   type="button"
-                  onClick={() => navigate('/admin')}
+                  onClick={() => navigate(getWelcomeAppHomePath())}
                   className="welcome-footer-btn"
                   style={{ color: adminPending > 0 ? '#EC6819' : undefined }}
                   aria-label={

@@ -11,6 +11,17 @@ function safeLocalStorage() {
   return null;
 }
 
+function parseUserRoles(ls) {
+  if (!ls) return [];
+  try {
+    const raw = ls.getItem('userRoles');
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Home coherente con BottomNavigation / login según `userRole` y `providerRole`.
  * Usado en Welcome (footer “Mi cuenta”) y CTA “Arrendar” cuando ya hay sesión.
@@ -19,8 +30,9 @@ export function getWelcomeAppHomePath() {
   const ls = safeLocalStorage();
   if (!ls || !ls.getItem('userId')) return ROUTES.CLIENT_HOME;
 
+  if (isAdminRoleStored()) return '/admin';
+
   const userRole = ls.getItem('userRole');
-  if (userRole === 'admin') return '/admin';
   if (userRole === 'client') return ROUTES.CLIENT_HOME;
   if (userRole === 'provider') {
     const providerRole = ls.getItem('providerRole');
@@ -40,7 +52,7 @@ export function getWelcomeOfferMachineryDestination() {
   if (!ls || !ls.getItem('userId')) return null;
 
   const userRole = ls.getItem('userRole');
-  if (userRole === 'admin') return '/admin';
+  if (isAdminRoleStored()) return '/admin';
   if (userRole === 'provider') {
     return ls.getItem('providerRole') === 'operator' ? ROUTES.OPERATOR_HOME : ROUTES.PROVIDER_HOME;
   }
@@ -54,7 +66,7 @@ export function getWelcomeOfferMachineryDestination() {
 export function getWelcomeOperatorDestination() {
   const ls = safeLocalStorage();
   if (!ls || !ls.getItem('userId')) return '/operator/join';
-  if (ls.getItem('userRole') === 'admin') return '/admin';
+  if (isAdminRoleStored()) return '/admin';
   if (ls.getItem('userRole') === 'provider' && ls.getItem('providerRole') === 'operator') {
     return ROUTES.OPERATOR_HOME;
   }
@@ -64,5 +76,6 @@ export function getWelcomeOperatorDestination() {
 export function isAdminRoleStored() {
   const ls = safeLocalStorage();
   if (!ls) return false;
-  return ls.getItem('userRole') === 'admin';
+  if (ls.getItem('userRole') === 'admin') return true;
+  return parseUserRoles(ls).includes('admin');
 }

@@ -52,6 +52,15 @@ describe('welcomeHome', () => {
       expect(getWelcomeAppHomePath()).toBe('/admin');
     });
 
+    it('admin solo en userRoles (multi-rol) → /admin', () => {
+      installLocalStorageMock({
+        userId: 'a1',
+        userRole: 'client',
+        userRoles: JSON.stringify(['client', 'admin']),
+      });
+      expect(getWelcomeAppHomePath()).toBe('/admin');
+    });
+
     it('proveedor titular → /provider/home', () => {
       installLocalStorageMock({
         userId: 'p1',
@@ -149,6 +158,14 @@ describe('welcomeHome', () => {
 
     it('true si userRole admin', () => {
       installLocalStorageMock({ userRole: 'admin' });
+      expect(isAdminRoleStored()).toBe(true);
+    });
+
+    it('true si userRoles incluye admin', () => {
+      installLocalStorageMock({
+        userRole: 'client',
+        userRoles: JSON.stringify(['admin']),
+      });
       expect(isAdminRoleStored()).toBe(true);
     });
   });
