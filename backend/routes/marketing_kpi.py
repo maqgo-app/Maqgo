@@ -110,12 +110,44 @@ async def _count_users_role(role: str, start: datetime, end: datetime) -> int:
     start_s = start.isoformat()
     end_s = end.isoformat()
     return await db.users.count_documents({
-        "role": role,
-        "$or": [
-            {"createdAt": {"$gte": start_s, "$lt": end_s}},
-            {"created_at": {"$gte": start, "$lt": end}},
+        "$and": [
+            {"$or": [{"role": role}, {"roles": role}]},
+            {
+                "$or": [
+                    {"createdAt": {"$gte": start_s, "$lt": end_s}},
+                    {"created_at": {"$gte": start, "$lt": end}},
+                ]
+            },
         ],
     })
+
+
+async def _load_users_role_cohort(role: str, start: datetime, end: datetime) -> List[Dict[str, Any]]:
+    """Cohorte semanal de usuarios nuevos por rol (compatibilidad createdAt string / created_at datetime)."""
+    start_s = start.isoformat()
+    end_s = end.isoformat()
+    cur = db.users.find(
+        {
+            "$and": [
+                {"$or": [{"role": role}, {"roles": role}]},
+                {
+                    "$or": [
+                        {"createdAt": {"$gte": start_s, "$lt": end_s}},
+                        {"created_at": {"$gte": start, "$lt": end}},
+                    ]
+                },
+            ]
+        },
+        {
+            "_id": 0,
+            "id": 1,
+            "email": 1,
+            "onboarding_completed": 1,
+            "isAvailable": 1,
+            "provider_role": 1,
+        },
+    )
+    return await cur.to_list(5000)
 
 
 async def _count_services_created(start: datetime, end: datetime) -> int:
@@ -149,10 +181,39 @@ async def build_marketing_report_for_week(week_start: datetime) -> Dict[str, Any
     start, end = _week_range(week_start)
     spend_block = await _load_spend_for_week(week_start)
 
-    nuevos_clientes = await _count_users_role("client", start, end)
-    nuevos_proveedores = await _count_users_role("provider", start, end)
+    client_cohort = await _load_users_role_cohort("client", start, end)
+    provider_cohort = await _load_users_role_cohort("provider", start, end)
+    nuevos_clientes = len(client_cohort)
+    nuevos_proveedores = len(provider_cohort)
     servicios_creados = await _count_services_created(start, end)
     servicios_pagados = await _count_services_paid(start, end)
+
+    # Funnel clientes (cohorte de nuevos clientes de la semana)
+    client_ids = [u.get("id") for u in client_cohort if u.get("id")]
+    client_emails = [u.get("email") for u in client_cohort if u.get("email")]
+    clientes_con_tarjeta = 0
+    clientes_con_solicitud = 0
+    clientes_con_servicio_pagado = 0
+    if client_emails:
+        clientes_con_tarjeta = await db.oneclick_inscriptions.count_documents({"email": {"$in": client_emails}})
+    if client_ids:
+        clientes_con_solicitud = await db.service_requests.count_documents({"clientId": {"$in": client_ids}})
+        clientes_con_servicio_pagado = await db.services.count_documents({
+            "client_id": {"$in": client_ids},
+            "status": "paid",
+            "paid_at": {"$gte": start, "$lt": end},
+        })
+
+    # Funnel proveedores (cohorte de nuevos proveedores de la semana)
+    provider_ids = [u.get("id") for u in provider_cohort if u.get("id")]
+    proveedores_onboarding_ok = sum(1 for u in provider_cohort if bool(u.get("onboarding_completed")))
+    proveedores_disponibles = sum(1 for u in provider_cohort if bool(u.get("isAvailable")))
+    proveedores_con_primer_servicio = 0
+    if provider_ids:
+        proveedores_con_primer_servicio = await db.services.count_documents({
+            "provider_id": {"$in": provider_ids},
+            "created_at": {"$gte": start, "$lt": end},
+        })
 
     gc = spend_block["gasto_clientes_clp"]
     gp = spend_block["gasto_proveedores_clp"]
@@ -176,6 +237,27 @@ async def build_marketing_report_for_week(week_start: datetime) -> Dict[str, Any
             "nuevos_proveedores": nuevos_proveedores,
             "servicios_creados": servicios_creados,
             "servicios_pagados_cerrados": servicios_pagados,
+        },
+        "funnel": {
+            "clientes": {
+                "registrados": nuevos_clientes,
+                "con_tarjeta_oneclick": clientes_con_tarjeta,
+                "con_solicitud_servicio": clientes_con_solicitud,
+                "con_servicio_pagado_semana": clientes_con_servicio_pagado,
+                "abandono_sin_tarjeta": max(0, nuevos_clientes - clientes_con_tarjeta),
+                "abandono_sin_solicitud": max(0, clientes_con_tarjeta - clientes_con_solicitud),
+            },
+            "proveedores": {
+                "registrados": nuevos_proveedores,
+                "onboarding_completado": proveedores_onboarding_ok,
+                "disponibles": proveedores_disponibles,
+                "con_primer_servicio_semana": proveedores_con_primer_servicio,
+                "abandono_antes_onboarding": max(0, nuevos_proveedores - proveedores_onboarding_ok),
+            },
+            "nota": (
+                "Funnel calculado sobre cohortes nuevas de la semana. "
+                "Tarjeta cliente usa oneclick_inscriptions por email; proveedor usa onboarding_completed/isAvailable."
+            ),
         },
         "kpi": {
             # Registro: gasto de la semana atribuido a esa audiencia ÷ nuevos usuarios con ese role en la misma ventana.

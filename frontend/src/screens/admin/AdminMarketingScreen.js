@@ -707,35 +707,96 @@ function AdminMarketingScreen() {
             </button>
           </div>
           {report && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-              <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Inversión clientes</div>
-                <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtMoney(report.inversion_clp?.clientes)}</div>
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Inversión clientes</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtMoney(report.inversion_clp?.clientes)}</div>
+                </div>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Inversión proveedores</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtMoney(report.inversion_clp?.proveedores)}</div>
+                </div>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>CAC cliente (registro)</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: '#90BDD3' }}>{fmtMoney(report.kpi?.CAC_cliente_registro_clp)}</div>
+                </div>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>CAC / costo adq. proveedor</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: '#CE93D8' }}>{fmtMoney(report.kpi?.CAC_proveedor_registro_clp)}</div>
+                </div>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Nuevos clientes</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtCount(report.volumen?.nuevos_clientes)}</div>
+                </div>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Nuevos proveedores</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtCount(report.volumen?.nuevos_proveedores)}</div>
+                </div>
               </div>
-              <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Inversión proveedores</div>
-                <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtMoney(report.inversion_clp?.proveedores)}</div>
+
+              <div style={{ marginTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 14 }}>
+                <h3 style={{ margin: '0 0 10px', fontSize: 13, color: '#90BDD3', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Funnel semanal clientes
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Registrados</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.clientes?.registrados)}</div>
+                  </div>
+                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Con tarjeta</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.clientes?.con_tarjeta_oneclick)}</div>
+                  </div>
+                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Con solicitud</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.clientes?.con_solicitud_servicio)}</div>
+                  </div>
+                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Pagados semana</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.clientes?.con_servicio_pagado_semana)}</div>
+                  </div>
+                  <div style={{ background: 'rgba(229,115,115,0.1)', border: '1px solid rgba(229,115,115,0.28)', borderRadius: 8, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Abandono sin tarjeta</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#E57373' }}>{fmtCount(report.funnel?.clientes?.abandono_sin_tarjeta)}</div>
+                  </div>
+                </div>
               </div>
-              <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>CAC cliente (registro)</div>
-                <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: '#90BDD3' }}>{fmtMoney(report.kpi?.CAC_cliente_registro_clp)}</div>
+
+              <div style={{ marginTop: 12 }}>
+                <h3 style={{ margin: '0 0 10px', fontSize: 13, color: '#CE93D8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Funnel semanal proveedores
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Registrados</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.proveedores?.registrados)}</div>
+                  </div>
+                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Onboarding completo</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.proveedores?.onboarding_completado)}</div>
+                  </div>
+                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Disponibles</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.proveedores?.disponibles)}</div>
+                  </div>
+                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Con primer servicio</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.proveedores?.con_primer_servicio_semana)}</div>
+                  </div>
+                  <div style={{ background: 'rgba(229,115,115,0.1)', border: '1px solid rgba(229,115,115,0.28)', borderRadius: 8, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Abandono pre onboarding</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#E57373' }}>{fmtCount(report.funnel?.proveedores?.abandono_antes_onboarding)}</div>
+                  </div>
+                </div>
               </div>
-              <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>CAC / costo adq. proveedor</div>
-                <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: '#CE93D8' }}>{fmtMoney(report.kpi?.CAC_proveedor_registro_clp)}</div>
-              </div>
-              <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Nuevos clientes</div>
-                <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtCount(report.volumen?.nuevos_clientes)}</div>
-              </div>
-              <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Nuevos proveedores</div>
-                <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtCount(report.volumen?.nuevos_proveedores)}</div>
-              </div>
-            </div>
+            </>
           )}
           {report?.kpi?.nota && (
             <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 14, lineHeight: 1.5 }}>{report.kpi.nota}</p>
+          )}
+          {report?.funnel?.nota && (
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 8, lineHeight: 1.45 }}>{report.funnel.nota}</p>
           )}
         </section>
       </div>
