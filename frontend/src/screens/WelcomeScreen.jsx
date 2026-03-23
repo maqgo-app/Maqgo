@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import MaqgoLogo from '../components/MaqgoLogo';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 import { useWelcomeLayout } from '../hooks/useWelcomeLayout';
@@ -49,6 +49,8 @@ function IconUser() {
  */
 function WelcomeScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [adminPending, setAdminPending] = useState(0);
   const { isDesktop, isNarrowMobile, isShortViewport, viewportHeight, viewportWidth } = useWelcomeLayout();
   // welcome-reveal en DOM desde el 1er frame (opacity 0 en CSS); welcome-mounted tras layout dispara animación (evita flash visible→oculto).
@@ -88,6 +90,15 @@ function WelcomeScreen() {
 
   const hasSession = !!localStorage.getItem('userId');
   const showAdminInFooter = isAdminRoleStored();
+  /** Admin con sesión: la portada es para mercado; sin ?preview=1 se redirige al panel (login ya manda a /admin). */
+  const allowPublicPreview =
+    searchParams.get('preview') === '1' || location.state?.previewPublic === true;
+  const isAdminSession = hasSession && isAdminRoleStored();
+  const showMarketplaceCTAs = !isAdminSession;
+
+  if (isAdminSession && !allowPublicPreview) {
+    return <Navigate to="/admin" replace />;
+  }
 
   const handleAccount = () => {
     if (hasSession) {
@@ -223,6 +234,24 @@ function WelcomeScreen() {
           >
             <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 12) : heroLogoBottom }} />
           </div>
+          {/* Wordmark explícito (además del logo): alinea copy con guion comercial / lectores */}
+          <p
+            className="welcome-reveal"
+            style={{
+              ['--welcome-d']: '35ms',
+              marginTop: isDesktop ? -6 : -8,
+              marginBottom: isShortViewport ? 6 : (isNarrowMobile ? 8 : 10),
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: isDesktop ? 26 : scalePx(isShortViewport ? 17 : 19, 16, 22),
+              fontWeight: 600,
+              letterSpacing: '0.14em',
+              color: '#FAFAFA',
+              textTransform: 'uppercase',
+              lineHeight: 1.1,
+            }}
+          >
+            MAQGO
+          </p>
           <div
             className="welcome-hero-caluga welcome-reveal"
             style={{
@@ -304,6 +333,8 @@ function WelcomeScreen() {
           /* Aire antes del footer: los CTAs no deben verse pegados al pie */
           paddingBottom: isDesktop ? 52 : (isShortViewport ? 28 : (isNarrowMobile ? 36 : 40))
         }}>
+          {showMarketplaceCTAs ? (
+            <>
           <button
             onClick={() => {
               const target = '/client/home';
@@ -369,6 +400,43 @@ function WelcomeScreen() {
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Unirme con código de equipo</div>
             </div>
           </button>
+            </>
+          ) : (
+            <div
+              className="welcome-reveal"
+              style={{
+                ['--welcome-d']: '200ms',
+                maxWidth: 420,
+                margin: '0 auto',
+                width: '100%',
+                padding: '16px 14px',
+                borderRadius: 14,
+                background: 'rgba(22, 22, 28, 0.72)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                textAlign: 'center',
+              }}
+            >
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  color: 'rgba(255,255,255,0.82)',
+                  lineHeight: 1.45,
+                  margin: '0 0 14px',
+                }}
+              >
+                Vista previa de la portada pública. Con sesión de administrador no mostramos acciones de cliente, proveedor u operador.
+              </p>
+              <button
+                type="button"
+                className="maqgo-btn-primary"
+                onClick={() => navigate('/admin', { replace: true })}
+                style={{ width: '100%', padding: '12px 16px', fontSize: 14, fontWeight: 600 }}
+              >
+                Volver al panel interno
+              </button>
+            </div>
+          )}
         </main>
 
         {/* Footer - compacto en viewports cortos */}

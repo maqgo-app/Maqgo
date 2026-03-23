@@ -386,8 +386,8 @@ function AdminDashboard() {
             <button
               type="button"
               className="maqgo-btn-secondary"
-              onClick={() => navigate('/welcome')}
-              aria-label="Abrir la portada pública de MAQGO (marketing, no el panel admin)"
+              onClick={() => navigate('/welcome?preview=1')}
+              aria-label="Vista previa de la portada pública MAQGO (sin CTAs de mercado)"
             >
               Ver portada pública
             </button>
