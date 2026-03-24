@@ -139,7 +139,6 @@ function SearchingProviderScreen() {
     const allProviders = getArray('matchedProviders', []);
     const hours = parseInt(localStorage.getItem('selectedHours') || '4');
     const maxTotalAmount = parseInt(localStorage.getItem('maxTotalAmount') || '0');
-    const isPerTrip = MACHINERY_PER_TRIP.includes(machinery);
 
     setSelectedProvider(selected);
     setMaxTotal(maxTotalAmount);
@@ -246,16 +245,6 @@ function SearchingProviderScreen() {
       return () => clearTimeout(timer);
     }
   }, [status, navigate]);
-
-  const handleRetry = () => {
-    setStatus('searching');
-    setCurrentAttempt(1);
-    setSecondsLeft(SECONDS_PER_ATTEMPT);
-    setTotalElapsed(0);
-    if (eligibleProviders.length > 0) {
-      setCurrentProvider(eligibleProviders[0]);
-    }
-  };
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);

@@ -25,7 +25,10 @@ function OperatorHomeScreen() {
   const [available, setAvailable] = useState(() => {
     return localStorage.getItem('providerAvailable') === 'true';
   });
-  const [ownerName, setOwnerName] = useState('');
+  const [ownerName, setOwnerName] = useState(() => {
+    const saved = getObject('providerData', {});
+    return saved.businessName || '';
+  });
   const [stats, setStats] = useState({ completed: 0, pending: 0, rating: 5.0, hoursWorked: 0 });
   const [loading, setLoading] = useState(true);
   const [nextJob, setNextJob] = useState(null);
@@ -121,10 +124,7 @@ function OperatorHomeScreen() {
   }, [available, navigate]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      loadOperatorData();
-    }, 0);
-    return () => clearTimeout(t);
+    loadOperatorData();
   }, []);
 
   const toggleAvailability = async () => {

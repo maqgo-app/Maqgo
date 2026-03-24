@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
@@ -43,14 +43,7 @@ function compressImage(dataUrl) {
 
 function MachinePhotosScreen() {
   const navigate = useNavigate();
-  const [photos, setPhotos] = useState([]);
-
-  useEffect(() => {
-    const saved = getArray('machinePhotos', []);
-    if (saved.length > 0) {
-      setTimeout(() => setPhotos(saved), 0);
-    }
-  }, []);
+  const [photos, setPhotos] = useState(() => getArray('machinePhotos', []));
 
   const handleAddPhoto = (e) => {
     if (photos.length >= MAX_PHOTOS) return;

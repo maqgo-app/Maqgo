@@ -14,6 +14,8 @@ from rate_limit import limiter
 
 # Load environment variables (solo rellena claves faltantes; no pisa vars del host/Railway)
 ROOT_DIR = Path(__file__).parent
+_static_dir = ROOT_DIR / "static"
+_SERVE_SPA = _static_dir.is_dir() and (_static_dir / "index.html").is_file()
 load_dotenv(ROOT_DIR / ".env", override=False)
 
 # Configure logging early
@@ -223,14 +225,6 @@ if maps_router is not None:
     app.include_router(maps_router)
 
 # Health checks de infraestructura (Railway/monitoreo externo)
-@app.get("/")
-async def infra_root():
-    return {
-        "service": "maqgo-backend",
-        "status": "ok",
-        "api": "/api/"
-    }
-
 @app.get("/healthz")
 async def infra_healthz():
     return {"status": "ok"}
@@ -239,11 +233,13 @@ async def infra_healthz():
 @app.get("/healthz/otp-readiness")
 async def infra_healthz_otp_readiness():
     """
-    Infra: OTP vía Redis+SNS. Separado de /api/communications/status para no mezclar dominio con despliegue.
+    Infra: OTP vía Redis+LabsMobile. Separado de /api/communications/status para no mezclar dominio con despliegue.
     No expone secretos; solo presencia de variables y flag canónico is_otp_configured().
     """
     redis_url_set = bool(str(os.environ.get("REDIS_URL", "")).strip())
-    aws_key_id_set = bool(str(os.environ.get("AWS_ACCESS_KEY_ID", "")).strip())
+    labsmobile_username_set = bool(str(os.environ.get("LABSMOBILE_USERNAME", "")).strip())
+    labsmobile_token_set = bool(str(os.environ.get("LABSMOBILE_API_TOKEN", "")).strip())
+    labsmobile_sender_set = bool(str(os.environ.get("LABSMOBILE_SENDER", "")).strip())
     try:
         from services.otp_service import is_otp_configured
 
@@ -253,5 +249,23 @@ async def infra_healthz_otp_readiness():
     return {
         "ready": ready,
         "redis_url_set": redis_url_set,
-        "aws_access_key_id_set": aws_key_id_set,
+        "labsmobile_username_set": labsmobile_username_set,
+        "labsmobile_api_token_set": labsmobile_token_set,
+        "labsmobile_sender_set": labsmobile_sender_set,
     }
+
+
+if not _SERVE_SPA:
+    @app.get("/")
+    async def infra_root():
+        return {
+            "service": "maqgo-backend",
+            "status": "ok",
+            "api": "/api/",
+        }
+
+
+if _SERVE_SPA:
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="spa")

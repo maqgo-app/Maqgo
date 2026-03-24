@@ -87,7 +87,9 @@ function MachineryAssignedScreen() {
         await unlockAudio();
         playNotificationSound(); // suave: solo aviso de "ya va en camino"
         vibrate('accepted');
-      } catch (_) {}
+      } catch {
+        void 0;
+      }
     }, 10000);
     return () => clearTimeout(t);
   }, []);
@@ -95,7 +97,7 @@ function MachineryAssignedScreen() {
   const [etaMinutes, setEtaMinutes] = useState(provider.eta_minutes || 40);
   
   // Estado del timeout
-  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  const [, setElapsedMinutes] = useState(0);
   const [showTimeoutOption, setShowTimeoutOption] = useState(false);
   const [showNoShowModal, setShowNoShowModal] = useState(false);
   

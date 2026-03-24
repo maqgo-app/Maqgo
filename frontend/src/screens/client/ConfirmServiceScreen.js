@@ -9,11 +9,13 @@ import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import { buildPricingFallback, calculateClientPrice, MACHINERY_NO_TRANSPORT, totalConFactura, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, REFERENCE_PRICES } from '../../utils/pricing';
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, getProviderSpecDisplay, isPerTripMachineryType } from '../../utils/machineryNames';
-import { getPerTripDateLabel, getDateRangeShort as getDateRangeShortUtil, formatDateSingle } from '../../utils/bookingDates';
+import { getDateRangeShort as getDateRangeShortUtil, formatDateSingle } from '../../utils/bookingDates';
 import { MaqgoButton } from '../../components/base';
 
 const MIN_HOURS_IMMEDIATE = 4;
 const MAX_HOURS_IMMEDIATE = 8;
+/** Referencia estable para useMemo (evita deps falsas por array nuevo cada render). */
+const TRIP_PRICE_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
 
 /**
  * Pantalla: Confirma tu Servicio
@@ -27,33 +29,31 @@ function ConfirmServiceScreen() {
   const { pathname } = useLocation();
   const backRoute = getBookingBackRoute(pathname);
   // Inicializar desde localStorage en el primer render para evitar flash "No hay proveedor"
-  const [location, setLocation] = useState(() => localStorage.getItem('serviceLocation') || '');
-  const [provider, setProvider] = useState(() => getObject('selectedProvider', {}));
-  const [hoursToday, setHoursToday] = useState(() => {
+  const [location, _setLocation] = useState(() => localStorage.getItem('serviceLocation') || '');
+  const [provider, _setProvider] = useState(() => getObject('selectedProvider', {}));
+  const [hoursToday, _setHoursToday] = useState(() => {
     const type = localStorage.getItem('reservationType') || 'immediate';
     const saved = parseInt(localStorage.getItem('selectedHours') || '4');
     return type === 'scheduled' ? 8 : Math.max(MIN_HOURS_IMMEDIATE, Math.min(MAX_HOURS_IMMEDIATE, saved));
   });
-  const [additionalDays, setAdditionalDays] = useState(() => parseInt(localStorage.getItem('additionalDays') || '0'));
-  const [reservationType, setReservationType] = useState(() => localStorage.getItem('reservationType') || 'immediate');
-  const [machinery, setMachinery] = useState(() => localStorage.getItem('selectedMachinery') || 'retroexcavadora');
-  const [selectedDate, setSelectedDate] = useState(() => localStorage.getItem('selectedDate') || '');
-  const [selectedDates, setSelectedDates] = useState(() => getArray('selectedDates', []));
+  const [additionalDays] = useState(() => parseInt(localStorage.getItem('additionalDays') || '0'));
+  const [reservationType] = useState(() => localStorage.getItem('reservationType') || 'immediate');
+  const [machinery] = useState(() => localStorage.getItem('selectedMachinery') || 'retroexcavadora');
+  const [selectedDate] = useState(() => localStorage.getItem('selectedDate') || '');
+  const [selectedDates] = useState(() => getArray('selectedDates', []));
   const [showBreakdown, setShowBreakdown] = useState(true);
   const [pricing, setPricing] = useState(null);
-  const [priceError, setPriceError] = useState(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const [, setPriceError] = useState(null);
+  const [retryCount] = useState(0);
   const [needsInvoice, setNeedsInvoice] = useState(() => localStorage.getItem('needsInvoice') === 'true');
-  const [urgencyType, setUrgencyType] = useState(() => localStorage.getItem('urgencyType') || null);
-  const [selectedProviderIds, setSelectedProviderIds] = useState(() => getArray('selectedProviderIds', []));
-  const [matchedProviders, setMatchedProviders] = useState(() => getArray('matchedProviders', []));
+  const [selectedProviderIds] = useState(() => getArray('selectedProviderIds', []));
   const [isConfirming, setIsConfirming] = useState(false);
 
   // Actualiza el "tope" de navegación de la app en la bolita del paso 5.
   // Esto permite "adelantar/retroceder hasta donde llegaste" manteniendo el dato vigente por 24h.
   useEffect(() => {
     saveBookingProgress('confirm');
-  }, [saveBookingProgress]);
+  }, []);
 
   const machineryKey = (machinery || '').toLowerCase().replace(/\s+/g, '_');
   const isPerTrip = isPerTripMachineryType(machinery);
@@ -62,7 +62,6 @@ function ConfirmServiceScreen() {
   const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machineryKey) && !MACHINERY_NO_TRANSPORT.includes(machinery);
 
   const refTrip = isPerTrip ? (REFERENCE_PRICES[machineryKey] ?? REFERENCE_PRICES[machinery]) : null;
-  const tripSpread = [0.85, 0.92, 1, 1.08, 1.15];
   const hoursForPricing = reservationType === 'scheduled' ? 8 : hoursToday;
 
   /** Rango de precios (menor–mayor) y proveedor que da el máximo (para que el desglose coincida con el rango). */
@@ -82,7 +81,7 @@ function ConfirmServiceScreen() {
       }
 
       let base = p.price_per_hour || 0;
-      if (refTrip && base > 0 && base < 100000) base = Math.round(refTrip * (tripSpread[Math.min(idx, 4)] || 1));
+      if (refTrip && base > 0 && base < 100000) base = Math.round(refTrip * (TRIP_PRICE_SPREAD[Math.min(idx, 4)] || 1));
       const sinFacturaTotal = calculateClientPrice({
         machineryType: machineryKey || machinery,
         basePrice: base,
@@ -102,7 +101,7 @@ function ConfirmServiceScreen() {
     const maxT = Math.max(...totals);
     const maxIdx = totals.indexOf(maxT);
     return { priceRange: { min: minT, max: maxT }, providerForMax: selected[maxIdx] };
-  }, [provider, selectedProviderIds, matchedProviders, machinery, hoursToday, totalDays, reservationType, needsTransport, isPerTrip, hoursForPricing]);
+  }, [provider, machinery, machineryKey, refTrip, totalDays, reservationType, needsTransport, hoursForPricing]);
 
   // Proveedor usado para pedir precio al backend: el que da el máximo del rango (así el desglose = valor máximo mostrado)
   const effectiveProvider = useMemo(() => {
@@ -113,7 +112,7 @@ function ConfirmServiceScreen() {
       return { ...base, price_per_hour: refTrip || price };
     }
     return base;
-  }, [providerForMax, machinery, isPerTrip, refTrip]);
+  }, [providerForMax, isPerTrip, refTrip]);
 
   // Fallback local para mostrar desde el primer render (evita flash "Calculando precio..." → desglose)
   // Para per-trip (tolva, pluma, aljibe): si price_per_hour es 0, usar REFERENCE_PRICES
@@ -225,9 +224,6 @@ function ConfirmServiceScreen() {
   // Mostrar fallback desde el primer render para evitar flash (layout estable)
   const displayPricing = pricing ?? fallbackPricing;
 
-  // El total base sin considerar factura
-  const totalBase = displayPricing?.final_price || 0;
-
   const formatPrice = (price) => {
     const n = price != null && !Number.isNaN(Number(price)) ? Number(price) : 0;
     return new Intl.NumberFormat('es-CL', { 
@@ -323,7 +319,6 @@ function ConfirmServiceScreen() {
   const totalFinal = displayPricing?.final_price ?? totalConFactura(Math.round(subtotalNeto + maqgoFeeConIva));
   const ivaTotal = Math.max(0, totalFinal - subtotalNeto - maqgoFeeNeto);
 
-  const dateRangeShort = getDateRangeShortUtil(selectedDates, selectedDate);
   const dateRangeWithYear = getDateRangeShortUtil(selectedDates, selectedDate, { includeYear: true });
 
   // Calcular descripción del servicio (sin duplicar con la línea de fecha debajo)

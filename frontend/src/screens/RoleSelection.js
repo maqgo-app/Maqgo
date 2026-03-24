@@ -6,6 +6,7 @@ import MaqgoLogo from '../components/MaqgoLogo';
 
 import BACKEND_URL from '../utils/api';
 import { getObject } from '../utils/safeStorage';
+import { rememberLoginEmail } from '../utils/loginHints';
 import { PASSWORD_RULES } from '../utils/passwordValidation';
 
 /**
@@ -59,6 +60,7 @@ function RoleSelection({ setUserRole, setUserId }) {
   }, [navigate]);
 
   const handleOptionClick = (role) => {
+    if (loading) return;
     setSelected(role);
     // UX estable: un toque avanza, sin requerir doble toque.
     handleContinueWithRole(role);
@@ -70,7 +72,7 @@ function RoleSelection({ setUserRole, setUserId }) {
   };
 
   const handleContinueWithRole = async (roleToUse) => {
-    if (!roleToUse) return;
+    if (!roleToUse || loading) return;
     setLoading(true);
     setSelected(roleToUse);
     try {
@@ -102,7 +104,8 @@ function RoleSelection({ setUserRole, setUserId }) {
         localStorage.setItem('userId', res.data.id);
         localStorage.setItem('userRole', roleToUse);
         if (res.data.token) localStorage.setItem('token', res.data.token);
-      } catch (e) {
+        if (data.email) rememberLoginEmail(data.email);
+      } catch {
         // Backend lento o no disponible → demo inmediato
         const id = `demo-${Date.now()}`;
         setUserRole(roleToUse);
@@ -112,12 +115,19 @@ function RoleSelection({ setUserRole, setUserId }) {
       }
       const savedReturnUrl = getAndClearReturnUrl() || returnUrl;
       if (roleToUse === 'client') {
+        // Evita contaminación de flujos de proveedor al volver al modo cliente.
+        localStorage.removeItem('providerOnboardingCompleted');
+        localStorage.removeItem('providerCameFromWelcome');
         if (savedReturnUrl && savedReturnUrl.startsWith('/client/')) {
           navigate(savedReturnUrl);
         } else {
           navigate('/client/home');
         }
       } else {
+        // Evita reanudar pasos de reserva cliente al cambiar a proveedor.
+        localStorage.removeItem('bookingProgress');
+        localStorage.removeItem('clientBookingStep');
+        localStorage.removeItem('reservationType');
         localStorage.removeItem('providerCameFromWelcome');
         localStorage.setItem('providerOnboardingCompleted', 'false');
         if (savedReturnUrl && savedReturnUrl.startsWith('/provider/')) {
@@ -161,6 +171,7 @@ function RoleSelection({ setUserRole, setUserId }) {
           <button 
             className={`maqgo-option-card ${selected === 'client' ? 'selected' : ''}`}
             onClick={() => handleOptionClick('client')}
+            disabled={loading}
           >
             <span className="maqgo-option-title">Soy Cliente</span>
             <span className="maqgo-option-desc">Necesito maquinaria</span>
@@ -169,6 +180,7 @@ function RoleSelection({ setUserRole, setUserId }) {
           <button 
             className={`maqgo-option-card ${selected === 'provider' ? 'selected' : ''}`}
             onClick={() => handleOptionClick('provider')}
+            disabled={loading}
           >
             <span className="maqgo-option-title">Soy Proveedor</span>
             <span className="maqgo-option-desc">Tengo maquinaria</span>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getObject, getJSON, getArray } from '../../utils/safeStorage';
@@ -10,6 +10,45 @@ import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { IMMEDIATE_MULTIPLIERS } from '../../utils/pricing';
 const MIN_HOURS_FOR_LUNCH = 6;
+
+function buildInitialIncomingRequest() {
+  const parsed = getJSON('incomingRequest', null);
+  if (parsed) return parsed;
+
+  const machineData = getObject('machineData', {});
+  const machineryType = machineData.machineryType || 'retroexcavadora';
+  const billingData = getObject('billingData', {});
+  const serviceLat = parseFloat(localStorage.getItem('serviceLat'));
+  const serviceLng = parseFloat(localStorage.getItem('serviceLng'));
+  const serviceLocation = localStorage.getItem('serviceLocation') || 'Av. Providencia 1234, Santiago';
+  const workCoords =
+    Number.isFinite(serviceLat) && Number.isFinite(serviceLng) ? { lat: serviceLat, lng: serviceLng } : null;
+  const clientPhone = localStorage.getItem('userPhone') || '+56987654321';
+  const serviceReference = localStorage.getItem('serviceReference') || '';
+
+  return {
+    id: `req-${Date.now()}`,
+    machineryType: MACHINERY_NAMES[machineryType] || machineryType,
+    machineryId: machineryType,
+    location: serviceLocation,
+    hours: 4,
+    date: new Date().toLocaleDateString('es-CL'),
+    reservationType: 'immediate',
+    clientName: billingData.nombre
+      ? `${billingData.nombre} ${billingData.apellido || ''}`.trim()
+      : 'Carlos González',
+    clientPhone,
+    clientRating: 4.7,
+    pricePerHour: 80000,
+    transportFee: 35000,
+    distance: 5.2,
+    eta: 10,
+    client_lat: workCoords?.lat,
+    client_lng: workCoords?.lng,
+    workCoords,
+    reference: serviceReference
+  };
+}
 
 /**
  * Pantalla: Solicitud Recibida (PROVEEDOR)
@@ -23,51 +62,13 @@ const MIN_HOURS_FOR_LUNCH = 6;
 function RequestReceivedScreen() {
   const navigate = useNavigate();
   const [countdown, setCountdown] = useState(60);
-  const [request, setRequest] = useState(null);
+  const [request] = useState(buildInitialIncomingRequest);
   const [loading, setLoading] = useState(false);
   const [expired, setExpired] = useState(false);
   const [acceptError, setAcceptError] = useState(null); // Error al aceptar (pago, red, etc.)
+  const expirationHandledRef = useRef(false);
 
   useEffect(() => {
-    const parsed = getJSON('incomingRequest', null);
-    if (parsed) {
-      setTimeout(() => setRequest(parsed), 0);
-    } else {
-      // Demo data - usar tipo de maquinaria del proveedor
-      const machineData = getObject('machineData', {});
-      const machineryType = machineData.machineryType || 'retroexcavadora';
-      
-      const billingData = getObject('billingData', {});
-      const serviceLat = parseFloat(localStorage.getItem('serviceLat'));
-      const serviceLng = parseFloat(localStorage.getItem('serviceLng'));
-      const serviceLocation = localStorage.getItem('serviceLocation') || 'Av. Providencia 1234, Santiago';
-      const workCoords = (Number.isFinite(serviceLat) && Number.isFinite(serviceLng))
-        ? { lat: serviceLat, lng: serviceLng } : null;
-      const clientPhone = localStorage.getItem('userPhone') || '+56987654321';
-      const serviceReference = localStorage.getItem('serviceReference') || '';
-      setTimeout(() => setRequest({
-        id: `req-${Date.now()}`,
-        machineryType: MACHINERY_NAMES[machineryType] || machineryType,
-        machineryId: machineryType,
-        location: serviceLocation,
-        hours: 4,
-        date: new Date().toLocaleDateString('es-CL'),
-        reservationType: 'immediate',
-        clientName: billingData.nombre ? `${billingData.nombre} ${billingData.apellido || ''}`.trim() : 'Carlos González',
-        clientPhone,
-        clientRating: 4.7,
-        pricePerHour: 80000,
-        transportFee: 35000,
-        distance: 5.2,
-        eta: 10,
-        client_lat: workCoords?.lat,
-        client_lng: workCoords?.lng,
-        workCoords,
-        reference: serviceReference
-      }), 0);
-    }
-    
-    // Reproducir sonido y vibración al recibir solicitud
     unlockAudio();
     playNewRequestSound();
     vibrate('newRequest');
@@ -75,13 +76,16 @@ function RequestReceivedScreen() {
 
   useEffect(() => {
     if (countdown <= 0) {
-      setTimeout(() => setExpired(true), 0);
-      // Auto-redirigir después de 3 segundos (operador → operator/home, proveedor → provider/home)
-      const home = localStorage.getItem('providerRole') === 'operator' ? '/operator/home' : '/provider/home';
-      setTimeout(() => navigate(home), 3000);
-      return;
+      if (!expirationHandledRef.current) {
+        expirationHandledRef.current = true;
+        setExpired(true);
+        const home = localStorage.getItem('providerRole') === 'operator' ? '/operator/home' : '/provider/home';
+        const t = setTimeout(() => navigate(home), 3000);
+        return () => clearTimeout(t);
+      }
+      return undefined;
     }
-    const timer = setInterval(() => setCountdown(c => c - 1), 1000);
+    const timer = setInterval(() => setCountdown((c) => c - 1), 1000);
     return () => clearInterval(timer);
   }, [countdown, navigate]);
 

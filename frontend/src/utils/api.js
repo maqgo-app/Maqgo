@@ -3,13 +3,17 @@
  * - Timeouts para evitar esperas indefinidas
  * - Token Bearer en headers para rutas protegidas
  * - Manejo de 401 → logout y redirect a login
+ *
+ * Producción split: el usuario abre www; REACT_APP_BACKEND_URL apunta al host del API (ej. api.maqgo.cl).
+ * Producción unificado: mismo origen que la web (ej. www.maqgo.cl).
  */
 
 import axios from 'axios';
 
 // vite.config define: process.env.REACT_APP_BACKEND_URL (desde .env o .env.production)
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
-const DEFAULT_TIMEOUT_MS = 8000;
+// OTP/SMS puede tardar más en producción por latencia de proveedor externo.
+const DEFAULT_TIMEOUT_MS = 20000;
 
 // Timeout global para todas las peticiones axios
 axios.defaults.timeout = DEFAULT_TIMEOUT_MS;

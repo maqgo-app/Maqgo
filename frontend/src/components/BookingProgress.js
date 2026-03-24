@@ -89,15 +89,20 @@ function BookingProgress() {
     6: '/client/card'
   };
 
+  const stepLabel = STEPS[currentStep - 1]?.label || '';
+
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 20,
-      padding: '0 8px'
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 20,
+        padding: '0 8px'
+      }}
+      aria-label={stepLabel ? `Reserva: paso ${currentStep} de ${STEPS.length}, ${stepLabel}` : `Reserva: paso ${currentStep} de ${STEPS.length}`}
+    >
       <p style={{
         color: 'rgba(255,255,255,0.6)',
         fontSize: 12,

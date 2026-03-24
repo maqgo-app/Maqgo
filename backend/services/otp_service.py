@@ -1,16 +1,16 @@
 """
-MAQGO - OTP Service (Redis + AWS SNS)
-Reemplaza Twilio Verify para reducir costos (~$6-10/1000 vs $74/1000).
+MAQGO - OTP Service (Redis + LabsMobile)
 
-- Redis: OTP + expiración + intentos + rate limit
-- AWS SNS: envío SMS
-- Sin persistencia en base de datos
+- OTP propio de 6 dígitos (control interno)
+- Redis: código + expiración + intentos + rate-limit
+- LabsMobile: envío SMS transaccional
 """
 
 import os
 import random
 import logging
 from typing import Optional, Tuple
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,9 @@ RATE_LIMIT_MAX = 3  # máx 3 OTP por número cada 10 min
 SMS_MESSAGE = "Tu código MAQGO es: {otp}"
 
 REDIS_URL = os.environ.get("REDIS_URL", "")
-AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+LABSMOBILE_USERNAME = os.environ.get("LABSMOBILE_USERNAME", "")
+LABSMOBILE_API_TOKEN = os.environ.get("LABSMOBILE_API_TOKEN", "")
+LABSMOBILE_SENDER = os.environ.get("LABSMOBILE_SENDER", "MAQGO")
 
 
 def _get_redis():
@@ -37,34 +39,83 @@ def _get_redis():
         return None
 
 
-def _send_sms_sns(phone: str, message: str) -> Tuple[bool, Optional[str]]:
+def send_sms(phone: str, message: str) -> Tuple[bool, Optional[str]]:
     """
-    Envía SMS vía AWS SNS.
+    Envía SMS vía LabsMobile.
     Retorna (success, error_message).
     """
-    if not all([
-        os.environ.get("AWS_ACCESS_KEY_ID"),
-        os.environ.get("AWS_SECRET_ACCESS_KEY"),
-    ]):
-        return False, "AWS credentials not configured"
+    if not LABSMOBILE_USERNAME or not LABSMOBILE_API_TOKEN:
+        return False, "LabsMobile no configurado"
+
+    msisdn = "".join(c for c in phone if c.isdigit())
+    if not msisdn:
+        return False, "Número destino inválido"
+
+    payload = {
+        "message": message,
+        "tpoa": LABSMOBILE_SENDER,
+        "recipient": [{"msisdn": msisdn}],
+    }
 
     try:
-        import boto3
-        client = boto3.client("sns", region_name=AWS_REGION)
-        client.publish(
-            PhoneNumber=phone,
-            Message=message,
-            MessageAttributes={
-                "AWS.SNS.SMS.SMSType": {
-                    "DataType": "String",
-                    "StringValue": "Transactional"
-                }
-            }
+        res = requests.post(
+            "https://api.labsmobile.com/json/send",
+            json=payload,
+            auth=(LABSMOBILE_USERNAME, LABSMOBILE_API_TOKEN),
+            headers={"Content-Type": "application/json", "Cache-Control": "no-cache"},
+            timeout=12,
         )
+        if res.status_code != 200:
+            logger.error("LabsMobile SMS HTTP error %s: %s", res.status_code, res.text[:400])
+            return False, f"LabsMobile error HTTP {res.status_code}"
+        try:
+            data = res.json()
+        except ValueError:
+            logger.error("LabsMobile response not JSON: %s", res.text[:400])
+            return False, "LabsMobile respuesta inválida"
+
+        api_code = str(data.get("code", "")).strip()
+        if api_code and api_code != "0":
+            logger.error("LabsMobile API error code=%s body=%s", api_code, str(data)[:500])
+            return False, f"LabsMobile error {api_code}"
+
+        logger.info("SMS LabsMobile enviado a %s", phone)
         return True, None
     except Exception as e:
-        logger.error(f"AWS SNS error: {e}")
+        logger.error("LabsMobile request error: %s", e)
         return False, str(e)
+
+
+def get_sms_balance() -> dict:
+    """
+    Consulta saldo de créditos en LabsMobile.
+    Retorna: {success, credits, code, error}
+    """
+    if not LABSMOBILE_USERNAME or not LABSMOBILE_API_TOKEN:
+        return {"success": False, "credits": None, "code": None, "error": "LabsMobile no configurado"}
+
+    try:
+        res = requests.get(
+            "https://api.labsmobile.com/json/balance",
+            auth=(LABSMOBILE_USERNAME, LABSMOBILE_API_TOKEN),
+            headers={"Cache-Control": "no-cache"},
+            timeout=10,
+        )
+        if res.status_code != 200:
+            logger.error("LabsMobile balance HTTP error %s: %s", res.status_code, res.text[:300])
+            return {"success": False, "credits": None, "code": str(res.status_code), "error": f"HTTP {res.status_code}"}
+        data = res.json()
+        api_code = str(data.get("code", "")).strip()
+        credits_raw = data.get("credits")
+        credits = float(credits_raw) if credits_raw is not None else None
+        if api_code and api_code != "0":
+            msg = str(data.get("message") or f"API code {api_code}")
+            logger.error("LabsMobile balance API error code=%s msg=%s", api_code, msg)
+            return {"success": False, "credits": credits, "code": api_code, "error": msg}
+        return {"success": True, "credits": credits, "code": api_code or "0", "error": None}
+    except Exception as e:
+        logger.error("LabsMobile balance request error: %s", e)
+        return {"success": False, "credits": None, "code": None, "error": str(e)}
 
 
 def _normalize_phone(phone: str) -> str:
@@ -77,18 +128,31 @@ def _normalize_phone(phone: str) -> str:
     return phone if phone.startswith("+") else f"+{phone}"
 
 
+def _is_valid_cl_phone_e164(phone: str) -> bool:
+    digits = "".join(c for c in str(phone or "") if c.isdigit())
+    if digits.startswith("56"):
+        digits = digits[2:]
+    return len(digits) == 9 and digits.startswith("9")
+
+
 def send_otp(phone_number: str, channel: str = "sms") -> dict:
     """
     Envía OTP de 6 dígitos.
     - Rate limit: máx 3 OTP por número cada 10 min
     - OTP válido 5 minutos
-    - channel: 'sms' (SNS) o 'whatsapp' (por ahora solo SMS)
+    - channel: 'sms' (por ahora solo SMS)
     """
     phone = _normalize_phone(phone_number)
+    if not _is_valid_cl_phone_e164(phone):
+        return {
+            "success": False,
+            "error": "Formato de teléfono inválido. Usa +569XXXXXXXX.",
+            "demo_mode": False,
+        }
     if channel not in ("sms", "whatsapp"):
         channel = "sms"
 
-    # Solo SMS vía SNS por ahora
+    # Solo SMS por ahora
     if channel == "whatsapp":
         return {
             "success": False,
@@ -137,8 +201,9 @@ def send_otp(phone_number: str, channel: str = "sms") -> dict:
     pipe.execute()
 
     # Enviar SMS
-    ok, err = _send_sms_sns(phone, SMS_MESSAGE.format(otp=otp))
+    ok, err = send_sms(phone, SMS_MESSAGE.format(otp=otp))
     if not ok:
+        logger.error("Fallo envío OTP phone=%s error=%s", phone, err)
         r.delete(otp_key, attempts_key)
         return {
             "success": False,
@@ -160,6 +225,12 @@ def verify_otp(phone_number: str, code: str) -> dict:
     - Errores claros: inválido, expirado, demasiados intentos
     """
     phone = _normalize_phone(phone_number)
+    if not _is_valid_cl_phone_e164(phone):
+        return {
+            "success": True,
+            "valid": False,
+            "error": "Formato de teléfono inválido. Usa +569XXXXXXXX.",
+        }
     code = code.strip()
 
     if len(code) != 6 or not code.isdigit():
@@ -204,6 +275,7 @@ def verify_otp(phone_number: str, code: str) -> dict:
             r.expire(attempts_key, r.ttl(otp_key))
             remaining = OTP_MAX_ATTEMPTS - attempts - 1
             err = "Código incorrecto."
+            logger.warning("OTP inválido phone=%s remaining=%s", phone, max(remaining, 0))
             if remaining > 0:
                 err += f" Te quedan {remaining} intentos."
             return {
@@ -229,8 +301,10 @@ def verify_otp(phone_number: str, code: str) -> dict:
 
 
 def is_otp_configured() -> bool:
-    """Indica si el servicio OTP (Redis + AWS) está listo."""
+    """Indica si el servicio OTP (Redis + LabsMobile) está listo."""
     return bool(
         str(os.environ.get("REDIS_URL", "")).strip()
-        and str(os.environ.get("AWS_ACCESS_KEY_ID", "")).strip()
+        and str(os.environ.get("LABSMOBILE_USERNAME", "")).strip()
+        and str(os.environ.get("LABSMOBILE_API_TOKEN", "")).strip()
+        and str(os.environ.get("LABSMOBILE_SENDER", "")).strip()
     )

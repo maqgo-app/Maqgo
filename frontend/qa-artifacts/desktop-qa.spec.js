@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 /** Definí PLAYWRIGHT_BASE_URL para probar local (ej. http://127.0.0.1:4173 tras `vite preview`). */
-const BASE_URL = (process.env.PLAYWRIGHT_BASE_URL || 'https://maqgo.vercel.app').replace(/\/$/, '');
+const BASE_URL = (process.env.PLAYWRIGHT_BASE_URL || 'https://www.maqgo.cl').replace(/\/$/, '');
 
 const CASES = [
   {

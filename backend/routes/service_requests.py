@@ -337,6 +337,12 @@ async def accept_service_request(
         if not payment_result.get('success'):
             # Rollback si falla el pago
             await payment_service.rollback_charge(request_id, 'payment_failed')
+            error_code = payment_result.get('error') or 'PAYMENT_FAILED'
+            if error_code == 'ONECLICK_REQUIRED':
+                raise HTTPException(
+                    status_code=409,
+                    detail="Cliente sin tarjeta registrada en OneClick para cobro real"
+                )
             raise HTTPException(status_code=400, detail="Error procesando el pago")
         
         result['payment'] = payment_result

@@ -28,18 +28,25 @@ Cuando `REACT_APP_BACKEND_URL` apunta a tu API de producción (no localhost):
 
 ---
 
-## Frontend (Vercel / Netlify / etc.)
+## Frontend (Vercel / Netlify / Railway unificado)
 
 ### 1. Variable obligatoria
+**Split** (usuarios en `www`, API en otro host — típico `api.maqgo.cl` en Railway):
 ```
 REACT_APP_BACKEND_URL=https://api.maqgo.cl
 ```
+**Unificado** (mismo host `www` + `/api`, Dockerfile raíz en Railway):
+```
+REACT_APP_BACKEND_URL=https://www.maqgo.cl
+```
+Ver [MODELOS_DEPLOY.md](MODELOS_DEPLOY.md).
 **Crítico:** Si no se define, el build usa `localhost:8000` y las llamadas fallan.
 
 ### 2. Build
 ```bash
 cd frontend
 REACT_APP_BACKEND_URL=https://api.maqgo.cl npm run build
+# o unificado: REACT_APP_BACKEND_URL=https://www.maqgo.cl npm run build
 ```
 
 ---
@@ -70,7 +77,8 @@ cp backend/.env.production.example backend/.env
 
 ### 4. Verificar
 ```bash
-curl https://api.maqgo.cl/api/
+curl https://www.maqgo.cl/api/
+# o si el API está en subdominio: curl https://api.maqgo.cl/api/
 ```
 
 ---

@@ -19,8 +19,10 @@ function toMachineryId(type) {
 
 function MyMachinesScreen() {
   const navigate = useNavigate();
-  const [machines, setMachines] = useState([]);
-  const [defaultByMachinery, setDefaultByMachinery] = useState({});
+  const [machines, setMachines] = useState(() => getMachines());
+  const [defaultByMachinery, setDefaultByMachinery] = useState(() =>
+    getObject(STORAGE_KEY_DEFAULT_BY_MACHINERY, {})
+  );
   const [editPricingModal, setEditPricingModal] = useState(null);
   const [operatorModal, setOperatorModal] = useState(null);
   const [deleteMachineConfirm, setDeleteMachineConfirm] = useState(null);
@@ -28,14 +30,6 @@ function MyMachinesScreen() {
 
   const loadMachines = () => setMachines(getMachines());
 
-  useEffect(() => {
-    setTimeout(() => {
-      setDefaultByMachinery(getObject(STORAGE_KEY_DEFAULT_BY_MACHINERY, {}));
-    }, 0);
-    setTimeout(() => {
-      loadMachines();
-    }, 0);
-  }, []);
 
   const setDefaultOperator = (machineryId, operatorId) => {
     const updated = { ...defaultByMachinery, [machineryId]: operatorId };
@@ -551,6 +545,8 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
       })
       .catch(() => { setTeamOperators([]); setMode('choice'); })
       .finally(() => setLoading(false));
+    // Carga única al abrir el modal; existingIds solo filtra la respuesta (incluirlo re-dispararía cada render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- existingIds es un array nuevo por render
   }, []);
 
   const handleInviteNew = async () => {

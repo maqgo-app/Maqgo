@@ -1,8 +1,8 @@
-# KPI Marketing & Sales — MAQGO (adaptado desde modelo marketplace tipo Dogkas)
+# KPI Marketing & Sales — MAQGO
 
 Nomenclatura: **nombre en español** + **sigla en inglés** entre paréntesis cuando aplique.
 
-**Nota:** Dogkas = cuidadores + clientes + reservas. MAQGO = **proveedores/operadores** + **clientes** + **servicios/reservas** (arriendo con operador).
+**Nota:** MAQGO opera como marketplace de **proveedores/operadores** + **clientes** + **servicios/reservas** (arriendo con operador).
 
 ---
 
@@ -16,7 +16,7 @@ Nomenclatura: **nombre en español** + **sigla en inglés** entre paréntesis cu
 | Nuevos proveedores | — | Altas netas en la semana (registro completado + verificación si aplica). |
 | Proveedores desconectados (baja / churn) | **Churn** (proveedor) | Cuentas que dejaron de estar activas (definir: sin login 90d, baja explícita, etc.). |
 | Embudo registro proveedor | **Funnel** | Pasos típicos: email → datos → SMS verificado → **máquina publicada** (primer “aviso activo”). |
-| Avisos activos por tipo | — | En Dogkas: alojamiento / guardería / paseo. En MAQGO: **por tipo de maquinaria** (y opcional “por hora” vs “por viaje”). |
+| Avisos activos por tipo | — | En MAQGO: **por tipo de maquinaria** (y opcional “por hora” vs “por viaje”). |
 | Stocks acumulados | — | Total emails capturados, registros iniciados, registros completos, **máquinas publicadas**. |
 
 ### 1.2 Lado demanda — Clientes
@@ -49,8 +49,8 @@ Nomenclatura: **nombre en español** + **sigla en inglés** entre paréntesis cu
 
 | Métrica (ES) | Sigla | Definición MAQGO |
 |--------------|-------|------------------|
-| Gasto total publicidad pagada | — | **Separar por objetivo:** CLIENTES vs PROVEEDORES (como en Dogkas). |
-| Desglose por canal | — | Google PMAX, Search, Demand Gen, Meta IG/FB — mismo esquema que Dogkas. |
+| Gasto total publicidad pagada | — | **Separar por objetivo:** CLIENTES vs PROVEEDORES. |
+| Desglose por canal | — | Google PMAX, Search, Demand Gen, Meta IG/FB. |
 | Moneda | — | USD + CLP con **FX fija** semanal (como tu hoja). |
 | Costo de adquisición por cliente registrado | **CAC** (cliente, registro) | `Gasto marketing clientes / nuevos registros clientes completos`. |
 | Costo de adquisición por proveedor registrado | **CAC** (proveedor, registro) | `Gasto marketing proveedores / nuevos registros proveedor completos`. |
@@ -72,7 +72,7 @@ Nomenclatura: **nombre en español** + **sigla en inglés** entre paréntesis cu
 
 ## 5. Implementación: hoja vs producto
 
-- **Hoja semanal (como Dogkas):** sigue siendo la forma más rápida si el gasto ads vive en Google/Meta y el equipo lo copia semanalmente.  
+- **Hoja semanal:** sigue siendo la forma más rápida si el gasto ads vive en Google/Meta y el equipo lo copia semanalmente.  
 - **Producto (admin / analytics):** útil para **stocks**, **embudos**, **reservas** y **churn** automáticos desde Mongo; **gasto ads** suele seguir viniendo de plataformas hasta integrar cost API.
 
 **Regla de oro:** misma **definición de semana** (lun–dom vs calendario Chile) y mismo **FX** para comparar semanas entre sí.

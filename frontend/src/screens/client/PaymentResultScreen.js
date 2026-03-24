@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getObject, getArray } from '../../utils/safeStorage';
 import { getPerTripDateLabel, getPerTripCountLabel } from '../../utils/bookingDates';
@@ -148,12 +148,8 @@ function PaymentResultScreen() {
   const [provider, setProvider] = useState(null);
   const [pricing, setPricing] = useState(null);
   const [orderNumber, setOrderNumber] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  useEffect(() => {
-    processPayment();
-  }, []);
 
-  const processPayment = async () => {
+  const processPayment = useCallback(async () => {
     // Simular procesamiento de pago (2-3 segundos)
     await new Promise(resolve => setTimeout(resolve, 2500));
 
@@ -167,7 +163,6 @@ function PaymentResultScreen() {
       const rawHours = parseInt(localStorage.getItem('selectedHours') || '4');
       const hours = Math.max(MIN_HOURS_IMMEDIATE, Math.min(MAX_HOURS_IMMEDIATE, rawHours));
       const reservationType = localStorage.getItem('reservationType') || 'immediate';
-      const location = localStorage.getItem('serviceLocation') || '';
       const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
 
       // En demo: permitir simular rechazo/error con ?simulate=rejected|payment_failed|expired|connection_error
@@ -196,7 +191,7 @@ function PaymentResultScreen() {
       try {
         const pricingResponse = await Promise.race([pricingPromise, timeoutPromise]);
         pricingToShow = pricingResponse.data;
-      } catch (e) {
+      } catch {
         const basePrice = savedProvider.price_per_hour || 45000;
         const isPerTrip = isPerTripMachineryType(machinery);
         let serviceWithMultiplier, baseService;
@@ -327,18 +322,20 @@ function PaymentResultScreen() {
         setPricing(fallbackPricing);
         setProvider(savedProvider);
         setStatus('success'); // UX: no bloquear si falla backend de pricing
-        setErrorMessage('');
-      } catch (e2) {
+      } catch {
         // Último recurso: al menos mostrar confirmación sin desglose.
         const chargedTotal = parseInt(localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0', 10);
         const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
         setPricing({ final_price: chargedTotal, needsInvoice });
         setProvider(getObject('selectedProvider', {}));
         setStatus('success'); // UX: evita ConnectionError bloqueante
-        setErrorMessage('');
       }
     }
-  };
+  }, [simulateSafe]);
+
+  useEffect(() => {
+    processPayment();
+  }, [processPayment]);
 
   // WhatsApp deshabilitado para coordinación cliente <-> proveedor.
   // La coordinación ocurre por chat interno (ruta /chat/:serviceId).

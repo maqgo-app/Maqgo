@@ -11,6 +11,7 @@ from typing import Optional
 from collections import Counter
 import io
 import csv
+import os
 
 from db_config import get_db_name, get_mongo_url
 
@@ -19,6 +20,41 @@ router = APIRouter(prefix="/admin/reports", tags=["admin-reports"])
 mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
+
+
+@router.get("/sms-balance")
+async def get_sms_balance(_: dict = Depends(get_current_admin)):
+    """
+    Saldo de créditos SMS (LabsMobile) para monitoreo operativo en Admin.
+    """
+    try:
+        from services.otp_service import get_sms_balance as otp_get_sms_balance
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Servicio OTP no disponible")
+
+    result = otp_get_sms_balance()
+    threshold = float(str(os.environ.get("SMS_LOW_BALANCE_THRESHOLD", "300")).strip() or "300")
+    credits = result.get("credits")
+
+    if not result.get("success"):
+        return {
+            "success": False,
+            "provider": "labsmobile",
+            "credits": credits,
+            "low_balance_threshold": threshold,
+            "is_low_balance": (credits is not None and credits <= threshold),
+            "error": result.get("error") or "No se pudo consultar saldo SMS",
+            "code": result.get("code"),
+        }
+
+    return {
+        "success": True,
+        "provider": "labsmobile",
+        "credits": credits,
+        "low_balance_threshold": threshold,
+        "is_low_balance": (credits is not None and credits <= threshold),
+        "code": result.get("code"),
+    }
 
 async def _build_weekly_report(weeks_ago: int = 0):
     """

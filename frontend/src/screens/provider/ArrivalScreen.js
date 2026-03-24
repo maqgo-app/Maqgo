@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { playAccessGrantedAlert, playSuccessAlert, playArrivalAlert, vibrate } from '../../utils/alertSound';
@@ -12,10 +12,22 @@ import { getObjectFirst } from '../../utils/safeStorage';
  * Se muestra cuando el proveedor confirma que llegó a la obra.
  * Espera confirmación del cliente para iniciar el servicio.
  */
+function buildArrivalServiceData() {
+  const request = getObjectFirst(['acceptedRequest', 'incomingRequest'], {});
+  return {
+    clientName: request.clientName || 'Carlos González',
+    location: request.location || localStorage.getItem('serviceLocation') || 'Av. Providencia 1234, Santiago',
+    machinery: request.machineryType || localStorage.getItem('selectedMachinery') || 'retroexcavadora',
+    hours: request.hours || parseInt(localStorage.getItem('selectedHours') || '4', 10)
+  };
+}
+
 function ArrivalScreen() {
   const navigate = useNavigate();
-  const [serviceData, setServiceData] = useState({});
-  const [arrivalTime, setArrivalTime] = useState('');
+  const [serviceData] = useState(buildArrivalServiceData);
+  const [arrivalTime] = useState(() =>
+    new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+  );
   const [waitingForClient, setWaitingForClient] = useState(true);
   const [clientAccepted, setClientAccepted] = useState(false);
   const [waitingMinutes, setWaitingMinutes] = useState(0);
@@ -25,27 +37,14 @@ function ArrivalScreen() {
   // Timer de 30 minutos
   const MAX_WAITING_MINUTES = 30;
 
-  function handleStartService() {
+  const handleStartService = useCallback(() => {
     localStorage.setItem('serviceStarted', 'true');
     localStorage.setItem('serviceStartTime', new Date().toISOString());
     navigate('/provider/service-active');
-  }
+  }, [navigate]);
 
   useEffect(() => {
-    // Cargar datos del servicio
-    const request = getObjectFirst(['acceptedRequest', 'incomingRequest'], {});
-    setTimeout(() => setServiceData({
-      clientName: request.clientName || 'Carlos González',
-      location: request.location || localStorage.getItem('serviceLocation') || 'Av. Providencia 1234, Santiago',
-      machinery: request.machineryType || localStorage.getItem('selectedMachinery') || 'retroexcavadora',
-      hours: request.hours || parseInt(localStorage.getItem('selectedHours') || '4'),
-    }), 0);
-
-    // Registrar hora de llegada
     const now = new Date();
-    setTimeout(() => {
-      setArrivalTime(now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }));
-    }, 0);
     localStorage.setItem('arrivalTime', now.toISOString());
     
     // Notificar al cliente que el operador llegó
@@ -143,7 +142,7 @@ function ArrivalScreen() {
       clearInterval(timerInterval);
       clearInterval(demoTimerInterval);
     };
-  }, [waitingForClient, clientAccepted]);
+  }, [waitingForClient, clientAccepted, handleStartService]);
 
   return (
     <div className="maqgo-app">

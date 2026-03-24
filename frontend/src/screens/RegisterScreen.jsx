@@ -7,6 +7,9 @@ import { useToast } from '../components/Toast';
 import { validateEmail, validateCelularChile, validateRut, formatRut, sanitizeRutInput } from '../utils/chileanValidation';
 import { getPasswordHint, validatePassword, PASSWORD_RULES } from '../utils/passwordValidation';
 import BACKEND_URL, { fetchWithTimeout } from '../utils/api';
+import { rememberLoginEmail } from '../utils/loginHints';
+import { getObject } from '../utils/safeStorage';
+import { clearClientRegistrationLocalState } from '../utils/clientRegistrationReset';
 
 /**
  * C03 - Registro Cliente
@@ -32,16 +35,36 @@ function RegisterScreen() {
   const passwordHint = getPasswordHint(true);
 
   useEffect(() => {
+    let loadedFromDraft = false;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw);
-      if (draft && typeof draft === 'object') {
-        setForm(prev => ({ ...prev, ...draft.form }));
-        setAccepted(Boolean(draft.accepted));
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft && typeof draft === 'object' && draft.form) {
+          const f = draft.form;
+          if (f.nombre || f.email || f.celular || f.rut || f.apellido) {
+            setForm((prev) => ({ ...prev, ...f, password: '' }));
+            setAccepted(Boolean(draft.accepted));
+            loadedFromDraft = true;
+          }
+        }
       }
     } catch {
-      // Ignorar drafts corruptos sin romper el flujo
+      // Ignorar drafts corruptos
+    }
+    if (loadedFromDraft) return;
+    // Sin borrador útil: mostrar último registerData (ej. volvieron desde OTP) — sin contraseña por seguridad.
+    const reg = getObject('registerData', {});
+    if (reg.nombre || reg.email || reg.celular || reg.rut || reg.apellido) {
+      setForm((prev) => ({
+        ...prev,
+        nombre: reg.nombre || '',
+        apellido: reg.apellido || '',
+        email: reg.email || '',
+        celular: reg.celular || '',
+        rut: reg.rut || '',
+        password: '',
+      }));
     }
   }, []);
 
@@ -58,6 +81,24 @@ function RegisterScreen() {
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
   };
 
+  const handleClearPrefill = () => {
+    clearClientRegistrationLocalState();
+    setForm({
+      nombre: '',
+      apellido: '',
+      email: '',
+      celular: '',
+      rut: '',
+      password: '',
+    });
+    setAccepted(false);
+    setErrors({ email: '', celular: '', rut: '', password: '' });
+    toast.success('Datos borrados. Puedes ingresar información distinta.');
+  };
+
+  const showClearHint =
+    form.nombre || form.apellido || form.email || form.celular || form.rut;
+
   const handleSubmit = async () => {
     if (!accepted || isSubmitting) return;
     const emailErr = validateEmail(form.email);
@@ -70,6 +111,7 @@ function RegisterScreen() {
     }
     setErrors({ email: '', celular: '', rut: '', password: '' });
     localStorage.setItem('registerData', JSON.stringify(form));
+    rememberLoginEmail(form.email);
 
     const phone = form.celular ? `+56${form.celular.replace(/\D/g, '')}` : '';
     if (!phone) {
@@ -135,6 +177,21 @@ function RegisterScreen() {
         }}>
           Crea tu cuenta
         </h2>
+
+        {showClearHint && (
+          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, textAlign: 'center', marginBottom: 14, lineHeight: 1.45 }}>
+            ¿Los datos no son tuyos o registrarás a otra persona?{' '}
+            <button
+              type="button"
+              className="maqgo-link"
+              onClick={handleClearPrefill}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: '#90BDD3', cursor: 'pointer', textDecoration: 'underline' }}
+              aria-label="Borrar datos del formulario y empezar de nuevo"
+            >
+              Vaciar formulario
+            </button>
+          </p>
+        )}
 
         {/* Formulario */}
         <div style={{ flex: 1, overflowY: 'auto' }}>

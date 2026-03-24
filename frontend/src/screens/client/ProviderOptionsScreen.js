@@ -17,6 +17,19 @@ import { MACHINERY_NO_TRANSPORT, REFERENCE_PRICES, getDemoProviders } from '../.
 import { getPerTripDateLabel } from '../../utils/bookingDates';
 import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions, isPerTripMachineryType } from '../../utils/machineryNames';
 
+/** Horas máximas: cierre − llegada − almuerzo + elasticidad (puro, sin estado). */
+function calculateMaxHours(closingTime, etaMinutes) {
+  const now = new Date();
+  const [closeHour, closeMin] = closingTime.split(':').map(Number);
+  const arrivalTime = new Date(now.getTime() + etaMinutes * 60000);
+  const arrivalHour = arrivalTime.getHours() + arrivalTime.getMinutes() / 60;
+  const closeHourWithElasticity = closeHour + closeMin / 60 + 0.5;
+  const availableHours = closeHourWithElasticity - arrivalHour - 1;
+  return Math.max(1, Math.floor(availableHours));
+}
+
+const PROVIDER_OPTIONS_TRIP_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
+
 /**
  * Muestra las 5 mejores opciones de proveedores
  * Ordenados por score (precio 60% + distancia 40%)
@@ -47,6 +60,54 @@ function ProviderOptionsScreen() {
     if (savedFor !== machinery) return [];
     return getArray('selectedProviderIds', []);
   });
+
+  const needsTransport = useCallback(() => !MACHINERY_NO_TRANSPORT.includes(selectedMachinery), [selectedMachinery]);
+
+  const calculateTotalPrice = useCallback((provider, machineryType) => {
+    const type = localStorage.getItem('reservationType') || 'immediate';
+    const savedHours = parseInt(localStorage.getItem('selectedHours') || '4', 10);
+    const savedDays = getArray('selectedDates', []);
+    const days = Math.max(1, savedDays.length);
+    const hrs = type === 'scheduled' ? 8 : Math.max(4, Math.min(8, savedHours));
+    const transportFee = needsTransport() ? (provider.transport_fee || 0) : 0;
+    return calculateClientPrice({
+      machineryType,
+      basePrice: provider.price_per_hour || 0,
+      transportFee,
+      hours: hrs,
+      days,
+      reservationType: type
+    });
+  }, [needsTransport]);
+
+  const getDemoProvidersFallback = useCallback(() => {
+    try {
+      const capOpts = getMachineryCapacityOptions(selectedMachinery);
+      const specValues = capOpts?.options ? [...capOpts.options].slice(0, 5) : null;
+      const providerFieldToSnake = {
+        capacityM3: 'capacity_m3',
+        capacityLiters: 'capacity_liters',
+        capacityTonM: 'capacity_ton_m',
+        bucketM3: 'bucket_m3',
+        weightTon: 'weight_ton',
+        powerHp: 'power_hp',
+        bladeWidthM: 'blade_width_m',
+        craneTon: 'crane_ton',
+        rollerTon: 'roller_ton'
+      };
+      const specKey = capOpts?.providerField ? providerFieldToSnake[capOpts.providerField] : null;
+      const baseProviders = getDemoProviders(selectedMachinery, 5, { extended: true });
+      const all = specKey && specValues
+        ? baseProviders.map((p, i) => ({ ...p, [specKey]: specValues[i % specValues.length] }))
+        : baseProviders;
+      return all;
+    } catch (e) {
+      console.error('getDemoProvidersFallback failed:', e);
+      const base = getDemoProviders(selectedMachinery, 5, { extended: true });
+      if (Array.isArray(base) && base.length) return base;
+      return getDemoProviders('retroexcavadora', 5, { extended: true });
+    }
+  }, [selectedMachinery]);
 
   const fetchProviders = useCallback(async () => {
     // Usar la ubicación exacta ingresada en ServiceLocationScreen.
@@ -82,11 +143,10 @@ function ProviderOptionsScreen() {
       }
       // Maquinaria por viaje: si el backend envía precios por hora (ej. 42k), normalizar a precio por viaje de mercado
       const refTrip = isPerTripMachineryType(selectedMachinery) ? REFERENCE_PRICES[selectedMachinery] : null;
-      const tripSpread = [0.85, 0.92, 1, 1.08, 1.15];
       const providersWithData = rawProviders.map((provider, idx) => {
         let price = provider.price_per_hour ?? 0;
         if (refTrip && price > 0 && price < 100000) {
-          price = Math.round(refTrip * (tripSpread[Math.min(idx, 4)] || 1));
+          price = Math.round(refTrip * (PROVIDER_OPTIONS_TRIP_SPREAD[Math.min(idx, 4)] || 1));
         }
         const p = { ...provider, price_per_hour: price };
         return {
@@ -117,7 +177,7 @@ function ProviderOptionsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [selectedMachinery]);
+  }, [selectedMachinery, needsTransport, calculateTotalPrice, getDemoProvidersFallback]);
 
   useEffect(() => {
     fetchProviders();
@@ -174,38 +234,9 @@ function ProviderOptionsScreen() {
       localStorage.setItem('selectedProviderIds', JSON.stringify(next));
       localStorage.setItem('providerSelectionMachinery', machinery);
     }
-  }, [providers, isDemoProviders]);
+  }, [providers, isDemoProviders, selectedProviderIds]);
 
   const validSelectedIds = selectedProviderIds.filter((id) => providers.some((p) => idMatch(p.id, id)));
-
-  /**
-   * Calcula el precio total estimado (sin factura - base).
-   * Usa la misma fórmula que el backend para consistencia con el preview en Confirm.
-   * Lee horas/días desde localStorage para evitar desfase con Confirm.
-   */
-  const calculateTotalPrice = (provider, machineryType) => {
-    const type = localStorage.getItem('reservationType') || 'immediate';
-    const savedHours = parseInt(localStorage.getItem('selectedHours') || '4', 10);
-    const savedDays = getArray('selectedDates', []);
-    const days = Math.max(1, savedDays.length);
-    const hrs = type === 'scheduled' ? 8 : Math.max(4, Math.min(8, savedHours));
-    const transportFee = needsTransport() ? (provider.transport_fee || 0) : 0;
-    return calculateClientPrice({
-      machineryType,
-      basePrice: provider.price_per_hour || 0,
-      transportFee,
-      hours: hrs,
-      days,
-      reservationType: type
-    });
-  };
-
-  /**
-   * Verifica si la maquinaria necesita traslado
-   */
-  const needsTransport = () => {
-    return !MACHINERY_NO_TRANSPORT.includes(selectedMachinery);
-  };
 
   // Detectar si la reserva programada incluye sábado
   const selectedDatesRaw = getArray('selectedDates', []);
@@ -219,55 +250,6 @@ function ProviderOptionsScreen() {
   });
 
   const perTripScheduledLabel = getPerTripDateLabel(selectedDatesRaw, localStorage.getItem('selectedDate') || '', { prefix: 'Valor viaje ·' });
-
-  const getDemoProvidersFallback = () => {
-    try {
-      const capOpts = getMachineryCapacityOptions(selectedMachinery);
-      const specValues = capOpts?.options ? [...capOpts.options].slice(0, 5) : null;
-      const providerFieldToSnake = {
-        capacityM3: 'capacity_m3',
-        capacityLiters: 'capacity_liters',
-        capacityTonM: 'capacity_ton_m',
-        bucketM3: 'bucket_m3',
-        weightTon: 'weight_ton',
-        powerHp: 'power_hp',
-        bladeWidthM: 'blade_width_m',
-        craneTon: 'crane_ton',
-        rollerTon: 'roller_ton'
-      };
-      const specKey = capOpts?.providerField ? providerFieldToSnake[capOpts.providerField] : null;
-      const baseProviders = getDemoProviders(selectedMachinery, 5, { extended: true });
-      const all = specKey && specValues
-        ? baseProviders.map((p, i) => ({ ...p, [specKey]: specValues[i % specValues.length] }))
-        : baseProviders;
-      // Cliente ve todos los proveedores: MAQGO factura siempre al cliente; a proveedores sin factura MAQGO emite factura de compra
-      return all;
-    } catch (e) {
-      console.error('getDemoProvidersFallback failed:', e);
-      // Último recurso: fallback genérico para que la pantalla no muera.
-      const base = getDemoProviders(selectedMachinery, 5, { extended: true });
-      if (Array.isArray(base) && base.length) return base;
-      return getDemoProviders('retroexcavadora', 5, { extended: true });
-    }
-  };
-
-  /** Horas máximas: HorasCierre - HoraActual - ETA - 1hr almuerzo + 30min elasticidad */
-  const calculateMaxHours = (closingTime, etaMinutes) => {
-    const now = new Date();
-    const [closeHour, closeMin] = closingTime.split(':').map(Number);
-    
-    // Hora de llegada estimada
-    const arrivalTime = new Date(now.getTime() + etaMinutes * 60000);
-    const arrivalHour = arrivalTime.getHours() + arrivalTime.getMinutes() / 60;
-    
-    // Hora de cierre con elasticidad de 30 minutos
-    const closeHourWithElasticity = closeHour + closeMin / 60 + 0.5; // +30 min elasticidad
-    
-    // Horas disponibles (menos 1 hora de almuerzo)
-    const availableHours = closeHourWithElasticity - arrivalHour - 1;
-    
-    return Math.max(1, Math.floor(availableHours));
-  };
 
   const handleReserveTomorrow = () => {
     const tomorrow = new Date();

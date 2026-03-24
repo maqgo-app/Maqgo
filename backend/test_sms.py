@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Prueba de envío SMS vía Twilio.
-Uso: TWILIO_TO=+56912345678 python test_sms.py
+Prueba de envío SMS OTP vía LabsMobile (backend communications).
+Uso: LABSMOBILE_TO=+56912345678 python test_sms.py
 """
 import os
 import sys
@@ -10,8 +10,8 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / '.env')
 
-# Número destino: TWILIO_TO, argumento, o +56994336579 por defecto
-to = os.environ.get('TWILIO_TO') or (sys.argv[1] if len(sys.argv) > 1 else None) or '+56994336579'
+# Número destino: LABSMOBILE_TO, argumento, o +56994336579 por defecto
+to = os.environ.get('LABSMOBILE_TO') or (sys.argv[1] if len(sys.argv) > 1 else None) or '+56994336579'
 
 # Formato E.164 si viene sin +
 if not to.startswith('+'):
@@ -30,6 +30,6 @@ if result.get('success'):
         print(f"✅ SMS enviado: {result.get('status', 'OK')}")
 else:
     print(f"❌ Error: {result.get('error', 'Desconocido')}")
-    if not os.environ.get('TWILIO_ACCOUNT_SID'):
-        print("   → Revisa que TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN y TWILIO_SMS_FROM estén en .env")
+    if not os.environ.get('LABSMOBILE_API_TOKEN'):
+        print("   → Revisa que LABSMOBILE_USERNAME, LABSMOBILE_API_TOKEN y LABSMOBILE_SENDER estén en .env")
     sys.exit(1)

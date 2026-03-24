@@ -77,6 +77,9 @@ function AdminDashboard() {
   const [monthlyFinance, setMonthlyFinance] = useState(null);
   const [loadingMonthlyFinance, setLoadingMonthlyFinance] = useState(false);
   const [monthlyFinanceError, setMonthlyFinanceError] = useState('');
+  const [smsBalance, setSmsBalance] = useState(null);
+  const [loadingSmsBalance, setLoadingSmsBalance] = useState(false);
+  const [smsBalanceError, setSmsBalanceError] = useState('');
   /** Último resultado de GET /healthz (sin auth) — diagnóstico DNS/CORS vs rutas admin. */
   const [healthSnapshot, setHealthSnapshot] = useState(null);
   /** Error HTTP u otro fallo del listado admin (no red demo); banner persistente. */
@@ -482,6 +485,29 @@ function AdminDashboard() {
     }
   }, [usingOfflineDemo]);
 
+  const fetchSmsBalance = useCallback(async () => {
+    if (usingOfflineDemo) {
+      setSmsBalance(null);
+      setSmsBalanceError('Modo demostración: saldo SMS no disponible sin API.');
+      return;
+    }
+    setLoadingSmsBalance(true);
+    try {
+      const response = await fetchWithAuth(`${BACKEND_URL}/api/admin/reports/sms-balance`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || `Error ${response.status}`);
+      }
+      setSmsBalance(data);
+      setSmsBalanceError(data.success ? '' : (data.error || 'No se pudo consultar saldo SMS'));
+    } catch (error) {
+      setSmsBalance(null);
+      setSmsBalanceError(friendlyFetchError(error, 'No se pudo cargar saldo SMS'));
+    } finally {
+      setLoadingSmsBalance(false);
+    }
+  }, [usingOfflineDemo]);
+
   const downloadPlanillaPagos = async () => {
     try {
       const url = `${BACKEND_URL}/api/admin/reports/payments-planilla?format=csv`;
@@ -505,6 +531,10 @@ function AdminDashboard() {
   useEffect(() => {
     fetchMonthlyFinance();
   }, [fetchMonthlyFinance]);
+
+  useEffect(() => {
+    fetchSmsBalance();
+  }, [fetchSmsBalance]);
 
   const formatPrice = (amount) => {
     return new Intl.NumberFormat('es-CL', {
@@ -898,6 +928,52 @@ function AdminDashboard() {
             >
               {loadingMonthlyFinance ? 'Actualizando...' : 'IVA y margen (mes)'}
             </button>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <div
+              style={{
+                background: smsBalance?.is_low_balance
+                  ? 'rgba(229, 115, 115, 0.14)'
+                  : 'rgba(126, 184, 212, 0.12)',
+                border: smsBalance?.is_low_balance
+                  ? '1px solid rgba(229, 115, 115, 0.4)'
+                  : '1px solid rgba(126, 184, 212, 0.35)',
+                borderRadius: 10,
+                padding: 12,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap'
+              }}
+            >
+              <div>
+                <p style={{ margin: '0 0 4px', fontSize: 11, color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase' }}>
+                  Saldo SMS (LabsMobile)
+                </p>
+                <p style={{ margin: 0, color: '#fff', fontSize: 18, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                  {smsBalance?.credits != null ? `${Number(smsBalance.credits).toFixed(2)} créditos` : '—'}
+                </p>
+                <p style={{ margin: '4px 0 0', color: smsBalance?.is_low_balance ? ADMIN_PALETTE.danger : 'rgba(255,255,255,0.6)', fontSize: 11 }}>
+                  Umbral alerta: {smsBalance?.low_balance_threshold ?? '300'} créditos
+                  {smsBalance?.is_low_balance ? ' · RECARGAR HOY' : ''}
+                </p>
+                {smsBalanceError && (
+                  <p style={{ margin: '6px 0 0', color: '#E8A34B', fontSize: 12 }}>{smsBalanceError}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                className="maqgo-btn-secondary"
+                onClick={fetchSmsBalance}
+                disabled={loadingSmsBalance || actionsLocked}
+                title={actionsLocked ? 'Requiere conexión al API' : 'Actualizar saldo de créditos SMS'}
+                style={{ opacity: loadingSmsBalance || actionsLocked ? 0.6 : 1 }}
+              >
+                {loadingSmsBalance ? 'Actualizando...' : 'Actualizar saldo SMS'}
+              </button>
+            </div>
           </div>
           
           <div style={{ 

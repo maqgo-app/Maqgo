@@ -68,11 +68,21 @@ function ForgotPasswordScreen() {
       if (sent) {
         setError('');
         setMessage('');
+        setCode('');
         setStep(2);
       } else {
+        const reason = res.data?.reason;
+        const backendMsg = String(res.data?.message || '').trim();
+        if (reason === 'sms_blocked') {
+          setError('');
+          setMessage(
+            backendMsg || 'Por seguridad pausamos temporalmente el envío de SMS. Revisa tu correo registrado.'
+          );
+          return;
+        }
         setMessage('');
         setError(
-          'No encontramos coincidencia entre este correo y este celular. Revisá que sean los mismos que usaste al registrarte.'
+          backendMsg || 'No encontramos coincidencia entre este correo y este celular. Revisá que sean los mismos que usaste al registrarte.'
         );
       }
     } catch (e) {
@@ -106,9 +116,19 @@ function ForgotPasswordScreen() {
         celular: cel
       });
       if (res.data?.otp_sent === false) {
-        setError('No pudimos reenviar el código. Verificá correo y celular.');
+        const reason = res.data?.reason;
+        const backendMsg = String(res.data?.message || '').trim();
+        if (reason === 'sms_blocked') {
+          setError('');
+          setMessage(
+            backendMsg || 'Por seguridad pausamos temporalmente el envío de SMS. Revisa tu correo registrado.'
+          );
+          return;
+        }
+        setError(backendMsg || 'No pudimos reenviar el código. Verificá correo y celular.');
         return;
       }
+      setCode('');
       setMessage('Te enviamos un nuevo código por SMS.');
     } catch (e) {
       setError(
@@ -121,9 +141,23 @@ function ForgotPasswordScreen() {
     }
   };
 
+  const advanceAfterOtp = () => {
+    const digits = code.replace(/\D/g, '');
+    if (digits.length !== 6) {
+      setError('Ingresá los 6 dígitos del SMS');
+      return;
+    }
+    setCode(digits);
+    setError('');
+    setMessage('');
+    setStep(3);
+  };
+
   const confirmReset = async () => {
-    if (!code.trim()) {
-      setError('Ingresá el código que te llegó por SMS');
+    const digits = code.replace(/\D/g, '');
+    if (digits.length !== 6) {
+      setError('Ingresá los 6 dígitos del SMS');
+      setStep(2);
       return;
     }
     if (!newPassword || !confirmPassword) {
@@ -153,7 +187,7 @@ function ForgotPasswordScreen() {
       const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/confirm`, {
         email: email.trim(),
         celular: cel,
-        code: code.trim(),
+        code: digits,
         new_password: newPassword
       });
       setMessage(res.data?.message || 'Contraseña actualizada correctamente');
@@ -200,22 +234,22 @@ function ForgotPasswordScreen() {
         {step === 1 ? (
           <>
             <div style={{ textAlign: 'center' }}>
-              <span style={stepBadgeStyle}>Paso 1 de 2</span>
+              <span style={stepBadgeStyle}>Paso 1 de 3</span>
             </div>
             <h2 style={headingStyle}>Restablecer contraseña</h2>
             <p style={subStyle}>
-              Usamos un <strong style={{ color: '#fff' }}>código por SMS</strong> (no enviamos enlace por correo).
-              Después vas a crear tu nueva contraseña en el siguiente paso.
+              Solo para cuentas ya registradas. Te enviamos un{' '}
+              <strong style={{ color: '#fff' }}>código por SMS</strong>; en el siguiente paso lo ingresás y después
+              elegís tu nueva clave.
             </p>
 
             <div style={infoBox}>
               <p style={{ color: muted, fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                <strong style={{ color: '#fff' }}>1.</strong> Correo y celular deben ser los de tu cuenta Maqgo.
+                <strong style={{ color: '#fff' }}>1.</strong> Correo y celular con que te registraste.
                 <br />
-                <strong style={{ color: '#fff' }}>2.</strong> Te mandamos un SMS con un código.
+                <strong style={{ color: '#fff' }}>2.</strong> Código de 6 dígitos por SMS.
                 <br />
-                <strong style={{ color: '#fff' }}>3.</strong> Ingresás el código y escribís la nueva contraseña{' '}
-                <strong style={{ color: '#fff' }}>dos veces</strong> para confirmarla.
+                <strong style={{ color: '#fff' }}>3.</strong> Nueva contraseña (pantalla aparte).
               </p>
             </div>
 
@@ -281,27 +315,26 @@ function ForgotPasswordScreen() {
               Solo los 8 dígitos después del +569 (el 9 va incluido en el prefijo).
             </p>
           </>
-        ) : (
+        ) : step === 2 ? (
           <>
             <div style={{ textAlign: 'center' }}>
-              <span style={stepBadgeStyle}>Paso 2 de 2</span>
+              <span style={stepBadgeStyle}>Paso 2 de 3</span>
             </div>
-            <h2 style={headingStyle}>Código SMS y nueva contraseña</h2>
+            <h2 style={headingStyle}>Código del SMS</h2>
             <p style={subStyle}>
-              Primero verificamos el código que te enviamos; después definís tu nueva clave (dos veces, igual que en
-              otras apps).
+              Revisá los mensajes de texto. El código son <strong style={{ color: '#fff' }}>6 números</strong>; no llega
+              por correo.
             </p>
 
             <div style={{ ...infoBox, marginBottom: 16 }}>
-              <p style={{ color: muted, fontSize: 12, margin: '0 0 8px 0' }}>Datos que estamos usando</p>
+              <p style={{ color: muted, fontSize: 12, margin: '0 0 8px 0' }}>Enviamos el SMS a</p>
               <p style={{ color: '#fff', fontSize: 14, margin: '0 0 6px 0', wordBreak: 'break-all' }}>{email.trim()}</p>
               <p style={{ color: '#fff', fontSize: 14, margin: 0 }}>{maskCelularForDisplay(celularForApi())}</p>
             </div>
 
             <label htmlFor="forgot-otp-code" style={{ ...sectionTitle, display: 'block' }}>
-              Código del SMS
+              Código de 6 dígitos
             </label>
-            <p style={sectionHint}>Revisá los mensajes de texto en este número. El código no llega por correo.</p>
             <input
               id="forgot-otp-code"
               name="one-time-code"
@@ -309,46 +342,16 @@ function ForgotPasswordScreen() {
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
+              maxLength={6}
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\s/g, ''))}
-              placeholder="Código que recibiste"
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="••••••"
+              aria-describedby="forgot-otp-hint"
             />
-
-            <label htmlFor="forgot-password-new" style={{ ...sectionTitle, marginTop: 20, display: 'block' }}>
-              Nueva contraseña
-            </label>
-            <p style={sectionHint}>
-              Escribila dos veces para confirmar. No usamos restablecimiento solo por enlace: siempre código SMS + nueva
-              clave.
+            <p id="forgot-otp-hint" style={{ ...sectionHint, marginTop: 8 }}>
+              Cuando lo tengas completo, tocá <strong style={{ color: '#fff' }}>Continuar</strong> para elegir tu nueva
+              contraseña.
             </p>
-            <p style={{ ...sectionHint, marginTop: -4, marginBottom: 8 }}>{getPasswordHint(true)}</p>
-            <PasswordField
-              id="forgot-password-new"
-              name="new-password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder={getPasswordHint(true)}
-              autoComplete="new-password"
-              style={{ marginBottom: 12 }}
-              minLength={PASSWORD_RULES.minLength}
-              maxLength={PASSWORD_RULES.maxLength}
-            />
-            <label
-              htmlFor="forgot-password-confirm"
-              style={{ ...sectionTitle, display: 'block' }}
-            >
-              Confirmar nueva contraseña
-            </label>
-            <PasswordField
-              id="forgot-password-confirm"
-              name="confirm-new-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Repetir nueva contraseña"
-              autoComplete="new-password"
-              minLength={PASSWORD_RULES.minLength}
-              maxLength={PASSWORD_RULES.maxLength}
-            />
 
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button
@@ -378,6 +381,80 @@ function ForgotPasswordScreen() {
               </button>
             </div>
           </>
+        ) : (
+          <>
+            <div style={{ textAlign: 'center' }}>
+              <span style={stepBadgeStyle}>Paso 3 de 3</span>
+            </div>
+            <h2 style={headingStyle}>Nueva contraseña</h2>
+            <p style={subStyle}>Escribila dos veces, igual que al registrarte.</p>
+
+            <label htmlFor="forgot-password-new" style={{ ...sectionTitle, display: 'block' }}>
+              Nueva contraseña
+            </label>
+            <p style={{ ...sectionHint, marginBottom: 8 }}>{getPasswordHint(true)}</p>
+            <PasswordField
+              id="forgot-password-new"
+              name="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder={getPasswordHint(true)}
+              autoComplete="new-password"
+              style={{ marginBottom: 12 }}
+              minLength={PASSWORD_RULES.minLength}
+              maxLength={PASSWORD_RULES.maxLength}
+            />
+            <label
+              htmlFor="forgot-password-confirm"
+              style={{ ...sectionTitle, display: 'block' }}
+            >
+              Confirmar nueva contraseña
+            </label>
+            <PasswordField
+              id="forgot-password-confirm"
+              name="confirm-new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repetir nueva contraseña"
+              autoComplete="new-password"
+              minLength={PASSWORD_RULES.minLength}
+              maxLength={PASSWORD_RULES.maxLength}
+            />
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="maqgo-btn-secondary"
+                onClick={() => {
+                  setStep(2);
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setError('');
+                  setMessage('');
+                }}
+                style={{ flex: 1, minWidth: 120 }}
+                disabled={loading}
+              >
+                Volver al código
+              </button>
+              <button
+                type="button"
+                className="maqgo-btn-secondary"
+                onClick={() => {
+                  setStep(1);
+                  setCode('');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setMessage('');
+                  setError('');
+                }}
+                style={{ flex: 1, minWidth: 120 }}
+                disabled={loading}
+              >
+                Cambiar correo o celular
+              </button>
+            </div>
+          </>
         )}
 
         {error && <p style={{ color: '#ff6b6b', fontSize: 13, textAlign: 'center', marginTop: 8 }}>{error}</p>}
@@ -392,11 +469,21 @@ function ForgotPasswordScreen() {
           >
             {loading ? 'Enviando...' : 'Continuar — enviar código SMS'}
           </button>
+        ) : step === 2 ? (
+          <button
+            type="button"
+            className="maqgo-btn-primary"
+            onClick={advanceAfterOtp}
+            disabled={loading || code.replace(/\D/g, '').length !== 6}
+            style={{ marginTop: 16 }}
+          >
+            Continuar
+          </button>
         ) : (
           <button
             className="maqgo-btn-primary"
             onClick={confirmReset}
-            disabled={loading || !code || !newPassword || !confirmPassword}
+            disabled={loading || !newPassword || !confirmPassword}
             style={{ marginTop: 16 }}
           >
             {loading ? 'Guardando...' : 'Guardar nueva contraseña'}

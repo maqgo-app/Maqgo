@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
@@ -28,63 +28,88 @@ const TYPE_NAME_TO_ID = Object.fromEntries(
   MACHINERY_TYPES.map(m => [m.name.toLowerCase(), m.id])
 );
 
+const LICENSE_PLATE_REGEX = /^[A-Z]{4}-\d{2}$/;
+
+function formatLicensePlateInput(value) {
+  const raw = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const letters = raw.replace(/[^A-Z]/g, '').slice(0, 4);
+  const digits = raw.replace(/[^0-9]/g, '').slice(0, 2);
+  if (!letters && !digits) return '';
+  if (!digits) return letters;
+  return `${letters}-${digits}`;
+}
+
+const EMPTY_MACHINE_FORM = {
+  machineryType: '',
+  brand: '',
+  model: '',
+  year: '',
+  licensePlate: '',
+  capacityM3: '',
+  capacityLiters: '',
+  capacityTonM: '',
+  bucketM3: '',
+  weightTon: '',
+  powerHp: '',
+  bladeWidthM: '',
+  craneTon: '',
+  rollerTon: ''
+};
+
+function buildMachineForm(isEditMode, editMachine) {
+  if (isEditMode && editMachine) {
+    const matched = MACHINERY_TYPES.find(
+      (m) => m.name === editMachine.type || m.id === editMachine.type?.toLowerCase?.()
+    );
+    const machineryType = matched?.id || TYPE_NAME_TO_ID[editMachine.type?.toLowerCase?.()] || '';
+    const brandModel = editMachine.brand || '';
+    const [brand = '', model = ''] = brandModel.includes(' ')
+      ? brandModel.split(/\s+(.+)/).slice(0, 2)
+      : [brandModel, ''];
+    return {
+      machineryType,
+      brand: brand.trim(),
+      model: model.trim(),
+      year: editMachine.year || '',
+      licensePlate: formatLicensePlateInput(editMachine.licensePlate || ''),
+      capacityM3: editMachine.capacityM3 != null ? String(editMachine.capacityM3) : '',
+      capacityLiters: editMachine.capacityLiters != null ? String(editMachine.capacityLiters) : '',
+      capacityTonM: editMachine.capacityTonM != null ? String(editMachine.capacityTonM) : '',
+      bucketM3: editMachine.bucketM3 != null ? String(editMachine.bucketM3) : '',
+      weightTon: editMachine.weightTon != null ? String(editMachine.weightTon) : '',
+      powerHp: editMachine.powerHp != null ? String(editMachine.powerHp) : '',
+      bladeWidthM: editMachine.bladeWidthM != null ? String(editMachine.bladeWidthM) : '',
+      craneTon: editMachine.craneTon != null ? String(editMachine.craneTon) : '',
+      rollerTon: editMachine.rollerTon != null ? String(editMachine.rollerTon) : ''
+    };
+  }
+  const saved = getObject('machineData', {});
+  if (saved.machineryType) {
+    return {
+      ...EMPTY_MACHINE_FORM,
+      ...saved,
+      licensePlate: formatLicensePlateInput(saved.licensePlate || '')
+    };
+  }
+  return { ...EMPTY_MACHINE_FORM };
+}
+
 function MachineDataScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
   const isEditMode = Boolean(id && location.pathname.includes('edit-machine'));
   const editMachine = location.state?.machine ?? (id ? getMachineById(id) : null);
+  const [form, setForm] = useState(() =>
+    buildMachineForm(isEditMode, editMachine)
+  );
 
-  const [form, setForm] = useState({
-    machineryType: '',
-    brand: '',
-    model: '',
-    year: '',
-    licensePlate: '',
-    capacityM3: '',
-    capacityLiters: '',
-    capacityTonM: '',
-    bucketM3: '',
-    weightTon: '',
-    powerHp: '',
-    bladeWidthM: '',
-    craneTon: '',
-    rollerTon: ''
-  });
-
-  useEffect(() => {
-    if (isEditMode && editMachine) {
-      // Pre-llenar desde máquina editada
-      const matched = MACHINERY_TYPES.find(m => 
-        m.name === editMachine.type || m.id === editMachine.type?.toLowerCase?.()
-      );
-      const machineryType = matched?.id || 
-        TYPE_NAME_TO_ID[editMachine.type?.toLowerCase?.()] || '';
-      const brandModel = editMachine.brand || '';
-      const [brand = '', model = ''] = brandModel.includes(' ') 
-        ? brandModel.split(/\s+(.+)/).slice(0, 2) 
-        : [brandModel, ''];
-      setTimeout(() => setForm({
-        machineryType,
-        brand: brand.trim(),
-        model: model.trim(),
-        year: editMachine.year || '',
-        licensePlate: editMachine.licensePlate || '',
-        capacityM3: editMachine.capacityM3 != null ? String(editMachine.capacityM3) : '',
-        capacityLiters: editMachine.capacityLiters != null ? String(editMachine.capacityLiters) : '',
-        capacityTonM: editMachine.capacityTonM != null ? String(editMachine.capacityTonM) : '',
-        bucketM3: editMachine.bucketM3 != null ? String(editMachine.bucketM3) : '',
-        weightTon: editMachine.weightTon != null ? String(editMachine.weightTon) : '',
-        powerHp: editMachine.powerHp != null ? String(editMachine.powerHp) : '',
-        bladeWidthM: editMachine.bladeWidthM != null ? String(editMachine.bladeWidthM) : '',
-        craneTon: editMachine.craneTon != null ? String(editMachine.craneTon) : '',
-        rollerTon: editMachine.rollerTon != null ? String(editMachine.rollerTon) : ''
-      }), 0);
-    } else {
-      const saved = getObject('machineData', {});
-      if (saved.machineryType) setTimeout(() => setForm(saved), 0);
-    }
-  }, [isEditMode, editMachine]);
+  // `location.key` cambia en cada navegación; evita depender de `editMachine` (nueva ref por render desde localStorage).
+  useLayoutEffect(() => {
+    const editMode = Boolean(id && location.pathname.includes('edit-machine'));
+    const machine = location.state?.machine ?? (id ? getMachineById(id) : null);
+    setForm(buildMachineForm(editMode, machine));
+  }, [id, location.pathname, location.key, location.state?.machine]);
 
   const currentYear = new Date().getFullYear();
   const MIN_YEAR = 1950;
@@ -137,7 +162,8 @@ function MachineDataScreen() {
 
   const handleBack = () => navigate(isEditMode ? '/provider/machines' : '/provider/data');
 
-  const isValid = form.machineryType && form.brand && form.model && form.licensePlate && !yearError;
+  const hasValidLicensePlate = LICENSE_PLATE_REGEX.test(form.licensePlate);
+  const isValid = form.machineryType && form.brand && form.model && hasValidLicensePlate && !yearError;
 
   return (
     <div className="maqgo-app">
@@ -272,15 +298,21 @@ function MachineDataScreen() {
           </label>
           <input
             className="maqgo-input"
-            placeholder="Ej: BGKL-45"
+            placeholder="Ej: BBBB-44"
             value={form.licensePlate}
-            onChange={e => update('licensePlate', e.target.value.toUpperCase())}
+            onChange={e => update('licensePlate', formatLicensePlateInput(e.target.value))}
             required
+            maxLength={7}
             data-testid="license-plate-input"
           />
           {!form.licensePlate && (
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, marginTop: 4, marginBottom: 0 }}>
               La patente es obligatoria para identificar tu maquinaria
+            </p>
+          )}
+          {form.licensePlate && !hasValidLicensePlate && (
+            <p style={{ color: '#f44336', fontSize: 12, marginTop: 4, marginBottom: 0 }}>
+              Formato requerido: BBBB-44
             </p>
           )}
         </div>

@@ -1,3 +1,4 @@
+# Solo API (sin SPA). Para servir también el frontend en el mismo host, usar el Dockerfile en la raíz del repo.
 FROM python:3.12-slim
 
 WORKDIR /app

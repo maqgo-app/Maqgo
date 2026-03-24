@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { getObject, getArray } from '../../utils/safeStorage';
@@ -6,6 +6,10 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import { getDemoProviders } from '../../utils/pricing';
 
 import BACKEND_URL from '../../utils/api';
+import {
+  ensureBackendSessionForClientBooking,
+  getClientDisplayNameForApi,
+} from '../../utils/clientSessionForPayment';
 
 /**
  * Pantalla de retorno tras completar inscripción OneClick en Transbank.
@@ -18,135 +22,153 @@ import BACKEND_URL from '../../utils/api';
 function OneClickCompleteScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const tbk_user = searchParams.get('tbk_user') || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tbk_user') : null);
+  const tbk_user =
+    searchParams.get('tbk_user') ||
+    (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tbk_user') : null);
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
 
+  const skipMainFlow =
+    typeof window !== 'undefined' &&
+    !tbk_user &&
+    localStorage.getItem('oneclickDemoMode') !== 'true';
+
+  useLayoutEffect(() => {
+    if (skipMainFlow) navigate('/client/card', { replace: true });
+  }, [skipMainFlow, navigate]);
+
   useEffect(() => {
-    const demoFlag = localStorage.getItem('oneclickDemoMode') === 'true';
-    const effectiveTbk = tbk_user || (demoFlag ? `demo-${Date.now()}` : null);
+    if (skipMainFlow) return undefined;
 
-    if (!effectiveTbk) {
-      navigate('/client/card');
-      return;
-    }
+    let cancelled = false;
 
-    const email = localStorage.getItem('clientEmail') || '';
-    const username = email
-      ? email.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60)
-      : `user_${Date.now()}`;
+    const run = async () => {
+      const demoFlag = localStorage.getItem('oneclickDemoMode') === 'true';
+      const effectiveTbk = tbk_user || (demoFlag ? `demo-${Date.now()}` : null);
 
-    localStorage.setItem('tbk_user', effectiveTbk);
-    localStorage.setItem('oneclick_username', username);
-
-    const isDemoMode = (effectiveTbk && effectiveTbk.startsWith('demo-')) || demoFlag;
-
-    // Modo demo: flujo local sin backend — asignar proveedor simulado para vivir la experiencia completa
-    if (isDemoMode) {
-      localStorage.removeItem('oneclickDemoMode');
-      const clientId = localStorage.getItem('userId') || `client_${Date.now()}`;
-      if (!localStorage.getItem('userId')) {
-        localStorage.setItem('userId', clientId);
+      if (!effectiveTbk) {
+        navigate('/client/card', { replace: true });
+        return;
       }
 
-      const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
-      const demoProviders = getDemoProviders(machinery, 3);
+      const email = (localStorage.getItem('clientEmail') || '').trim();
+      const username = email
+        ? email.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60)
+        : `user_${Date.now()}`;
 
-      // Siempre usar proveedores demo en modo tarjeta de prueba para garantizar asignación
-      localStorage.setItem('matchedProviders', JSON.stringify(demoProviders));
-      localStorage.setItem('selectedProviderIds', JSON.stringify(['demo-1']));
-      localStorage.setItem('selectedProvider', JSON.stringify(demoProviders[0]));
-      localStorage.setItem('currentServiceId', `demo-${Date.now()}`);
+      localStorage.setItem('tbk_user', effectiveTbk);
+      localStorage.setItem('oneclick_username', username);
 
-      navigate('/client/searching', { replace: true });
-      return;
-    }
+      const isDemoMode = (effectiveTbk && effectiveTbk.startsWith('demo-')) || demoFlag;
 
-    // Persistir OneClick en backend
-    const saveOneClick = async () => {
+      if (isDemoMode) {
+        localStorage.removeItem('oneclickDemoMode');
+        const clientId = localStorage.getItem('userId') || `client_${Date.now()}`;
+        if (!localStorage.getItem('userId')) {
+          localStorage.setItem('userId', clientId);
+        }
+
+        const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
+        const demoProviders = getDemoProviders(machinery, 3);
+
+        localStorage.setItem('matchedProviders', JSON.stringify(demoProviders));
+        localStorage.setItem('selectedProviderIds', JSON.stringify(['demo-1']));
+        localStorage.setItem('selectedProvider', JSON.stringify(demoProviders[0]));
+        localStorage.setItem('currentServiceId', `demo-${Date.now()}`);
+
+        if (!cancelled) navigate('/client/searching', { replace: true });
+        return;
+      }
+
+      const clientName = getClientDisplayNameForApi();
+
       try {
-        await axios.post(`${BACKEND_URL}/api/payments/oneclick/save`, {
-          email,
-          tbk_user,
-          username
-        }, { timeout: 5000 });
-      } catch (e) {
-        console.warn('No se pudo guardar OneClick en backend:', e?.message);
-      }
-    };
-    saveOneClick();
+        if (email) {
+          await axios.post(
+            `${BACKEND_URL}/api/payments/oneclick/save`,
+            { email, tbk_user: effectiveTbk, username },
+            { timeout: 8000 }
+          );
+        } else {
+          console.warn('OneClick: sin email en localStorage; no se persistió inscripción en Mongo (cobro real puede fallar).');
+        }
 
-    // Crear solicitud de servicio en backend y continuar
-    const createServiceAndContinue = async () => {
-      const clientId = localStorage.getItem('userId') || `client_${Date.now()}`;
-      if (!localStorage.getItem('userId')) {
-        localStorage.setItem('userId', clientId);
-      }
+        if (cancelled) return;
 
-      const billingData = getObject('billingData', {});
-      const registerData = getObject('registerData', {});
-      const clientName = billingData.nombre
-        ? `${billingData.nombre || ''} ${billingData.apellido || ''}`.trim()
-        : registerData.nombre
-          ? `${registerData.nombre || ''} ${registerData.apellido || ''}`.trim()
-          : 'Cliente MAQGO';
+        if (!email) {
+          throw new Error('No encontramos tu correo. Vuelve a la pantalla de pago e ingrésalo de nuevo.');
+        }
+        await ensureBackendSessionForClientBooking(email);
+        if (cancelled) return;
 
-      const serviceLat = parseFloat(localStorage.getItem('serviceLat'));
-      const serviceLng = parseFloat(localStorage.getItem('serviceLng'));
-      const serviceLocation = localStorage.getItem('serviceLocation') || '';
+        const clientId = localStorage.getItem('userId');
+        if (!clientId) {
+          throw new Error('No se pudo iniciar sesión. Intenta de nuevo.');
+        }
 
-      const basePrice = parseFloat(localStorage.getItem('serviceBasePrice')) || 150000;
-      const transportFee = parseFloat(localStorage.getItem('serviceTransportFee')) || 0;
-      const totalAmount = parseInt(localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0', 10);
-      const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
+        const serviceLat = parseFloat(localStorage.getItem('serviceLat'));
+        const serviceLng = parseFloat(localStorage.getItem('serviceLng'));
+        const serviceLocation = localStorage.getItem('serviceLocation') || '';
 
-      const selectedProvider = getObject('selectedProvider', {});
-      const selectedProviderIds = getArray('selectedProviderIds', []);
-      const selectedProviderId = selectedProviderIds.length > 0 ? selectedProviderIds[0] : (selectedProvider?.id || undefined);
+        const basePrice = parseFloat(localStorage.getItem('serviceBasePrice')) || 150000;
+        const transportFee = parseFloat(localStorage.getItem('serviceTransportFee')) || 0;
+        const totalAmount = parseInt(localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0', 10);
+        const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
 
-      const payload = {
-        clientId,
-        clientName: clientName || 'Cliente MAQGO',
-        clientEmail: email || undefined,
-        selectedProviderId: selectedProviderId || undefined,
-        selectedProviderIds: selectedProviderIds.length > 0 ? selectedProviderIds : undefined,
-        location: {
-          lat: Number.isFinite(serviceLat) ? serviceLat : -33.4489,
-          lng: Number.isFinite(serviceLng) ? serviceLng : -70.6693,
-          address: serviceLocation
-        },
-        basePrice,
-        transportFee,
-        totalAmount: totalAmount > 0 ? totalAmount : undefined,
-        needsInvoice: needsInvoice || undefined,
-        machineryType: localStorage.getItem('selectedMachinery') || 'retroexcavadora',
-        workdayAccepted: true,
-        reservationType: localStorage.getItem('reservationType') || 'immediate',
-        scheduledDate: localStorage.getItem('selectedDate') || undefined
-      };
+        const selectedProvider = getObject('selectedProvider', {});
+        const selectedProviderIds = getArray('selectedProviderIds', []);
+        const selectedProviderId =
+          selectedProviderIds.length > 0 ? selectedProviderIds[0] : (selectedProvider?.id || undefined);
 
-      const FAST_ERROR_MS = 6000; // Mostrar error antes que esperar 15s
-      const apiPromise = axios.post(
-        `${BACKEND_URL}/api/service-requests`,
-        payload,
-        { timeout: 12000 }
-      );
-      const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_ERROR_MS));
-      try {
+        const payload = {
+          clientId,
+          clientName: clientName || 'Cliente MAQGO',
+          clientEmail: email || undefined,
+          selectedProviderId: selectedProviderId || undefined,
+          selectedProviderIds: selectedProviderIds.length > 0 ? selectedProviderIds : undefined,
+          location: {
+            lat: Number.isFinite(serviceLat) ? serviceLat : -33.4489,
+            lng: Number.isFinite(serviceLng) ? serviceLng : -70.6693,
+            address: serviceLocation,
+          },
+          basePrice,
+          transportFee,
+          totalAmount: totalAmount > 0 ? totalAmount : undefined,
+          needsInvoice: needsInvoice || undefined,
+          machineryType: localStorage.getItem('selectedMachinery') || 'retroexcavadora',
+          workdayAccepted: true,
+          reservationType: localStorage.getItem('reservationType') || 'immediate',
+          scheduledDate: localStorage.getItem('selectedDate') || undefined,
+        };
+
+        const FAST_ERROR_MS = 6000;
+        const apiPromise = axios.post(`${BACKEND_URL}/api/service-requests`, payload, { timeout: 12000 });
+        const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_ERROR_MS));
         const { data } = await Promise.race([apiPromise, timeoutPromise]);
+        if (cancelled) return;
         localStorage.setItem('currentServiceId', data.id);
         if (data.matching) {
           localStorage.setItem('matchingResult', JSON.stringify(data.matching));
         }
         navigate('/client/searching', { replace: true });
       } catch (e) {
-        console.error('Error creando solicitud:', e);
-        setError(e?.response?.data?.detail || e?.message || 'El servidor tardó demasiado. Intenta de nuevo.');
+        if (cancelled) return;
+        console.error('Error OneClick complete:', e);
+        const detail = e?.response?.data?.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map((d) => d.msg || d).join(' ')
+          : typeof detail === 'string'
+            ? detail
+            : e?.message;
+        setError(msg || 'El servidor tardó demasiado. Intenta de nuevo.');
       }
     };
 
-    createServiceAndContinue();
-  }, [tbk_user, navigate, retryCount]);
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [tbk_user, navigate, retryCount, skipMainFlow]);
 
   const handleRetry = () => {
     setError(null);
@@ -157,9 +179,14 @@ function OneClickCompleteScreen() {
     navigate('/client/card');
   };
 
+  if (skipMainFlow) return null;
+
   return (
     <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
+      <div
+        className="maqgo-screen"
+        style={{ justifyContent: 'center', alignItems: 'center', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}
+      >
         <MaqgoLogo size="small" />
         {error ? (
           <>
@@ -167,10 +194,11 @@ function OneClickCompleteScreen() {
               {error}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24, width: '100%', maxWidth: 280 }}>
-              <button className="maqgo-btn-primary" onClick={handleRetry} aria-label="Reintentar crear solicitud">
+              <button type="button" className="maqgo-btn-primary" onClick={handleRetry} aria-label="Reintentar crear solicitud">
                 Reintentar
               </button>
               <button
+                type="button"
                 onClick={handleBack}
                 style={{
                   padding: 14,
@@ -181,7 +209,7 @@ function OneClickCompleteScreen() {
                   fontSize: 15,
                   fontWeight: 500,
                   cursor: 'pointer',
-                  fontFamily: "'Inter', sans-serif"
+                  fontFamily: "'Inter', sans-serif",
                 }}
                 aria-label="Volver a pago"
               >
@@ -191,17 +219,19 @@ function OneClickCompleteScreen() {
           </>
         ) : (
           <>
-            <div style={{
-              width: 50,
-              height: 50,
-              marginTop: 30,
-              border: '4px solid rgba(255,255,255,0.2)',
-              borderTopColor: '#EC6819',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite'
-            }} />
+            <div
+              style={{
+                width: 50,
+                height: 50,
+                marginTop: 30,
+                border: '4px solid rgba(255,255,255,0.2)',
+                borderTopColor: '#EC6819',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+              }}
+            />
             <p style={{ color: '#fff', marginTop: 20, textAlign: 'center' }}>
-              Tarjeta registrada. Buscando proveedores disponibles...
+              Tarjeta registrada. Preparando tu solicitud...
             </p>
           </>
         )}

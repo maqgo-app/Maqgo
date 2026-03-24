@@ -1,6 +1,5 @@
 """
-MAQGO - Tests OTP Service (Redis + AWS SNS)
-Prueba send_otp y verify_otp con Redis y SNS mockeados.
+MAQGO - Tests OTP Service (Redis + LabsMobile)
 """
 
 import sys
@@ -15,20 +14,21 @@ class TestOTPServiceSend:
 
     @patch.dict(os.environ, {
         'REDIS_URL': 'redis://localhost:6379',
-        'AWS_ACCESS_KEY_ID': 'test',
-        'AWS_SECRET_ACCESS_KEY': 'test',
+        'LABSMOBILE_USERNAME': 'test@example.com',
+        'LABSMOBILE_API_TOKEN': 'token',
+        'LABSMOBILE_SENDER': 'MAQGO',
     }, clear=False)
     @patch('services.otp_service._get_redis')
-    @patch('services.otp_service._send_sms_sns')
-    def test_send_otp_success(self, mock_sns, mock_redis):
-        """Envío exitoso: Redis guarda OTP, SNS envía SMS"""
+    @patch('services.otp_service.send_sms')
+    def test_send_otp_success(self, mock_send_sms, mock_redis):
+        """Envío exitoso: Redis guarda OTP y LabsMobile envía SMS"""
         mock_r = MagicMock()
         mock_r.get.return_value = "0"
         mock_r.ttl.return_value = 600
         mock_pipe = MagicMock()
         mock_r.pipeline.return_value = mock_pipe
         mock_redis.return_value = mock_r
-        mock_sns.return_value = (True, None)
+        mock_send_sms.return_value = (True, None)
 
         from services.otp_service import send_otp
 
@@ -37,8 +37,8 @@ class TestOTPServiceSend:
         assert result['success'] is True
         assert result.get('demo_mode') is False
         mock_pipe.setex.assert_called()
-        mock_sns.assert_called_once()
-        msg = mock_sns.call_args[0][1]
+        mock_send_sms.assert_called_once()
+        msg = mock_send_sms.call_args[0][1]
         assert 'Tu código MAQGO es:' in msg
         assert len(msg.split()[-1]) == 6  # código de 6 dígitos
 
@@ -54,12 +54,13 @@ class TestOTPServiceSend:
 
     @patch.dict(os.environ, {
         'REDIS_URL': 'redis://localhost:6379',
-        'AWS_ACCESS_KEY_ID': 'test',
-        'AWS_SECRET_ACCESS_KEY': 'test',
+        'LABSMOBILE_USERNAME': 'test@example.com',
+        'LABSMOBILE_API_TOKEN': 'token',
+        'LABSMOBILE_SENDER': 'MAQGO',
     }, clear=False)
     @patch('services.otp_service._get_redis')
-    @patch('services.otp_service._send_sms_sns')
-    def test_send_otp_rate_limit(self, mock_sns, mock_redis):
+    @patch('services.otp_service.send_sms')
+    def test_send_otp_rate_limit(self, mock_send_sms, mock_redis):
         """Rate limit: máx 3 OTP por número cada 10 min"""
         mock_r = MagicMock()
         mock_r.get.side_effect = lambda k: "3" if "rate" in str(k) else "0"
@@ -72,16 +73,17 @@ class TestOTPServiceSend:
 
         assert result['success'] is False
         assert 'Demasiados intentos' in result.get('error', '')
-        mock_sns.assert_not_called()
+        mock_send_sms.assert_not_called()
 
     @patch.dict(os.environ, {
         'REDIS_URL': 'redis://localhost:6379',
-        'AWS_ACCESS_KEY_ID': 'test',
-        'AWS_SECRET_ACCESS_KEY': 'test',
+        'LABSMOBILE_USERNAME': 'test@example.com',
+        'LABSMOBILE_API_TOKEN': 'token',
+        'LABSMOBILE_SENDER': 'MAQGO',
     }, clear=False)
     @patch('services.otp_service._get_redis')
-    @patch('services.otp_service._send_sms_sns')
-    def test_send_otp_whatsapp_not_supported(self, mock_sns, mock_redis):
+    @patch('services.otp_service.send_sms')
+    def test_send_otp_whatsapp_not_supported(self, mock_send_sms, mock_redis):
         """WhatsApp no soportado: retorna error"""
         from services.otp_service import send_otp
 
@@ -89,7 +91,7 @@ class TestOTPServiceSend:
 
         assert result['success'] is False
         assert 'WhatsApp' in result.get('error', '')
-        mock_sns.assert_not_called()
+        mock_send_sms.assert_not_called()
 
 
 class TestOTPServiceVerify:
@@ -97,7 +99,9 @@ class TestOTPServiceVerify:
 
     @patch.dict(os.environ, {
         'REDIS_URL': 'redis://localhost:6379',
-        'AWS_ACCESS_KEY_ID': 'test',
+        'LABSMOBILE_USERNAME': 'test@example.com',
+        'LABSMOBILE_API_TOKEN': 'token',
+        'LABSMOBILE_SENDER': 'MAQGO',
     }, clear=False)
     @patch('services.otp_service._get_redis')
     def test_verify_otp_valid(self, mock_redis):
@@ -117,7 +121,9 @@ class TestOTPServiceVerify:
 
     @patch.dict(os.environ, {
         'REDIS_URL': 'redis://localhost:6379',
-        'AWS_ACCESS_KEY_ID': 'test',
+        'LABSMOBILE_USERNAME': 'test@example.com',
+        'LABSMOBILE_API_TOKEN': 'token',
+        'LABSMOBILE_SENDER': 'MAQGO',
     }, clear=False)
     @patch('services.otp_service._get_redis')
     def test_verify_otp_invalid(self, mock_redis):
@@ -137,7 +143,9 @@ class TestOTPServiceVerify:
 
     @patch.dict(os.environ, {
         'REDIS_URL': 'redis://localhost:6379',
-        'AWS_ACCESS_KEY_ID': 'test',
+        'LABSMOBILE_USERNAME': 'test@example.com',
+        'LABSMOBILE_API_TOKEN': 'token',
+        'LABSMOBILE_SENDER': 'MAQGO',
     }, clear=False)
     @patch('services.otp_service._get_redis')
     def test_verify_otp_expired(self, mock_redis):
@@ -156,7 +164,9 @@ class TestOTPServiceVerify:
 
     @patch.dict(os.environ, {
         'REDIS_URL': 'redis://localhost:6379',
-        'AWS_ACCESS_KEY_ID': 'test',
+        'LABSMOBILE_USERNAME': 'test@example.com',
+        'LABSMOBILE_API_TOKEN': 'token',
+        'LABSMOBILE_SENDER': 'MAQGO',
     }, clear=False)
     @patch('services.otp_service._get_redis')
     def test_verify_otp_too_many_attempts(self, mock_redis):
@@ -195,13 +205,13 @@ class TestOTPServiceHelpers:
         assert _normalize_phone('56912345678') == '+56912345678'
         assert _normalize_phone('+56912345678') == '+56912345678'
 
-    @patch.dict(os.environ, {'REDIS_URL': 'redis://x', 'AWS_ACCESS_KEY_ID': 'x'}, clear=False)
+    @patch.dict(os.environ, {'REDIS_URL': 'redis://x', 'LABSMOBILE_USERNAME': 'x', 'LABSMOBILE_API_TOKEN': 'x', 'LABSMOBILE_SENDER': 'MAQGO'}, clear=False)
     def test_is_otp_configured_true(self):
-        """Configurado cuando Redis y AWS están"""
+        """Configurado cuando Redis y LabsMobile están"""
         from services.otp_service import is_otp_configured
         assert is_otp_configured() is True
 
-    @patch.dict(os.environ, {'REDIS_URL': '', 'AWS_ACCESS_KEY_ID': ''}, clear=False)
+    @patch.dict(os.environ, {'REDIS_URL': '', 'LABSMOBILE_API_TOKEN': ''}, clear=False)
     def test_is_otp_configured_false_no_redis(self):
         """No configurado sin Redis"""
         from services.otp_service import is_otp_configured

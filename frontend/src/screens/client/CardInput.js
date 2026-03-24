@@ -38,7 +38,7 @@ function CardInput() {
       }, { timeout: 8000 });
       
       navigate('/client/searching');
-    } catch (error) {
+    } catch {
       // Continuar al flujo de búsqueda de todos modos (demo)
       navigate('/client/searching');
     } finally {

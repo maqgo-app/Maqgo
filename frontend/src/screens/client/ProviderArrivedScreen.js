@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ChatFloatingButton from '../../components/ChatFloatingButton';
 import { playArrivedSound, unlockAudio } from '../../utils/notificationSounds';
@@ -7,7 +7,7 @@ import { vibrate } from '../../utils/uberUX';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { MACHINERY_PER_TRIP } from '../../utils/pricing';
-import { getObject, getObjectFirst } from '../../utils/safeStorage';
+import { getObjectFirst } from '../../utils/safeStorage';
 import { getProviderLicensePlate } from '../../utils/providerDisplay';
 
 // Constantes de tiempo (en segundos)
@@ -33,8 +33,6 @@ function ProviderArrivedScreen() {
   const [lastReminderShown, setLastReminderShown] = useState(0);
   const serviceId = localStorage.getItem('currentServiceId') || `service-${Date.now()}`;
 
-  const operatorPhoto = provider.operator_photo || provider.operatorPhoto || getObject('assignedOperator', {}).photo;
-
   useEffect(() => {
     // Cargar datos
     const savedProvider = getObjectFirst(['acceptedProvider', 'selectedProvider'], {});
@@ -54,6 +52,12 @@ function ProviderArrivedScreen() {
     vibrate('arrived');
   }, []);
 
+  const handleStartService = useCallback(() => {
+    localStorage.setItem('serviceStartTime', new Date().toISOString());
+    localStorage.setItem('serviceStatus', 'started'); // Bloquea cancelación (política punto 6)
+    navigate('/client/service-active');
+  }, [navigate]);
+
   // Timer principal y notificaciones periódicas
   useEffect(() => {
     const interval = setInterval(() => {
@@ -70,7 +74,7 @@ function ProviderArrivedScreen() {
       });
 
       // Calcular minutos de espera
-      setWaitingMinutes(prev => {
+      setWaitingMinutes(_prev => {
         const newMinutes = Math.floor((MAX_WAIT_TIME - timeLeft + 1) / 60);
         
         // Verificar si debemos mostrar un recordatorio
@@ -102,18 +106,12 @@ function ProviderArrivedScreen() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timeLeft, clientOnTheWay, lastReminderShown]);
+  }, [timeLeft, clientOnTheWay, lastReminderShown, handleStartService]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleStartService = () => {
-    localStorage.setItem('serviceStartTime', new Date().toISOString());
-    localStorage.setItem('serviceStatus', 'started'); // Bloquea cancelación (política punto 6)
-    navigate('/client/service-active');
   };
 
   const handleLetIn = () => {

@@ -222,7 +222,7 @@ function AdminRoute() {
             línea.
           </p>
           <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: '0 0 24px' }}>
-            CORS: el backend debe permitir el origen de tu web (ej. <code>https://maqgo.vercel.app</code>) en{' '}
+            CORS: el backend debe permitir el origen de tu web (ej. <code>https://www.maqgo.cl</code>) en{' '}
             <code>CORS_ORIGINS</code>.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

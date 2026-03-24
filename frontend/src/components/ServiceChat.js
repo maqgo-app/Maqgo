@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 
 import BACKEND_URL from '../utils/api';
-import { CHAT_CONTACT_BLOCKED_MESSAGE, messageContainsPhoneOrContact } from '../utils/chatSecurity';
+import { validateChatMessage } from '../utils/chatSecurity';
 import { showSystemNotification } from '../utils/uberUX';
 import { playChatIncomingSound, unlockAudio } from '../utils/notificationSounds';
 
@@ -118,8 +118,9 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
     if (!newMessage.trim() || sending) return;
 
     const content = newMessage.trim();
-    if (messageContainsPhoneOrContact(content)) {
-      setSendError(CHAT_CONTACT_BLOCKED_MESSAGE);
+    const validation = validateChatMessage(content);
+    if (!validation.ok) {
+      setSendError(validation.message);
       return;
     }
 
@@ -144,8 +145,9 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
   const sendQuickMessage = async (text) => {
     if (sending) return;
 
-    if (messageContainsPhoneOrContact(text)) {
-      setSendError(CHAT_CONTACT_BLOCKED_MESSAGE);
+    const validation = validateChatMessage(text);
+    if (!validation.ok) {
+      setSendError(validation.message);
       return;
     }
 

@@ -18,8 +18,19 @@ from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
 import uuid
+import os
 
 logger = logging.getLogger(__name__)
+
+
+def _is_production_env() -> bool:
+    env = os.environ.get("MAQGO_ENV", os.environ.get("ENVIRONMENT", "development"))
+    return str(env).strip().lower() in {"prod", "production"}
+
+
+def _parse_bool_env(name: str, default: bool) -> bool:
+    raw = str(os.environ.get(name, str(default))).strip().lower()
+    return raw in {"1", "true", "yes", "on"}
 
 # Configuración de pagos
 PAYMENT_CONFIG = {
@@ -36,6 +47,11 @@ class PaymentService:
     
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
+        # En producción se exige pago real (sin fallback simulado).
+        self.require_real_payment = _parse_bool_env(
+            "REQUIRE_REAL_PAYMENT",
+            _is_production_env(),
+        )
     
     async def validate_card(
         self,
@@ -177,6 +193,17 @@ class PaymentService:
                     'error': str(e)
                 }
         else:
+            if self.require_real_payment:
+                logger.warning(
+                    "Cobro rechazado sin OneClick en modo real",
+                    extra={"client_id": client_id, "service_request_id": service_request_id},
+                )
+                return {
+                    'success': False,
+                    'status': 'failed',
+                    'message': 'El cliente no tiene tarjeta inscrita para cobro real',
+                    'error': 'ONECLICK_REQUIRED'
+                }
             logger.info(f"Sin OneClick para cliente {client_id}, usando flujo simulado")
 
         # Órdenes TBK: guardar padre + detalle Mall (el reembolso exige detail_buy_order correcto)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -35,12 +35,10 @@ function SelectOperatorScreen() {
   // Datos del dueño/secretaria para notificaciones
   const [ownerPhone] = useState(() => getObject('registerData', {}).phone || '');
 
-  useEffect(() => {
-    // Cargar operadores registrados
+  useLayoutEffect(() => {
     const savedOperators = getArray('operatorsData', []);
-    
+
     if (savedOperators.length === 0) {
-      // Si no hay operadores, usar datos del proveedor como operador por defecto
       const registerData = getObject('registerData', {});
       const providerData = getObject('providerData', {});
       const defaultOperator = {
@@ -51,28 +49,27 @@ function SelectOperatorScreen() {
         licenseType: 'Clase D',
         isOwner: true
       };
-      setTimeout(() => {
-        setOperators([defaultOperator]);
-        setSelectedOperator(defaultOperator);
-      }, 0);
+      setOperators([defaultOperator]);
+      setSelectedOperator(defaultOperator);
+      return;
+    }
+
+    const operatorsWithIds = savedOperators.map((op, index) => ({
+      ...op,
+      id: op.id || `op-${index}`
+    }));
+    setOperators(operatorsWithIds);
+
+    const defaults = getObject(STORAGE_KEY_DEFAULT_BY_MACHINERY, {});
+    const defaultOpId = defaults[machineryId || 'retroexcavadora'];
+    const defaultOp = defaultOpId ? operatorsWithIds.find((o) => o.id === defaultOpId) : null;
+
+    if (operatorsWithIds.length === 1) {
+      setSelectedOperator(operatorsWithIds[0]);
+    } else if (defaultOp) {
+      setSelectedOperator(defaultOp);
     } else {
-      // Agregar IDs si no existen
-      const operatorsWithIds = savedOperators.map((op, index) => ({
-        ...op,
-        id: op.id || `op-${index}`
-      }));
-      setTimeout(() => setOperators(operatorsWithIds), 0);
-      
-      // Pre-seleccionar: operador por defecto para esta máquina, o el único, o ninguno
-      const defaults = getObject(STORAGE_KEY_DEFAULT_BY_MACHINERY, {});
-      const defaultOpId = defaults[machineryId || 'retroexcavadora'];
-      const defaultOp = defaultOpId ? operatorsWithIds.find(o => o.id === defaultOpId) : null;
-      
-      if (operatorsWithIds.length === 1) {
-        setTimeout(() => setSelectedOperator(operatorsWithIds[0]), 0);
-      } else if (defaultOp) {
-        setTimeout(() => setSelectedOperator(defaultOp), 0);
-      }
+      setSelectedOperator(null);
     }
   }, [machineryId]);
 
@@ -109,10 +106,7 @@ function SelectOperatorScreen() {
     // Guardar celular del dueño para notificaciones paralelas
     localStorage.setItem('ownerPhone', ownerPhone);
     
-    // Continuar al flujo "En Camino"
-    setTimeout(() => {
-      navigate('/provider/en-route');
-    }, 300);
+    navigate('/provider/en-route');
   };
 
   const handleBackClick = () => setShowBackModal(true);

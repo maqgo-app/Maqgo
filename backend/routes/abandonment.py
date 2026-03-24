@@ -9,6 +9,13 @@ from typing import Optional
 from datetime import datetime, timedelta
 import asyncio
 import os
+import smtplib
+import ssl
+from email.message import EmailMessage
+from html import escape
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from db_config import get_db_name, get_mongo_url
 
 router = APIRouter(prefix="/abandonment", tags=["abandonment"])
 
@@ -19,6 +26,9 @@ scheduled_reminders = {}
 # Configuración de tiempos
 FIRST_REMINDER_MINUTES = 30
 SECOND_REMINDER_HOURS = 24
+CRITICAL_FIRST_REMINDER_MINUTES = 10  # pasos de alta intención (ej: pago)
+EMAIL_COOLDOWN_HOURS = 24
+EMAIL_MAX_PER_WEEK = 3
 
 class AbandonmentData(BaseModel):
     user_id: str
@@ -54,6 +64,16 @@ def get_machinery_name(machinery_id: str) -> str:
 
 # URL de la app para enlaces en recordatorios (env o localhost)
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5174").rstrip("/")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+
+mongo_url = get_mongo_url()
+client = AsyncIOMotorClient(mongo_url)
+db = client[get_db_name()]
+
+try:
+    import resend
+except Exception:
+    resend = None
 
 
 async def send_whatsapp_reminder(phone: str, name: str, machinery: str, is_first: bool = True):
@@ -106,26 +126,222 @@ _Equipo MAQGO_"""
         return False
 
 
-async def send_email_reminder(email: str, name: str, machinery: str, is_first: bool = True):
-    """Envía recordatorio por Email"""
+def _is_critical_step(step: str) -> bool:
+    return step in {"confirm", "payment", "providers", "location"}
+
+
+def _resume_link(data: AbandonmentData) -> str:
+    # Punto de retorno único; el frontend ya decide reanudar desde localStorage.
+    return f"{FRONTEND_URL}/client/home"
+
+
+async def _can_send_rescue_email(user_id: str, event_name: str) -> bool:
+    """Aplica anti-saturación: cooldown 24h y tope semanal."""
+    now = datetime.utcnow()
+    week_ago = now - timedelta(days=7)
+    cooldown_since = now - timedelta(hours=EMAIL_COOLDOWN_HOURS)
+
+    recent_same_event = await db.funnel_rescue_events.find_one({
+        "userId": user_id,
+        "event": event_name,
+        "channel": "email",
+        "sentAt": {"$gte": cooldown_since.isoformat()},
+    })
+    if recent_same_event:
+        return False
+
+    weekly_count = await db.funnel_rescue_events.count_documents({
+        "userId": user_id,
+        "channel": "email",
+        "sentAt": {"$gte": week_ago.isoformat()},
+    })
+    return weekly_count < EMAIL_MAX_PER_WEEK
+
+
+async def _log_rescue_event(user_id: str, email: str, event_name: str, step: str, sent: bool) -> None:
+    await db.funnel_rescue_events.insert_one({
+        "userId": user_id,
+        "email": email,
+        "channel": "email",
+        "event": event_name,
+        "step": step,
+        "sent": sent,
+        "sentAt": datetime.utcnow().isoformat(),
+    })
+
+
+async def send_email_reminder(data: AbandonmentData, is_first: bool = True):
+    """Envía recordatorio por Email con límites anti-saturación."""
     try:
-        # Por ahora solo log - en producción usar SendGrid/Resend
-        machinery_name = get_machinery_name(machinery)
-        
-        subject = f"Tu reserva de {machinery_name} está pendiente - MAQGO" if is_first else f"¿Aún necesitas una {machinery_name}? - MAQGO"
-        
-        print(f"📧 Email reminder would be sent to {email}")
-        print(f"   Subject: {subject}")
-        print(f"   Name: {name}, Machinery: {machinery_name}")
-        
-        # TODO: Integrar con servicio de email real
-        # await send_email(to=email, subject=subject, body=body)
-        
+        if not data.user_email:
+            return False
+        event_name = f"abandonment_{data.step}_{'first' if is_first else 'second'}"
+        can_send = await _can_send_rescue_email(data.user_id, event_name)
+        if not can_send:
+            print(f"📧 Rescue email throttled for user={data.user_id} event={event_name}")
+            return False
+
+        machinery_name = get_machinery_name(data.machinery or "")
+        resume_url = _resume_link(data)
+        step_label = data.step.replace("_", " ").strip()
+        urgent_hint = (
+            "Tu solicitud era urgente y puede perder prioridad si no la retomas ahora.\n\n"
+            if data.step == "payment" else
+            ""
+        )
+        if is_first:
+            subject = f"Retoma tu reserva de {machinery_name} en MAQGO"
+            text = (
+                f"Hola {data.user_name or 'Cliente'},\n\n"
+                f"Vimos que tu reserva de {machinery_name} quedó pendiente en el paso '{step_label}'.\n\n"
+                f"{urgent_hint}"
+                f"Puedes continuar exactamente donde la dejaste:\n{resume_url}\n\n"
+                "Si ya no necesitas el servicio, ignora este correo.\n\n"
+                "Equipo MAQGO"
+            )
+        else:
+            subject = f"Ultimo recordatorio: tu reserva de {machinery_name} sigue pendiente"
+            text = (
+                f"Hola {data.user_name or 'Cliente'},\n\n"
+                f"Tu reserva de {machinery_name} sigue pendiente en MAQGO.\n"
+                "Este es el ultimo recordatorio para no saturarte.\n\n"
+                f"Continuar reserva: {resume_url}\n\n"
+                "Equipo MAQGO"
+            )
+        html = _build_maqgo_email_html(
+            preheader="Tu reserva sigue pendiente en MAQGO",
+            title=subject,
+            intro=(
+                f"Detectamos que tu reserva de {machinery_name} quedo pendiente en el paso '{step_label}'."
+                if is_first else
+                f"Tu reserva de {machinery_name} sigue pendiente y este es el ultimo recordatorio."
+            ),
+            bullets=[
+                "Retoma exactamente donde la dejaste desde el boton de abajo.",
+                "Si ya resolviste por otro medio, puedes ignorar este correo.",
+                "Este mensaje es transaccional y no corresponde a marketing masivo.",
+            ],
+            cta_label="Continuar reserva",
+            cta_url=resume_url,
+        )
+
+        smtp_host = os.environ.get("EMAIL_SMTP_HOST", "").strip()
+        smtp_user = os.environ.get("EMAIL_SMTP_USER", "").strip()
+        smtp_pass = os.environ.get("EMAIL_SMTP_PASS", "").strip()
+        smtp_port = int(os.environ.get("EMAIL_SMTP_PORT", "587"))
+        use_ssl = os.environ.get("EMAIL_SMTP_SSL", "false").lower() == "true"
+
+        if smtp_host and smtp_user and smtp_pass:
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = SENDER_EMAIL
+            msg["To"] = data.user_email
+            msg.set_content(text)
+            msg.add_alternative(html, subtype="html")
+            if use_ssl:
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=15) as server:
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+                    server.starttls(context=ssl.create_default_context())
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+        else:
+            resend_key = os.environ.get("RESEND_API_KEY", "").strip()
+            if not resend or not resend_key:
+                print("📧 Rescue email skipped: no SMTP/Resend configured")
+                return False
+            resend.api_key = resend_key
+            await asyncio.to_thread(
+                resend.Emails.send,
+                {
+                    "from": SENDER_EMAIL,
+                    "to": data.user_email,
+                    "subject": subject,
+                    "text": text,
+                    "html": html,
+                }
+            )
+
+        await _log_rescue_event(data.user_id, data.user_email, event_name, data.step, True)
+        print(f"📧 Rescue email sent to {data.user_email} event={event_name}")
         return True
-        
     except Exception as e:
         print(f"❌ Error sending email: {e}")
+        if data.user_email:
+            try:
+                await _log_rescue_event(
+                    data.user_id,
+                    data.user_email,
+                    f"abandonment_{data.step}_{'first' if is_first else 'second'}",
+                    data.step,
+                    False,
+                )
+            except Exception:
+                pass
         return False
+
+
+def _build_maqgo_email_html(
+    *,
+    preheader: str,
+    title: str,
+    intro: str,
+    bullets: list[str],
+    cta_label: str,
+    cta_url: str,
+) -> str:
+    items = "".join(
+        f"<li style=\"margin:0 0 8px 0;\">{escape(i)}</li>"
+        for i in bullets
+    )
+    return f"""\
+<!doctype html>
+<html lang="es">
+  <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">{escape(preheader)}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e5e7eb;">
+            <tr>
+              <td style="padding:22px 24px;background:#0b1220;color:#fff;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="left" style="font-size:22px;font-weight:700;letter-spacing:0.3px;">MAQGO</td>
+                    <td align="right">
+                      <span style="display:inline-block;padding:6px 10px;border-radius:999px;background:#1f2937;color:#e5e7eb;font-size:12px;">Soporte MAQGO</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:26px 24px 12px 24px;">
+                <h1 style="margin:0 0 10px 0;font-size:24px;line-height:1.25;color:#111827;">{escape(title)}</h1>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;color:#334155;">{escape(intro)}</p>
+                <ul style="margin:0 0 18px 18px;padding:0;font-size:14px;line-height:1.6;color:#334155;">{items}</ul>
+                <a href="{escape(cta_url)}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:600;font-size:14px;">
+                  {escape(cta_label)}
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 24px 24px 24px;border-top:1px solid #e5e7eb;">
+                <p style="margin:0;font-size:12px;line-height:1.5;color:#64748b;">
+                  Este correo es transaccional y se envia para continuidad operativa.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
 
 
 async def schedule_reminders(user_id: str, data: AbandonmentData):
@@ -140,7 +356,8 @@ async def schedule_reminders(user_id: str, data: AbandonmentData):
     
     # Primer recordatorio a los 30 minutos
     async def first_reminder():
-        await asyncio.sleep(FIRST_REMINDER_MINUTES * 60)
+        first_wait = CRITICAL_FIRST_REMINDER_MINUTES if _is_critical_step(data.step) else FIRST_REMINDER_MINUTES
+        await asyncio.sleep(first_wait * 60)
         
         # Verificar si el usuario aún está en abandono
         if user_id in abandonment_tracking:
@@ -154,7 +371,7 @@ async def schedule_reminders(user_id: str, data: AbandonmentData):
                 await send_whatsapp_reminder(data.user_phone, data.user_name or 'Cliente', data.machinery, is_first=True)
             
             if data.user_email:
-                await send_email_reminder(data.user_email, data.user_name or 'Cliente', data.machinery, is_first=True)
+                await send_email_reminder(data, is_first=True)
             
             tracking['first_reminder_sent'] = True
     
@@ -174,7 +391,7 @@ async def schedule_reminders(user_id: str, data: AbandonmentData):
                 await send_whatsapp_reminder(data.user_phone, data.user_name or 'Cliente', data.machinery, is_first=False)
             
             if data.user_email:
-                await send_email_reminder(data.user_email, data.user_name or 'Cliente', data.machinery, is_first=False)
+                await send_email_reminder(data, is_first=False)
             
             tracking['second_reminder_sent'] = True
             

@@ -7,6 +7,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, getMachineryCapacityOptions, getProviderSpecLabelShort } from '../../utils/machineryNames';
+import { getObject } from '../../utils/safeStorage';
 
 /**
  * P08 - Revisión y Confirmación
@@ -29,7 +30,7 @@ function ReviewScreen() {
         return fallback;
       }
     };
-    setProviderData(safeParse('providerData', {}));
+    setProviderData(getObject('providerData', {}));
     setMachineData(safeParse('machineData', {}));
     const ops = safeParse('operatorsData', []);
     const imgs = safeParse('machinePhotos', []);
@@ -190,6 +191,20 @@ function ReviewScreen() {
           <div style={styles.row}>
             <span style={styles.label}>RUT:</span>
             <span style={styles.value}>{providerData.rut || '-'}</span>
+          </div>
+          <div style={styles.row}>
+            <span style={styles.label}>Giro:</span>
+            <span style={styles.value}>{providerData.giro || '-'}</span>
+          </div>
+          <div style={styles.row}>
+            <span style={styles.label}>Comuna:</span>
+            <span style={styles.value}>{providerData.comuna || '-'}</span>
+          </div>
+          <div style={{ ...styles.row, alignItems: 'flex-start' }}>
+            <span style={styles.label}>Dirección:</span>
+            <span style={{ ...styles.value, textAlign: 'right', maxWidth: '62%', wordBreak: 'break-word' }}>
+              {providerData.address || '-'}
+            </span>
           </div>
           <div style={styles.row}>
             <span style={styles.label}>Celular:</span>

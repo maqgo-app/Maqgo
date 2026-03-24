@@ -16,6 +16,27 @@ import { getClientProviderDisplayName } from '../../utils/privacy';
  * Con factura: totalPagado = totalConFactura(totalSinFactura) => totalSinFactura = totalPagado / factor.
  * Reparte totalSinFactura en subtotal (servicio+traslado+bonus) y comisión MAQGO (10%+IVA sobre comisión).
  */
+function formatTimeHHMM(isoString) {
+  if (!isoString) return '';
+  try {
+    return new Date(isoString).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false });
+  } catch {
+    return '';
+  }
+}
+
+/** Regla: solo horario real de ingreso y salida; nunca inventar fin si falta o coincide con inicio. */
+function getRealStartAndEnd(startIso, endIso) {
+  const start = formatTimeHHMM(startIso);
+  const end = formatTimeHHMM(endIso);
+  const hasRealEnd = end && end !== start;
+  return {
+    startTime: start || '—',
+    endTime: hasRealEnd ? end : null,
+    hasRealEnd
+  };
+}
+
 function buildBreakdownFromTotal(totalPagado, needsInvoice) {
   if (!totalPagado || totalPagado <= 0) return null;
   const totalSinFactura = Math.round(totalPagado / CON_FACTURA_FACTOR);
@@ -71,25 +92,6 @@ function ServiceFinishedScreen() {
     hasRealEnd: false,
     pricing: {}
   });
-
-  const formatTimeHHMM = (isoString) => {
-    if (!isoString) return '';
-    try {
-      return new Date(isoString).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false });
-    } catch { return ''; }
-  };
-
-  /** Regla: solo horario real de ingreso y salida; nunca inventar fin si falta o coincide con inicio. */
-  const getRealStartAndEnd = (startIso, endIso) => {
-    const start = formatTimeHHMM(startIso);
-    const end = formatTimeHHMM(endIso);
-    const hasRealEnd = end && end !== start;
-    return {
-      startTime: start || '—',
-      endTime: hasRealEnd ? end : null,
-      hasRealEnd
-    };
-  };
 
   useEffect(() => {
     let cancelled = false;

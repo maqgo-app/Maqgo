@@ -20,8 +20,7 @@
  * Info:        #90BDD3
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-/* display=swap evita FOIT: texto visible de inmediato con fallback, luego swap a la fuente */
+/* Fuentes cargadas localmente desde @fontsource en main.jsx (evita doble carga y reflow). */
 
 * {
   box-sizing: border-box;

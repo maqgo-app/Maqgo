@@ -1,37 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { getMachineryDisplayName, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getObject, getJSON } from '../../utils/safeStorage';
+
+function buildProviderActiveRequest() {
+  const parsed = getJSON('incomingRequest', null);
+  if (parsed) {
+    const machineryId = parsed.machinery_type || parsed.machineryType || 'retroexcavadora';
+    return {
+      ...parsed,
+      machinery_type: machineryId,
+      machineryType: getMachineryDisplayName(machineryId)
+    };
+  }
+  const machineData = getObject('machineData', {});
+  const machineryType = machineData.machineryType || 'retroexcavadora';
+  return {
+    machineryType: getMachineryDisplayName(machineryType),
+    location: 'Santiago Centro',
+    hours: 4,
+    clientName: 'Carlos González'
+  };
+}
 
 /**
  * Pantalla P5 - Servicio en Curso (Proveedor)
  */
 function ProviderServiceActiveScreen() {
   const navigate = useNavigate();
-  const [request, setRequest] = useState(null);
-
-  useEffect(() => {
-    const parsed = getJSON('incomingRequest', null);
-    if (parsed) {
-      const machineryId = parsed.machinery_type || parsed.machineryType || 'retroexcavadora';
-      setTimeout(() => setRequest({
-        ...parsed,
-        machinery_type: machineryId,
-        machineryType: getMachineryDisplayName(machineryId)
-      }), 0);
-    } else {
-      const machineData = getObject('machineData', {});
-      const machineryType = machineData.machineryType || 'retroexcavadora';
-      
-      setTimeout(() => setRequest({
-        machineryType: getMachineryDisplayName(machineryType),
-        location: 'Santiago Centro',
-        hours: 4,
-        clientName: 'Carlos González'
-      }), 0);
-    }
-  }, []);
+  const [request] = useState(buildProviderActiveRequest);
 
   const handleFinish = () => {
     navigate('/provider/service-finished');

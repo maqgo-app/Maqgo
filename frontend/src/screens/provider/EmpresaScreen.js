@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { validateRut, formatRut, searchComunas, ALL_COMUNAS } from '../../utils/chileanValidation';
+import { validateRut, formatRut } from '../../utils/chileanValidation';
 import { getObject } from '../../utils/safeStorage';
+import ComunaAutocomplete from '../../components/ComunaAutocomplete';
+import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/AddressAutocomplete';
 
 /**
  * Sub-pantalla: Datos de la Empresa
@@ -11,9 +13,11 @@ function EmpresaScreen() {
   const navigate = useNavigate();
   const [saved, setSaved] = useState(false);
   const [rutError, setRutError] = useState('');
-  const [showComunaSuggestions, setShowComunaSuggestions] = useState(false);
-  const [comunaSuggestions, setComunaSuggestions] = useState([]);
-  const comunaInputRef = useRef(null);
+  const [scriptRetryKey, setScriptRetryKey] = useState(0);
+  const [placesReady, setPlacesReady] = useState(false);
+  const [placesPhase, setPlacesPhase] = useState('idle');
+  const [placesReason, setPlacesReason] = useState('');
+  const hasMapsApiKey = !!getGoogleMapsApiKey();
   
   const [data, setData] = useState({
     businessName: '',
@@ -22,23 +26,33 @@ function EmpresaScreen() {
     phone: '',
     comuna: '',
     address: '',
+    addressLat: null,
+    addressLng: null,
+    addressSource: 'manual',
     giro: ''
   });
 
   useEffect(() => {
     const saved = getObject('providerData', {});
-    if (saved.businessName) setTimeout(() => setData(saved), 0);
-  }, []);
-
-  // Close suggestions when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (comunaInputRef.current && !comunaInputRef.current.contains(event.target)) {
-        setShowComunaSuggestions(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const hasSaved =
+      saved &&
+      typeof saved === 'object' &&
+      (saved.businessName ||
+        saved.rut ||
+        saved.giro ||
+        saved.comuna ||
+        saved.address ||
+        saved.email ||
+        saved.phone);
+    if (hasSaved) {
+      setData((prev) => ({
+        ...prev,
+        ...saved,
+        addressLat: Number.isFinite(saved.addressLat) ? saved.addressLat : null,
+        addressLng: Number.isFinite(saved.addressLng) ? saved.addressLng : null,
+        addressSource: saved.addressSource || 'manual',
+      }));
+    }
   }, []);
 
   const handleRutChange = (e) => {
@@ -56,24 +70,6 @@ function EmpresaScreen() {
     } else {
       setRutError('');
     }
-  };
-
-  const handleComunaChange = (e) => {
-    const value = e.target.value;
-    setData(p => ({ ...p, comuna: value }));
-    
-    if (value.length >= 2) {
-      const suggestions = searchComunas(value, 8);
-      setComunaSuggestions(suggestions);
-      setShowComunaSuggestions(suggestions.length > 0);
-    } else {
-      setShowComunaSuggestions(false);
-    }
-  };
-
-  const handleComunaSelect = (comuna) => {
-    setData(p => ({ ...p, comuna }));
-    setShowComunaSuggestions(false);
   };
 
   const handleSave = () => {
@@ -227,66 +223,17 @@ function EmpresaScreen() {
           </div>
 
           {/* Comuna con autocompletado */}
-          <div style={{ position: 'relative' }} ref={comunaInputRef}>
+          <div>
             <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: 6, display: 'block' }}>
               Comuna
             </label>
-            <input
-              type="text"
+            <ComunaAutocomplete
               value={data.comuna}
-              onChange={handleComunaChange}
-              onFocus={() => {
-                if (data.comuna.length >= 2) {
-                  const suggestions = searchComunas(data.comuna, 8);
-                  setComunaSuggestions(suggestions);
-                  setShowComunaSuggestions(suggestions.length > 0);
-                }
-              }}
+              onChange={(value) => setData((p) => ({ ...p, comuna: value }))}
               placeholder="Ej: Providencia, Las Condes..."
-              style={inputStyle}
-              autoComplete="off"
-              data-testid="comuna-input"
+              className="maqgo-input"
+              style={{ fontSize: 15 }}
             />
-            
-            {/* Suggestions dropdown */}
-            {showComunaSuggestions && comunaSuggestions.length > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: '#333',
-                border: '1px solid #555',
-                borderRadius: 8,
-                marginTop: 4,
-                maxHeight: 200,
-                overflowY: 'auto',
-                zIndex: 100
-              }}>
-                {comunaSuggestions.map((comuna, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleComunaSelect(comuna)}
-                    style={{
-                      width: '100%',
-                      padding: '12px 14px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: idx < comunaSuggestions.length - 1 ? '1px solid #444' : 'none',
-                      color: '#fff',
-                      fontSize: 14,
-                      textAlign: 'left',
-                      cursor: 'pointer'
-                    }}
-                    onMouseEnter={(e) => e.target.style.background = '#444'}
-                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                    data-testid={`comuna-suggestion-${idx}`}
-                  >
-                    {comuna}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Dirección comercial */}
@@ -294,14 +241,63 @@ function EmpresaScreen() {
             <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: 6, display: 'block' }}>
               Dirección comercial
             </label>
-            <input
-              type="text"
+            <AddressAutocomplete
               value={data.address}
-              onChange={(e) => setData(p => ({ ...p, address: e.target.value }))}
+              onChange={(value) => setData((p) => ({ ...p, address: value }))}
+              onPlacesReadyChange={setPlacesReady}
+              onPlacesStatusChange={({ phase, reason }) => {
+                setPlacesPhase(phase || 'idle');
+                setPlacesReason(reason || '');
+              }}
+              scriptRetryKey={scriptRetryKey}
+              onSelect={({ address, comuna, lat, lng }) => {
+                setData((p) => ({
+                  ...p,
+                  address: address || '',
+                  comuna: comuna || p.comuna,
+                  addressLat: Number.isFinite(lat) ? lat : null,
+                  addressLng: Number.isFinite(lng) ? lng : null,
+                  addressSource: Number.isFinite(lat) && Number.isFinite(lng) ? 'google_places' : 'manual',
+                }));
+              }}
               placeholder="Av. Principal 123"
-              style={inputStyle}
-              data-testid="address-input"
+              className="maqgo-input"
+              style={{ fontSize: 15 }}
+              testId="address-input"
             />
+            {hasMapsApiKey && placesPhase === 'failed' && (
+              <div style={{ marginTop: 8 }}>
+                <p style={{ color: '#ffb4b4', fontSize: 11, margin: 0 }}>
+                  No se pudo cargar el autocompletado de mapas. Puedes escribir la dirección manualmente.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setScriptRetryKey((k) => k + 1)}
+                  style={{
+                    marginTop: 6,
+                    padding: '6px 10px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.25)',
+                    background: 'transparent',
+                    color: '#fff',
+                    fontSize: 11,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Reintentar autocompletado
+                </button>
+                {placesReason && (
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, margin: '6px 0 0' }}>
+                    Detalle: {placesReason}
+                  </p>
+                )}
+              </div>
+            )}
+            {hasMapsApiKey && placesReady && (
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 6, marginBottom: 0 }}>
+                Selecciona una opción de la lista para fijar la dirección exacta del negocio.
+              </p>
+            )}
             {data.comuna && (
               <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4, marginBottom: 0 }}>
                 {data.address ? `${data.address}, ${data.comuna}` : data.comuna}

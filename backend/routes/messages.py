@@ -18,6 +18,9 @@ db = client[DB_NAME]
 CHAT_CONTACT_BLOCKED_MSG = (
     "Por seguridad, no compartas datos de contacto. Usa el chat de MAQGO"
 )
+CHAT_LOW_QUALITY_BLOCKED_MSG = (
+    "Escribe un mensaje claro y útil para coordinar el servicio."
+)
 
 
 def _normalize_sender_type(sender_type: str) -> str:
@@ -51,6 +54,43 @@ def _content_contains_phone_or_contact(text: str) -> bool:
     return False
 
 
+def _is_low_quality_content(text: str) -> bool:
+    if not text or not str(text).strip():
+        return False
+    s = str(text).strip()
+
+    # Repeticiones largas o ruido evidente
+    if re.search(r"(.)\1{5,}", s):
+        return True
+    if re.search(r"([.\-_])\1{3,}", s):
+        return True
+
+    tokens = [t for t in re.split(r"\s+", s) if t]
+    alnum_only = re.sub(r"[^a-zA-Z0-9]", "", s)
+    unique_chars = len(set(alnum_only.lower())) if alnum_only else 0
+    diversity = (unique_chars / len(alnum_only)) if alnum_only else 1.0
+
+    # Token con mezcla letras+números, largo y sin vocales (típico spam/junk)
+    for token in tokens:
+        clean = re.sub(r"[^a-zA-Z0-9]", "", token)
+        if len(clean) < 12:
+            continue
+        has_letters = bool(re.search(r"[a-zA-Z]", clean))
+        has_digits = bool(re.search(r"\d", clean))
+        has_vowels = bool(re.search(r"[aeiouAEIOU]", clean))
+        if has_letters and has_digits and not has_vowels:
+            return True
+        repeated_punctuation = bool(re.search(r"([.\-_])\1{2,}", token))
+        if len(clean) >= 18 and has_letters and (has_digits or repeated_punctuation):
+            return True
+
+    # Mensaje largo con baja diversidad y varios tokens -> probable basura
+    if len(s) >= 30 and len(tokens) >= 5 and diversity < 0.28:
+        return True
+
+    return False
+
+
 class MessageCreate(BaseModel):
     service_id: str
     sender_type: str  # 'client' or 'operator'
@@ -72,6 +112,8 @@ async def send_message(message: MessageCreate):
     try:
         if _content_contains_phone_or_contact(message.content):
             raise HTTPException(status_code=400, detail=CHAT_CONTACT_BLOCKED_MSG)
+        if _is_low_quality_content(message.content):
+            raise HTTPException(status_code=400, detail=CHAT_LOW_QUALITY_BLOCKED_MSG)
 
         st = _normalize_sender_type(message.sender_type)
         if st not in ("client", "operator"):

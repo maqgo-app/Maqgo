@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
 import { getObject } from '../../utils/safeStorage';
@@ -19,42 +19,42 @@ const ACCOUNT_TYPES = [
   { id: 'ahorro', name: 'Cuenta de Ahorro' }
 ];
 
-function BancoScreen() {
-  const navigate = useNavigate();
-  const [saved, setSaved] = useState(false);
-  const [rutError, setRutError] = useState('');
-  const [data, setData] = useState({
+function buildBancoFormInitial() {
+  const empty = {
     bank: '',
     accountType: '',
     accountNumber: '',
     holderNombre: '',
     holderApellido: '',
     holderRut: ''
-  });
+  };
+  const savedBank = getObject('bankData', {});
+  const provider = getObject('providerData', {});
 
-  useEffect(() => {
-    const savedBank = getObject('bankData', {});
-    const provider = getObject('providerData', {});
-    
-    if (savedBank.bank) {
-      const parts = (savedBank.holderName || '').trim().split(/\s+/);
-      setTimeout(() => setData(prev => ({
-        ...savedBank,
-        holderNombre: parts[0] || '',
-        holderApellido: parts.slice(1).join(' ') || '',
-        holderRut: savedBank.holderRut || prev.holderRut
-      })), 0);
-    } else {
-      const biz = (provider.businessName || '').trim();
-      const parts = biz.split(/\s+/);
-      setTimeout(() => setData(prev => ({
-        ...prev,
-        holderNombre: parts[0] || '',
-        holderApellido: parts.slice(1).join(' ') || '',
-        holderRut: provider.rut || ''
-      })), 0);
-    }
-  }, []);
+  if (savedBank.bank) {
+    const parts = (savedBank.holderName || '').trim().split(/\s+/);
+    return {
+      ...savedBank,
+      holderNombre: parts[0] || '',
+      holderApellido: parts.slice(1).join(' ') || '',
+      holderRut: savedBank.holderRut || ''
+    };
+  }
+  const biz = (provider.businessName || '').trim();
+  const parts = biz.split(/\s+/);
+  return {
+    ...empty,
+    holderNombre: parts[0] || '',
+    holderApellido: parts.slice(1).join(' ') || '',
+    holderRut: provider.rut || ''
+  };
+}
+
+function BancoScreen() {
+  const navigate = useNavigate();
+  const [saved, setSaved] = useState(false);
+  const [rutError, setRutError] = useState('');
+  const [data, setData] = useState(buildBancoFormInitial);
 
   const handleRutChange = (e) => {
     const value = e.target.value;

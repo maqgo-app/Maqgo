@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { getClientBookingRoute, clearClientBookingStorage } from '../../utils/bookingFlow';
+import { preloadClientBookingFunnel } from '../../utils/preloadClientBookingFunnel';
 
 /**
  * C10 - Tipo de Reserva - Diseño Premium
@@ -13,6 +14,10 @@ function ClientHome() {
   const navigate = useNavigate();
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [pendingRoute, setPendingRoute] = useState(null);
+
+  useEffect(() => {
+    preloadClientBookingFunnel();
+  }, []);
 
   // Verificar si hay una reserva en progreso
   useEffect(() => {

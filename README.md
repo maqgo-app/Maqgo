@@ -4,11 +4,12 @@
 
 Aplicación móvil (PWA) para arriendo de maquinaria pesada con operador en Chile.
 
-## URL de producción (frontend Vercel)
+## URL de producción
 
-Proyecto en Vercel: **`maqgo`** → **https://maqgo.vercel.app**
+Dominio público objetivo: **`https://www.maqgo.cl`** (canonical en `index.html` y `manifest.json`).
 
-Metadatos canónicos (`index.html`) y PWA (`manifest.json`) apuntan a este dominio para previews y “Añadir a pantalla de inicio” coherentes.
+- **Deploy:** modelos **split** (www + API) vs **unificado** → **[docs/MODELOS_DEPLOY.md](docs/MODELOS_DEPLOY.md)** · checklists **[CHECKLIST_SPLIT_WWW_API.md](docs/CHECKLIST_SPLIT_WWW_API.md)** · **[CHECKLIST_WWW_MAQGO_CL.md](docs/CHECKLIST_WWW_MAQGO_CL.md)** · **[DEPLOY_SIN_VERCEL.md](docs/DEPLOY_SIN_VERCEL.md)**.
+- **Opción histórica:** frontend en Vercel (`maqgo` → `https://maqgo.vercel.app`) + API en Railway; sigue **[docs/RAILWAY_PRODUCTION.md](docs/RAILWAY_PRODUCTION.md)**.
 
 ### Backend en Railway + env (producción)
 
@@ -119,7 +120,7 @@ Para que el autocompletado de direcciones funcione en producción:
    - `https://www.maqgo.cl/*`
    - `https://*.vercel.app/*` (si usas previews)
 4. Restringir la key por **API restrictions** a Maps JavaScript + Places.
-5. Configurar en deploy (Vercel):
+5. Configurar en deploy (Railway build/env o Vercel si aún usás front ahí):
    - `VITE_GOOGLE_MAPS_API_KEY=<tu_key>`
 6. Redeploy y prueba rápida:
    - En ubicación escribe una dirección (ej: "Av. Providencia 1234")

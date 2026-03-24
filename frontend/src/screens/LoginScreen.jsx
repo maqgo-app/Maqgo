@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../components/MaqgoLogo';
@@ -6,6 +6,8 @@ import PasswordField from '../components/PasswordField';
 import { PASSWORD_RULES } from '../utils/passwordValidation';
 import BACKEND_URL from '../utils/api';
 import { getHttpErrorMessage } from '../utils/httpErrors';
+import { getLoginEmailPrefill, rememberLoginEmail } from '../utils/loginHints';
+import { isAdminRoleStored } from '../utils/welcomeHome';
 
 /**
  * Pantalla C8 - Login
@@ -18,6 +20,31 @@ function LoginScreen({ setUserRole, setUserId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Sesión ya válida: no mostrar login (móvil/navegador “recuerda” al usuario).
+  useLayoutEffect(() => {
+    const token = localStorage.getItem('token');
+    const userId = localStorage.getItem('userId');
+    if (!token || !userId) return;
+    const role = localStorage.getItem('userRole') || 'client';
+    if (isAdminRoleStored() || redirectTo === '/admin') {
+      navigate('/admin', { replace: true });
+      return;
+    }
+    if (role === 'client') {
+      const target = redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/';
+      navigate(target, { replace: true });
+      return;
+    }
+    const target = redirectTo && redirectTo.startsWith('/provider') ? redirectTo : '/';
+    navigate(target, { replace: true });
+  }, [navigate, redirectTo]);
+
+  // Prefill solo con correo real (evita RUT por autofill o datos mezclados).
+  useEffect(() => {
+    const hint = getLoginEmailPrefill();
+    if (hint) setForm((f) => ({ ...f, email: hint }));
+  }, []);
+
   const handleLogin = async () => {
     if (!form.email || !form.password) return;
     setLoading(true);
@@ -29,9 +56,18 @@ function LoginScreen({ setUserRole, setUserId }) {
         headers: { 'Content-Type': 'application/json' }
       });
       const roles = Array.isArray(res.data.roles) ? res.data.roles : [];
+      const previouslySelectedRole = localStorage.getItem('userRole');
       // Prioridad: cuenta admin (role o roles[] desde /api/auth/login) → siempre panel admin
       const isAdmin = res.data.role === 'admin' || roles.includes('admin');
-      const effectiveRole = isAdmin ? 'admin' : res.data.role;
+      let effectiveRole = isAdmin ? 'admin' : res.data.role;
+      // Cuenta multirol: mantener el rol previamente elegido por el usuario si sigue disponible.
+      if (!isAdmin && previouslySelectedRole && roles.includes(previouslySelectedRole)) {
+        effectiveRole = previouslySelectedRole;
+      }
+      // Fallback defensivo: si role legacy no viene pero existe lista de roles.
+      if (!effectiveRole && roles.length > 0) {
+        effectiveRole = roles.includes('provider') ? 'provider' : roles[0];
+      }
       setUserRole(effectiveRole);
       setUserId(res.data.id);
       localStorage.setItem('userId', res.data.id);
@@ -39,6 +75,7 @@ function LoginScreen({ setUserRole, setUserId }) {
       localStorage.setItem('userRoles', JSON.stringify(roles));
       localStorage.setItem('providerRole', res.data.provider_role || 'super_master');
       if (res.data.token) localStorage.setItem('token', res.data.token);
+      rememberLoginEmail(form.email);
       // Admin: siempre /admin (ignora redirect a /client si el usuario resultó ser admin)
       if (isAdmin || redirectTo === '/admin') {
         navigate('/admin', { replace: true });
@@ -100,7 +137,8 @@ function LoginScreen({ setUserRole, setUserId }) {
             className="maqgo-input"
             placeholder="tu@correo.cl"
             type="email"
-            autoComplete="email"
+            inputMode="email"
+            autoComplete="username"
             value={form.email}
             onChange={e => setForm({ ...form, email: e.target.value })}
           />

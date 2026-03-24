@@ -75,9 +75,7 @@ function OperatorHistoryScreen() {
   }
 
   useEffect(() => {
-    setTimeout(() => {
-      fetchServices();
-    }, 0);
+    fetchServices();
   }, []);
 
   const formatDate = (dateStr) => {

@@ -88,7 +88,8 @@ function WelcomeScreen() {
     setMounted(true);
   }, []);
 
-  const hasSession = !!localStorage.getItem('userId');
+  // Solo sesión real (JWT): evita “Mi cuenta” con userId demo sin token → 401 en API.
+  const hasSession = !!(localStorage.getItem('token') && localStorage.getItem('userId'));
   const showAdminInFooter = isAdminRoleStored();
   /** Admin con sesión: la portada es para mercado; sin ?preview=1 se redirige al panel (login ya manda a /admin). */
   const allowPublicPreview =
@@ -123,8 +124,9 @@ function WelcomeScreen() {
             : 142;
   const widthProgress = Math.max(0, Math.min(1, (viewportWidth - 320) / 110));
   const widthScale = isDesktop ? 1 : (0.9 + (widthProgress * 0.16)); // 320->0.9, 430->1.06
-  const heightScale = isDesktop ? 1 : (viewportHeight < 620 ? 0.94 : (viewportHeight > 760 ? 1.04 : 1));
-  const fineScale = isDesktop ? 1 : (widthScale * heightScale);
+  // Escalar tipografía solo por ancho evita "saltos" cuando el browser móvil
+  // colapsa/expande barras y cambia window.innerHeight durante scroll.
+  const fineScale = isDesktop ? 1 : widthScale;
   const scalePx = (base, min, max) => {
     const scaled = Math.round(base * fineScale);
     return Math.max(min, Math.min(max, scaled));
@@ -234,28 +236,10 @@ function WelcomeScreen() {
           >
             <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 12) : heroLogoBottom }} />
           </div>
-          {/* Wordmark explícito (además del logo): alinea copy con guion comercial / lectores */}
-          <p
-            className="welcome-reveal"
-            style={{
-              ['--welcome-d']: '35ms',
-              marginTop: isDesktop ? -6 : -8,
-              marginBottom: isShortViewport ? 6 : (isNarrowMobile ? 8 : 10),
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: isDesktop ? 26 : scalePx(isShortViewport ? 17 : 19, 16, 22),
-              fontWeight: 600,
-              letterSpacing: '0.14em',
-              color: '#FAFAFA',
-              textTransform: 'uppercase',
-              lineHeight: 1.1,
-            }}
-          >
-            MAQGO
-          </p>
           <div
             className="welcome-hero-caluga welcome-reveal"
             style={{
-              ['--welcome-d']: '70ms',
+              ['--welcome-d']: '35ms',
               marginTop: isDesktop ? -4 : -6,
               marginBottom: isDesktop ? 22 : (isShortViewport ? 14 : (isNarrowMobile ? 18 : 20)),
               display: 'inline-flex',

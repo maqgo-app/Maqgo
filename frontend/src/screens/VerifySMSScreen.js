@@ -25,6 +25,7 @@ function VerifySMSScreen() {
   const channel = localStorage.getItem('verificationChannel') || 'sms';
   const digits = registerData.celular ? String(registerData.celular).replace(/\D/g, '').slice(-9) : '';
   const phone = digits.length >= 9 ? `+56${digits}` : '';
+  const displayPhone = digits.length >= 9 ? `+56 9 ${digits.slice(1, 5)} ${digits.slice(5)}` : '';
 
   // Timer de expiración
   useEffect(() => {
@@ -221,21 +222,52 @@ function VerifySMSScreen() {
             fontSize: 22,
             fontWeight: 600,
             lineHeight: 1.3,
-            marginBottom: 10,
+            marginBottom: 8,
             fontFamily: "'Space Grotesk', sans-serif"
           }}>
-            💬 Ingresa el código
+            Confirma tu celular
           </h2>
-          
+
           <p style={{
-            color: 'rgba(255,255,255,0.55)',
-            fontSize: 14,
-            lineHeight: 1.5,
-            marginBottom: 6,
+            color: 'rgba(255,255,255,0.7)',
+            fontSize: 13,
+            lineHeight: 1.45,
+            marginBottom: 10,
+            textAlign: 'center',
             fontFamily: "'Inter', sans-serif"
           }}>
-            Ingresa el código de 6 dígitos que enviamos a tu celular.
+            Ya te enviamos un SMS. Sigue estos pasos:
           </p>
+
+          <ol style={{
+            color: 'rgba(255,255,255,0.88)',
+            fontSize: 14,
+            lineHeight: 1.55,
+            margin: '0 0 14px 0',
+            paddingLeft: 22,
+            textAlign: 'left',
+            maxWidth: 320,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            fontFamily: "'Inter', sans-serif"
+          }}>
+            <li style={{ marginBottom: 6 }}>Abre el mensaje de texto en tu teléfono.</li>
+            <li style={{ marginBottom: 6 }}>Escribe o pega aquí el código de <strong style={{ color: '#fff' }}>6 números</strong>.</li>
+            <li>Toca <strong style={{ color: '#EC6819' }}>Verificar y continuar</strong> (abajo).</li>
+          </ol>
+
+          {displayPhone ? (
+            <p style={{
+              color: '#EC6819',
+              fontSize: 15,
+              fontWeight: 600,
+              marginBottom: 12,
+              textAlign: 'center',
+              fontFamily: "'Space Grotesk', sans-serif"
+            }}>
+              Enviado a {displayPhone}
+            </p>
+          ) : null}
 
           {/* Timer de expiración */}
           <p style={{
@@ -324,6 +356,24 @@ function VerifySMSScreen() {
             )}
           </p>
         </div>
+
+        <p
+          style={{
+            color: 'rgba(255,255,255,0.55)',
+            fontSize: 12,
+            textAlign: 'center',
+            marginBottom: 10,
+            minHeight: 18,
+            fontFamily: "'Inter', sans-serif"
+          }}
+          aria-live="polite"
+        >
+          {expiry <= 0
+            ? 'El código venció. Usa «Reenviar código» y vuelve a ingresar los 6 dígitos.'
+            : !isComplete
+              ? 'Completa los 6 casillas para activar el botón.'
+              : 'Listo: pulsa el botón para seguir.'}
+        </p>
 
         {/* Boton */}
         <button 

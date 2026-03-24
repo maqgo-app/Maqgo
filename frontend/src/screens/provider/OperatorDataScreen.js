@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
 import MaqgoLogo from '../../components/MaqgoLogo';
@@ -10,30 +10,24 @@ import { getObject, getArray } from '../../utils/safeStorage';
  * Permite múltiples operadores (máx 3) o el mismo proveedor
  * Con validación de RUT chileno
  */
+const EMPTY_OPERATOR = { nombre: '', apellido: '', rut: '', licenseType: '', photo: null };
+
 function OperatorDataScreen() {
   const navigate = useNavigate();
-  const [sameAsOwner, setSameAsOwner] = useState(true);
-  const [rutErrors, setRutErrors] = useState({});
-  const [operators, setOperators] = useState([{
-    nombre: '',
-    apellido: '',
-    rut: '',
-    licenseType: '',
-    photo: null
-  }]);
-
-  useEffect(() => {
+  const initialFromStorage = useMemo(() => {
     const saved = getArray('operatorsData', []);
-    // Solo cargar "Otro operador" si los datos están COMPLETOS (evita quedar bloqueado)
-    const firstComplete = saved.length > 0 && saved[0].nombre && saved[0].apellido &&
-      saved[0].rut && validateRut(saved[0].rut);
-    if (firstComplete) {
-      setTimeout(() => {
-        setOperators(saved);
-        setSameAsOwner(false);
-      }, 0);
-    }
+    const firstComplete =
+      saved.length > 0 &&
+      saved[0].nombre &&
+      saved[0].apellido &&
+      saved[0].rut &&
+      validateRut(saved[0].rut);
+    if (firstComplete) return { operators: saved, sameAsOwner: false };
+    return { operators: [{ ...EMPTY_OPERATOR }], sameAsOwner: true };
   }, []);
+  const [sameAsOwner, setSameAsOwner] = useState(initialFromStorage.sameAsOwner);
+  const [rutErrors, setRutErrors] = useState({});
+  const [operators, setOperators] = useState(initialFromStorage.operators);
 
   // Persistir fotos y datos de operadores de inmediato para facilitar onboarding
   useEffect(() => {

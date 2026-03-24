@@ -113,7 +113,7 @@ class NotifyOwnerAlertRequest(BaseModel):
 @limiter.limit("5/minute")
 async def api_send_otp(request: Request, body: SendOTPRequest):
     """
-    Send 6-digit OTP via SMS (OTP SNS / Twilio).
+    Send 6-digit OTP via SMS (Redis + LabsMobile).
     - OTP valid for 5 minutes, max 3 attempts, rate limit 3/10min
     """
     result = send_sms_otp(body.phone_number, body.channel)
@@ -639,18 +639,18 @@ async def api_communications_status():
     Check communications module status.
     """
     import os
-    otp_sns = False
+    otp_ready = False
     try:
         from services.otp_service import is_otp_configured
-        otp_sns = is_otp_configured()
+        otp_ready = is_otp_configured()
     except ImportError:
         pass
 
     return {
         'demo_mode': DEMO_MODE,
-        'otp_sns_configured': otp_sns,
+        'otp_configured': otp_ready,
+        'labsmobile_configured': bool(os.environ.get('LABSMOBILE_USERNAME')) and bool(os.environ.get('LABSMOBILE_API_TOKEN')),
         'twilio_configured': bool(os.environ.get('TWILIO_ACCOUNT_SID')),
         'whatsapp_configured': bool(os.environ.get('TWILIO_WHATSAPP_FROM')),
-        'sms_configured': bool(os.environ.get('TWILIO_SMS_FROM')),
-        'verify_configured': bool(os.environ.get('TWILIO_VERIFY_SERVICE'))
+        'sms_configured': bool(os.environ.get('LABSMOBILE_USERNAME')) and bool(os.environ.get('LABSMOBILE_API_TOKEN'))
     }

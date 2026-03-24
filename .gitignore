@@ -93,3 +93,4 @@ frontend/lint*.txt
 
 # Mobile
 android-sdk/
+.env*.local

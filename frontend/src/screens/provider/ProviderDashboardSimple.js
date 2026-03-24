@@ -1,10 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ServiceProgress from '../../components/ServiceProgress';
 import ServiceVoucher from '../../components/ServiceVoucher';
 import { ProviderNavigation } from '../../components/BottomNavigation';
 import { downloadVoucherPDF } from '../../utils/voucherPdf';
+
+function buildMockServices() {
+  return [
+    { id: 'srv_001', transactionId: 'MQ-12345678', status: 'approved', date: new Date().toISOString(), machineryType: 'Retroexcavadora', hours: 4, operatorName: 'Juan Pérez', serviceAmount: 180000, bonusAmount: 36000, transportAmount: 25000 },
+    { id: 'srv_002', transactionId: 'MQ-12345679', status: 'pending_review', date: new Date(Date.now() - 86400000).toISOString(), machineryType: 'Camión Aljibe', hours: 1, operatorName: 'María González', serviceAmount: 260000, bonusAmount: 26000, transportAmount: 0 },
+    { id: 'srv_003', transactionId: 'MQ-12345680', status: 'invoiced', date: new Date(Date.now() - 172800000).toISOString(), machineryType: 'Excavadora', hours: 6, operatorName: 'Pedro López', serviceAmount: 660000, bonusAmount: 99000, transportAmount: 35000 },
+    { id: 'srv_004', transactionId: 'MQ-12345681', status: 'paid', date: new Date(Date.now() - 604800000).toISOString(), machineryType: 'Minicargador', hours: 8, operatorName: 'Juan Pérez', serviceAmount: 500000, bonusAmount: 50000, transportAmount: 20000 },
+  ];
+}
+
+function computeTotals(mockServices) {
+  let pending = 0;
+  let toInvoice = 0;
+  let paid = 0;
+  mockServices.forEach((s) => {
+    const total = (s.serviceAmount + s.bonusAmount + s.transportAmount) * 1.19;
+    const commission = (s.serviceAmount + s.bonusAmount + s.transportAmount) * 0.10 * 1.19;
+    const net = total - commission;
+    if (s.status === 'pending_review') pending += net;
+    else if (s.status === 'approved') toInvoice += net;
+    else if (s.status === 'paid') paid += net;
+  });
+  return { pending: Math.round(pending), toInvoice: Math.round(toInvoice), paid: Math.round(paid) };
+}
 
 /**
  * Dashboard Simplificado del Proveedor
@@ -13,32 +37,12 @@ import { downloadVoucherPDF } from '../../utils/voucherPdf';
  */
 function ProviderDashboardSimple() {
   const navigate = useNavigate();
-  const [services, setServices] = useState([]);
-  const [selectedService, setSelectedService] = useState(null);
-  const [totals, setTotals] = useState({ pending: 0, toInvoice: 0, paid: 0 });
-  const [activeFilter, setActiveFilter] = useState('all');
-
-  useEffect(() => {
-    const mockServices = [
-      { id: 'srv_001', transactionId: 'MQ-12345678', status: 'approved', date: new Date().toISOString(), machineryType: 'Retroexcavadora', hours: 4, operatorName: 'Juan Pérez', serviceAmount: 180000, bonusAmount: 36000, transportAmount: 25000 },
-      { id: 'srv_002', transactionId: 'MQ-12345679', status: 'pending_review', date: new Date(Date.now() - 86400000).toISOString(), machineryType: 'Camión Aljibe', hours: 1, operatorName: 'María González', serviceAmount: 260000, bonusAmount: 26000, transportAmount: 0 },
-      { id: 'srv_003', transactionId: 'MQ-12345680', status: 'invoiced', date: new Date(Date.now() - 172800000).toISOString(), machineryType: 'Excavadora', hours: 6, operatorName: 'Pedro López', serviceAmount: 660000, bonusAmount: 99000, transportAmount: 35000 },
-      { id: 'srv_004', transactionId: 'MQ-12345681', status: 'paid', date: new Date(Date.now() - 604800000).toISOString(), machineryType: 'Minicargador', hours: 8, operatorName: 'Juan Pérez', serviceAmount: 500000, bonusAmount: 50000, transportAmount: 20000 },
-    ];
-    setTimeout(() => setServices(mockServices), 0);
-    let pending = 0, toInvoice = 0, paid = 0;
-    mockServices.forEach(s => {
-      const total = (s.serviceAmount + s.bonusAmount + s.transportAmount) * 1.19;
-      const commission = (s.serviceAmount + s.bonusAmount + s.transportAmount) * 0.10 * 1.19;
-      const net = total - commission;
-      if (s.status === 'pending_review') pending += net;
-      else if (s.status === 'approved') toInvoice += net;
-      else if (s.status === 'paid') paid += net;
-    });
-    setTimeout(() => {
-      setTotals({ pending: Math.round(pending), toInvoice: Math.round(toInvoice), paid: Math.round(paid) });
-    }, 0);
+  const { services, totals } = useMemo(() => {
+    const mockServices = buildMockServices();
+    return { services: mockServices, totals: computeTotals(mockServices) };
   }, []);
+  const [selectedService, setSelectedService] = useState(null);
+  const [activeFilter, setActiveFilter] = useState('all');
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('es-CL', { 

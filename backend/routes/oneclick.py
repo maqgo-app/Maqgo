@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
+from urllib.parse import quote
 
 from rate_limit import limiter
 from auth_dependency import get_current_admin
@@ -124,7 +125,7 @@ async def confirm_return(request: Request):
                 url=f"{error_redirect}sin_tbk_user",
                 status_code=302
             )
-        redirect_url = f"{frontend_url}/oneclick/complete?tbk_user={tbk_user}"
+        redirect_url = f"{frontend_url}/oneclick/complete?tbk_user={quote(str(tbk_user), safe='')}"
         return RedirectResponse(url=redirect_url, status_code=302)
     except requests.exceptions.Timeout:
         logger.warning("Timeout al confirmar inscripción con Transbank")

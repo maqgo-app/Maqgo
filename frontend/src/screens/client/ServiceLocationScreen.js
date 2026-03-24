@@ -67,7 +67,6 @@ function ServiceLocationScreen() {
   }, [serviceLng]);
 
   /* Hydratación desde localStorage al montar (patrón SPA). */
-  /* eslint-disable react-hooks/set-state-in-effect -- valores iniciales desde storage */
   useEffect(() => {
     const savedMachinery = localStorage.getItem('selectedMachinery') || '';
     const savedHours = parseInt(localStorage.getItem('selectedHours') || '4');
@@ -99,7 +98,6 @@ function ServiceLocationScreen() {
     
     saveBookingProgress('location', { machinery: savedMachinery });
   }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const hasApiKey = useMemo(() => !!getGoogleMapsApiKey(), []);
 
@@ -325,26 +323,6 @@ function ServiceLocationScreen() {
             </div>
           </div>
         )}
-        {hasApiKey && placesPhase === 'ready' && (
-          <div
-            style={{
-              background: 'rgba(46, 204, 113, 0.12)',
-              border: '1px solid rgba(46, 204, 113, 0.35)',
-              borderRadius: 10,
-              padding: 12,
-              marginBottom: 20,
-              color: 'rgba(255,255,255,0.95)',
-              fontSize: 13,
-              lineHeight: 1.45
-            }}
-          >
-            <strong style={{ color: '#2ecc71' }}>Buscador listo</strong>
-            <div style={{ marginTop: 6 }}>
-              Escribe en el campo de abajo y elige una sugerencia para fijar el punto en el mapa. Si no aparece tu calle,
-              prueba sin número o un lugar cercano; si aún no, marca la opción de abajo y completa la referencia.
-            </div>
-          </div>
-        )}
         {hasApiKey && placesPhase === 'failed' && (
           <div
             style={{
@@ -503,14 +481,12 @@ function ServiceLocationScreen() {
                 aria-label="No encuentro mi dirección en las sugerencias"
               />
               <span>
-                <strong>No encuentro mi dirección</strong> entre las sugerencias (te pediremos una referencia detallada para
-                ubicarte).
+                <strong>No encuentro mi dirección</strong> en la lista (luego te pedimos referencia para ubicarte).
               </span>
             </label>
             {manualAddressNotFound && (
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '8px 0 0 28px', lineHeight: 1.45 }}>
-                Consejos: prueba buscar solo la calle sin número, un barrio cercano, o un punto de referencia (mall, plaza,
-                empresa). Luego completa la referencia abajo con accesos y señas.
+                Podés escribir calle sin número o un lugar cercano; completa la referencia abajo con señas claras.
               </p>
             )}
           </div>
@@ -554,7 +530,7 @@ function ServiceLocationScreen() {
               <span style={{ color: '#EC6819' }}>*</span>
             )}
             {(hasApiKey && placesPhase === 'ready' && !manualAddressNotFound) && (
-              <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 400 }}>(opcional si elegiste dirección en el mapa)</span>
+              <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 400 }}>(opcional si fijaste punto con el buscador)</span>
             )}
           </label>
           <input
@@ -604,7 +580,7 @@ function ServiceLocationScreen() {
               fontSize: 13,
               lineHeight: 1.5
             }}>
-              Verás hasta 5 proveedores ordenados por mejor precio y cercanía.
+              Después verás hasta 5 opciones ordenadas por precio y cercanía.
             </div>
           </div>
         </div>

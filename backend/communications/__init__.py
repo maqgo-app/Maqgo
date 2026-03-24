@@ -24,17 +24,11 @@ TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
 TWILIO_SMS_FROM = os.environ.get('TWILIO_SMS_FROM')
 TWILIO_WHATSAPP_FROM = os.environ.get('TWILIO_WHATSAPP_FROM')
-TWILIO_VERIFY_SERVICE = os.environ.get('TWILIO_VERIFY_SERVICE')
 
 # Demo mode flag (disabled by default to avoid OTP demo leaks)
 DEMO_MODE = os.environ.get('MAQGO_DEMO_MODE', 'false').lower() == 'true'
 IS_PRODUCTION = os.environ.get('MAQGO_ENV', 'development').lower() == 'production'
 DEMO_OTP_CODE = '123456'
-
-# Store OTP when using TWILIO_SMS_FROM without Verify (phone -> (otp, expires_at))
-_otp_store: dict = {}
-OTP_EXPIRY_SECONDS = 300  # 5 minutes
-
 
 def _is_demo_allowed() -> bool:
     """
@@ -263,99 +257,54 @@ def log_message(
 
 
 # ==================== SMS FUNCTIONS (OTP) ====================
-# Prioridad: 1) OTP SNS (Redis + AWS) si configurado, 2) Twilio, 3) Demo
+# OTP interno (Redis + LabsMobile). Sin Verify externo.
 
 def send_sms_otp(phone_number: str, channel: str = 'sms') -> dict:
     """
     Send 6-digit OTP via SMS.
-    - Prioridad: OTP SNS (Redis + AWS) > Twilio > Demo
+    - Proveedor: LabsMobile
     - OTP valid for 5 minutes, max 3 attempts, rate limit 3/10min
     """
     if channel not in ['sms', 'whatsapp']:
         channel = 'sms'
 
-    # 1) OTP SNS (Redis + AWS) - costo ~$6-10/1000 vs Twilio ~$74/1000
+    # OTP interno vía services.otp_service (Redis + LabsMobile)
     try:
         from services.otp_service import send_otp, is_otp_configured
-        if is_otp_configured():
-            result = send_otp(phone_number, channel)
-            if result.get('success'):
-                return {
-                    'success': True,
-                    'channel': result.get('channel', 'sms'),
-                    'demo_mode': False,
-                    'log': log_message('sms', phone_number, 'otp', 'sns')
-                }
+        if not is_otp_configured():
             return {
                 'success': False,
-                'error': result.get('error', 'Error al enviar OTP'),
+                'error': 'OTP no configurado. Define REDIS_URL, LABSMOBILE_USERNAME, LABSMOBILE_API_TOKEN y LABSMOBILE_SENDER.',
                 'demo_mode': False,
-                'log': log_message('sms', phone_number, 'otp', 'error', result.get('error'))
+                'log': log_message('sms', phone_number, 'otp', 'error', 'OTP provider not configured')
             }
-    except ImportError:
-        pass
-    except Exception as e:
-        logger.warning(f"OTP SNS fallback: {e}")
-
-    # 2) Demo mode (solo no-produccion y explícitamente habilitado)
-    if _is_demo_allowed() and not (TWILIO_VERIFY_SERVICE or TWILIO_SMS_FROM):
-        logger.info(f"[DEMO] OTP would be sent to {phone_number}, use code: {DEMO_OTP_CODE}")
-        return {
-            'success': True,
-            'demo_mode': True,
-            'channel': channel,
-            'message': f'En modo demo, usa el código: {DEMO_OTP_CODE}',
-            'log': log_message(channel, phone_number, 'otp', 'demo')
-        }
-
-    # 3) Twilio
-    client = get_twilio_client()
-    if not client or not (TWILIO_VERIFY_SERVICE or TWILIO_SMS_FROM):
-        if _is_demo_allowed():
+        result = send_otp(phone_number, channel)
+        if result.get('success'):
             return {
                 'success': True,
-                'demo_mode': True,
-                'channel': channel,
-                'message': f'Twilio no configurado. Usa el código: {DEMO_OTP_CODE}',
-                'log': log_message(channel, phone_number, 'otp', 'demo', 'Twilio not configured')
+                'channel': result.get('channel', 'sms'),
+                'demo_mode': False,
+                'log': log_message('sms', phone_number, 'otp', 'sent')
             }
         return {
             'success': False,
-            'error': 'OTP no configurado. Configura Redis+AWS SNS o Twilio.',
+            'error': result.get('error', 'Error al enviar OTP'),
             'demo_mode': False,
-            'log': log_message(channel, phone_number, 'otp', 'error', 'OTP provider not configured')
+            'log': log_message('sms', phone_number, 'otp', 'error', result.get('error'))
         }
-
-    try:
-        if TWILIO_VERIFY_SERVICE:
-            verification = client.verify.v2.services(TWILIO_VERIFY_SERVICE) \
-                .verifications.create(to=phone_number, channel=channel)
-            return {
-                'success': True,
-                'status': verification.status,
-                'channel': channel,
-                'log': log_message(channel, phone_number, 'otp', verification.status)
-            }
-        import random
-        from datetime import timedelta
-        otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=OTP_EXPIRY_SECONDS)
-        _otp_store[phone_number] = (otp, expires_at)
-        message = client.messages.create(
-            body=SMS_TEMPLATES['otp'].format(otp=otp),
-            from_=TWILIO_SMS_FROM,
-            to=phone_number
-        )
-        return {
-            'success': True,
-            'status': message.status,
-            'log': log_message('sms', phone_number, 'otp', message.status)
-        }
-    except TwilioRestException as e:
-        logger.error(f"Twilio SMS error: {e}")
+    except ImportError:
         return {
             'success': False,
-            'error': str(e),
+            'error': 'OTP service no disponible.',
+            'demo_mode': False,
+            'log': log_message('sms', phone_number, 'otp', 'error', 'OTP service import error')
+        }
+    except Exception as e:
+        logger.error("OTP send error: %s", e)
+        return {
+            'success': False,
+            'error': 'No se pudo enviar OTP.',
+            'demo_mode': False,
             'log': log_message('sms', phone_number, 'otp', 'error', str(e))
         }
 
@@ -363,86 +312,43 @@ def send_sms_otp(phone_number: str, channel: str = 'sms') -> dict:
 def verify_sms_otp(phone_number: str, code: str) -> dict:
     """
     Verify OTP code.
-    - Prioridad: OTP SNS (Redis) > Twilio Verify > Twilio SMS directo > Demo
+    - Fuente única: OTP interno (Redis + LabsMobile)
     """
-    # 1) OTP SNS (Redis)
     try:
         from services.otp_service import verify_otp, is_otp_configured
-        if is_otp_configured():
-            result = verify_otp(phone_number, code)
-            return {
-                'success': result.get('success', True),
-                'valid': result.get('valid', False),
-                'error': result.get('error'),
-                'demo_mode': False,
-                'log': log_message('sms', phone_number, 'otp_verify', 'valid' if result.get('valid') else 'invalid')
-            }
-    except ImportError:
-        pass
-    except Exception as e:
-        logger.warning(f"OTP SNS verify fallback: {e}")
-
-    # 2) Demo mode (solo no-produccion)
-    if _is_demo_allowed() and not (get_twilio_client() and (TWILIO_VERIFY_SERVICE or TWILIO_SMS_FROM)):
-        is_valid = code == DEMO_OTP_CODE
-        return {
-            'success': True,
-            'valid': is_valid,
-            'demo_mode': True,
-            'log': log_message('sms', phone_number, 'otp_verify', 'valid' if is_valid else 'invalid')
-        }
-
-    # 3) Twilio SMS directo (in-memory)
-    client = get_twilio_client()
-    if client and TWILIO_SMS_FROM and phone_number in _otp_store:
-        stored_otp, expires_at = _otp_store[phone_number]
-        if datetime.now(timezone.utc) > expires_at:
-            del _otp_store[phone_number]
-            return {'success': True, 'valid': False, 'log': log_message('sms', phone_number, 'otp_verify', 'expired')}
-        is_valid = code == stored_otp
-        if is_valid:
-            del _otp_store[phone_number]
-        return {
-            'success': True,
-            'valid': is_valid,
-            'log': log_message('sms', phone_number, 'otp_verify', 'valid' if is_valid else 'invalid')
-        }
-
-    # 4) Twilio Verify
-    if client and TWILIO_VERIFY_SERVICE:
-        try:
-            check = client.verify.v2.services(TWILIO_VERIFY_SERVICE) \
-                .verification_checks.create(to=phone_number, code=code)
-            return {
-                'success': True,
-                'valid': check.status == 'approved',
-                'status': check.status,
-                'log': log_message('sms', phone_number, 'otp_verify', check.status)
-            }
-        except TwilioRestException as e:
+        if not is_otp_configured():
             return {
                 'success': False,
                 'valid': False,
-                'error': str(e),
-                'log': log_message('sms', phone_number, 'otp_verify', 'error', str(e))
+                'error': 'OTP no configurado. Define REDIS_URL, LABSMOBILE_USERNAME, LABSMOBILE_API_TOKEN y LABSMOBILE_SENDER.',
+                'demo_mode': False,
+                'log': log_message('sms', phone_number, 'otp_verify', 'error', 'OTP provider not configured')
             }
-
-    if _is_demo_allowed():
-        is_valid = code == DEMO_OTP_CODE
+        result = verify_otp(phone_number, code)
         return {
-            'success': True,
-            'valid': is_valid,
-            'demo_mode': True,
-            'log': log_message('sms', phone_number, 'otp_verify', 'valid' if is_valid else 'invalid')
+            'success': result.get('success', True),
+            'valid': result.get('valid', False),
+            'error': result.get('error'),
+            'demo_mode': False,
+            'log': log_message('sms', phone_number, 'otp_verify', 'valid' if result.get('valid') else 'invalid')
         }
-
-    return {
-        'success': False,
-        'valid': False,
-        'error': 'OTP no configurado. Configura Redis+AWS SNS o Twilio.',
-        'demo_mode': False,
-        'log': log_message('sms', phone_number, 'otp_verify', 'error', 'OTP provider not configured')
-    }
+    except ImportError:
+        return {
+            'success': False,
+            'valid': False,
+            'error': 'OTP service no disponible.',
+            'demo_mode': False,
+            'log': log_message('sms', phone_number, 'otp_verify', 'error', 'OTP service import error')
+        }
+    except Exception as e:
+        logger.error("OTP verify error: %s", e)
+        return {
+            'success': False,
+            'valid': False,
+            'error': 'No se pudo verificar OTP.',
+            'demo_mode': False,
+            'log': log_message('sms', phone_number, 'otp_verify', 'error', str(e))
+        }
 
 
 # ==================== SMS FUNCTIONS (NON-OTP) ====================

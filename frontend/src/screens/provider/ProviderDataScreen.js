@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { validateRut, formatRut, searchComunas } from '../../utils/chileanValidation';
+import { validateRut, formatRut } from '../../utils/chileanValidation';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
+import ComunaAutocomplete from '../../components/ComunaAutocomplete';
+import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/AddressAutocomplete';
 import { MAQGO_BILLING } from '../../utils/commissions';
 import { getObject } from '../../utils/safeStorage';
 
@@ -14,9 +16,11 @@ import { getObject } from '../../utils/safeStorage';
 function ProviderDataScreen() {
   const navigate = useNavigate();
   const [rutError, setRutError] = useState('');
-  const [showComunaSuggestions, setShowComunaSuggestions] = useState(false);
-  const [comunaSuggestions, setComunaSuggestions] = useState([]);
-  const comunaInputRef = useRef(null);
+  const [scriptRetryKey, setScriptRetryKey] = useState(0);
+  const [placesReady, setPlacesReady] = useState(false);
+  const [placesPhase, setPlacesPhase] = useState('idle');
+  const [placesReason, setPlacesReason] = useState('');
+  const hasMapsApiKey = !!getGoogleMapsApiKey();
   
   const [form, setForm] = useState({
     businessName: '',
@@ -24,26 +28,33 @@ function ProviderDataScreen() {
     giro: '',
     comuna: '',
     address: '',
+    addressLat: null,
+    addressLng: null,
+    addressSource: 'manual',
     closingTime: '21:00',
     emitsInvoice: true
   });
 
   useEffect(() => {
     const saved = getObject('providerData', {});
-    if (saved.businessName) {
-      setTimeout(() => setForm(prev => ({ ...prev, ...saved })), 0);
+    const hasSaved =
+      saved &&
+      typeof saved === 'object' &&
+      (saved.businessName ||
+        saved.rut ||
+        saved.giro ||
+        saved.comuna ||
+        saved.address ||
+        saved.closingTime != null);
+    if (hasSaved) {
+      setForm((prev) => ({
+        ...prev,
+        ...saved,
+        addressLat: Number.isFinite(saved.addressLat) ? saved.addressLat : null,
+        addressLng: Number.isFinite(saved.addressLng) ? saved.addressLng : null,
+        addressSource: saved.addressSource || 'manual',
+      }));
     }
-  }, []);
-
-  // Close suggestions when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (comunaInputRef.current && !comunaInputRef.current.contains(event.target)) {
-        setShowComunaSuggestions(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const update = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
@@ -60,24 +71,6 @@ function ProviderDataScreen() {
     } else {
       setRutError('');
     }
-  };
-
-  const handleComunaChange = (e) => {
-    const value = e.target.value;
-    update('comuna', value);
-    
-    if (value.length >= 2) {
-      const suggestions = searchComunas(value, 6);
-      setComunaSuggestions(suggestions);
-      setShowComunaSuggestions(suggestions.length > 0);
-    } else {
-      setShowComunaSuggestions(false);
-    }
-  };
-
-  const handleComunaSelect = (comuna) => {
-    update('comuna', comuna);
-    setShowComunaSuggestions(false);
   };
 
   const handleContinue = () => {
@@ -180,63 +173,13 @@ function ProviderDataScreen() {
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
             Comuna <span style={{ color: '#EC6819' }}>*</span>
           </label>
-          <div style={{ position: 'relative' }} ref={comunaInputRef}>
-            <input
-              className="maqgo-input"
-              placeholder="Ej: Providencia, Las Condes..."
-              value={form.comuna}
-              onChange={handleComunaChange}
-              onFocus={() => {
-                if (form.comuna.length >= 2) {
-                  const suggestions = searchComunas(form.comuna, 6);
-                  setComunaSuggestions(suggestions);
-                  setShowComunaSuggestions(suggestions.length > 0);
-                }
-              }}
-              autoComplete="off"
-              data-testid="provider-comuna"
-            />
-            
-            {/* Suggestions dropdown */}
-            {showComunaSuggestions && comunaSuggestions.length > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: '#333',
-                border: '1px solid #555',
-                borderRadius: 8,
-                marginTop: 4,
-                maxHeight: 180,
-                overflowY: 'auto',
-                zIndex: 100
-              }}>
-                {comunaSuggestions.map((comuna, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleComunaSelect(comuna)}
-                    style={{
-                      width: '100%',
-                      padding: '12px 14px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: idx < comunaSuggestions.length - 1 ? '1px solid #444' : 'none',
-                      color: '#fff',
-                      fontSize: 14,
-                      textAlign: 'left',
-                      cursor: 'pointer'
-                    }}
-                    onMouseEnter={(e) => e.target.style.background = '#444'}
-                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                    data-testid={`comuna-option-${idx}`}
-                  >
-                    {comuna}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <ComunaAutocomplete
+            value={form.comuna}
+            onChange={(value) => update('comuna', value)}
+            placeholder="Ej: Providencia, Las Condes..."
+            className="maqgo-input"
+            style={{ fontSize: 15 }}
+          />
           
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
             Giro comercial <span style={{ color: '#EC6819' }}>*</span>
@@ -252,13 +195,60 @@ function ProviderDataScreen() {
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
             Dirección comercial <span style={{ color: '#EC6819' }}>*</span>
           </label>
-          <input
-            className="maqgo-input"
-            placeholder="Av. Principal 1234"
+          <AddressAutocomplete
             value={form.address}
-            onChange={e => update('address', e.target.value)}
-            data-testid="provider-address"
+            onChange={(value) => update('address', value)}
+            onPlacesReadyChange={setPlacesReady}
+            onPlacesStatusChange={({ phase, reason }) => {
+              setPlacesPhase(phase || 'idle');
+              setPlacesReason(reason || '');
+            }}
+            scriptRetryKey={scriptRetryKey}
+            onSelect={({ address, comuna, lat, lng }) => {
+              update('address', address || '');
+              if (comuna) update('comuna', comuna);
+              update('addressLat', Number.isFinite(lat) ? lat : null);
+              update('addressLng', Number.isFinite(lng) ? lng : null);
+              update('addressSource', Number.isFinite(lat) && Number.isFinite(lng) ? 'google_places' : 'manual');
+            }}
+            placeholder="Av. Principal 1234"
+            className="maqgo-input"
+            style={{ fontSize: 15 }}
+            testId="provider-address"
           />
+          {hasMapsApiKey && placesPhase === 'failed' && (
+            <div style={{ marginTop: 8 }}>
+              <p style={{ color: '#ffb4b4', fontSize: 11, margin: 0 }}>
+                No se pudo cargar el autocompletado de mapas. Puedes escribir la dirección manualmente.
+              </p>
+              <button
+                type="button"
+                onClick={() => setScriptRetryKey((k) => k + 1)}
+                style={{
+                  marginTop: 6,
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  background: 'transparent',
+                  color: '#fff',
+                  fontSize: 11,
+                  cursor: 'pointer'
+                }}
+              >
+                Reintentar autocompletado
+              </button>
+              {placesReason && (
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, margin: '6px 0 0' }}>
+                  Detalle: {placesReason}
+                </p>
+              )}
+            </div>
+          )}
+          {hasMapsApiKey && placesReady && (
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 6, marginBottom: 0 }}>
+              Selecciona una opción de la lista para fijar la dirección exacta del negocio.
+            </p>
+          )}
           {form.comuna && (
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4, marginBottom: 0 }}>
               {form.address ? `${form.address}, ${form.comuna}` : form.comuna}

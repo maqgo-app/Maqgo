@@ -26,16 +26,15 @@ El segundo comando crea cobros demo para el proveedor (proveedor@demo.cl). Así 
 
 Para QA con usuarios reales, registra desde la app (Empezar ahora).
 
-**SMS de verificación (Twilio):** Por defecto usa código demo `123456`. Para recibir SMS reales, añade en `backend/.env`:
+**SMS de verificación (LabsMobile + Redis):** para recibir SMS reales, añade en `backend/.env`:
 
 ```
 MAQGO_DEMO_MODE=false
-TWILIO_ACCOUNT_SID=tu_account_sid
-TWILIO_AUTH_TOKEN=tu_auth_token
-TWILIO_SMS_FROM=+1234567890
+REDIS_URL=redis://...
+LABSMOBILE_USERNAME=tomas@ejemplo.com
+LABSMOBILE_API_TOKEN=TOKEN...
+LABSMOBILE_SENDER=MAQGO
 ```
-
-(Opcional) Si usas Twilio Verify: `TWILIO_VERIFY_SERVICE=VA...` en lugar de `TWILIO_SMS_FROM`.
 
 Luego iniciar el servidor:
 

@@ -160,7 +160,8 @@ export function AddressAutocomplete({
   placeholder = 'Ej: Av. Providencia 1234',
   className = 'maqgo-input',
   style = {},
-  disabled = false
+  disabled = false,
+  testId
 }) {
   const inputRef = useRef(null);
   const autocompleteRef = useRef(null);
@@ -229,7 +230,6 @@ export function AddressAutocomplete({
 
   useEffect(() => {
     // Al reintentar, mostrar modo manual hasta que Places se vuelva a adjuntar.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset de bandera antes de re-adjuntar Autocomplete
     setUseGooglePlaces(false);
   }, [scriptRetryKey]);
 
@@ -291,7 +291,6 @@ export function AddressAutocomplete({
     });
 
     autocompleteRef.current = autocomplete;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync after Places init
     setUseGooglePlaces(true);
     onPlacesReadyChange?.(true);
     onPlacesStatusChange?.({ ready: true, phase: 'ready', hasApiKey: true });
@@ -317,7 +316,9 @@ export function AddressAutocomplete({
         style={style}
         autoComplete="off"
         disabled={disabled}
-        data-testid={useGooglePlaces && scriptLoaded ? 'address-autocomplete-input' : 'address-manual-input'}
+        data-testid={
+          testId || (useGooglePlaces && scriptLoaded ? 'address-autocomplete-input' : 'address-manual-input')
+        }
       />
       {!apiKey && (
         <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 6, marginBottom: 0 }}>
@@ -326,7 +327,7 @@ export function AddressAutocomplete({
       )}
       {useGooglePlaces && scriptLoaded && (
         <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 6, marginBottom: 0 }}>
-          Elige una opción de la lista para fijar el punto en el mapa. Si no aparece, usa &quot;No encuentro mi dirección&quot; debajo.
+          Elegí una sugerencia de la lista. Si no aparece, marcá «No encuentro mi dirección» abajo.
         </p>
       )}
     </div>

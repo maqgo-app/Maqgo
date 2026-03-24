@@ -9,6 +9,10 @@ import { CardRegistrationError, LegalChargeNotice } from '../../components/Error
 import BookingProgress from '../../components/BookingProgress';
 
 import BACKEND_URL from '../../utils/api';
+import {
+  persistClientEmailToStorage,
+  ensureBackendSessionForClientBooking,
+} from '../../utils/clientSessionForPayment';
 
 const ONECLICK_ERROR_MESSAGES = {
   token_faltante: 'Transbank no redirigió correctamente. Intenta de nuevo.',
@@ -80,11 +84,12 @@ function CardPaymentScreen() {
     setLoading(true);
     setError(null);
     setEmailError('');
-    
-    // Guardar email para OneClick y flujo posterior
-    localStorage.setItem('clientEmail', email);
-    
+
+    persistClientEmailToStorage(email);
+
     try {
+      await ensureBackendSessionForClientBooking(email);
+
       const returnUrl = `${BACKEND_URL}/api/payments/oneclick/confirm-return`;
       const username = email.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60) || `user_${Date.now()}`;
       
@@ -398,8 +403,16 @@ function CardPaymentScreen() {
 
         {/* Continuar sin tarjeta (modo demo) - visible siempre */}
         <button
+          type="button"
           onClick={() => {
-            localStorage.setItem('clientEmail', email || 'demo@maqgo.cl');
+            const demoEmail = (email || '').trim();
+            const emailValidationErr = demoEmail ? validateEmail(demoEmail) : '';
+            if (emailValidationErr) {
+              setEmailError(emailValidationErr);
+              return;
+            }
+            const toStore = demoEmail || 'demo@maqgo.cl';
+            persistClientEmailToStorage(toStore);
             localStorage.setItem('oneclickDemoMode', 'true');
             const demoTbk = `demo-${Date.now()}`;
             window.location.href = `${window.location.origin}/oneclick/complete?tbk_user=${encodeURIComponent(demoTbk)}`;

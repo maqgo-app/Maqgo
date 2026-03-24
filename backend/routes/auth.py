@@ -7,6 +7,11 @@ from datetime import datetime, timezone, timedelta
 import os
 import bcrypt
 import secrets
+import asyncio
+import smtplib
+import ssl
+from email.message import EmailMessage
+from html import escape
 
 from rate_limit import limiter
 from db_config import get_db_name, get_mongo_url
@@ -21,6 +26,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
+
+MAX_SMS_RESET_REQUESTS = 3
+SMS_RESET_WINDOW_MINUTES = 10
+SMS_RESET_BLOCK_MINUTES = 30
+
+try:
+    import resend
+except Exception:
+    resend = None
 
 
 def _format_phone(celular: str) -> str:
@@ -78,6 +92,15 @@ class PasswordResetConfirmRequest(BaseModel):
             raise ValueError('La contraseña debe incluir letras y números')
         return v
 
+
+class SendOtpRequest(BaseModel):
+    phone: str
+
+
+class VerifyOtpRequest(BaseModel):
+    phone: str
+    code: str = Field(..., min_length=6, max_length=6)
+
 def hash_password(password: str) -> str:
     """Hash seguro con bcrypt."""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -95,6 +118,33 @@ def generate_token() -> str:
     """Generate a simple token. Use JWT in production."""
     return secrets.token_urlsafe(32)
 
+
+@router.post("/send-otp")
+@limiter.limit("5/minute")
+async def send_otp_auth(request: Request, body: SendOtpRequest):
+    """Endpoint OTP simple para flujos auth (/auth/send-otp)."""
+    celular_err = _validate_celular_chile(body.phone)
+    if celular_err:
+        raise HTTPException(status_code=400, detail=celular_err)
+    phone_e164 = _format_phone(body.phone)
+    result = send_sms_otp(phone_e164, channel='sms')
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "No se pudo enviar OTP"))
+    return {"success": True, "message": "OTP enviado"}
+
+
+@router.post("/verify-otp")
+@limiter.limit("10/minute")
+async def verify_otp_auth(request: Request, body: VerifyOtpRequest):
+    """Endpoint OTP simple para flujos auth (/auth/verify-otp)."""
+    phone_e164 = _format_phone(body.phone)
+    result = verify_sms_otp(phone_e164, body.code)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "No se pudo verificar OTP"))
+    if not result.get("valid"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Código inválido"))
+    return {"success": True, "valid": True}
+
 def _user_roles(existing: dict) -> list:
     """Lista de roles del usuario (compatibilidad: si no hay 'roles', usar 'role')."""
     roles = existing.get("roles")
@@ -109,6 +159,139 @@ def _normalize_phone_last9(phone: str) -> str:
     if digits.startswith('56') and len(digits) >= 11:
         digits = digits[2:]
     return digits[-9:] if len(digits) >= 9 else digits
+
+
+async def _send_password_reset_fallback_email(email_to: str) -> bool:
+    """Envía aviso de recuperación por email cuando SMS queda temporalmente bloqueado."""
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+    frontend_url = os.environ.get("FRONTEND_URL", "https://www.maqgo.cl").rstrip("/")
+    subject = "MAQGO: recuperacion de cuenta (SMS temporalmente bloqueado)"
+    text = (
+        "Detectamos varios intentos seguidos de envio de codigo SMS para recuperar tu cuenta MAQGO.\n\n"
+        "Por seguridad, pausamos temporalmente el envio de SMS por 30 minutos.\n"
+        "Si fuiste tu, vuelve a intentar pasado ese tiempo.\n"
+        "Si no fuiste tu, te recomendamos cambiar tu contrasena al recuperar acceso.\n\n"
+        f"Accede aqui: {frontend_url}/forgot-password\n"
+    )
+    html = _build_maqgo_email_html(
+        preheader="Proteccion de cuenta y continuidad de acceso",
+        title="Seguridad de acceso temporal",
+        intro=(
+            "Detectamos varios intentos seguidos de envio de codigo SMS para recuperar tu cuenta MAQGO. "
+            "Por seguridad, pausamos temporalmente el envio de SMS durante 30 minutos."
+        ),
+        bullets=[
+            "Si fuiste tu, vuelve a intentar despues de 30 minutos.",
+            "Si no fuiste tu, cambia tu contrasena cuando recuperes acceso.",
+            "Este aviso protege tu cuenta y evita envios automatizados.",
+        ],
+        cta_label="Ir a recuperar cuenta",
+        cta_url=f"{frontend_url}/forgot-password",
+    )
+    try:
+        # Prioridad: SMTP (compatible con planes gratuitos de terceros como Bravo).
+        smtp_host = os.environ.get("EMAIL_SMTP_HOST", "").strip()
+        smtp_user = os.environ.get("EMAIL_SMTP_USER", "").strip()
+        smtp_pass = os.environ.get("EMAIL_SMTP_PASS", "").strip()
+        smtp_port = int(os.environ.get("EMAIL_SMTP_PORT", "587"))
+        use_ssl = os.environ.get("EMAIL_SMTP_SSL", "false").lower() == "true"
+        if smtp_host and smtp_user and smtp_pass:
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = sender
+            msg["To"] = email_to
+            msg.set_content(text)
+            msg.add_alternative(html, subtype="html")
+            if use_ssl:
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=15) as server:
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+                    server.starttls(context=ssl.create_default_context())
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+            return True
+
+        # Fallback secundario: Resend si SMTP no está configurado.
+        key = os.environ.get("RESEND_API_KEY", "").strip()
+        if not resend or not key:
+            return False
+        resend.api_key = key
+        await asyncio.to_thread(
+            resend.Emails.send,
+            {
+                "from": sender,
+                "to": email_to,
+                "subject": subject,
+                "text": text,
+                "html": html,
+            },
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _build_maqgo_email_html(
+    *,
+    preheader: str,
+    title: str,
+    intro: str,
+    bullets: list[str],
+    cta_label: str,
+    cta_url: str,
+) -> str:
+    items = "".join(
+        f"<li style=\"margin:0 0 8px 0;\">{escape(i)}</li>"
+        for i in bullets
+    )
+    return f"""\
+<!doctype html>
+<html lang="es">
+  <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">{escape(preheader)}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e5e7eb;">
+            <tr>
+              <td style="padding:22px 24px;background:#0b1220;color:#fff;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="left" style="font-size:22px;font-weight:700;letter-spacing:0.3px;">MAQGO</td>
+                    <td align="right">
+                      <span style="display:inline-block;padding:6px 10px;border-radius:999px;background:#1f2937;color:#e5e7eb;font-size:12px;">Soporte MAQGO</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:26px 24px 12px 24px;">
+                <h1 style="margin:0 0 10px 0;font-size:24px;line-height:1.25;color:#111827;">{escape(title)}</h1>
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;color:#334155;">{escape(intro)}</p>
+                <ul style="margin:0 0 18px 18px;padding:0;font-size:14px;line-height:1.6;color:#334155;">{items}</ul>
+                <a href="{escape(cta_url)}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:600;font-size:14px;">
+                  {escape(cta_label)}
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 24px 24px 24px;border-top:1px solid #e5e7eb;">
+                <p style="margin:0;font-size:12px;line-height:1.5;color:#64748b;">
+                  Este correo es transaccional y se envia para proteger acceso y continuidad operativa.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
 
 
 @router.post("/register")
@@ -346,6 +529,7 @@ async def password_reset_request(request: Request, body: PasswordResetRequest):
         "success": True,
         "message": "Si los datos coinciden con tu cuenta, te enviamos un código por SMS.",
         "otp_sent": False,
+        "reason": "no_match",
     }
 
     user = await db.users.find_one({"email": body.email})
@@ -358,15 +542,107 @@ async def password_reset_request(request: Request, body: PasswordResetRequest):
         return generic_no_send
 
     phone_e164 = _format_phone(body.celular)
+    now = datetime.now(timezone.utc)
+    existing_req = await db.password_reset_requests.find_one({"userId": user["id"]})
+    if existing_req:
+        blocked_raw = existing_req.get("smsBlockedUntil")
+        if blocked_raw:
+            try:
+                blocked_until = datetime.fromisoformat(str(blocked_raw).replace("Z", "+00:00"))
+                if blocked_until.tzinfo is None:
+                    blocked_until = blocked_until.replace(tzinfo=timezone.utc)
+                if blocked_until > now:
+                    email_sent = await _send_password_reset_fallback_email(body.email)
+                    fallback_message = (
+                        "Por seguridad pausamos temporalmente el envío de SMS. "
+                        "Revisa tu correo registrado para continuar."
+                        if email_sent else
+                        "Por seguridad pausamos temporalmente el envío de SMS. "
+                        "Intenta nuevamente en 30 minutos."
+                    )
+                    await db.password_reset_requests.update_one(
+                        {"userId": user["id"]},
+                        {"$set": {
+                            "fallbackEmailSentAt": now.isoformat() if email_sent else None,
+                            "updatedAt": now.isoformat(),
+                        }},
+                        upsert=True
+                    )
+                    return {
+                        "success": True,
+                        "message": fallback_message,
+                        "otp_sent": False,
+                        "reason": "sms_blocked",
+                    }
+            except Exception:
+                pass
+
+        first_raw = existing_req.get("smsWindowStartAt")
+        sms_count = int(existing_req.get("smsRequestCount") or 0)
+        window_start = None
+        if first_raw:
+            try:
+                window_start = datetime.fromisoformat(str(first_raw).replace("Z", "+00:00"))
+                if window_start.tzinfo is None:
+                    window_start = window_start.replace(tzinfo=timezone.utc)
+            except Exception:
+                window_start = None
+
+        if not window_start or (now - window_start) > timedelta(minutes=SMS_RESET_WINDOW_MINUTES):
+            sms_count = 0
+            window_start = now
+
+        if sms_count >= MAX_SMS_RESET_REQUESTS:
+            blocked_until = now + timedelta(minutes=SMS_RESET_BLOCK_MINUTES)
+            email_sent = await _send_password_reset_fallback_email(body.email)
+            fallback_message = (
+                "Por seguridad pausamos temporalmente el envío de SMS. "
+                "Revisa tu correo registrado para continuar."
+                if email_sent else
+                "Por seguridad pausamos temporalmente el envío de SMS. "
+                "Intenta nuevamente en 30 minutos."
+            )
+            await db.password_reset_requests.update_one(
+                {"userId": user["id"]},
+                {"$set": {
+                    "smsBlockedUntil": blocked_until.isoformat(),
+                    "smsRequestCount": sms_count,
+                    "smsWindowStartAt": window_start.isoformat(),
+                    "fallbackEmailSentAt": now.isoformat() if email_sent else None,
+                    "updatedAt": now.isoformat(),
+                }},
+                upsert=True
+            )
+            return {
+                "success": True,
+                "message": fallback_message,
+                "otp_sent": False,
+                "reason": "sms_blocked",
+            }
+
     sms_result = send_sms_otp(phone_e164, channel='sms')
     if not sms_result.get("success"):
         # En modo real devolvemos error explícito para reintento controlado.
         if not sms_result.get("demo_mode"):
             raise HTTPException(status_code=400, detail=sms_result.get("error", "No se pudo enviar el código"))
 
-    now = datetime.now(timezone.utc)
     # Alineado con OTP (5 min en Redis); ventana de documento un poco mayor por clock skew
     expires_at = now + timedelta(minutes=10)
+    next_sms_count = 1
+    window_start_to_store = now
+    if existing_req:
+        first_raw = existing_req.get("smsWindowStartAt")
+        sms_count = int(existing_req.get("smsRequestCount") or 0)
+        if first_raw:
+            try:
+                existing_window = datetime.fromisoformat(str(first_raw).replace("Z", "+00:00"))
+                if existing_window.tzinfo is None:
+                    existing_window = existing_window.replace(tzinfo=timezone.utc)
+                if (now - existing_window) <= timedelta(minutes=SMS_RESET_WINDOW_MINUTES):
+                    next_sms_count = sms_count + 1
+                    window_start_to_store = existing_window
+            except Exception:
+                pass
     await db.password_reset_requests.update_one(
         {"userId": user["id"]},
         {"$set": {
@@ -375,6 +651,10 @@ async def password_reset_request(request: Request, body: PasswordResetRequest):
             "phone": phone_e164,
             "createdAt": now.isoformat(),
             "expiresAt": expires_at.isoformat(),
+            "smsRequestCount": next_sms_count,
+            "smsWindowStartAt": window_start_to_store.isoformat(),
+            "smsBlockedUntil": None,
+            "updatedAt": now.isoformat(),
         }},
         upsert=True
     )

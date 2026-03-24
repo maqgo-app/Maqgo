@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
@@ -45,21 +45,26 @@ function PricingScreen() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const backRoute = getProviderBackRoute(pathname);
-  const [priceBase, setPriceBase] = useState('');
-  const [transportCost, setTransportCost] = useState('');
-  const [machineType, setMachineType] = useState('');
-  const [error, setError] = useState('');
-  const [showMultiplierInfo, setShowMultiplierInfo] = useState(false);
-
-  useEffect(() => {
-    const machineData = getObject('machineData', {});
+  const [priceBase, setPriceBase] = useState(() => {
     const savedPricing = getObject('machinePricing', {});
+    return savedPricing.priceBase != null
+      ? String(savedPricing.priceBase).replace(/\D/g, '').slice(0, 9)
+      : '';
+  });
+  const [transportCost, setTransportCost] = useState(() => {
+    const savedPricing = getObject('machinePricing', {});
+    return savedPricing.transportCost != null
+      ? String(savedPricing.transportCost).replace(/\D/g, '').slice(0, 9)
+      : '';
+  });
+  const [machineType] = useState(() => {
+    const machineData = getObject('machineData', {});
     const rawType = machineData.machineryType || machineData.type || 'retroexcavadora';
     const normalizedType = (typeof rawType === 'string' ? rawType : 'retroexcavadora').toLowerCase().trim();
-    setTimeout(() => setMachineType(normalizedType || 'retroexcavadora'), 0);
-    if (savedPricing.priceBase != null) setTimeout(() => setPriceBase(String(savedPricing.priceBase).replace(/\D/g, '').slice(0, 9)), 0);
-    if (savedPricing.transportCost != null) setTimeout(() => setTransportCost(String(savedPricing.transportCost).replace(/\D/g, '').slice(0, 9)), 0);
-  }, []);
+    return normalizedType || 'retroexcavadora';
+  });
+  const [error, setError] = useState('');
+  const [showMultiplierInfo, setShowMultiplierInfo] = useState(false);
 
   const isPerHour = MACHINERY_PER_HOUR.includes(machineType);
   const needsTransport = !NO_TRANSPORT_MACHINES.includes(machineType);
