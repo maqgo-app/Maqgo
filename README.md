@@ -19,6 +19,8 @@ En **Railway** el proyecto del API suele llamarse p. ej. **`maqgo-prod-backend`*
 
 **UX (toasts, errores HTTP, historial en prod):** [docs/UX_FEEDBACK.md](docs/UX_FEEDBACK.md).
 
+**QA embudo cliente (Welcome → pago):** [docs/QA_FUNNEL_CLIENTE.md](docs/QA_FUNNEL_CLIENTE.md) · **Monitoreo mínimo prod:** [docs/MONITOREO_MINIMO_PROD.md](docs/MONITOREO_MINIMO_PROD.md) · **Secretos / `.env`:** [docs/SEGURIDAD_SECRETOS.md](docs/SEGURIDAD_SECRETOS.md).
+
 ## 🚀 Correr Localmente
 
 ### Requisitos
