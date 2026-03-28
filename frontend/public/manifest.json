@@ -1,8 +1,8 @@
 {
   "id": "https://www.maqgo.cl/",
-  "name": "MAQGO - Maquinaria pesada donde la necesitas",
+  "name": "MAQGO",
   "short_name": "MAQGO",
-  "description": "Arriendo de maquinaria pesada en horas, no días. Sin contratos. Paga solo al confirmar.",
+  "description": "Arrienda maquinaria pesada con operador de forma rápida y segura. Excavadoras, retroexcavadoras y más, disponibles cuando las necesites en todo Chile.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -10,6 +10,18 @@
   "theme_color": "#EC6819",
   "orientation": "portrait-primary",
   "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/maqgo_logo_clean.svg",
       "sizes": "any",

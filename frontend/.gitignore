@@ -27,3 +27,6 @@ dist-ssr
 # Artefactos de salida de lint locales (no commitear)
 lint*.txt
 .env*.local
+
+# Playwright: instalar en cada máquina con `npx playwright install` (no commitear binarios; >100MB)
+.playwright-browsers/

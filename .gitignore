@@ -21,6 +21,7 @@ node_modules/
 /coverage
 frontend/test-results/
 frontend/playwright-report/
+frontend/.playwright-browsers/
 
 # Next.js (legacy)
 /.next/
