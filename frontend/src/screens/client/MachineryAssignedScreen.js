@@ -19,8 +19,13 @@ import { vibrate } from '../../utils/uberUX';
  */
 
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
-import { getProviderLicensePlate } from '../../utils/providerDisplay';
+import {
+  getProviderLicensePlate,
+  getOperatorDisplayNameForSite,
+  getOperatorRutForSite
+} from '../../utils/providerDisplay';
 import { getMinutesAfterEtaToAllowCancel } from '../../utils/cancellationPolicy';
+import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 
 // Mapeo de razones de incidente a mensajes amigables
 const INCIDENT_MESSAGES = {
@@ -58,8 +63,10 @@ function MachineryAssignedScreen() {
     return selected;
   });
   const licensePlateLabel = getProviderLicensePlate(provider) || 'Por confirmar';
+  const operatorFullName = getOperatorDisplayNameForSite(provider);
+  const operatorRut = getOperatorRutForSite(provider);
   const [machinery] = useState(localStorage.getItem('selectedMachinery') || 'retroexcavadora');
-  const [location] = useState(localStorage.getItem('serviceLocation') || '');
+  const [location] = useState(() => getBookingLocationLineOrEmpty());
 
   // assigned = operador asignado, preparándose (mapa estático); en_route = ya salió (mapa se mueve, ETA)
   const [serviceStatus, setServiceStatus] = useState(() => localStorage.getItem('serviceStatus') || 'assigned');
@@ -579,10 +586,13 @@ function MachineryAssignedScreen() {
           padding: 16,
           marginBottom: 16
         }}>
-          <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 10, textTransform: 'uppercase', marginBottom: 10 }}>
+          <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 10, textTransform: 'uppercase', marginBottom: 4 }}>
             Operador asignado
           </div>
-          
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, margin: '0 0 12px', lineHeight: 1.35 }}>
+            Nombre y RUT para ingreso a obra o control de acceso.
+          </p>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
             <div style={{
               width: 45,
@@ -600,14 +610,12 @@ function MachineryAssignedScreen() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ color: '#fff', fontSize: 16, fontWeight: 600 }}>
-                Proveedor MAQGO
+                {operatorFullName}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="#EC6819">
-                  <path d="M6 1L7.2 4.2H10.6L7.9 6.3L8.8 9.8L6 7.8L3.2 9.8L4.1 6.3L1.4 4.2H4.8L6 1Z"/>
-                </svg>
-                <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-                  —
+              <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, marginTop: 4 }}>
+                RUT:{' '}
+                <span style={{ fontWeight: 600, color: '#fff' }}>
+                  {operatorRut || 'Por confirmar'}
                 </span>
               </div>
             </div>

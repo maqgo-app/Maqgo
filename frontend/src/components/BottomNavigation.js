@@ -204,7 +204,7 @@ export function ProviderNavigation() {
     }}>
         <NavItem
           active={isActive('/operator/home')}
-          onClick={() => goToHome(navigate)}
+          onClick={() => navigate('/operator/home')}
           label="Inicio"
           icon={Icons.home}
           isPrimary
@@ -249,7 +249,7 @@ export function ProviderNavigation() {
     }}>
       <NavItem
         active={isActive('/provider/home')}
-        onClick={() => goToHome(navigate)}
+        onClick={() => navigate('/provider/home')}
         label="Inicio"
         icon={Icons.home}
         isPrimary

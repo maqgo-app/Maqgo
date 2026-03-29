@@ -71,10 +71,6 @@ function WelcomeScreen() {
   }, []);
 
   useEffect(() => {
-    document.title = 'MAQGO - Maquinaria pesada donde la necesitas';
-  }, []);
-
-  useEffect(() => {
     // Respetar regla de negocio: solo mantener progreso si realmente es reanudable.
     const decision = shouldShowResumeBooking();
     if (!decision.show) {
@@ -326,7 +322,8 @@ function WelcomeScreen() {
                 navigate('/login', { state: { redirect: target } });
                 return;
               }
-              navigate(getWelcomeAppHomePath());
+              // "Arrendar maquinaria" siempre debe iniciar el funnel cliente.
+              navigate(target);
             }}
             className="welcome-cta-primary welcome-reveal"
             style={{ ['--welcome-d']: '200ms' }}
@@ -347,7 +344,7 @@ function WelcomeScreen() {
               const dest = getWelcomeOfferMachineryDestination();
               if (dest === null) {
                 localStorage.setItem('desiredRole', 'provider');
-                navigate('/register');
+                navigate('/register', { state: { freshClientRegistration: true } });
                 return;
               }
               if (dest === '/provider/register') {
@@ -458,7 +455,7 @@ function WelcomeScreen() {
                   type="button"
                   onClick={() => {
                     localStorage.removeItem('desiredRole');
-                    navigate('/register');
+                    navigate('/register', { state: { freshClientRegistration: true } });
                   }}
                   className="welcome-footer-btn"
                   aria-label="Registrarse"

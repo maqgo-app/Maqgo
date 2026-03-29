@@ -76,7 +76,7 @@ export function clearAllReturnUrls() {
  */
 export function navigateToRegister(navigate, returnPath) {
   saveReturnUrl(returnPath);
-  navigate('/register');
+  navigate('/register', { state: { freshClientRegistration: true } });
 }
 
 /**

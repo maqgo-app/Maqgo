@@ -1,32 +1,41 @@
 /**
- * Utilidad centralizada para API
- * - Timeouts para evitar esperas indefinidas
- * - Token Bearer en headers para rutas protegidas
- * - Manejo de 401 → logout y redirect a login
- *
- * Producción split: el usuario abre www; REACT_APP_BACKEND_URL apunta al host del API (ej. api.maqgo.cl).
- * Producción unificado: mismo origen que la web (ej. www.maqgo.cl).
+ * Base del API: solo REACT_APP_BACKEND_URL (Vercel / .env). Sin fallback ni detección de host.
+ * El resto del archivo (axios, interceptores, fetchWith*) es obligatorio para la app; no puede
+ * reducirse a solo export default sin romper imports.
  */
-
 import axios from 'axios';
 
-// vite.config define: process.env.REACT_APP_BACKEND_URL (desde .env o .env.production)
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
-// OTP/SMS puede tardar más en producción por latencia de proveedor externo.
-const DEFAULT_TIMEOUT_MS = 20000;
-
-// Timeout global para todas las peticiones axios
-axios.defaults.timeout = DEFAULT_TIMEOUT_MS;
-
-// Advertencia: producción con localhost = configuración incorrecta
-if (typeof window !== 'undefined' && window.location?.hostname !== 'localhost' && BACKEND_URL.includes('localhost')) {
-  console.error('⚠️ PRODUCCIÓN: BACKEND_URL apunta a localhost. Define REACT_APP_BACKEND_URL o VITE_BACKEND_URL en el build.');
+const rawBackend = process.env.REACT_APP_BACKEND_URL;
+if (!rawBackend || String(rawBackend).trim() === '') {
+  throw new Error('BACKEND URL NOT CONFIGURED');
 }
+/** Sin barra final: `${BACKEND_URL}/api/...` */
+const BACKEND_URL = String(rawBackend).trim().replace(/\/+$/, '');
+
+const DEFAULT_TIMEOUT_MS = 20000;
+axios.defaults.timeout = DEFAULT_TIMEOUT_MS;
 
 function getAuthHeaders() {
   const token = localStorage.getItem('token');
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
+}
+
+/** Rutas donde no debe enviarse Bearer (login/register con token viejo en LS rompe o confunde el backend). */
+function isPublicAuthRequestUrl(url) {
+  const u = String(url || '');
+  return (
+    u.includes('/api/auth/login') ||
+    u.includes('/api/auth/register') ||
+    u.includes('/api/auth/send-otp') ||
+    u.includes('/api/auth/verify-otp') ||
+    u.includes('/api/auth/verify-sms') ||
+    u.includes('/api/auth/resend-code') ||
+    u.includes('/api/auth/password-reset/request') ||
+    u.includes('/api/auth/password-reset/confirm') ||
+    u.includes('/api/communications/sms/send-otp') ||
+    u.includes('/api/communications/sms/verify-otp')
+  );
 }
 
 /** Limpia sesión local (token + roles). Usar al cerrar sesión o tras 401. */
@@ -97,8 +106,9 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_TI
   }
 }
 
-// Interceptor axios: añadir token y manejar 401
 axios.interceptors.request.use((config) => {
+  const url = config.url || '';
+  if (isPublicAuthRequestUrl(url)) return config;
   const auth = getAuthHeaders();
   if (Object.keys(auth).length) config.headers.Authorization = auth.Authorization;
   return config;
@@ -107,7 +117,17 @@ axios.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err.response?.status === 401) {
-      handle401();
+      const reqUrl = err.config?.url || '';
+      const isPublicAuthFlow =
+        reqUrl.includes('/api/auth/login') ||
+        reqUrl.includes('/api/auth/register') ||
+        reqUrl.includes('/api/auth/password-reset/') ||
+        reqUrl.includes('/api/auth/verify-otp') ||
+        reqUrl.includes('/api/auth/verify-sms') ||
+        reqUrl.includes('/api/auth/forgot') ||
+        reqUrl.includes('/api/auth/password-reset');
+
+      if (!isPublicAuthFlow) handle401();
     }
     return Promise.reject(err);
   }

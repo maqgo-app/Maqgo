@@ -4,6 +4,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import ConfirmModal from '../../components/ConfirmModal';
 import { useToast } from '../../components/Toast';
 import { getObject, getArray, getObjectFirst } from '../../utils/safeStorage';
+import { syncAssignedOperatorToApi } from '../../utils/syncAssignedOperatorToApi';
 
 /**
  * Pantalla: Selección de Operador (PROVEEDOR)
@@ -90,6 +91,7 @@ function SelectOperatorScreen() {
       phone: selectedOperator.isOwner ? ownerPhone : operatorPhone
     };
     localStorage.setItem('assignedOperator', JSON.stringify(operatorData));
+    void syncAssignedOperatorToApi(operatorData);
     // Para que el cliente vea la foto del operador (demo: mismo dispositivo)
     if (selectedOperator.photo) {
       const sel = getObject('selectedProvider', {});

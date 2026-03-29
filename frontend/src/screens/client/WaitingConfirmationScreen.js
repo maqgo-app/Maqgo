@@ -66,6 +66,17 @@ function WaitingConfirmationScreen() {
         </h1>
 
         <p style={{
+          color: 'rgba(255,255,255,0.82)',
+          fontSize: 13,
+          textAlign: 'center',
+          margin: '0 16px 10px',
+          lineHeight: 1.45,
+          maxWidth: 320
+        }}>
+          Tu solicitud ya está enviada. En un momento seguimos al siguiente paso.
+        </p>
+
+        <p style={{
           color: 'rgba(255,255,255,0.9)',
           fontSize: 15,
           textAlign: 'center',

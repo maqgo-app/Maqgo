@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { maskName, maskLocation } from '../../utils/privacy';
+import { getOperatorDisplayNameFromRecord, getOperatorRutFromRecord } from '../../utils/providerDisplay';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getArray } from '../../utils/safeStorage';
 
@@ -54,6 +55,7 @@ const DEMO_SERVICES_CLIENT = [
     date: '2024-12-28',
     machinery: 'retroexcavadora',
     operatorName: 'Carlos Silva',
+    operatorRut: '18.765.432-1',
     operatorRating: 4.8,
     hours: 4,
     total: 241593,
@@ -66,6 +68,7 @@ const DEMO_SERVICES_CLIENT = [
     date: '2024-12-20',
     machinery: 'camion_tolva',
     operatorName: 'Pedro Muñoz',
+    operatorRut: '15.432.109-8',
     operatorRating: 4.6,
     hours: 6,
     total: 312000,
@@ -78,6 +81,7 @@ const DEMO_SERVICES_CLIENT = [
     date: '2024-12-15',
     machinery: 'excavadora',
     operatorName: 'Jorge Ramírez',
+    operatorRut: '12.345.678-5',
     operatorRating: 4.2,
     hours: 8,
     total: 0,
@@ -306,17 +310,15 @@ function HistoryScreen() {
                   padding: 10,
                   marginBottom: 10
                 }}>
-                  {/* REGLA DE PRIVACIDAD:
-                      - Cliente ve siempre "Proveedor MAQGO" fuera de llegada a obra
-                      - Proveedor ve: "Cliente" + nombre anonimizado (Juan P.)
-                      - NUNCA mostrar nombre de empresa al cliente */}
+                  {/* Cliente: operador (nombre + RUT para registro en obra), sin nombre de empresa del proveedor.
+                      Proveedor: cliente anonimizado */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                     <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
                       {isProvider ? 'Cliente' : 'Operador'}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: '#fff', fontSize: 12 }}>
-                        {isProvider ? maskName(service.clientName) : 'Proveedor MAQGO'}
+                      <span style={{ color: '#fff', fontSize: 12, textAlign: 'right' }}>
+                        {isProvider ? maskName(service.clientName) : getOperatorDisplayNameFromRecord(service)}
                       </span>
                       {/* Rating de la contraparte */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -329,6 +331,14 @@ function HistoryScreen() {
                       </div>
                     </div>
                   </div>
+                  {!isProvider && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>RUT operador</span>
+                      <span style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>
+                        {getOperatorRutFromRecord(service) || 'Por confirmar'}
+                      </span>
+                    </div>
+                  )}
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>Ubicación</span>

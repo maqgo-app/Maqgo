@@ -21,18 +21,22 @@ function OperatorJoinScreen() {
   const [step, setStep] = useState('code'); // 'code' | 'success'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [photo] = useState(null); // Foto opcional, no usada en MVP
 
   // Validar código y unirse directamente (flujo simple: solo código)
   const handleJoinWithCode = async () => {
+    if (loading) return;
     if (code.length < 4) {
       setError('Ingresa el código completo');
+      setStatusMessage('');
       return;
     }
     
     setLoading(true);
     setError('');
+    setStatusMessage('Verificando código...');
 
     try {
       const response = await axios.post(`${BACKEND_URL}/api/operators/join`, {
@@ -51,6 +55,7 @@ function OperatorJoinScreen() {
         
         setOwnerName(response.data.owner_name);
         setStep('success');
+        setStatusMessage('');
         
         // Sonido de éxito
         unlockAudio();
@@ -59,14 +64,31 @@ function OperatorJoinScreen() {
       }
     } catch (err) {
       console.error('Error joining:', err);
-      let msg = 'Código inválido o expirado';
+      let msg = 'No pudimos validar el código. Verifica y vuelve a intentar.';
       if (err.response?.data?.detail) {
-        const d = err.response.data.detail;
-        msg = Array.isArray(d) ? (d[0]?.msg || msg) : d;
+        const d = String(Array.isArray(err.response.data.detail) ? (err.response.data.detail[0]?.msg || '') : err.response.data.detail || '').toLowerCase();
+        const hasInvalid = d.includes('inválido') || d.includes('invalido');
+        const hasUsed = d.includes('ya utilizado');
+        const hasMaster = d.includes('gerentes') || d.includes('master');
+        if (hasInvalid && hasUsed) {
+          // Mensaje combinado del backend: no sabemos la causa exacta.
+          msg = 'Código inválido o no disponible. Pide a tu empresa un código vigente de operador.';
+        } else if (hasInvalid) {
+          msg = 'Código inválido. Revisa el código y vuelve a intentar.';
+        } else if (hasUsed) {
+          msg = 'Este código ya fue usado. Pide uno nuevo a tu empresa.';
+        } else if (d.includes('expirado')) {
+          msg = 'Este código venció. Pide uno nuevo a tu empresa.';
+        } else if (hasMaster) {
+          msg = 'Este código es para gerente. Pide a tu empresa un código de operador.';
+        } else {
+          msg = 'No pudimos validar el código. Pide a tu empresa un código nuevo.';
+        }
       } else if (err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
-        msg = 'No se pudo conectar al servidor. Verifica que el backend esté corriendo.';
+        msg = 'No pudimos conectarnos. Revisa tu internet e inténtalo de nuevo.';
       }
       setError(msg);
+      setStatusMessage('');
     }
     
     setLoading(false);
@@ -101,7 +123,7 @@ function OperatorJoinScreen() {
               margin: '0 0 30px',
               lineHeight: 1.5
             }}>
-              Ingresa el código que te compartió tu empresa
+              Ingresa el código que te compartió tu empresa. En segundos quedas listo para trabajar.
             </p>
 
             {/* Input de código */}
@@ -109,7 +131,15 @@ function OperatorJoinScreen() {
               <input
                 type="text"
                 value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 6))}
+                onChange={(e) => {
+                  setCode(e.target.value.toUpperCase().slice(0, 6));
+                  if (error) setError('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && code.length >= 4 && !loading) {
+                    handleJoinWithCode();
+                  }
+                }}
                 placeholder="CÓDIGO"
                 maxLength={6}
                 style={{
@@ -129,6 +159,12 @@ function OperatorJoinScreen() {
                 data-testid="invite-code-input"
               />
             </div>
+
+            {!!statusMessage && !error && (
+              <p style={{ color: '#90BDD3', fontSize: 13, textAlign: 'center', marginBottom: 15 }}>
+                {statusMessage}
+              </p>
+            )}
 
             {error && (
               <p style={{ color: '#ff6b6b', fontSize: 13, textAlign: 'center', marginBottom: 15 }}>

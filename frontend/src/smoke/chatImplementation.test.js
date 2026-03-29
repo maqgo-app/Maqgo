@@ -50,7 +50,7 @@ describe('Seguridad de chat', () => {
 describe('WhatsApp no debe coordinar cliente <-> proveedor', () => {
   it('PaymentResultScreen no llama endpoints WhatsApp de confirmación', () => {
     const src = readFileSync(
-      join(root, 'screens/client/PaymentResultScreen.js'),
+      join(root, 'screens/client/PaymentResultScreen.jsx'),
       'utf8'
     );
     expect(src).not.toContain('/api/communications/whatsapp/');

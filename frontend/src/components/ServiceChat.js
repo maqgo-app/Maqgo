@@ -37,6 +37,9 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
   const knownMessageIdsRef = useRef(new Set());
   const didInitRef = useRef(false);
   const notifRequestedRef = useRef(false);
+  const latestCreatedAtRef = useRef(null);
+  const pollInFlightRef = useRef(false);
+  const errorStreakRef = useRef(0);
 
   // Best practice: pedir permiso solo 1 vez al abrir el chat (si está soportado).
   useEffect(() => {
@@ -53,46 +56,72 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
     }
   }, [serviceId]);
 
-  const fetchMessages = useCallback(async () => {
-    try {
-      const prevIds = knownMessageIdsRef.current;
-      const res = await axios.get(`${BACKEND_URL}/api/messages/service/${serviceId}`);
+  const POLL_BASE_MS = 6000;
+  const POLL_MAX_MS = 30000;
+  const DELTA_LIMIT = 100;
 
-      const incomingMessages = res.data || [];
+  const fetchInitialMessages = useCallback(async () => {
+    const res = await axios.get(`${BACKEND_URL}/api/messages/service/${serviceId}`);
+    const initialMessages = res.data || [];
 
-      // Notificar sólo nuevos mensajes entrantes del otro participante
-      const newIncoming = incomingMessages.filter((m) => {
-        if (!m?.id) return false;
-        if (prevIds.has(m.id)) return false;
-        return m.sender_type !== userType;
-      });
+    // Cargar historial completo una vez al abrir el chat.
+    setMessages(initialMessages);
 
-      setMessages(incomingMessages);
+    const nextIds = new Set();
+    initialMessages.forEach((m) => m?.id && nextIds.add(m.id));
+    knownMessageIdsRef.current = nextIds;
 
-      // Actualiza el set de IDs conocidos
-      const nextIds = new Set();
-      incomingMessages.forEach((m) => m?.id && nextIds.add(m.id));
-      knownMessageIdsRef.current = nextIds;
+    const last = initialMessages[initialMessages.length - 1];
+    latestCreatedAtRef.current = last?.created_at || null;
 
-      // Best practice: no notificar los mensajes existentes al abrir el chat.
-      if (didInitRef.current && newIncoming.length > 0) {
-        await unlockAudio();
-        playChatIncomingSound();
-        showSystemNotification(
-          'Nuevo mensaje',
-          // No exponer contenido ni identidad del otro lado.
-          // Mantiene la regla de privacidad: el chat es el único canal.
-          'Tienes un mensaje nuevo en MAQGO'
-        );
-      }
-
-      didInitRef.current = true;
-      // Marcar como leídos
+    // Marcar como leídos sólo si hay mensajes nuevos del otro participante.
+    const hasUnreadOther = initialMessages.some(
+      (m) => m?.sender_type !== userType && m?.read === false
+    );
+    if (hasUnreadOther) {
       await axios.patch(`${BACKEND_URL}/api/messages/read/${serviceId}?reader_type=${userType}`);
-    } catch (e) {
-      console.error('Error fetching messages:', e);
     }
-    setLoading(false);
+
+    // A partir de ahora, sí notificamos cuando lleguen mensajes nuevos.
+    didInitRef.current = true;
+  }, [serviceId, userType]);
+
+  const fetchDeltaMessages = useCallback(async () => {
+    const since = latestCreatedAtRef.current;
+    const qs = since
+      ? `?since=${encodeURIComponent(since)}&limit=${DELTA_LIMIT}`
+      : `?limit=${DELTA_LIMIT}`;
+
+    const res = await axios.get(`${BACKEND_URL}/api/messages/service/${serviceId}/delta${qs}`);
+    const deltaMessages = res.data || [];
+    if (!deltaMessages.length) return;
+
+    const toAdd = deltaMessages.filter((m) => m?.id && !knownMessageIdsRef.current.has(m.id));
+    if (!toAdd.length) {
+      const last = deltaMessages[deltaMessages.length - 1];
+      latestCreatedAtRef.current = last?.created_at || latestCreatedAtRef.current;
+      return;
+    }
+
+    deltaMessages.forEach((m) => m?.id && knownMessageIdsRef.current.add(m.id));
+    const last = deltaMessages[deltaMessages.length - 1];
+    latestCreatedAtRef.current = last?.created_at || latestCreatedAtRef.current;
+
+    // delta viene ordenado por created_at asc → appends preserva orden
+    setMessages((prev) => prev.concat(toAdd));
+
+    const newIncoming = toAdd.filter((m) => m.sender_type !== userType);
+    if (didInitRef.current && newIncoming.length > 0) {
+      await unlockAudio();
+      playChatIncomingSound();
+      showSystemNotification(
+        'Nuevo mensaje',
+        'Tienes un mensaje nuevo en MAQGO'
+      );
+
+      // Evita patch/read en cada poll: sólo cuando hay mensajes nuevos del otro participante.
+      await axios.patch(`${BACKEND_URL}/api/messages/read/${serviceId}?reader_type=${userType}`);
+    }
   }, [serviceId, userType]);
 
   const scrollToBottom = () => {
@@ -100,15 +129,64 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
   };
 
   useEffect(() => {
-    const initialFetchId = setTimeout(() => {
-      fetchMessages();
-    }, 0);
-    const interval = setInterval(fetchMessages, 3000);
-    return () => {
-      clearTimeout(initialFetchId);
-      clearInterval(interval);
+    let cancelled = false;
+    let timeoutId = null;
+
+    // Reiniciar estado cuando cambia la conversación.
+    setMessages([]);
+    knownMessageIdsRef.current = new Set();
+    latestCreatedAtRef.current = null;
+    didInitRef.current = false;
+    errorStreakRef.current = 0;
+
+    const runPollingLoop = async () => {
+      if (cancelled) return;
+
+      // Backpressure: nunca dispare más de una request al mismo tiempo.
+      if (pollInFlightRef.current) {
+        timeoutId = setTimeout(runPollingLoop, 1000);
+        return;
+      }
+
+      pollInFlightRef.current = true;
+      try {
+        await fetchDeltaMessages();
+        errorStreakRef.current = 0;
+      } catch (e) {
+        errorStreakRef.current += 1;
+        // Evitar spam: sólo loggear en picos.
+        if (errorStreakRef.current === 1 || errorStreakRef.current % 3 === 0) {
+          console.warn('Chat delta poll error:', e?.response?.status || e?.message || e);
+        }
+      } finally {
+        pollInFlightRef.current = false;
+        const delay = Math.min(
+          POLL_MAX_MS,
+          POLL_BASE_MS * (2 ** errorStreakRef.current)
+        );
+        timeoutId = setTimeout(runPollingLoop, delay);
+      }
     };
-  }, [fetchMessages]);
+
+    (async () => {
+      try {
+        setLoading(true);
+        await fetchInitialMessages();
+      } catch (e) {
+        console.error('Chat initial fetch error:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+      if (!cancelled) {
+        timeoutId = setTimeout(runPollingLoop, POLL_BASE_MS);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [fetchInitialMessages, fetchDeltaMessages]);
 
   useEffect(() => {
     scrollToBottom();
@@ -134,7 +212,8 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
       });
       setNewMessage('');
       setSendError('');
-      fetchMessages();
+      // Actualización eficiente: pedir sólo lo nuevo.
+      void fetchDeltaMessages();
     } catch (e) {
       console.error('Error sending message:', e);
     }
@@ -163,7 +242,8 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
       });
       setNewMessage('');
       setSendError('');
-      fetchMessages();
+      // Actualización eficiente: pedir sólo lo nuevo.
+      void fetchDeltaMessages();
       
       // Vibración de confirmación (si está disponible)
       if (navigator.vibrate) {

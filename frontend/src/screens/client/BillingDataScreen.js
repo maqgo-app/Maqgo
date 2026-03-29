@@ -6,6 +6,7 @@ import { getObject } from '../../utils/safeStorage';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import BookingProgress from '../../components/BookingProgress';
 import { MaqgoButton } from '../../components/base';
+import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 
 /**
  * Pantalla de Datos de Facturación (Cliente)
@@ -40,7 +41,7 @@ function BillingDataScreen() {
 
   useEffect(() => {
     const machinery = localStorage.getItem('selectedMachinery') || '';
-    const location = localStorage.getItem('serviceLocation') || '';
+    const location = getBookingLocationLineOrEmpty();
     saveBookingProgress('payment', { machinery, location });
   }, []);
 
@@ -96,8 +97,11 @@ function BillingDataScreen() {
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 4 }}>
           Datos de Facturación
         </h1>
-        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', marginBottom: 24 }}>
+        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>
           Datos de tu empresa para emitir la factura
+        </p>
+        <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 12, textAlign: 'center', marginBottom: 22, lineHeight: 1.45, padding: '0 8px' }}>
+          Solo para facturación; deben coincidir con los datos de tu empresa ante el SII.
         </p>
 
         {/* Trust signal */}

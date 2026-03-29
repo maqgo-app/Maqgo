@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Body, Depends
 from typing import List, Optional
-from auth_dependency import verify_user_access
+from auth_dependency import verify_user_access, get_current_user
+from security.policy import AccessPolicy
 from models.user import User, UserCreate, ProviderAvailabilityUpdate
 from motor.motor_asyncio import AsyncIOMotorClient
 import bcrypt
@@ -9,6 +10,13 @@ from db_config import get_db_name, get_mongo_url
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+def _hash_password(password: str) -> str:
+    """Hash bcrypt compatible con auth.py (evita NameError en producción)."""
+    if password is None:
+        return ""
+    pw = str(password).encode("utf-8")
+    return bcrypt.hashpw(pw, bcrypt.gensalt()).decode("utf-8")
 
 
 async def _add_session_token(result: dict) -> None:
@@ -36,11 +44,21 @@ def _user_roles_list(doc: dict) -> list:
     return [r] if r else []
 
 
+
 @router.post("", response_model=dict)
 async def create_user(user: UserCreate):
     """Crear nuevo usuario (cliente o proveedor). Si el email ya existe, se agrega el rol a la misma cuenta."""
     user_data = user.model_dump()
     plain_password = user_data.pop("password", None)
+    # Normalizar email para evitar duplicados por mayúsculas.
+    user_data["email"] = (user_data.get("email") or "").strip().lower()
+    # Normalizar RUT si viene (para login por RUT).
+    if user_data.get("rut"):
+        import re as _re
+        raw = str(user_data["rut"]).strip()
+        cleaned = _re.sub(r"[^0-9kK]", "", raw)
+        if len(cleaned) >= 2:
+            user_data["rut"] = f"{cleaned[:-1]}-{cleaned[-1].upper()}"
     existing = await db.users.find_one({"email": user_data["email"]})
 
     if existing:
@@ -94,11 +112,17 @@ async def create_user(user: UserCreate):
     return result
 
 @router.get("", response_model=List[dict])
-async def get_users(role: Optional[str] = None, isAvailable: Optional[bool] = None):
+async def get_users(
+    role: Optional[str] = None,
+    isAvailable: Optional[bool] = None,
+    current_user: dict = Depends(get_current_user),
+):
     """Obtener usuarios con filtros opcionales"""
+    AccessPolicy.assert_admin(current_user)
     query = {}
     if role:
-        query['role'] = role
+        # Compatibilidad multirol: role legacy o roles[]
+        query['$or'] = [{'role': role}, {'roles': role}]
     if isAvailable is not None:
         query['isAvailable'] = isAvailable
     
@@ -239,7 +263,12 @@ async def get_available_providers(machineryType: Optional[str] = None):
 # ========== RBAC: Gestión de Operadores ==========
 
 @router.post("/{owner_id}/operators", response_model=dict)
-async def create_operator(owner_id: str, body: dict = Body(...)):
+async def create_operator(
+    owner_id: str,
+    body: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_owner_scope(current_user, owner_id)
     """
     Crear un nuevo operador bajo un dueño.
     Solo el dueño puede crear operadores.
@@ -286,7 +315,8 @@ async def create_operator(owner_id: str, body: dict = Body(...)):
 
 
 @router.get("/{owner_id}/operators", response_model=dict)
-async def get_operators(owner_id: str):
+async def get_operators(owner_id: str, current_user: dict = Depends(get_current_user)):
+    AccessPolicy.assert_owner_scope(current_user, owner_id)
     """
     Obtener todos los operadores de un dueño.
     """
@@ -305,7 +335,12 @@ async def get_operators(owner_id: str):
 
 
 @router.delete("/{owner_id}/operators/{operator_id}", response_model=dict)
-async def delete_operator(owner_id: str, operator_id: str):
+async def delete_operator(
+    owner_id: str,
+    operator_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_owner_scope(current_user, owner_id)
     """
     Eliminar un operador.
     Solo el dueño puede eliminar sus operadores.
@@ -329,7 +364,11 @@ async def delete_operator(owner_id: str, operator_id: str):
 
 
 @router.get("/{user_id}/role", response_model=dict)
-async def get_user_role(user_id: str):
+async def get_user_role(
+    user_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_self_or_admin(current_user, user_id)
     """
     Obtener el rol y permisos de un usuario.
     Útil para el frontend para determinar qué mostrar.

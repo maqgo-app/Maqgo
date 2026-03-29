@@ -12,6 +12,9 @@ import { ProviderOptionsSkeleton } from '../../components/ListSkeleton';
 
 import BACKEND_URL from '../../utils/api';
 
+/**
+ * STABLE FLOW - DO NOT MODIFY WITHOUT PRODUCT APPROVAL
+ */
 // MACHINERY_NO_TRANSPORT y REFERENCE_PRICES desde pricing.js; por-viaje: isPerTripMachineryType (machineryNames)
 import { MACHINERY_NO_TRANSPORT, REFERENCE_PRICES, getDemoProviders } from '../../utils/pricing';
 import { getPerTripDateLabel } from '../../utils/bookingDates';
@@ -60,6 +63,21 @@ function ProviderOptionsScreen() {
     if (savedFor !== machinery) return [];
     return getArray('selectedProviderIds', []);
   });
+
+  const sanitizeProviders = useCallback((items) => {
+    if (!Array.isArray(items)) return [];
+    return items
+      .filter((p) => p && typeof p === 'object')
+      .map((p, idx) => ({
+        ...p,
+        id: p.id || p._id || `provider-${idx + 1}`,
+        eta_minutes: Number.isFinite(Number(p.eta_minutes)) ? Number(p.eta_minutes) : 40,
+        distance: Number.isFinite(Number(p.distance)) ? Number(p.distance) : 0,
+        rating: Number.isFinite(Number(p.rating)) ? Number(p.rating) : 4.5,
+        transport_fee: Number.isFinite(Number(p.transport_fee)) ? Number(p.transport_fee) : 0,
+        price_per_hour: Number.isFinite(Number(p.price_per_hour)) ? Number(p.price_per_hour) : 0,
+      }));
+  }, []);
 
   const needsTransport = useCallback(() => !MACHINERY_NO_TRANSPORT.includes(selectedMachinery), [selectedMachinery]);
 
@@ -137,9 +155,9 @@ function ProviderOptionsScreen() {
       setTomorrowCount(response.data?.tomorrow_count ?? 0);
 
       // Agregar cálculo de horas máximas y precio total a cada proveedor
-      let rawProviders = response.data?.providers || [];
+      let rawProviders = sanitizeProviders(response.data?.providers || []);
       if (rawProviders.length === 0) {
-        rawProviders = getDemoProvidersFallback();
+        rawProviders = sanitizeProviders(getDemoProvidersFallback());
       }
       // Maquinaria por viaje: si el backend envía precios por hora (ej. 42k), normalizar a precio por viaje de mercado
       const refTrip = isPerTripMachineryType(selectedMachinery) ? REFERENCE_PRICES[selectedMachinery] : null;
@@ -163,10 +181,10 @@ function ProviderOptionsScreen() {
     } catch {
       setIsDemoProviders(true);
       setTomorrowAvailable(false);
-      const fallbackProviders = getDemoProvidersFallback();
+      const fallbackProviders = sanitizeProviders(getDemoProvidersFallback());
       const safeFallback = Array.isArray(fallbackProviders) && fallbackProviders.length
         ? fallbackProviders
-        : getDemoProviders('retroexcavadora', 5, { extended: true });
+        : sanitizeProviders(getDemoProviders('retroexcavadora', 5, { extended: true }));
 
       setProviders(safeFallback.map(p => ({
         ...p,
@@ -177,7 +195,7 @@ function ProviderOptionsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [selectedMachinery, needsTransport, calculateTotalPrice, getDemoProvidersFallback]);
+  }, [selectedMachinery, needsTransport, calculateTotalPrice, getDemoProvidersFallback, sanitizeProviders]);
 
   useEffect(() => {
     fetchProviders();
@@ -294,8 +312,8 @@ function ProviderOptionsScreen() {
 
   if (loading) {
     return (
-      <div className="maqgo-app">
-        <div className="maqgo-screen" style={{ paddingBottom: 30 }}>
+      <div className="maqgo-app maqgo-client-funnel">
+        <div className="maqgo-screen maqgo-screen--scroll" style={{ paddingBottom: 30 }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
             <button
               type="button"
@@ -329,8 +347,8 @@ function ProviderOptionsScreen() {
   // Estado: No hay proveedores hoy pero sí mañana (reserva inmediata)
   if (!loading && reservationType === 'immediate' && isDemoProviders && tomorrowAvailable) {
     return (
-      <div className="maqgo-app">
-        <div className="maqgo-screen">
+      <div className="maqgo-app maqgo-client-funnel">
+        <div className="maqgo-screen maqgo-screen--scroll">
           <NoProvidersTryTomorrow
             tomorrowCount={tomorrowCount}
             onReserveTomorrow={handleReserveTomorrow}
@@ -346,8 +364,8 @@ function ProviderOptionsScreen() {
     // Caso especial: reserva programada que incluye sábado
     if (reservationType === 'scheduled' && hasSaturday) {
       return (
-        <div className="maqgo-app">
-          <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px', justifyContent: 'center' }}>
+        <div className="maqgo-app maqgo-client-funnel">
+          <div className="maqgo-screen maqgo-screen--scroll" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px', justifyContent: 'center' }}>
             <div
               style={{
                 background: '#2A2A2A',
@@ -418,8 +436,8 @@ function ProviderOptionsScreen() {
     }
 
     return (
-      <div className="maqgo-app">
-        <div className="maqgo-screen">
+      <div className="maqgo-app maqgo-client-funnel">
+        <div className="maqgo-screen maqgo-screen--scroll">
           <NoProvidersError onModify={() => navigate('/client/home')} />
         </div>
       </div>
@@ -427,8 +445,8 @@ function ProviderOptionsScreen() {
   }
 
   return (
-    <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ paddingBottom: 30 }}>
+    <div className="maqgo-app maqgo-client-funnel">
+      <div className="maqgo-screen maqgo-screen--scroll" style={{ paddingBottom: 30 }}>
         {/* Header */}
         <div style={{ 
           display: 'flex', 
@@ -492,8 +510,8 @@ function ProviderOptionsScreen() {
           </span>
         </div>
         
-        <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center', marginBottom: 10 }}>
-          Elige uno o más proveedores para enviar tu solicitud.
+        <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center', marginBottom: 10, lineHeight: 1.45, padding: '0 8px' }}>
+          Compara precio total y tiempo estimado; marca uno o más proveedores para enviar la solicitud.
         </p>
 
         {/* Aviso: pocos proveedores por sábado */}
@@ -542,6 +560,7 @@ function ProviderOptionsScreen() {
         <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 10 }}>
           {filteredProviders.map((provider, index) => {
             const isSelected = selectedProviderIds.some((id) => idMatch(id, provider.id));
+            const spec = getProviderSpecDisplay(selectedMachinery, provider);
             return (
             <div 
               key={provider.id}
@@ -630,16 +649,15 @@ function ProviderOptionsScreen() {
                 </div>
               </div>
 
-              {/* Especificación de la máquina (ej. Capacidad de estanque: 10.000 L) - visible en cada opción */}
-              {(() => {
-                const spec = getProviderSpecDisplay(selectedMachinery, provider);
-                if (!spec) return null;
-                return (
+              {/* Detalle opcional: evita ruido visual en decisión rápida */}
+              {spec && (
+                <div>
                   <div style={{
                     background: 'rgba(255,255,255,0.06)',
                     borderRadius: 8,
                     padding: '8px 10px',
-                    borderLeft: '3px solid #EC6819'
+                    borderLeft: '3px solid #EC6819',
+                    marginTop: 8
                   }}>
                     <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, display: 'block', marginBottom: 2 }}>
                       {spec.label}
@@ -648,8 +666,8 @@ function ProviderOptionsScreen() {
                       {spec.valueFormatted}
                     </span>
                   </div>
-                );
-              })()}
+                </div>
+              )}
 
               {/* Una fila: Opción N · Seleccionado | ETA · Distancia */}
               <div style={{ 
@@ -679,20 +697,27 @@ function ProviderOptionsScreen() {
           })}
         </div>
 
-        {validSelectedIds.length > 0 && (
-          <div style={{ paddingTop: 12, paddingBottom: 24 }}>
-            <button
-              className="maqgo-btn-primary"
-              onClick={handleContinueWithSelected}
-              style={{ width: '100%' }}
-            >
-              Siguiente
-            </button>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, textAlign: 'center', margin: '8px 0 0' }}>
-              En el siguiente paso revisas todo antes de enviar.
-            </p>
-          </div>
-        )}
+        <div style={{ paddingTop: 12, paddingBottom: 24 }}>
+          <button
+            className="maqgo-btn-primary"
+            onClick={handleContinueWithSelected}
+            disabled={validSelectedIds.length === 0}
+            style={{
+              width: '100%',
+              opacity: validSelectedIds.length > 0 ? 1 : 0.5,
+              cursor: validSelectedIds.length > 0 ? 'pointer' : 'not-allowed'
+            }}
+          >
+            {validSelectedIds.length === 0
+              ? 'Selecciona al menos 1 proveedor'
+              : validSelectedIds.length === 1
+                ? 'Revisar y enviar a 1 proveedor'
+                : `Revisar y enviar a ${validSelectedIds.length} proveedores`}
+          </button>
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, textAlign: 'center', margin: '8px 0 0' }}>
+            Te llevamos al resumen final antes de enviarla.
+          </p>
+        </div>
 
         {/* Info de jornada - Simplificado */}
         {!isPerTripMachineryType(selectedMachinery) && (

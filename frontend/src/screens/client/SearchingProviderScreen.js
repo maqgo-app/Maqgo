@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { getObject, getArray } from '../../utils/safeStorage';
 import { MACHINERY_PER_TRIP, IMMEDIATE_MULTIPLIERS, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, getDemoProviders } from '../../utils/pricing';
 import BACKEND_URL from '../../utils/api';
+import { getBookingBackRoute } from '../../utils/bookingFlow';
 import { Z_INDEX } from '../../constants/zIndex';
+import { useCheckoutState } from '../../context/CheckoutContext';
 
 /**
  * Pantalla de Búsqueda Secuencial de Proveedor
@@ -17,7 +19,10 @@ const ETA_TOLERANCE = 5; // minutos de tolerancia
 
 function SearchingProviderScreen() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const backFromSearching = getBookingBackRoute(pathname) || '/client/card';
   const [status, setStatus] = useState('loading'); // loading, searching, found, not_found, no_eligible
+  const statusRef = useRef(status);
   const [currentAttempt, setCurrentAttempt] = useState(1);
   const [secondsLeft, setSecondsLeft] = useState(60);
   const [totalElapsed, setTotalElapsed] = useState(0);
@@ -28,6 +33,10 @@ function SearchingProviderScreen() {
   const [isRealRequest, setIsRealRequest] = useState(false);
   
   const SECONDS_PER_ATTEMPT = 60;
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   // Calcular total con comisión (por hora o por viaje según maquinaria)
   const calculateTotal = (provider, hours, machinery) => {
@@ -57,8 +66,8 @@ function SearchingProviderScreen() {
   // Polling cuando hay solicitud real en backend + segundero en tiempo real
   useEffect(() => {
     const serviceId = localStorage.getItem('currentServiceId') || '';
-    const isRealRequest = serviceId && !serviceId.startsWith('demo-');
-    if (!isRealRequest) return;
+    const shouldPoll = serviceId && !serviceId.startsWith('demo-');
+    if (!shouldPoll) return;
 
     setIsRealRequest(true);
     setStatus('searching');
@@ -71,41 +80,103 @@ function SearchingProviderScreen() {
     const providerCount = providerIds.length || matched.length || 1;
     setEligibleProviders(Array(providerCount).fill({ operator_name: selected.operator_name || 'Operador' }));
 
+    let cancelled = false;
+    let inFlight = false;
+    let errorStreak = 0;
+    let timeoutId = null;
+    let lastWarnAt = 0;
+
+    const baseDelayMs = 4000;
+    const maxDelayMs = 30000;
+
     const poll = async () => {
-      try {
-        const { data } = await axios.get(`${BACKEND_URL}/api/service-requests/${serviceId}`, { timeout: 8000 });
-        if (data.status === 'confirmed') {
-          setStatus('found');
-          const matching = data;
-          if (matching.providerId || matching.providerName) {
-            const allProviders = getArray('matchedProviders', []);
-            const selectedObj = getObject('selectedProvider', {});
-            const fromList = allProviders.find((p) => p.id === matching.providerId) || {};
-            // Cliente ve solo operador, nunca empresa
-            const operatorName = matching.providerOperatorName || fromList.operator_name || selectedObj.operator_name || 'Operador asignado';
-            const accepted = {
-              ...selectedObj,
-              ...fromList,
-              id: matching.providerId || fromList.id || selectedObj.id,
-              name: matching.providerName || fromList.name || selectedObj.name,
-              operator_name: operatorName,
-            };
-            localStorage.setItem('acceptedProvider', JSON.stringify(accepted));
-          }
-        } else if (data.status === 'no_providers_available') {
-          setStatus('not_found');
-        } else if (data.status === 'offer_sent' && typeof data.remainingSeconds === 'number') {
-          setSecondsLeft(Math.max(0, data.remainingSeconds));
+      const { data } = await axios.get(
+        `${BACKEND_URL}/api/service-requests/${serviceId}`,
+        { timeout: 8000 }
+      );
+
+      if (cancelled) return;
+
+      if (data.status === 'confirmed') {
+        if (!providerAcceptedDispatched.current) {
+          providerAcceptedDispatched.current = true;
+          dispatchCheckout({ type: 'PROVIDER_ACCEPTED' });
         }
-      } catch (e) {
-        console.warn('Poll service request:', e?.message);
+        setStatus('found');
+        cancelled = true;
+        const matching = data;
+        if (matching.providerId || matching.providerName) {
+          const allProviders = getArray('matchedProviders', []);
+          const selectedObj = getObject('selectedProvider', {});
+          const fromList = allProviders.find((p) => p.id === matching.providerId) || {};
+          // Cliente ve solo operador, nunca empresa
+          const operatorName =
+            matching.providerOperatorName ||
+            fromList.operator_name ||
+            selectedObj.operator_name ||
+            'Operador asignado';
+          const accepted = {
+            ...selectedObj,
+            ...fromList,
+            id: matching.providerId || fromList.id || selectedObj.id,
+            name: matching.providerName || fromList.name || selectedObj.name,
+            operator_name: operatorName,
+          };
+          localStorage.setItem('acceptedProvider', JSON.stringify(accepted));
+        }
+      } else if (data.status === 'no_providers_available') {
+        setStatus('not_found');
+        cancelled = true;
+      } else if (
+        data.status === 'offer_sent' &&
+        typeof data.remainingSeconds === 'number'
+      ) {
+        setSecondsLeft(Math.max(0, data.remainingSeconds));
       }
     };
 
-    poll();
-    const interval = setInterval(poll, 4000);
-    return () => clearInterval(interval);
-  }, []);
+    const runPollingLoop = async () => {
+      if (cancelled) return;
+
+      // Detener polling cuando el usuario ya no está “searching”
+      if (statusRef.current !== 'searching') {
+        cancelled = true;
+        return;
+      }
+
+      if (inFlight) {
+        timeoutId = setTimeout(runPollingLoop, 1000);
+        return;
+      }
+
+      inFlight = true;
+      try {
+        await poll();
+        errorStreak = 0;
+      } catch (e) {
+        const now = Date.now();
+        if (now - lastWarnAt > 60000) {
+          console.warn('SearchingProviderScreen poll error:', e?.message || e);
+          lastWarnAt = now;
+        }
+        errorStreak += 1;
+      } finally {
+        inFlight = false;
+        const delay = Math.min(
+          maxDelayMs,
+          baseDelayMs * (2 ** errorStreak)
+        );
+        timeoutId = setTimeout(runPollingLoop, delay);
+      }
+    };
+
+    void runPollingLoop();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [statusRef, dispatchCheckout]);
 
   // Segundero en modo real: decrementar cada segundo; si llega a 0 sin respuesta, mostrar not_found
   useEffect(() => {
@@ -203,10 +274,14 @@ function SearchingProviderScreen() {
       if (accepted) {
         localStorage.setItem('acceptedProvider', JSON.stringify(accepted));
       }
+      if (!providerAcceptedDispatched.current) {
+        providerAcceptedDispatched.current = true;
+        dispatchCheckout({ type: 'PROVIDER_ACCEPTED' });
+      }
       setStatus('found');
     }, demoDelay);
     return () => clearTimeout(t);
-  }, [status, currentAttempt, eligibleProviders]);
+  }, [status, currentAttempt, eligibleProviders, dispatchCheckout]);
 
   // Lógica de timer y secuencia (solo para animar el segundero en demo; la asignación va en el efecto anterior)
   useEffect(() => {
@@ -350,7 +425,7 @@ function SearchingProviderScreen() {
           zIndex: Z_INDEX.sticky
         }}>
           <button 
-            onClick={() => navigate('/client/confirm')}
+            onClick={() => navigate(backFromSearching)}
             style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}
             aria-label="Volver"
           >
@@ -375,6 +450,18 @@ function SearchingProviderScreen() {
 
         {status === 'searching' && (
           <>
+            <p
+              style={{
+                color: 'rgba(255,255,255,0.88)',
+                fontSize: 13,
+                textAlign: 'center',
+                margin: '0 16px 14px',
+                maxWidth: 320,
+                lineHeight: 1.45
+              }}
+            >
+              Tu solicitud ya está enviada. Ahora buscamos un proveedor disponible para ti.
+            </p>
             {/* Progress de intentos */}
             <div style={{
               display: 'flex',

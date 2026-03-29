@@ -83,6 +83,32 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict | None:
+    """
+    Variante opcional: no lanza 401 si no hay Bearer.
+    Retorna None si el token falta o es inválido/expirado.
+    """
+    if not credentials or not credentials.credentials:
+        return None
+
+    token = credentials.credentials.strip()
+    session = await db.sessions.find_one({"token": token})
+    if not session:
+        return None
+
+    user_id = session.get("userId")
+    if not user_id:
+        return None
+
+    user = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0})
+    if not user:
+        return None
+
+    return user
+
+
 async def get_current_admin(
     user: dict = Depends(get_current_user)
 ) -> dict:

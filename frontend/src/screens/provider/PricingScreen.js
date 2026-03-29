@@ -81,6 +81,9 @@ function PricingScreen() {
 
   const priceAlert = priceBaseNum >= minPrice ? getPriceAlert(priceBaseNum, refPrice) : null;
   const transportAlert = needsTransport && transportNum >= MIN_TRANSPORT ? getTransportAlert(transportNum) : null;
+  const canContinue = needsTransport
+    ? priceBaseNum >= minPrice && transportNum >= MIN_TRANSPORT
+    : priceBaseNum >= minPrice;
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('es-CL', { 
@@ -372,6 +375,12 @@ function PricingScreen() {
         <button 
           className="maqgo-btn-primary"
           onClick={handleContinue}
+          disabled={!canContinue}
+          style={{
+            opacity: canContinue ? 1 : 0.55,
+            background: canContinue ? undefined : '#5a5a5a',
+            cursor: canContinue ? 'pointer' : 'not-allowed'
+          }}
           data-testid="continue-btn"
         >
           Siguiente

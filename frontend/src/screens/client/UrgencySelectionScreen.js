@@ -8,6 +8,8 @@ import BookingProgress from '../../components/BookingProgress';
 import { MACHINERY_NAMES, getMachineryKeySpec, getMachineryCapacityOptions, isPerTripMachineryType } from '../../utils/machineryNames';
 
 /**
+ * STABLE FLOW - DO NOT MODIFY WITHOUT PRODUCT APPROVAL
+ *
  * Pantalla: Selección de Urgencia
  * Para maquinaria por viaje (pluma, aljibe, tolva). Horas 4-8 para inmediata (IMMEDIATE_MULTIPLIERS).
  */
@@ -176,8 +178,8 @@ function UrgencySelectionScreen() {
   };
 
   return (
-    <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 30px' }}>
+    <div className="maqgo-app maqgo-client-funnel">
+      <div className="maqgo-screen maqgo-screen--scroll" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 30px' }}>
         {/* Header */}
         <div style={{ 
           display: 'flex', 

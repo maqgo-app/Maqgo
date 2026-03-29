@@ -125,6 +125,40 @@ function ProviderProfileScreen() {
         {/* TITULAR/GERENTE: ve todo */}
         {!isOperator && (
           <>
+            {!bankComplete && (
+              <div
+                style={{
+                  background: 'rgba(236,104,25,0.12)',
+                  border: '1px solid rgba(236,104,25,0.55)',
+                  borderRadius: 12,
+                  padding: 14,
+                  marginTop: 18
+                }}
+              >
+                <p style={{ color: '#EC6819', fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>
+                  Acción requerida para recibir solicitudes
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: '0 0 10px', lineHeight: 1.45 }}>
+                  Completa los datos bancarios para activar cobros y disponibilidad.
+                </p>
+                <button
+                  onClick={() => navigate('/provider/profile/banco')}
+                  style={{
+                    width: '100%',
+                    padding: 10,
+                    background: '#EC6819',
+                    border: 'none',
+                    borderRadius: 10,
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Completar datos bancarios
+                </button>
+              </div>
+            )}
             <SectionTitle title="Mi negocio" />
             <MenuItem 
               label="Inicio" 
@@ -140,6 +174,11 @@ function ProviderProfileScreen() {
               label="Mis cobros" 
               sublabel="Historial de pagos recibidos"
               onClick={() => navigate('/provider/cobros')}
+            />
+            <MenuItem 
+              label="Mi equipo" 
+              sublabel="Invitar y gestionar operadores"
+              onClick={() => navigate('/provider/team')}
             />
 
             <SectionTitle title="Mi cuenta" />

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { COMUNAS_NOMBRES } from '../data/comunas';
+import { mapPlaceToAddress } from '../utils/mapPlaceToAddress';
 
 export function getGoogleMapsApiKey() {
   const sanitize = (value) => {
@@ -21,78 +21,6 @@ export function getGoogleMapsApiKey() {
   // 2) Runtime config (si queremos inyectar sin rebuild)
   const fromRuntime = sanitize(window.__MAQGO_RUNTIME_CONFIG__?.googleMapsApiKey || '');
   return String(fromRuntime || '');
-}
-
-/**
- * Extrae la comuna desde address_components de Google Places
- */
-function extractComunaFromPlace(place) {
-  if (!place?.address_components) return null;
-  const comps = place.address_components;
-
-  const normalize = (s) =>
-    String(s || '')
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
-
-  // Mapa normalized -> nombre canónico (con tildes si existe)
-  const normalizedToCanonical = new Map(
-    (COMUNAS_NOMBRES || []).map((n) => [normalize(n), n])
-  );
-  const isValidComuna = (name) => normalizedToCanonical.has(normalize(name));
-
-  // Priorizamos tipos donde típicamente aparece la comuna en Chile.
-  // Problema observado: a veces `administrative_area_level_2` viene como "Santiago"
-  // (provincia/ciudad), pero la comuna real (ej. Lo Barnechea) viene en `locality`
-  // o `sublocality`. Por eso `locality` va antes que level_2.
-  const typePriority = [
-    'administrative_area_level_3',
-    'locality',
-    'sublocality_level_1',
-    'sublocality',
-    'neighborhood',
-    'administrative_area_level_2'
-  ];
-
-  const typeRank = (types) => {
-    const t = Array.isArray(types) ? types : [];
-    const ranks = t
-      .map((x) => typePriority.indexOf(x))
-      .filter((r) => r >= 0);
-    // Si no hay tipos del listado, dejamos prioridad muy baja
-    return ranks.length ? Math.min(...ranks) : 999;
-  };
-
-  // En vez de devolver "el primero", juntamos todos los candidatos que
-  // coinciden con una comuna válida y elegimos la más específica.
-  const candidates = [];
-  for (const comp of comps) {
-    const longName = comp?.long_name;
-    if (!isValidComuna(longName)) continue;
-
-    candidates.push({
-      comuna: normalizedToCanonical.get(normalize(longName)),
-      rank: typeRank(comp?.types),
-      // desempate: preferir el nombre más largo (ej. "Lo Barnechea")
-      len: String(longName || '').length
-    });
-  }
-
-  if (candidates.length) {
-    candidates.sort((a, b) => a.rank - b.rank || b.len - a.len);
-    return candidates[0].comuna;
-  }
-
-  // Fallback: si no encontramos una comuna valida, intentar el primer match anterior
-  // (para no devolver null cuando hay algun componente "casi" correcto).
-  const rawCandidate =
-    comps.find((c) => c?.types?.includes('administrative_area_level_3'))?.long_name ||
-    comps.find((c) => c?.types?.includes('locality'))?.long_name ||
-    comps.find((c) => c?.types?.includes('administrative_area_level_2'))?.long_name;
-
-  return isValidComuna(rawCandidate) ? normalizedToCanonical.get(normalize(rawCandidate)) : null;
 }
 
 /**
@@ -141,13 +69,17 @@ function waitForAutocompleteConstructor(maxMs = 2500) {
 }
 
 /**
+ * scriptRetryKey: solo incrementa en reintento explícito (ServiceLocation); no ligar a navegación
+ * para evitar recargar el script de Maps sin necesidad.
+ *
  * AddressAutocomplete - Autocompletado de direcciones con Google Places
  * 
  * Si VITE_GOOGLE_MAPS_API_KEY está configurado: usa Google Places para direcciones exactas.
  * Si no: fallback a input manual + ComunaAutocomplete.
  * 
- * onSelect: (result) => void
- *   result = { address, comuna, lat, lng }
+ * onSelect: (result) => void — solo tras elegir sugerencia y `mapPlaceToAddress` válido
+ *   (geometry + address_components; sin depender de formatted_address).
+ *   result = { address_short, commune, address_full, lat, lng, address, comuna }
  * onPlacesStatusChange: ({ ready, phase, hasApiKey }) — ready=true cuando Autocomplete está activo
  */
 export function AddressAutocomplete({
@@ -256,7 +188,7 @@ export function AddressAutocomplete({
       autocomplete = new AutocompleteCtor(inputRef.current, {
         types: ['geocode'],
         componentRestrictions: { country: 'cl' },
-        fields: ['formatted_address', 'geometry', 'address_components'],
+        fields: ['geometry', 'address_components'],
         language: 'es'
       });
     } catch {
@@ -271,23 +203,20 @@ export function AddressAutocomplete({
       return;
     }
 
+    // Solo `place_changed` (elección explícita en el desplegable o equivalente) activa modo Google;
+    // escribir en el input sin elegir sugerencia no llama a onSelect ni sincroniza coords.
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace();
-      if (!place?.formatted_address) return;
+      const mapped = mapPlaceToAddress(place);
+      // Sin sugerencia válida: getPlace() suele venir sin address_components → no actualizar.
+      if (!mapped) return;
 
-      const address = place.formatted_address;
-      const lat = place.geometry?.location?.lat?.();
-      const lng = place.geometry?.location?.lng?.();
-      const comuna = extractComunaFromPlace(place);
-
-      // Orden importante:
-      // 1) onSelect primero para que el consumidor pueda fijar lat/lng (y cualquier estado asociado).
-      // 2) onChange después para actualizar el texto del input.
-      onSelect?.({ address, comuna: comuna || '', lat, lng });
-      onChange?.(address);
-
-      // Best practice (MAQGO): la comuna se ingresa manualmente.
-      // Evitamos pisar el estado del usuario con `onComunaChange` desde Google.
+      onSelect?.({
+        ...mapped,
+        address: mapped.address_short,
+        comuna: mapped.commune
+      });
+      onChange?.(mapped.address_short);
     });
 
     autocompleteRef.current = autocomplete;

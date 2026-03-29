@@ -9,7 +9,8 @@ RBAC:
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Depends
 from pydantic import BaseModel
 
-from auth_dependency import get_current_admin
+from auth_dependency import get_current_admin, get_current_user
+from security.policy import AccessPolicy
 from typing import Optional, List
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -72,8 +73,9 @@ class ServiceUpdate(BaseModel):
 STATUSES = ['pending_review', 'approved', 'invoiced', 'paid', 'disputed']
 
 @router.post("/create")
-async def create_service(service: ServiceCreate):
+async def create_service(service: ServiceCreate, current_user: dict = Depends(get_current_user)):
     """Crear servicio al finalizar trabajo - Pago Ágil (24h)"""
+    AccessPolicy.assert_provider_scope_sync(db, current_user, service.provider_id)
     from pricing.business_rules import AUTO_APPROVAL_HOURS
     result = services_collection.insert_one({
         **service.dict(),
@@ -101,7 +103,8 @@ async def create_service(service: ServiceCreate):
 @router.get("/provider/{provider_id}")
 async def get_provider_services(
     provider_id: str,
-    user_role: Optional[str] = Query(None, description="Rol del usuario: owner/operator")
+    user_role: Optional[str] = Query(None, description="Rol del usuario: owner/operator"),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Obtener historial de servicios del proveedor.
@@ -110,6 +113,7 @@ async def get_provider_services(
     - Si user_role=operator: Solo muestra datos operacionales (sin financieros)
     - Si user_role=owner o no se especifica: Muestra todo
     """
+    AccessPolicy.assert_provider_scope_sync(db, current_user, provider_id)
     # Obtener usuario para determinar permisos
     user = users_collection.find_one({"id": provider_id}, {"_id": 0})
     
@@ -154,8 +158,14 @@ async def get_provider_services(
     return {"services": services}
 
 @router.post("/{service_id}/invoice")
-async def submit_invoice(service_id: str, invoice: InvoiceSubmit):
+async def submit_invoice(
+    service_id: str,
+    invoice: InvoiceSubmit,
+    current_user: dict = Depends(get_current_user),
+):
     """Proveedor sube factura"""
+    if not AccessPolicy.can_access_service_sync(db, current_user, service_id):
+        raise HTTPException(status_code=403, detail="No autorizado para este servicio")
     service = services_collection.find_one({"_id": ObjectId(service_id)})
     
     if not service:
@@ -186,8 +196,10 @@ async def submit_invoice(service_id: str, invoice: InvoiceSubmit):
     }
 
 @router.get("/{service_id}")
-async def get_service(service_id: str):
+async def get_service(service_id: str, current_user: dict = Depends(get_current_user)):
     """Obtener detalle de un servicio"""
+    if not AccessPolicy.can_access_service_sync(db, current_user, service_id):
+        raise HTTPException(status_code=403, detail="No autorizado para este servicio")
     service = services_collection.find_one({"_id": ObjectId(service_id)})
     
     if not service:
@@ -652,11 +664,15 @@ async def get_invoice_image(service_id: str, _: dict = Depends(get_current_admin
 
 
 @router.get("/provider/{provider_id}/summary")
-async def get_provider_summary(provider_id: str):
+async def get_provider_summary(
+    provider_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
     Generar resumen de ganancias para el proveedor.
     Útil para el resumen semanal por WhatsApp.
     """
+    AccessPolicy.assert_provider_scope_sync(db, current_user, provider_id)
     from datetime import datetime, timedelta
     
     now = datetime.utcnow()
@@ -705,12 +721,16 @@ async def get_provider_summary(provider_id: str):
 # ========== RBAC ENDPOINTS ==========
 
 @router.get("/operator/{operator_id}/available")
-async def get_available_services_for_operator(operator_id: str):
+async def get_available_services_for_operator(
+    operator_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
     Servicios disponibles para que un operador acepte.
     Usa service_requests: solicitudes confirmadas del dueño (providerId = owner_id)
     que aún no tienen operador asignado.
     """
+    AccessPolicy.assert_self_or_admin(current_user, operator_id)
     operator = users_collection.find_one({"id": operator_id}, {"_id": 0})
     if not operator:
         raise HTTPException(status_code=404, detail="Operador no encontrado")
@@ -736,11 +756,16 @@ async def get_available_services_for_operator(operator_id: str):
 
 
 @router.post("/operator/{operator_id}/accept/{service_id}")
-async def operator_accept_service(operator_id: str, service_id: str):
+async def operator_accept_service(
+    operator_id: str,
+    service_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
     Operador acepta un servicio disponible (service_request confirmado del dueño).
     Asigna operator_id y pasa estado a en_route.
     """
+    AccessPolicy.assert_self_or_admin(current_user, operator_id)
     operator = users_collection.find_one({"id": operator_id}, {"_id": 0})
     if not operator or operator.get('provider_role') != 'operator':
         raise HTTPException(status_code=403, detail="No tienes permiso para aceptar servicios")
@@ -778,11 +803,15 @@ async def operator_accept_service(operator_id: str, service_id: str):
 
 
 @router.get("/team/{owner_id}")
-async def get_team_services(owner_id: str):
+async def get_team_services(
+    owner_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
     Para el dueño: obtener todos los servicios de su equipo.
     Incluye servicios propios y de todos sus operadores.
     """
+    AccessPolicy.assert_owner_scope(current_user, owner_id)
     # Verificar que es owner
     owner = users_collection.find_one({"id": owner_id}, {"_id": 0})
     
@@ -823,12 +852,16 @@ async def get_team_services(owner_id: str):
 
 
 @router.get("/dashboard/{user_id}")
-async def get_dashboard_data(user_id: str):
+async def get_dashboard_data(
+    user_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
     Obtener datos del dashboard según rol.
     - Owner: métricas financieras completas
     - Operator: solo métricas operacionales
     """
+    AccessPolicy.assert_self_or_admin(current_user, user_id)
     user = users_collection.find_one({"id": user_id}, {"_id": 0})
     
     if not user:

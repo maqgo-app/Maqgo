@@ -4,9 +4,7 @@
  */
 export function preloadClientBookingFunnel() {
   const run = () => {
-    void import('../screens/client/MachinerySelection');
     void import('../screens/client/CalendarMultiDayScreen');
-    void import('../screens/client/HoursSelectionScreen');
     void import('../screens/client/UrgencySelectionScreen');
     void import('../screens/client/ServiceLocationScreen');
     void import('../screens/client/ProviderOptionsScreen');

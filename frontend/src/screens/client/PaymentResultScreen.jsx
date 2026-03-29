@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getObject, getArray } from '../../utils/safeStorage';
 import { getPerTripDateLabel, getPerTripCountLabel } from '../../utils/bookingDates';
@@ -14,12 +14,19 @@ import {
   PaymentFailedError
 } from '../../components/ErrorStates';
 
-import BACKEND_URL from '../../utils/api';
+import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getClientBreakdown, MACHINERY_NO_TRANSPORT } from '../../utils/pricing';
 import { formatPrice, formatDateShort } from '../../utils/format';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
-import { getProviderLicensePlate } from '../../utils/providerDisplay';
+import { getBookingLocationP5 } from '../../utils/mapPlaceToAddress';
+import {
+  getProviderLicensePlate,
+  getOperatorDisplayNameForSite,
+  getOperatorRutForSite
+} from '../../utils/providerDisplay';
+import { useCheckoutState } from '../../context/CheckoutContext';
+import { touchCheckoutStateForExhaustiveUi } from '../../domain/checkout/checkoutStateMachine';
 
 const MIN_HOURS_IMMEDIATE = 4;
 const MAX_HOURS_IMMEDIATE = 8;
@@ -148,13 +155,110 @@ function PaymentResultScreen() {
   const [provider, setProvider] = useState(null);
   const [pricing, setPricing] = useState(null);
   const [orderNumber, setOrderNumber] = useState('');
+  const operatorFullName = getOperatorDisplayNameForSite(provider);
+  const operatorRut = getOperatorRutForSite(provider);
+
+  const checkoutOutcomeEmitted = useRef(false);
+  const { state: checkoutState, dispatch: dispatchCheckout } = useCheckoutState();
+
+  useEffect(() => {
+    touchCheckoutStateForExhaustiveUi(checkoutState);
+  }, [checkoutState]);
+
+  const emitPaymentCheckoutOutcome = useCallback(
+    (outcome) => {
+      if (checkoutOutcomeEmitted.current) return;
+      checkoutOutcomeEmitted.current = true;
+      if (outcome === 'success') {
+        dispatchCheckout({ type: 'PAYMENT_AUTH_SUCCESS' });
+        setTimeout(() => dispatchCheckout({ type: 'CHARGE_SUCCESS' }), 0);
+      } else if (outcome === 'rejected') {
+        dispatchCheckout({ type: 'PROVIDER_REJECTED' });
+      } else if (outcome === 'payment_failed') {
+        dispatchCheckout({ type: 'CHARGE_FAILED' });
+      } else if (outcome === 'expired') {
+        dispatchCheckout({ type: 'PAYMENT_AUTH_FAILED' });
+      }
+    },
+    [dispatchCheckout]
+  );
 
   const processPayment = useCallback(async () => {
-    // Simular procesamiento de pago (2-3 segundos)
-    await new Promise(resolve => setTimeout(resolve, 2500));
-
     try {
-      // Obtener datos guardados
+      const simulateToUse = simulateSafe;
+      if (!simulateToUse) {
+        const bookingId = localStorage.getItem('maqgo_booking_id');
+        if (bookingId) {
+          const maxAttempts = 45;
+          for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const res = await fetchWithAuth(`${BACKEND_URL}/api/bookings/${encodeURIComponent(bookingId)}`, {}, 12000);
+            if (res.ok) {
+              const agg = await res.json();
+              const sr = agg.service_request;
+              const pi = agg.payment_intent;
+              const paid =
+                sr?.paymentStatus === 'charged' ||
+                pi?.state === 'PROVIDER_ACCEPTED';
+              if (paid) {
+                const selectedProvider = getObject('selectedProvider', {});
+                const acceptedProvider = getObject('acceptedProvider', null);
+                const savedProvider =
+                  acceptedProvider && Object.keys(acceptedProvider || {}).length > 0
+                    ? { ...selectedProvider, ...acceptedProvider }
+                    : selectedProvider;
+                const rawHours = parseInt(localStorage.getItem('selectedHours') || '4', 10);
+                const hours = Math.max(MIN_HOURS_IMMEDIATE, Math.min(MAX_HOURS_IMMEDIATE, rawHours));
+                const reservationType = localStorage.getItem('reservationType') || 'immediate';
+                const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
+                const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machinery);
+                const transportCost = needsTransport ? (savedProvider.transport_fee || 0) : 0;
+                let pricingToShow = null;
+                try {
+                  const pricingResponse = await axios.post(
+                    `${BACKEND_URL}/api/pricing/immediate`,
+                    {
+                      base_price_hr: savedProvider.price_per_hour || 45000,
+                      hours,
+                      transport_cost: transportCost,
+                      is_immediate: reservationType === 'immediate',
+                      machinery_type: machinery,
+                    },
+                    { timeout: 8000 }
+                  );
+                  pricingToShow = pricingResponse.data;
+                } catch {
+                  pricingToShow = null;
+                }
+                const chargedTotal = parseInt(
+                  localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0',
+                  10
+                );
+                const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
+                if (chargedTotal > 0 && pricingToShow) {
+                  pricingToShow = { ...pricingToShow, final_price: chargedTotal, needsInvoice };
+                } else if (chargedTotal > 0) {
+                  pricingToShow = { final_price: chargedTotal, needsInvoice };
+                }
+                setPricing(pricingToShow);
+                const orderNum = `MQ-${Date.now().toString().slice(-8)}`;
+                setOrderNumber(orderNum);
+                localStorage.setItem('orderNumber', orderNum);
+                setProvider(savedProvider);
+                clearBookingProgress();
+                unlockAudio();
+                playPaymentSuccessSound();
+                vibrate('accepted');
+                emitPaymentCheckoutOutcome('success');
+                setStatus('success');
+                return;
+              }
+            }
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        }
+      }
+
+      // Fallback: desglose vía pricing (sin inferir éxito de pago desde heurísticas locales si hubo booking sin estado terminal)
       const selectedProvider = getObject('selectedProvider', {});
       const acceptedProvider = getObject('acceptedProvider', null);
       const savedProvider = acceptedProvider && Object.keys(acceptedProvider || {}).length > 0
@@ -165,10 +269,6 @@ function PaymentResultScreen() {
       const reservationType = localStorage.getItem('reservationType') || 'immediate';
       const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
 
-      // En demo: permitir simular rechazo/error con ?simulate=rejected|payment_failed|expired|connection_error
-      // Nota: la simulación solo aplica cuando `allowSimulation=true`.
-      const simulateToUse = simulateSafe;
-
       // Determinar si necesita traslado según tipo de maquinaria
       const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machinery);
       const transportCost = needsTransport ? (savedProvider.transport_fee || 0) : 0;
@@ -177,19 +277,20 @@ function PaymentResultScreen() {
       const IMMEDIATE_MULTIPLIERS = { 4: 1.20, 5: 1.175, 6: 1.15, 7: 1.125, 8: 1.10 };
       const multiplier = IMMEDIATE_MULTIPLIERS[hours] || 1.15;
 
-      // Obtener pricing del backend (o fallback local)
+      // Obtener pricing del backend (o fallback local) — solo desglose, no es verdad de pago
       let pricingToShow = null;
-      const FAST_FALLBACK_MS = 3000;
-      const pricingPromise = axios.post(`${BACKEND_URL}/api/pricing/immediate`, {
-        base_price_hr: savedProvider.price_per_hour || 45000,
-        hours: hours,
-        transport_cost: transportCost,
-        is_immediate: reservationType === 'immediate',
-        machinery_type: machinery
-      }, { timeout: 5000 });
-      const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
       try {
-        const pricingResponse = await Promise.race([pricingPromise, timeoutPromise]);
+        const pricingResponse = await axios.post(
+          `${BACKEND_URL}/api/pricing/immediate`,
+          {
+            base_price_hr: savedProvider.price_per_hour || 45000,
+            hours: hours,
+            transport_cost: transportCost,
+            is_immediate: reservationType === 'immediate',
+            machinery_type: machinery,
+          },
+          { timeout: 8000 }
+        );
         pricingToShow = pricingResponse.data;
       } catch {
         const basePrice = savedProvider.price_per_hour || 45000;
@@ -253,16 +354,21 @@ function PaymentResultScreen() {
       }
 
       if (simulateToUse === 'rejected') {
+        emitPaymentCheckoutOutcome('rejected');
         setStatus('rejected');
       } else if (simulateToUse === 'payment_failed') {
+        emitPaymentCheckoutOutcome('payment_failed');
         setStatus('payment_failed');
       } else if (simulateToUse === 'expired') {
+        emitPaymentCheckoutOutcome('expired');
         setStatus('expired');
       } else if (simulateToUse === 'connection_error') {
         // Best practice: nunca bloquear UX con "error de conexión"
         // aunque venga de simulación (evita confusión y pedidos de reintento).
+        emitPaymentCheckoutOutcome('success');
         setStatus('success');
       } else {
+        emitPaymentCheckoutOutcome('success');
         setStatus('success');
       }
       
@@ -321,6 +427,7 @@ function PaymentResultScreen() {
 
         setPricing(fallbackPricing);
         setProvider(savedProvider);
+        emitPaymentCheckoutOutcome('success');
         setStatus('success'); // UX: no bloquear si falla backend de pricing
       } catch {
         // Último recurso: al menos mostrar confirmación sin desglose.
@@ -328,10 +435,11 @@ function PaymentResultScreen() {
         const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
         setPricing({ final_price: chargedTotal, needsInvoice });
         setProvider(getObject('selectedProvider', {}));
+        emitPaymentCheckoutOutcome('success');
         setStatus('success'); // UX: evita ConnectionError bloqueante
       }
     }
-  }, [simulateSafe]);
+  }, [simulateSafe, emitPaymentCheckoutOutcome]);
 
   useEffect(() => {
     processPayment();
@@ -353,7 +461,7 @@ function PaymentResultScreen() {
   // Estado: Procesando
   if (status === 'processing') {
     return (
-      <div className="maqgo-app">
+      <div className="maqgo-app" data-checkout-state={checkoutState}>
         <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center' }}>
           <div style={{
             width: 80,
@@ -379,7 +487,7 @@ function PaymentResultScreen() {
   // Estado: Error
   if (status === 'error') {
     return (
-      <div className="maqgo-app">
+      <div className="maqgo-app" data-checkout-state={checkoutState}>
         <div className="maqgo-screen">
           <div style={{ padding: 24, textAlign: 'center' }}>
             <h2 style={{ color: '#FAFAFA', fontSize: 20, fontWeight: 600, margin: '20px 0 12px', lineHeight: 1.3, letterSpacing: '-0.02em' }}>
@@ -427,7 +535,7 @@ function PaymentResultScreen() {
   // Estado: Solicitud expirada (proveedor no respondió)
   if (status === 'expired') {
     return (
-      <div className="maqgo-app">
+      <div className="maqgo-app" data-checkout-state={checkoutState}>
         <div className="maqgo-screen">
           <RequestExpiredError onViewOthers={() => navigate('/client/providers')} />
         </div>
@@ -438,7 +546,7 @@ function PaymentResultScreen() {
   // Estado: Proveedor rechazó
   if (status === 'rejected') {
     return (
-      <div className="maqgo-app">
+      <div className="maqgo-app" data-checkout-state={checkoutState}>
         <div className="maqgo-screen">
           <ProviderRejectedError onSelectOther={() => navigate('/client/providers')} />
         </div>
@@ -449,7 +557,7 @@ function PaymentResultScreen() {
   // Estado: Error de pago post-aceptación
   if (status === 'payment_failed') {
     return (
-      <div className="maqgo-app">
+      <div className="maqgo-app" data-checkout-state={checkoutState}>
         <div className="maqgo-screen">
           <PaymentFailedError onRetry={handleRetry} />
         </div>
@@ -461,7 +569,7 @@ function PaymentResultScreen() {
   const rawHours = parseInt(localStorage.getItem('selectedHours') || '4');
   const hours = Math.max(MIN_HOURS_IMMEDIATE, Math.min(MAX_HOURS_IMMEDIATE, rawHours));
   const reservationType = localStorage.getItem('reservationType') || 'immediate';
-  const location = localStorage.getItem('serviceLocation') || '';
+  const location = getBookingLocationP5();
   const machinery = localStorage.getItem('selectedMachinery') || 'Retroexcavadora';
   const selectedDate = localStorage.getItem('selectedDate') || '';
   const selectedDates = getArray('selectedDates', []);
@@ -470,7 +578,7 @@ function PaymentResultScreen() {
   const perTripBreakdownLabel = getPerTripCountLabel(selectedDates, selectedDates?.length || 1);
 
   return (
-    <div className="maqgo-app">
+    <div className="maqgo-app" data-checkout-state={checkoutState}>
       <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 120px', overflowY: 'auto' }}>
         {/* Botones de navegación */}
         <div style={{ 
@@ -712,16 +820,18 @@ function PaymentResultScreen() {
             </span>
           </div>
 
-          {/* Nombre del operador + Rating en línea */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ marginBottom: 8 }}>
             <div style={{ color: '#fff', fontSize: 16, fontWeight: 600 }}>
-              Proveedor MAQGO
+              {operatorFullName}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M6 1L7.2 4.2H10.6L7.9 6.3L8.8 9.8L6 7.8L3.2 9.8L4.1 6.3L1.4 4.2H4.8L6 1Z" fill="#EC6819"/>
-              </svg>
-              <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>—</span>
+            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, margin: '6px 0 0', lineHeight: 1.35 }}>
+              Nombre y RUT para ingreso a obra o control de acceso.
+            </p>
+            <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, marginTop: 8 }}>
+              RUT:{' '}
+              <span style={{ fontWeight: 600, color: '#fff' }}>
+                {operatorRut || 'Por confirmar'}
+              </span>
             </div>
           </div>
 

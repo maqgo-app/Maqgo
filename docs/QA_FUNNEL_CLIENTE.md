@@ -9,3 +9,7 @@ Ejecutar en **staging** o producción antes de un deploy crítico. Marcar ✅/�
 5. Tras pago (o demo): pantalla de resultado o búsqueda **sin error 500** en red; sesión cliente sigue válida.
 
 **Fallo:** anotar URL, hora, usuario de prueba (sin datos reales de clientes) y respuesta de red o captura.
+
+---
+
+Criterios de producto medible y CTAs: [AUDITORIA_FINAL_PRODUCTO.md](./AUDITORIA_FINAL_PRODUCTO.md).

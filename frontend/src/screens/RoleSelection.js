@@ -18,6 +18,7 @@ function RoleSelection({ setUserRole, setUserId }) {
   const location = useLocation();
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   
   // Get returnUrl from navigation state or localStorage
   const [returnUrl, setReturnUrl] = useState(null);
@@ -74,6 +75,7 @@ function RoleSelection({ setUserRole, setUserId }) {
   const handleContinueWithRole = async (roleToUse) => {
     if (!roleToUse || loading) return;
     setLoading(true);
+    setError('');
     setSelected(roleToUse);
     try {
       const data = getObject('registerData', {});
@@ -91,28 +93,19 @@ function RoleSelection({ setUserRole, setUserId }) {
           name: `${data.nombre || 'Usuario'} ${data.apellido || ''}`.trim(),
           email: data.email || `${roleToUse}_${Date.now()}@maqgo.cl`,
           ...(phone && { phone }),
+          // Guardar RUT para permitir login por RUT (especialmente cliente).
+          ...(data.rut && { rut: data.rut }),
           ...(pwd && { password: pwd }),
         },
-        { timeout: 4000 }
+        { timeout: 15000 }
       );
-      // Si el backend no responde en 5s, continuar en modo demo sin esperar
-      const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
-      try {
-        const res = await Promise.race([apiCall, timeout(5000)]);
-        setUserRole(roleToUse);
-        setUserId(res.data.id);
-        localStorage.setItem('userId', res.data.id);
-        localStorage.setItem('userRole', roleToUse);
-        if (res.data.token) localStorage.setItem('token', res.data.token);
-        if (data.email) rememberLoginEmail(data.email);
-      } catch {
-        // Backend lento o no disponible → demo inmediato
-        const id = `demo-${Date.now()}`;
-        setUserRole(roleToUse);
-        setUserId(id);
-        localStorage.setItem('userId', id);
-        localStorage.setItem('userRole', roleToUse);
-      }
+      const res = await apiCall;
+      setUserRole(roleToUse);
+      setUserId(res.data.id);
+      localStorage.setItem('userId', res.data.id);
+      localStorage.setItem('userRole', roleToUse);
+      if (res.data.token) localStorage.setItem('token', res.data.token);
+      if (data.email) rememberLoginEmail(data.email);
       const savedReturnUrl = getAndClearReturnUrl() || returnUrl;
       if (roleToUse === 'client') {
         // Evita contaminación de flujos de proveedor al volver al modo cliente.
@@ -135,6 +128,15 @@ function RoleSelection({ setUserRole, setUserId }) {
         }
         navigate('/provider/data');
       }
+    } catch (e) {
+      // Evitar "usuarios fantasma" sin password real: si falla /api/users,
+      // el usuario después no podrá loguearse y terminará en recuperación.
+      const detail =
+        e?.response?.data?.detail ||
+        e?.response?.data?.error ||
+        e?.message ||
+        'No se pudo crear tu cuenta. Intenta nuevamente.';
+      setError(String(detail));
     } finally {
       setLoading(false);
     }
@@ -204,6 +206,11 @@ function RoleSelection({ setUserRole, setUserId }) {
             'Seleccionar y continuar'
           )}
         </button>
+        {error && (
+          <p style={{ color: '#ff6b6b', fontSize: 13, textAlign: 'center', marginTop: 12, lineHeight: 1.35 }}>
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );

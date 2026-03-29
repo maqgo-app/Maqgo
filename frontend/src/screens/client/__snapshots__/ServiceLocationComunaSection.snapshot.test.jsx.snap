@@ -1,0 +1,5 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ServiceLocationComunaSection snapshots > estado Places canónico (bloque comuna oculto) 1`] = `""`;
+
+exports[`ServiceLocationComunaSection snapshots > estado manual (editable) 1`] = `"<div style="margin-bottom:16px"><label for="service-comuna" style="color:rgba(255,255,255,0.8);font-size:14px;display:block;margin-bottom:8px;font-weight:500">Comuna <span style="color:#EC6819">*</span></label><p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0 0 8px;line-height:1.4">Selecciona comuna de la lista (mín. 2 letras).</p><div style="position:relative"><input id="service-comuna" type="text" placeholder="Escribe para buscar..." class="maqgo-input" style="min-height:50px;box-sizing:border-box;font-size:16px" autoComplete="off" value=""/></div></div>"`;

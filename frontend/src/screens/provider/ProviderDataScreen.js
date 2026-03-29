@@ -16,6 +16,7 @@ import { getObject } from '../../utils/safeStorage';
 function ProviderDataScreen() {
   const navigate = useNavigate();
   const [rutError, setRutError] = useState('');
+  const [didSubmit, setDidSubmit] = useState(false);
   const [scriptRetryKey, setScriptRetryKey] = useState(0);
   const [placesReady, setPlacesReady] = useState(false);
   const [placesPhase, setPlacesPhase] = useState('idle');
@@ -74,12 +75,19 @@ function ProviderDataScreen() {
   };
 
   const handleContinue = () => {
+    setDidSubmit(true);
     // Validate RUT before continuing
     if (form.rut && !validateRut(form.rut)) {
       setRutError('RUT inválido. Verifica el formato y dígito verificador.');
       return;
     }
     
+    // Evitar que un onboarding previo "contamine" el alta de una nueva máquina
+    // (ej: tipo anterior sin traslado + precio guardado). Fuente: localStorage.
+    localStorage.removeItem('machineData');
+    localStorage.removeItem('machinePricing');
+    localStorage.removeItem('machinePhotos');
+
     // Combinar con datos del registro inicial
     const registerData = getObject('registerData', {});
     localStorage.setItem('providerData', JSON.stringify({ 
@@ -98,6 +106,12 @@ function ProviderDataScreen() {
   };
 
   const isValid = form.businessName && form.rut && validateRut(form.rut) && form.giro && form.comuna && form.address;
+  const missingFields = [];
+  if (!form.businessName) missingFields.push('Nombre propietario o empresa');
+  if (!form.rut || !validateRut(form.rut)) missingFields.push('RUT válido');
+  if (!form.comuna) missingFields.push('Comuna');
+  if (!form.giro) missingFields.push('Giro comercial');
+  if (!form.address) missingFields.push('Dirección comercial');
 
   return (
     <div className="maqgo-app">
@@ -146,6 +160,10 @@ function ProviderDataScreen() {
             placeholder="Nombre propietario o empresa"
             value={form.businessName}
             onChange={e => update('businessName', e.target.value)}
+            onBlur={() => setDidSubmit(true)}
+            style={{
+              borderColor: didSubmit && !form.businessName ? '#f44336' : undefined
+            }}
             data-testid="provider-business-name"
           />
           
@@ -189,6 +207,10 @@ function ProviderDataScreen() {
             placeholder="Ej: Arriendo de maquinaria pesada"
             value={form.giro}
             onChange={e => update('giro', e.target.value)}
+            onBlur={() => setDidSubmit(true)}
+            style={{
+              borderColor: didSubmit && !form.giro ? '#f44336' : undefined
+            }}
             data-testid="provider-giro"
           />
 
@@ -216,6 +238,11 @@ function ProviderDataScreen() {
             style={{ fontSize: 15 }}
             testId="provider-address"
           />
+          {didSubmit && missingFields.length > 0 && (
+            <p style={{ color: '#f44336', fontSize: 12, marginTop: 8, marginBottom: 0 }}>
+              Falta completar: {missingFields.join(', ')}.
+            </p>
+          )}
           {hasMapsApiKey && placesPhase === 'failed' && (
             <div style={{ marginTop: 8 }}>
               <p style={{ color: '#ffb4b4', fontSize: 11, margin: 0 }}>

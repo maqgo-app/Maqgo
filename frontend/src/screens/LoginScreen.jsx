@@ -1,13 +1,15 @@
 import React, { useState, useLayoutEffect, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../components/MaqgoLogo';
 import PasswordField from '../components/PasswordField';
 import { PASSWORD_RULES } from '../utils/passwordValidation';
-import BACKEND_URL from '../utils/api';
+import BACKEND_URL, { clearLocalSession } from '../utils/api';
 import { getHttpErrorMessage } from '../utils/httpErrors';
 import { getLoginEmailPrefill, rememberLoginEmail } from '../utils/loginHints';
 import { isAdminRoleStored } from '../utils/welcomeHome';
+import { getPostLoginNavigation } from '../utils/postLoginNavigation';
+import { formatRut, sanitizeRutInput } from '../utils/chileanValidation';
 
 /**
  * Pantalla C8 - Login
@@ -15,43 +17,80 @@ import { isAdminRoleStored } from '../utils/welcomeHome';
 function LoginScreen({ setUserRole, setUserId }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const redirectTo = location.state?.redirect || null;
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ identifier: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   // Sesión ya válida: no mostrar login (móvil/navegador “recuerda” al usuario).
+  // reauth=1 | expired=1 | state.allowReauth: limpia sesión y normaliza URL (evita token residual + bucle de efecto).
   useLayoutEffect(() => {
+    const forceReauth =
+      searchParams.get('reauth') === '1' ||
+      searchParams.get('expired') === '1' ||
+      location.state?.allowReauth === true;
+    if (forceReauth) {
+      clearLocalSession();
+      navigate('/login', {
+        replace: true,
+        state: redirectTo ? { redirect: redirectTo } : undefined,
+      });
+      return;
+    }
     const token = localStorage.getItem('token');
     const userId = localStorage.getItem('userId');
     if (!token || !userId) return;
     const role = localStorage.getItem('userRole') || 'client';
-    if (isAdminRoleStored() || redirectTo === '/admin') {
+    // Solo cuentas con rol admin van al panel; redirect=/admin sin rol admin debe mostrar login (otra cuenta).
+    if (isAdminRoleStored()) {
       navigate('/admin', { replace: true });
       return;
     }
     if (role === 'client') {
-      const target = redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/';
+      const target =
+        redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
       navigate(target, { replace: true });
       return;
     }
-    const target = redirectTo && redirectTo.startsWith('/provider') ? redirectTo : '/';
+    const target =
+      redirectTo && redirectTo.startsWith('/provider') ? redirectTo : '/provider/home';
     navigate(target, { replace: true });
-  }, [navigate, redirectTo]);
+  }, [navigate, redirectTo, searchParams, location.state]);
 
   // Prefill solo con correo real (evita RUT por autofill o datos mezclados).
   useEffect(() => {
     const hint = getLoginEmailPrefill();
-    if (hint) setForm((f) => ({ ...f, email: hint }));
+    if (hint) setForm((f) => ({ ...f, identifier: hint }));
   }, []);
 
+  const handleIdentifierChange = (value) => {
+    const next = String(value || '');
+    // Correo: no formatear.
+    if (next.includes('@')) {
+      setForm((f) => ({ ...f, identifier: next }));
+      return;
+    }
+    // RUT: sanitizar y formatear con puntos + guion.
+    const cleanRut = sanitizeRutInput(next);
+    const formatted = formatRut(cleanRut);
+    setForm((f) => ({ ...f, identifier: formatted }));
+  };
+
   const handleLogin = async () => {
-    if (!form.email || !form.password) return;
+    if (!form.identifier || !form.password) return;
     setLoading(true);
     setError('');
     
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/auth/login`, form, {
+      const identifier = String(form.identifier || '').trim();
+      const payload = {
+        identifier,
+        password: form.password,
+        // Backward compatibility: older backend contracts may still require `email`.
+        ...(identifier.includes('@') ? { email: identifier.toLowerCase() } : {}),
+      };
+      const res = await axios.post(`${BACKEND_URL}/api/auth/login`, payload, {
         timeout: 10000,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -68,6 +107,17 @@ function LoginScreen({ setUserRole, setUserId }) {
       if (!effectiveRole && roles.length > 0) {
         effectiveRole = roles.includes('provider') ? 'provider' : roles[0];
       }
+      const next = getPostLoginNavigation({
+        isAdmin,
+        effectiveRole,
+        redirectTo,
+      });
+      if (next.kind === 'error_not_admin') {
+        setError(
+          'Esta cuenta no tiene acceso al panel de administración. Usa el correo y clave de una cuenta admin.'
+        );
+        return;
+      }
       setUserRole(effectiveRole);
       setUserId(res.data.id);
       localStorage.setItem('userId', res.data.id);
@@ -75,17 +125,9 @@ function LoginScreen({ setUserRole, setUserId }) {
       localStorage.setItem('userRoles', JSON.stringify(roles));
       localStorage.setItem('providerRole', res.data.provider_role || 'super_master');
       if (res.data.token) localStorage.setItem('token', res.data.token);
-      rememberLoginEmail(form.email);
-      // Admin: siempre /admin (ignora redirect a /client si el usuario resultó ser admin)
-      if (isAdmin || redirectTo === '/admin') {
-        navigate('/admin', { replace: true });
-      } else if (effectiveRole === 'client') {
-        const target = redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
-        navigate(target, { replace: true });
-      } else {
-        const target = redirectTo && redirectTo.startsWith('/provider') ? redirectTo : '/provider/home';
-        navigate(target, { replace: true });
-      }
+      // Solo recordar si es email (evita guardar RUT en hint).
+      if (String(form.identifier).includes('@')) rememberLoginEmail(form.identifier);
+      navigate(next.path, { replace: true });
     } catch (e) {
       setError(
         getHttpErrorMessage(e, {
@@ -100,7 +142,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     }
   };
 
-  const isValid = form.email && form.password;
+  const isValid = form.identifier && form.password;
 
   return (
     <div className="maqgo-app">
@@ -129,18 +171,18 @@ function LoginScreen({ setUserRole, setUserId }) {
             htmlFor="login-email"
             style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
           >
-            Correo electrónico
+            Correo o RUT
           </label>
           <input
             id="login-email"
-            name="email"
+            name="identifier"
             className="maqgo-input"
-            placeholder="tu@correo.cl"
-            type="email"
-            inputMode="email"
+            placeholder="tu@correo.cl o 12.345.678-9"
+            type="text"
+            inputMode="text"
             autoComplete="username"
-            value={form.email}
-            onChange={e => setForm({ ...form, email: e.target.value })}
+            value={form.identifier}
+            onChange={e => handleIdentifierChange(e.target.value)}
           />
           <label
             htmlFor="login-password"
@@ -163,6 +205,21 @@ function LoginScreen({ setUserRole, setUserId }) {
               {error}
             </p>
           )}
+
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, textAlign: 'center', marginTop: 12 }}>
+            <button
+              type="button"
+              className="maqgo-link"
+              onClick={() => {
+                clearLocalSession();
+                navigate('/login', { replace: true, state: redirectTo ? { redirect: redirectTo } : undefined });
+                setError('');
+              }}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit' }}
+            >
+              ¿No puedes entrar? Borra la sesión de este dispositivo e intenta otra vez
+            </button>
+          </p>
 
           <p style={{
             color: 'rgba(255,255,255,0.9)',
@@ -204,7 +261,7 @@ function LoginScreen({ setUserRole, setUserId }) {
           <button
             type="button"
             className="maqgo-link"
-            onClick={() => navigate('/register')}
+            onClick={() => navigate('/register', { state: { freshClientRegistration: true } })}
             style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
             aria-label="Crear cuenta"
           >

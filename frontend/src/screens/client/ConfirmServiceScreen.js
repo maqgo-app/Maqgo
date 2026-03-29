@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getBookingBackRoute } from '../../utils/bookingFlow';
+import { getBookingBackRoute, readClientBookingSnapshot } from '../../utils/bookingFlow';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
@@ -11,13 +11,18 @@ import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, getProviderSpecDisplay, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getDateRangeShort as getDateRangeShortUtil, formatDateSingle } from '../../utils/bookingDates';
 import { MaqgoButton } from '../../components/base';
+import { getBookingLocationP5, hasBookingLocation } from '../../utils/mapPlaceToAddress';
+import { PAYMENT_COPY } from '../../constants/bookingPaymentCopy';
+import { useCheckoutState } from '../../context/CheckoutContext';
+import { getOrCreateBookingId } from '../../utils/bookingPaymentKeys';
+import { touchCheckoutStateForExhaustiveUi } from '../../domain/checkout/checkoutStateMachine';
 
-const MIN_HOURS_IMMEDIATE = 4;
-const MAX_HOURS_IMMEDIATE = 8;
 /** Referencia estable para useMemo (evita deps falsas por array nuevo cada render). */
 const TRIP_PRICE_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
 
 /**
+ * STABLE FLOW - DO NOT MODIFY WITHOUT PRODUCT APPROVAL
+ *
  * Pantalla: Confirma tu Servicio
  * Muestra resumen para 3 casos:
  * 1. Hoy (inmediato)
@@ -28,20 +33,23 @@ function ConfirmServiceScreen() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const backRoute = getBookingBackRoute(pathname);
-  // Inicializar desde localStorage en el primer render para evitar flash "No hay proveedor"
-  const [location, _setLocation] = useState(() => localStorage.getItem('serviceLocation') || '');
+  /** Una sola lectura coherente por navegación: evita mezclar inmediata/programada por estado inicial congelado. */
+  const booking = useMemo(() => readClientBookingSnapshot(), [pathname]);
+  const {
+    reservationType,
+    hoursToday,
+    additionalDays,
+    isHybrid,
+    totalDays,
+    selectedDate,
+    selectedDates,
+  } = booking;
+  const machinery = booking.machinery;
   const [provider, _setProvider] = useState(() => getObject('selectedProvider', {}));
-  const [hoursToday, _setHoursToday] = useState(() => {
-    const type = localStorage.getItem('reservationType') || 'immediate';
-    const saved = parseInt(localStorage.getItem('selectedHours') || '4');
-    return type === 'scheduled' ? 8 : Math.max(MIN_HOURS_IMMEDIATE, Math.min(MAX_HOURS_IMMEDIATE, saved));
-  });
-  const [additionalDays] = useState(() => parseInt(localStorage.getItem('additionalDays') || '0'));
-  const [reservationType] = useState(() => localStorage.getItem('reservationType') || 'immediate');
-  const [machinery] = useState(() => localStorage.getItem('selectedMachinery') || 'retroexcavadora');
-  const [selectedDate] = useState(() => localStorage.getItem('selectedDate') || '');
-  const [selectedDates] = useState(() => getArray('selectedDates', []));
-  const [showBreakdown, setShowBreakdown] = useState(true);
+  /** Con varios proveedores el desglose alarga mucho el scroll; queda cerrado hasta que el usuario lo abre. */
+  const [showBreakdown, setShowBreakdown] = useState(
+    () => getArray('selectedProviderIds', []).length <= 1
+  );
   const [pricing, setPricing] = useState(null);
   const [, setPriceError] = useState(null);
   const [retryCount] = useState(0);
@@ -49,16 +57,32 @@ function ConfirmServiceScreen() {
   const [selectedProviderIds] = useState(() => getArray('selectedProviderIds', []));
   const [isConfirming, setIsConfirming] = useState(false);
 
+  const confirmServiceEventSent = useRef(false);
+  const { state: checkoutState, dispatch: dispatchCheckout } = useCheckoutState();
+
+  useEffect(() => {
+    touchCheckoutStateForExhaustiveUi(checkoutState);
+  }, [checkoutState]);
+
+  useEffect(() => {
+    if (confirmServiceEventSent.current) return;
+    confirmServiceEventSent.current = true;
+    dispatchCheckout({ type: 'CONFIRM_SERVICE' });
+  }, [dispatchCheckout]);
+
   // Actualiza el "tope" de navegación de la app en la bolita del paso 5.
   // Esto permite "adelantar/retroceder hasta donde llegaste" manteniendo el dato vigente por 24h.
   useEffect(() => {
+    getOrCreateBookingId();
     saveBookingProgress('confirm');
   }, []);
 
+  useEffect(() => {
+    _setProvider(getObject('selectedProvider', {}));
+  }, [pathname]);
+
   const machineryKey = (machinery || '').toLowerCase().replace(/\s+/g, '_');
   const isPerTrip = isPerTripMachineryType(machinery);
-  const isHybrid = reservationType === 'immediate' && additionalDays > 0;
-  const totalDays = selectedDates.length || 1;
   const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machineryKey) && !MACHINERY_NO_TRANSPORT.includes(machinery);
 
   const refTrip = isPerTrip ? (REFERENCE_PRICES[machineryKey] ?? REFERENCE_PRICES[machinery]) : null;
@@ -239,7 +263,7 @@ function ConfirmServiceScreen() {
   // Se renderiza el precio estimado con `fallbackPricing`.
 
   const doConfirm = () => {
-    if (!location.trim()) {
+    if (!hasBookingLocation()) {
       navigate('/client/service-location');
       return;
     }
@@ -342,7 +366,7 @@ function ConfirmServiceScreen() {
   // Sin proveedor = datos incompletos → redirigir a elegir proveedores
   if (!provider?.id) {
     return (
-      <div className="maqgo-app">
+      <div className="maqgo-app maqgo-client-funnel" data-checkout-state={checkoutState}>
         <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
           <p style={{ color: '#fff', marginBottom: 20, textAlign: 'center' }}>
             No hay proveedor seleccionado
@@ -361,8 +385,8 @@ function ConfirmServiceScreen() {
   const hasMultipleProviders = selectedProviderIds.length > 1;
 
   return (
-    <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ paddingBottom: 120, overflowY: 'auto' }}>
+    <div className="maqgo-app maqgo-client-funnel" data-checkout-state={checkoutState}>
+      <div className="maqgo-screen maqgo-screen--scroll" style={{ paddingBottom: 120 }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20, gap: 12 }}>
           <button 
@@ -381,9 +405,25 @@ function ConfirmServiceScreen() {
 
         <BookingProgress />
 
-        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 16 }}>
-          Confirma tu reserva
+        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 12 }}>
+          Confirma tu solicitud
         </h1>
+
+        <div
+          style={{
+            background: 'rgba(76, 175, 80, 0.12)',
+            border: '1px solid rgba(76, 175, 80, 0.35)',
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 16
+          }}
+        >
+          <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, margin: 0, lineHeight: 1.5, textAlign: 'center' }}>
+            {PAYMENT_COPY.P5_INIT.title}
+            <br />
+            {PAYMENT_COPY.P5_INIT.subtitle}
+          </p>
+        </div>
 
         {selectedProviderIds.length > 1 && (
           <div style={{
@@ -406,22 +446,6 @@ function ConfirmServiceScreen() {
           padding: 16,
           marginBottom: 14
         }}>
-          <p
-            style={{
-              color: 'rgba(255,255,255,0.45)',
-              fontSize: 12,
-              marginBottom: 8,
-              textTransform: 'uppercase',
-              letterSpacing: 1
-            }}
-          >
-            {hasMultipleProviders ? 'Rango estimado' : 'Total a pagar'}
-          </p>
-          {hasMultipleProviders && displayPricing && (
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, marginTop: 0, marginBottom: 10 }}>
-              Nunca pagarás más que el valor máximo que ves aquí. El monto final puede ser menor según quién acepte primero tu reserva.
-            </p>
-          )}
           {!displayPricing ? (
             <div style={{ textAlign: 'center' }}>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 12px' }}>
@@ -438,13 +462,45 @@ function ConfirmServiceScreen() {
           ) : (
             <>
               {priceRange && hasMultipleProviders ? (
-                <p style={{ color: 'var(--maqgo-orange)', fontSize: 28, fontWeight: 700, margin: '0 0 16px', whiteSpace: 'nowrap' }}>
-                  <span>{formatPrice(priceRange.min)}</span>
-                  <span style={{ margin: '0 6px', opacity: 0.9 }}>a</span>
-                  <span>{formatPrice(priceRange.max)}</span>
-                </p>
+                <>
+                  <div
+                    role="status"
+                    aria-label={`Rango estimado desde ${formatPrice(priceRange.min)} hasta ${formatPrice(priceRange.max)}`}
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'baseline',
+                      justifyContent: 'center',
+                      columnGap: 8,
+                      rowGap: 4,
+                      color: 'var(--maqgo-orange)',
+                      fontSize: 28,
+                      fontWeight: 700,
+                      margin: '0 0 8px',
+                      lineHeight: 1.25,
+                      textAlign: 'center'
+                    }}
+                  >
+                    <span style={{ flex: '0 1 auto' }}>{formatPrice(priceRange.min)}</span>
+                    <span style={{ opacity: 0.88, fontWeight: 600, fontSize: '0.55em', letterSpacing: 0.5 }}>–</span>
+                    <span style={{ flex: '0 1 auto' }}>{formatPrice(priceRange.max)}</span>
+                  </div>
+                  <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, margin: '0 0 16px', textAlign: 'center', lineHeight: 1.45 }}>
+                    {PAYMENT_COPY.P5_INIT.priceCapNote}
+                  </p>
+                </>
               ) : (
-                <p style={{ color: 'var(--maqgo-orange)', fontSize: 32, fontWeight: 700, margin: '0 0 16px', whiteSpace: 'nowrap' }}>
+                <p
+                  style={{
+                    color: 'var(--maqgo-orange)',
+                    fontSize: 32,
+                    fontWeight: 700,
+                    margin: '0 0 16px',
+                    textAlign: 'center',
+                    lineHeight: 1.2,
+                    wordBreak: 'break-word'
+                  }}
+                >
                   {formatPrice(priceRange ? priceRange.min : totalFinal)}
                 </p>
               )}
@@ -460,11 +516,8 @@ function ConfirmServiceScreen() {
                 marginBottom: 14
               }}>
                 <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: 500 }}>
-                  ¿Necesitas factura con RUT empresa?
+                  ¿Necesitas factura? (El total es el mismo)
                 </span>
-                <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, margin: '0 0 4px', lineHeight: 1.4 }}>
-                  El total es el mismo. Con factura tu empresa recupera el IVA como crédito fiscal.
-                </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <button
                     type="button"
@@ -561,7 +614,7 @@ function ConfirmServiceScreen() {
             <div id="price-breakdown" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
               {hasMultipleProviders && (
                 <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, marginBottom: 12 }}>
-                  Este desglose se basa en el valor máximo. Pagarás ese monto o menos, según quién acepte primero tu solicitud.
+                  {PAYMENT_COPY.P5_INIT.breakdownMultiProviderHint}
                 </p>
               )}
               
@@ -668,7 +721,7 @@ function ConfirmServiceScreen() {
                 alignItems: 'center',
                 gap: 8
               }}>
-                <span style={{ color: '#fff', fontSize: 15, fontWeight: 600, minWidth: 0 }}>Total a pagar</span>
+                <span style={{ color: '#fff', fontSize: 15, fontWeight: 600, minWidth: 0 }}>{PAYMENT_COPY.P5_INIT.totalRowLabel}</span>
                 <span style={{ color: 'var(--maqgo-orange)', fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(totalFinal)}</span>
               </div>
             </div>
@@ -760,7 +813,7 @@ function ConfirmServiceScreen() {
             <circle cx="10" cy="7" r="2" fill="var(--maqgo-orange)"/>
           </svg>
           <div style={{ flex: 1 }}>
-            <div style={{ color: '#fff', fontSize: 13 }}>{location || 'Sin ubicación'}</div>
+            <div style={{ color: '#fff', fontSize: 13 }}>{getBookingLocationP5()}</div>
           </div>
           <button
             onClick={() => navigate('/client/service-location')}
@@ -770,111 +823,32 @@ function ConfirmServiceScreen() {
           </button>
         </div>
 
-        {/* Info */}
-        <div style={{
-          background: '#2A2A2A',
-          borderRadius: 12,
-          padding: 14,
-          marginBottom: 14
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-              <path d="M10 1L3 5V9C3 13.5 6 17.3 10 19C14 17.3 17 13.5 17 9V5L10 1Z" stroke="var(--maqgo-orange)" strokeWidth="1.5" fill="none"/>
-              <path d="M7 10L9 12L13 8" stroke="var(--maqgo-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span style={{ color: 'var(--maqgo-orange)', fontSize: 12, fontWeight: 600 }}>
-              Precio garantizado
-            </span>
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="#90BDD3" strokeWidth="1.5"/>
-              <path d="M12 6V12L16 14" stroke="#90BDD3" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            <span style={{ color: '#90BDD3', fontSize: 12 }}>
-              Sin cobro hasta que acepten tu solicitud
-            </span>
-          </div>
-        </div>
-
-        {/* Medio de pago - Transbank */}
-        <div style={{
-          background: '#363636',
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 100
-        }}>
-          <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, margin: '0 0 12px' }}>
-            Medio de pago
-          </p>
-          
-          {/* Tarjeta guardada o agregar nueva */}
-          <button
-            type="button"
-            onClick={handleConfirm}
+        {/* Pago (informativo) */}
+        <div
+          style={{
+            background: '#363636',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 100
+          }}
+          data-testid="payment-method"
+          aria-label={PAYMENT_COPY.P5_INIT.methodBullets[0]}
+        >
+          <ul
             style={{
-              width: '100%',
-              background: '#2A2A2A',
-              borderRadius: 10,
-              padding: 14,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              cursor: 'pointer',
-              border: 'none',
-              textAlign: 'left',
-              fontFamily: 'inherit'
+              margin: 0,
+              paddingLeft: 20,
+              color: 'rgba(255,255,255,0.92)',
+              fontSize: 14,
+              lineHeight: 1.55
             }}
-            data-testid="payment-method"
-            aria-label="Pagar con Webpay OneClick"
           >
-            <div style={{
-              width: 40,
-              height: 28,
-              background: 'linear-gradient(135deg, #1a1a6c 0%, #b21f1f 50%, #fdbb2d 100%)',
-              borderRadius: 4,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <svg width="20" height="14" viewBox="0 0 24 18" fill="none">
-                <rect x="1" y="1" width="22" height="16" rx="2" stroke="#fff" strokeWidth="1.5"/>
-                <path d="M1 6H23" stroke="#fff" strokeWidth="1.5"/>
-                <rect x="4" y="10" width="6" height="2" rx="1" fill="#fff"/>
-              </svg>
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ color: '#fff', fontSize: 13, margin: 0 }}>
-                Webpay OneClick
-              </p>
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '2px 0 0' }}>
-                Débito o crédito · Transbank
-              </p>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M9 6L15 12L9 18" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </button>
-          
-          {/* Mensaje de seguridad Transbank */}
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 8, 
-            marginTop: 12,
-            padding: '10px 12px',
-            background: 'rgba(144, 189, 211, 0.1)',
-            borderRadius: 8
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="11" width="18" height="11" rx="2" stroke="#90BDD3" strokeWidth="1.5"/>
-              <path d="M7 11V7C7 4.24 9.24 2 12 2C14.76 2 17 4.24 17 7V11" stroke="#90BDD3" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            <p style={{ color: '#90BDD3', fontSize: 11, margin: 0, lineHeight: 1.4 }}>
-              Tu tarjeta queda segura con Transbank. Nosotros no vemos tus datos.
-            </p>
-          </div>
+            {PAYMENT_COPY.P5_INIT.methodBullets.map((line, i) => (
+              <li key={`p5-bullet-${i}`} style={{ marginBottom: i < PAYMENT_COPY.P5_INIT.methodBullets.length - 1 ? 8 : 0 }}>
+                {line}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
@@ -886,10 +860,21 @@ function ConfirmServiceScreen() {
           loading={isConfirming}
           style={{ fontSize: 15, fontWeight: 600, borderRadius: 30, width: '100%' }}
           data-testid="confirm-btn"
-          aria-label={displayPricing ? 'Enviar solicitud de reserva' : 'Calculando precio'}
+          aria-label={displayPricing ? 'Enviar solicitud' : 'Calculando precio'}
         >
-          Enviar solicitud (sin cobro aún)
+          Enviar solicitud
         </MaqgoButton>
+        <p
+          style={{
+            color: 'rgba(255,255,255,0.55)',
+            fontSize: 12,
+            textAlign: 'center',
+            margin: '10px 0 0',
+            lineHeight: 1.35
+          }}
+        >
+          {PAYMENT_COPY.P5_INIT.footerUnderCta}
+        </p>
       </div>
     </div>
   );

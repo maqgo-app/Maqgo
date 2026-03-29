@@ -36,6 +36,9 @@ class ServiceRequest(BaseModel):
     providerId: Optional[str] = None
     providerName: Optional[str] = None  # Empresa (interno/facturas)
     providerOperatorName: Optional[str] = None  # Operador (lo que ve el cliente)
+    operatorRut: Optional[str] = None  # RUT operador (ingreso a obra)
+    operatorFirstName: Optional[str] = None
+    operatorLastName: Optional[str] = None
     
     # Estados del matching
     status: str = 'created'
@@ -82,7 +85,7 @@ class ServiceRequest(BaseModel):
     providerEarnings: float = 0.0  # Lo que recibe el proveedor (base - 10%)
     maqgoEarnings: float = 0.0  # Ganancia MAQGO (10% cliente + 10% proveedor = 20%)
     
-    paymentStatus: str = 'none'  # none | validated | charged | failed | refunded | refund_pending
+    paymentStatus: str = 'none'  # none | validated | charging | charged | failed | refunded | refund_pending
     paymentId: Optional[str] = None
     chargedAt: Optional[str] = None
     chargedAmount: Optional[float] = None
@@ -91,6 +94,9 @@ class ServiceRequest(BaseModel):
     reservationType: str = 'immediate'  # immediate | scheduled
     scheduledDate: Optional[str] = None
     
+    # Booking estable (cliente) — enlaza payment_intent ↔ service_request
+    bookingId: Optional[str] = None
+
     # Timestamps
     createdAt: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     confirmedAt: Optional[str] = None
@@ -103,6 +109,8 @@ class ServiceRequest(BaseModel):
     cancelled_at: Optional[str] = None
 
 class ServiceRequestCreate(BaseModel):
+    """booking_id: ID estable del flujo reserva/pago (UUID). Obligatorio para idempotencia de negocio."""
+    booking_id: Optional[str] = None
     clientId: str
     clientName: Optional[str] = "Cliente MAQGO"
     clientEmail: Optional[str] = None  # Para crear/actualizar usuario si no existe (cobro OneClick)

@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
-import { ComunaAutocomplete } from '../../components/ComunaAutocomplete';
 import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/AddressAutocomplete';
 import BookingProgress from '../../components/BookingProgress';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
@@ -12,12 +11,39 @@ import { COMUNAS_NOMBRES } from '../../data/comunas';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getPerTripDateLabel } from '../../utils/bookingDates';
 import { validateServiceLocationContinue } from '../../utils/serviceLocationValidation';
+import {
+  SELECTED_ADDRESS_KEY,
+  parseStoredSelectedAddress,
+  buildSelectedAddressFromForm,
+  buildLocationDisplayLine,
+  isSelectedAddressPlacesCanonical
+} from '../../utils/mapPlaceToAddress';
+import {
+  ServiceLocationComunaSection,
+  shouldHideServiceLocationComunaField
+} from './ServiceLocationComunaSection.jsx';
+import { runAddressStorageMigrationOnce } from '../../utils/addressStorageMigration';
+
+export { isServiceComunaReadonly, shouldHideServiceLocationComunaField } from './ServiceLocationComunaSection.jsx';
+
+/** Horas “personalizadas” permitidas (inmediato): 5, 6 o 7 (rápidas: 4 y 8). */
+const MANUAL_HOUR_OPTIONS = [5, 6, 7];
+
+/** Hidratación: valores legacy fuera de 4–8 → 4 (sin cambiar UX de selección). */
+function normalizeLegacySelectedHours(raw) {
+  const n = parseInt(String(raw ?? '4'), 10);
+  if (!Number.isFinite(n) || n < 4 || n > 8) return 4;
+  return n;
+}
 
 /**
- * Pantalla: Ubicación del Servicio
- * Se muestra ANTES de ver los proveedores disponibles
- * El cliente debe ingresar dónde necesita el servicio
+ * STABLE FLOW - DO NOT MODIFY WITHOUT PRODUCT APPROVAL
+ *
+ * STABLE MODULE - DO NOT MODIFY WITHOUT PRODUCT REVIEW
+ * Dirección y comuna validadas en producción.
+ * Cambios solo con impacto directo en negocio.
  */
+// Pantalla: Ubicación del Servicio (antes de ver proveedores).
 function ServiceLocationScreen() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -35,10 +61,15 @@ function ServiceLocationScreen() {
   const [scriptRetryKey, setScriptRetryKey] = useState(0);
   /** Usuario no encuentra su calle en Places pero el mapa sí carga */
   const [manualAddressNotFound, setManualAddressNotFound] = useState(false);
+  /** 'places_canonical' = comuna desde mapPlaceToAddress (UI oculta); 'google' legacy; 'manual' = lista */
+  const [comunaSource, setComunaSource] = useState('manual');
+  /** Dirección tal como vino del último place_changed (para detectar edición manual) */
+  const [lastGoogleAddress, setLastGoogleAddress] = useState(null);
   const [comunaError, setComunaError] = useState('');
   const [reference, setReference] = useState('');
   const [machinery, setMachinery] = useState('');
   const [hours, setHours] = useState(4);
+  const [isCustomHours, setIsCustomHours] = useState(false);
   const [reservationType, setReservationType] = useState('immediate');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
@@ -51,6 +82,10 @@ function ServiceLocationScreen() {
   useEffect(() => {
     localStorage.setItem('serviceComuna', comuna || '');
   }, [comuna]);
+
+  useEffect(() => {
+    localStorage.setItem('serviceComunaSource', comunaSource);
+  }, [comunaSource]);
 
   useEffect(() => {
     localStorage.setItem('serviceReference', reference || '');
@@ -68,20 +103,68 @@ function ServiceLocationScreen() {
 
   /* Hydratación desde localStorage al montar (patrón SPA). */
   useEffect(() => {
+    runAddressStorageMigrationOnce();
     const savedMachinery = localStorage.getItem('selectedMachinery') || '';
-    const savedHours = parseInt(localStorage.getItem('selectedHours') || '4');
     const savedType = localStorage.getItem('reservationType') || 'immediate';
+    const rawStoredHours = localStorage.getItem('selectedHours') || '4';
+    const savedHours =
+      savedType === 'scheduled'
+        ? 8
+        : normalizeLegacySelectedHours(rawStoredHours);
+    if (savedType !== 'scheduled' && String(savedHours) !== String(parseInt(rawStoredHours || '4', 10))) {
+      localStorage.setItem('selectedHours', String(savedHours));
+    }
     const savedLocation = localStorage.getItem('serviceLocation') || '';
     const savedComuna = localStorage.getItem('serviceComuna') || '';
+    const savedComunaSource = localStorage.getItem('serviceComunaSource') || '';
     const savedDate = localStorage.getItem('selectedDate') || '';
     const savedDates = getArray('selectedDates', []);
-    
+    const savedLat = localStorage.getItem('serviceLat');
+    const savedLng = localStorage.getItem('serviceLng');
+
     setMachinery(savedMachinery);
-    setHours(savedType === 'scheduled' ? 8 : savedHours);
+    setHours(savedHours);
+    setIsCustomHours(
+      savedType !== 'scheduled' && MANUAL_HOUR_OPTIONS.includes(savedHours)
+    );
     setReservationType(savedType);
     setSelectedDate(savedDate);
     setSelectedDates(Array.isArray(savedDates) ? savedDates : []);
-    if (savedLocation) {
+
+    const storedAddr = parseStoredSelectedAddress();
+    const canonicalFromStorage = isSelectedAddressPlacesCanonical(storedAddr);
+    if (storedAddr?.address_short) {
+      setLocation(String(storedAddr.address_short).trim());
+      setComuna(String(storedAddr.commune || savedComuna || '').trim());
+      if (storedAddr.lat != null) setServiceLat(Number(storedAddr.lat));
+      else if (savedLat) setServiceLat(parseFloat(savedLat));
+      if (storedAddr.lng != null) setServiceLng(Number(storedAddr.lng));
+      else if (savedLng) setServiceLng(parseFloat(savedLng));
+      // Modo Google solo si el JSON persistido es canónico (calle+coords+comuna); no inferir por serviceComunaSource.
+      if (canonicalFromStorage) {
+        setComunaSource('places_canonical');
+        setLastGoogleAddress(String(storedAddr.address_short).trim());
+      } else {
+        setComunaSource('manual');
+        setLastGoogleAddress(null);
+      }
+    } else {
+    const hasPlacesCanonicalSession =
+      !!getGoogleMapsApiKey() &&
+      (savedComunaSource === 'google' || savedComunaSource === 'places_canonical') &&
+      savedComuna &&
+      savedLat &&
+      savedLng &&
+      savedLocation;
+
+    if (hasPlacesCanonicalSession) {
+      setLocation(savedLocation);
+      setComuna(savedComuna);
+      setComunaSource('places_canonical');
+      setLastGoogleAddress(savedLocation);
+      setServiceLat(parseFloat(savedLat));
+      setServiceLng(parseFloat(savedLng));
+    } else if (savedLocation) {
       const parts = savedLocation.split(', ');
       if (parts.length >= 2) {
         setLocation(parts.slice(0, -1).join(', '));
@@ -90,16 +173,66 @@ function ServiceLocationScreen() {
         setLocation(savedLocation);
         if (savedComuna) setComuna(savedComuna);
       }
+      setComunaSource('manual');
+      if (savedLat) setServiceLat(parseFloat(savedLat));
+      if (savedLng) setServiceLng(parseFloat(savedLng));
+    } else {
+      if (savedLat) setServiceLat(parseFloat(savedLat));
+      if (savedLng) setServiceLng(parseFloat(savedLng));
     }
-    const savedLat = localStorage.getItem('serviceLat');
-    const savedLng = localStorage.getItem('serviceLng');
-    if (savedLat) setServiceLat(parseFloat(savedLat));
-    if (savedLng) setServiceLng(parseFloat(savedLng));
-    
+    }
+
     saveBookingProgress('location', { machinery: savedMachinery });
   }, []);
 
-  const hasApiKey = useMemo(() => !!getGoogleMapsApiKey(), []);
+  // Leer en cada render: misma fuente que AddressAutocomplete (VITE_* o runtime-config); evita memo [] desalineado.
+  const hasApiKey = !!getGoogleMapsApiKey();
+
+  useEffect(() => {
+    if (!hasApiKey && (comunaSource === 'google' || comunaSource === 'places_canonical')) {
+      setComunaSource('manual');
+      setLastGoogleAddress(null);
+    }
+  }, [hasApiKey, comunaSource]);
+
+  const handleLocationChange = useCallback(
+    (value) => {
+      setLocation(value);
+      const fromPlaces =
+        comunaSource === 'google' || comunaSource === 'places_canonical';
+      if (!fromPlaces || lastGoogleAddress == null) return;
+      if (value.trim() !== String(lastGoogleAddress).trim()) {
+        setComunaSource('manual');
+        setComuna('');
+        setComunaError('');
+        setServiceLat(null);
+        setServiceLng(null);
+        setLastGoogleAddress(null);
+        try {
+          localStorage.removeItem(SELECTED_ADDRESS_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    [comunaSource, lastGoogleAddress]
+  );
+
+  const hideComunaField = useMemo(
+    () => shouldHideServiceLocationComunaField(comunaSource, comuna),
+    [comunaSource, comuna]
+  );
+
+  const isValidComunaForContinue = useMemo(() => {
+    const t = String(comuna || '').trim();
+    if (!t) return false;
+    if (hideComunaField) return true;
+    const normalizedComuna = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return COMUNAS_NOMBRES.some(
+      (nombre) =>
+        nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === normalizedComuna
+    );
+  }, [comuna, hideComunaField]);
 
   const onPlacesStatusChange = useCallback((status) => {
     const phase = status?.phase;
@@ -157,6 +290,15 @@ function ServiceLocationScreen() {
 
   const waitingForPlaces =
     hasApiKey && (placesPhase === 'loading' || placesPhase === 'script_loaded');
+  const canContinueToProviders =
+    !!location.trim() && !waitingForPlaces && isValidComunaForContinue;
+  const continueButtonLabel = waitingForPlaces
+    ? 'Cargando buscador de direcciones...'
+    : !location.trim()
+      ? 'Completa dirección'
+      : !isValidComunaForContinue
+        ? 'Completa la comuna'
+        : 'Ver proveedores';
 
   const formatDateShort = (dateStr) => {
     if (!dateStr) return 'Programado';
@@ -171,6 +313,7 @@ function ServiceLocationScreen() {
 
   /** true si el flujo es programado (por tipo o por tener fechas del calendario) */
   const isScheduled = reservationType === 'scheduled' || selectedDates.length > 0;
+  const canChooseHoursHere = !isScheduled && !isPerTripMachineryType(machinery);
 
   /** Resumen de fechas: una sola fecha o rango de días cuando hay varias seleccionadas. No devolver "Inicio HOY" si hay fechas. */
   const getDateSummary = () => {
@@ -193,11 +336,6 @@ function ServiceLocationScreen() {
 
   const handleContinue = () => {
     setComunaError('');
-    const normalizedComuna = comuna.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const isValidComuna = COMUNAS_NOMBRES.some(
-      nombre => nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === normalizedComuna
-    );
-
     const refLen = reference.trim().length;
     const validation = validateServiceLocationContinue({
       locationTrimmed: location.trim(),
@@ -209,7 +347,9 @@ function ServiceLocationScreen() {
       serviceLat,
       serviceLng,
       manualAddressNotFound,
-      isValidComuna
+      isValidComuna: isValidComunaForContinue,
+      comunaFromGoogle:
+        comunaSource === 'places_canonical' || comunaSource === 'google'
     });
 
     if (!validation.ok) {
@@ -233,12 +373,20 @@ function ServiceLocationScreen() {
       return;
     }
 
-    // Guardar ubicación exacta: si eligió de Google Places (hay lat/lng), usar la dirección completa tal cual; si no, calle + comuna
-    const fullLocation = (serviceLat != null && serviceLng != null)
-      ? location.trim()
-      : `${location.trim()}, ${comuna}`;
-    localStorage.setItem('serviceLocation', fullLocation);
+    const selectedAddress = buildSelectedAddressFromForm({
+      location,
+      comuna,
+      lat: serviceLat,
+      lng: serviceLng
+    });
+    localStorage.setItem(SELECTED_ADDRESS_KEY, JSON.stringify(selectedAddress));
+    const displayLine = buildLocationDisplayLine(
+      selectedAddress.address_short,
+      selectedAddress.commune
+    ).trim();
+    localStorage.setItem('serviceLocation', displayLine || selectedAddress.address_short);
     localStorage.setItem('serviceComuna', comuna);
+    localStorage.setItem('serviceComunaSource', comunaSource);
     localStorage.setItem('serviceReference', reference);
     const manualFb =
       serviceLat == null ||
@@ -252,13 +400,15 @@ function ServiceLocationScreen() {
     if (serviceLng != null) localStorage.setItem('serviceLng', serviceLng.toString());
     else localStorage.removeItem('serviceLng');
     
-    // Ir a ver proveedores
     navigate('/client/providers');
   };
 
   return (
-    <div className="maqgo-app">
-      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 120px', overflowY: 'auto' }}>
+    <div className="maqgo-app maqgo-client-funnel">
+      <div
+        className="maqgo-screen maqgo-screen--scroll"
+        style={{ padding: 'var(--maqgo-screen-padding-top) 24px 120px' }}
+      >
         {/* Header */}
         <div style={{ 
           display: 'flex', 
@@ -282,6 +432,131 @@ function ServiceLocationScreen() {
         </div>
 
         <BookingProgress />
+
+        {canChooseHoursHere && (
+          <p
+            style={{
+              color: 'rgba(255,255,255,0.78)',
+              fontSize: 13,
+              textAlign: 'center',
+              margin: '0 0 14px',
+              lineHeight: 1.45
+            }}
+          >
+            Primero confirma las horas abajo; luego indica la dirección del servicio.
+          </p>
+        )}
+
+        {canChooseHoursHere && (
+          <div
+            style={{
+              background: '#2A2A2A',
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 16,
+              border: '1px solid rgba(255,255,255,0.08)'
+            }}
+          >
+            <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 10px' }}>
+              ¿Cuántas horas necesitas hoy?
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[4, 8].map((h) => {
+                const selected = !isCustomHours && hours === h;
+                return (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => {
+                      setIsCustomHours(false);
+                      setHours(h);
+                      localStorage.setItem('selectedHours', String(h));
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '10px 8px',
+                      borderRadius: 10,
+                      border: selected ? '2px solid #EC6819' : '1px solid #444',
+                      background: selected ? 'rgba(236, 104, 25, 0.16)' : '#363636',
+                      color: selected ? '#EC6819' : '#fff',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {h}h
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCustomHours(true);
+                  const next =
+                    MANUAL_HOUR_OPTIONS.includes(hours) ? hours : 6;
+                  setHours(next);
+                  localStorage.setItem('selectedHours', String(next));
+                }}
+                style={{
+                  flex: 1,
+                  padding: '10px 8px',
+                  borderRadius: 10,
+                  border: isCustomHours ? '2px solid #EC6819' : '1px solid #444',
+                  background: isCustomHours ? 'rgba(236, 104, 25, 0.16)' : '#363636',
+                  color: isCustomHours ? '#EC6819' : '#fff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Personalizar
+              </button>
+            </div>
+            {isCustomHours && (
+              <div
+                style={{
+                  marginTop: 10,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  justifyContent: 'center',
+                  gap: 8
+                }}
+                role="group"
+                aria-label="Horas personalizadas"
+              >
+                {MANUAL_HOUR_OPTIONS.map((h) => {
+                  const selected = hours === h;
+                  return (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => {
+                        setHours(h);
+                        localStorage.setItem('selectedHours', String(h));
+                      }}
+                      style={{
+                        minWidth: 56,
+                        padding: '8px 12px',
+                        borderRadius: 10,
+                        border: selected ? '2px solid #EC6819' : '1px solid #444',
+                        background: selected ? 'rgba(236, 104, 25, 0.16)' : '#363636',
+                        color: selected ? '#EC6819' : '#fff',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {h}h
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '10px 0 0' }}>
+              {(MACHINERY_NAMES[machinery] || machinery || 'Maquinaria')} · {hours}h
+            </p>
+          </div>
+        )}
 
         {/* Título */}
         <h1 style={{
@@ -438,19 +713,54 @@ function ServiceLocationScreen() {
           </label>
           <AddressAutocomplete
             value={location}
-            onChange={setLocation}
+            onChange={handleLocationChange}
             onPlacesStatusChange={onPlacesStatusChange}
             scriptRetryKey={scriptRetryKey}
-            onSelect={({ address, comuna: c, lat, lng }) => {
-              setLocation(address);
-              if (c) setComuna(c);
+            onSelect={({ address_short, commune: c, address_full, lat, lng }) => {
+              setLocation(address_short);
+              setLastGoogleAddress(address_short);
+              setManualAddressNotFound(false);
+              setComunaError('');
               if (lat != null) setServiceLat(lat);
               if (lng != null) setServiceLng(lng);
-              setManualAddressNotFound(false);
+              const extracted = (c || '').trim();
+              if (extracted) {
+                setComuna(extracted);
+                setComunaSource('places_canonical');
+              } else {
+                setComuna('');
+                setComunaSource('manual');
+                if (import.meta.env.DEV) {
+                  console.warn(
+                    '[Maqgo][dev] mapPlaceToAddress: sin comuna homologada en address_components; elige comuna en la lista.',
+                    { address_short, address_full }
+                  );
+                }
+              }
+              try {
+                localStorage.setItem(
+                  SELECTED_ADDRESS_KEY,
+                  JSON.stringify({
+                    address_short,
+                    commune: extracted,
+                    address_full: address_full || '',
+                    lat,
+                    lng
+                  })
+                );
+              } catch {
+                /* ignore quota */
+              }
             }}
             placeholder="Ej: Av. Providencia 1234"
             style={{ fontSize: 16 }}
           />
+          {hasApiKey && placesPhase === 'ready' && (
+            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.45 }}>
+              Elegí una sugerencia de la lista para fijar dirección y comuna. Si editás el texto después, volvemos a
+              pedir comuna (no alcanza con escribir sin elegir sugerencia).
+            </p>
+          )}
         </div>
 
         {hasApiKey && placesPhase === 'ready' && (
@@ -475,6 +785,15 @@ function ServiceLocationScreen() {
                   if (on) {
                     setServiceLat(null);
                     setServiceLng(null);
+                    setComunaSource('manual');
+                    setComuna('');
+                    setLastGoogleAddress(null);
+                    setComunaError('');
+                    try {
+                      localStorage.removeItem(SELECTED_ADDRESS_KEY);
+                    } catch {
+                      /* ignore */
+                    }
                   }
                 }}
                 style={{ marginTop: 3, width: 18, height: 18, flexShrink: 0 }}
@@ -492,27 +811,18 @@ function ServiceLocationScreen() {
           </div>
         )}
 
-        {/* Input Comuna con Autocomplete (solo si no se obtuvo de Google Places) */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ 
-            color: 'rgba(255,255,255,0.8)', 
-            fontSize: 14,
-            display: 'block',
-            marginBottom: 8,
-            fontWeight: 500
-          }}>
-            Comuna <span style={{ color: '#EC6819' }}>*</span>
-          </label>
-          <ComunaAutocomplete
-            value={comuna}
-            onChange={(v) => { setComuna(v); setComunaError(''); }}
-            placeholder="Escribe para buscar..."
-            style={{ fontSize: 16 }}
-          />
-          {comunaError && (
-            <p style={{ color: '#ff6b6b', fontSize: 12, marginTop: 6 }}>{comunaError}</p>
-          )}
-        </div>
+        <ServiceLocationComunaSection
+          hideComunaField={hideComunaField}
+          comuna={comuna}
+          onComunaChange={(v) => {
+            setComuna(v);
+            setComunaError('');
+          }}
+          comunaError={comunaError}
+          hasApiKey={hasApiKey}
+          placesPhase={placesPhase}
+          manualAddressNotFound={manualAddressNotFound}
+        />
 
         {/* Input Referencia */}
         <div style={{ marginBottom: 24 }}>
@@ -592,15 +902,26 @@ function ServiceLocationScreen() {
         <button 
           className="maqgo-btn-primary"
           onClick={handleContinue}
-          disabled={!location.trim() || !comuna.trim() || waitingForPlaces}
+          disabled={!canContinueToProviders}
           style={{
-            opacity: location.trim() && comuna.trim() && !waitingForPlaces ? 1 : 0.5,
-            cursor: location.trim() && comuna.trim() && !waitingForPlaces ? 'pointer' : 'not-allowed'
+            opacity: canContinueToProviders ? 1 : 0.5,
+            cursor: canContinueToProviders ? 'pointer' : 'not-allowed'
           }}
           data-testid="continue-to-providers-btn"
         >
-          Ver proveedores
+          {continueButtonLabel}
         </button>
+        <p
+          style={{
+            color: 'rgba(255,255,255,0.65)',
+            fontSize: 11,
+            textAlign: 'center',
+            margin: '10px 4px 0',
+            lineHeight: 1.45
+          }}
+        >
+          El cobro con tarjeta ocurre solo si un operador acepta tu solicitud.
+        </p>
       </div>
     </div>
   );

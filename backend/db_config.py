@@ -21,5 +21,26 @@ def get_mongo_url() -> str:
 
 
 def get_db_name() -> str:
-    raw = (os.environ.get("DB_NAME") or _DEFAULT_DB).strip()
-    return raw or _DEFAULT_DB
+    """
+    DB canónico para el servicio actual.
+
+    - Producción real: setear `DB_NAME` explícito (ej. `maqgo_db`).
+    - Pruebas en "prod" sin borrar datos: usar `MAQGO_DB_NAMESPACE=staging`
+      (o `MAQGO_ENV=staging`) y el nombre pasa a `<DB_NAME>_staging`.
+
+    Esto evita "limpiar Mongo" y permite resetear pruebas cambiando solo vars.
+    """
+    base = (os.environ.get("DB_NAME") or _DEFAULT_DB).strip() or _DEFAULT_DB
+
+    namespace = (os.environ.get("MAQGO_DB_NAMESPACE") or "").strip().lower()
+    if not namespace:
+        env = (os.environ.get("MAQGO_ENV") or os.environ.get("ENVIRONMENT") or "").strip().lower()
+        if env in {"staging", "stage", "test"}:
+            namespace = "staging"
+
+    if namespace and namespace != "production":
+        safe = "".join(ch for ch in namespace if ch.isalnum() or ch in {"_", "-"}).strip("_-")
+        if safe:
+            return f"{base}_{safe}"
+
+    return base

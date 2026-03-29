@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
@@ -19,34 +19,89 @@ import { getProviderOnboardingRoute } from '../../utils/providerOnboarding';
 function ProviderHomeScreen() {
   const navigate = useNavigate();
   const toast = useToast();
+  const inFlightRef = useRef(false);
+  const errorStreakRef = useRef(0);
+  const lastErrorLogAtRef = useRef(0);
   const [available, setAvailable] = useState(() => localStorage.getItem('providerAvailable') === 'true');
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [bootstrapped, setBootstrapped] = useState(false);
   const [bankDataComplete, setBankDataComplete] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
+  const [showBankWarningModal, setShowBankWarningModal] = useState(false);
+  const isBlockedByBank = onboardingCompleted && !bankDataComplete && !available;
+  const providerData = getObject('providerData', {});
+  const machineData = getObject('machineData', {});
+  const operatorsData = getObject('operatorsData', []);
+  const companyComplete = !!(providerData?.businessName && providerData?.rut);
+  const machineComplete = !!(machineData?.machineryType && machineData?.licensePlate);
+  const operatorComplete = Array.isArray(operatorsData) && operatorsData.length > 0;
+  const activationItems = [
+    {
+      label: 'Empresa',
+      ok: companyComplete,
+      missingHint: 'Falta completar datos de empresa',
+      actionLabel: 'Completar empresa',
+      onClick: () => navigate('/provider/data')
+    },
+    {
+      label: 'Máquina (tipo + patente)',
+      ok: machineComplete,
+      missingHint: 'Falta tipo o patente de la máquina',
+      actionLabel: 'Completar máquina',
+      onClick: () => navigate('/provider/machine-data')
+    },
+    {
+      label: 'Operador',
+      ok: operatorComplete,
+      missingHint: 'Falta operador asignado',
+      actionLabel: 'Asignar operador',
+      onClick: () => navigate('/provider/team')
+    },
+    {
+      label: 'Banco',
+      ok: bankDataComplete,
+      missingHint: 'Faltan datos bancarios',
+      actionLabel: 'Completar banco',
+      onClick: () => navigate('/provider/profile/banco')
+    },
+  ];
+  const nextActivationStep = activationItems.find((item) => !item.ok);
+  const activationCompletedCount = activationItems.filter((item) => item.ok).length;
+  const activationProgressPct = Math.round((activationCompletedCount / activationItems.length) * 100);
+
+  const isBankComplete = (bankData) =>
+    !!bankData?.bank &&
+    !!bankData?.accountType &&
+    !!bankData?.accountNumber &&
+    !!bankData?.holderName &&
+    !!bankData?.holderRut;
 
   useEffect(() => {
-    const completed = localStorage.getItem('providerOnboardingCompleted') === 'true';
-    setOnboardingCompleted(completed);
+    const completedLocal = localStorage.getItem('providerOnboardingCompleted') === 'true';
+    setOnboardingCompleted(completedLocal);
 
-    if (!completed) {
-      setBootstrapped(true);
-      return;
-    }
+    const bankDataLocal = getObject('bankData', {});
+    setBankDataComplete(isBankComplete(bankDataLocal));
 
-    const bankData = getObject('bankData', {});
-    const isBankComplete = !!bankData.bank && !!bankData.accountType && !!bankData.accountNumber && !!bankData.holderName && !!bankData.holderRut;
-    setBankDataComplete(isBankComplete);
-
-    // Sincronizar disponibilidad desde backend (fuente de verdad) al montar
+    // Sincronizar disponibilidad/onboarding/banco desde backend (fuente de verdad)
     const userId = localStorage.getItem('userId');
     const isDemoId = userId && (userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-'));
     if (userId && !isDemoId) {
       axios.get(`${BACKEND_URL}/api/users/${userId}`, { timeout: 5000 })
         .then((res) => {
+          const onboardingDb = Boolean(res.data?.onboarding_completed);
+          setOnboardingCompleted(onboardingDb || completedLocal);
+          if (onboardingDb) localStorage.setItem('providerOnboardingCompleted', 'true');
+
           const avail = res.data?.isAvailable ?? res.data?.available ?? false;
           setAvailable(!!avail);
           localStorage.setItem('providerAvailable', (!!avail).toString());
+
+          const bankFromDb = res.data?.providerData?.bankData;
+          if (bankFromDb && typeof bankFromDb === 'object') {
+            localStorage.setItem('bankData', JSON.stringify(bankFromDb));
+            setBankDataComplete(isBankComplete(bankFromDb));
+          }
         })
         .catch(() => {
           const saved = localStorage.getItem('providerAvailable') === 'true';
@@ -63,29 +118,71 @@ function ProviderHomeScreen() {
   useEffect(() => {
     // Polling para verificar solicitudes entrantes (solo si disponible y onboarding completo)
     const checkRequests = async () => {
-      try {
-        const userId = localStorage.getItem('userId');
-        if (userId && available && onboardingCompleted) {
-          const res = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
-          if (res.data && res.data.length > 0) {
-            localStorage.setItem('incomingRequest', JSON.stringify(res.data[0]));
-            unlockAudio();
-            playNewRequestSound();
-            vibrate('newRequest');
-            navigate('/provider/request-received');
-          }
+      const userId = localStorage.getItem('userId');
+      if (userId && available && onboardingCompleted) {
+        const res = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
+        if (res.data && res.data.length > 0) {
+          localStorage.setItem('incomingRequest', JSON.stringify(res.data[0]));
+          unlockAudio();
+          playNewRequestSound();
+          vibrate('newRequest');
+          navigate('/provider/request-received');
         }
-      } catch {
-        // Silenciar errores de polling
       }
     };
 
-    const interval = setInterval(checkRequests, 5000);
-    return () => clearInterval(interval);
+    if (!available || !onboardingCompleted) return undefined;
+
+    let cancelled = false;
+    let timeoutId = null;
+
+    const baseDelayMs = 5000;
+    const maxDelayMs = 30000;
+
+    const run = async () => {
+      if (cancelled) return;
+
+      if (inFlightRef.current) {
+        timeoutId = setTimeout(run, 1000);
+        return;
+      }
+
+      inFlightRef.current = true;
+      try {
+        await checkRequests();
+        errorStreakRef.current = 0;
+      } catch (e) {
+        const now = Date.now();
+        if (now - lastErrorLogAtRef.current > 60000) {
+          console.warn('ProviderHomeScreen poll error:', e?.message || e);
+          lastErrorLogAtRef.current = now;
+        }
+        errorStreakRef.current += 1;
+      } finally {
+        inFlightRef.current = false;
+        const delay = Math.min(
+          maxDelayMs,
+          baseDelayMs * (2 ** errorStreakRef.current)
+        );
+        timeoutId = setTimeout(run, delay);
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [available, onboardingCompleted, navigate]);
 
   const toggleAvailability = async () => {
     if (!onboardingCompleted || isToggling) return;
+    if (!bankDataComplete && !available) {
+      setShowBankWarningModal(true);
+      toast.warning('Completa tus datos bancarios antes de conectarte.');
+      return;
+    }
 
     setIsToggling(true);
     const userId = localStorage.getItem('userId');
@@ -230,6 +327,75 @@ function ProviderHomeScreen() {
         {/* Header - Solo logo centrado */}
         <MaqgoLogo size="medium" style={{ marginBottom: 40 }} />
 
+        {/* Estado de activación: fuente visual única para evitar confusión */}
+        <div
+          style={{
+            background: '#2A2A2A',
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 16,
+            border: '1px solid rgba(255,255,255,0.08)'
+          }}
+        >
+          <p style={{ color: '#fff', fontSize: 13, fontWeight: 700, margin: '0 0 10px' }}>
+            Estado de activación
+          </p>
+          <div style={{ marginBottom: 10 }}>
+            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, margin: '0 0 6px' }}>
+              {activationCompletedCount}/{activationItems.length} completados
+            </p>
+            <div style={{ width: '100%', height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}>
+              <div
+                style={{
+                  width: `${activationProgressPct}%`,
+                  height: '100%',
+                  background: activationCompletedCount === activationItems.length ? '#4CAF50' : '#EC6819',
+                  transition: 'width 0.2s ease'
+                }}
+              />
+            </div>
+          </div>
+          {activationItems.map((item) => (
+            <div
+              key={item.label}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}
+            >
+              <div>
+                <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{item.label}</span>
+                {!item.ok && (
+                  <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, margin: '2px 0 0' }}>
+                    {item.missingHint}
+                  </p>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <span style={{ color: item.ok ? '#4CAF50' : '#F44336', fontSize: 12, fontWeight: 700 }}>
+                  {item.ok ? '✓' : '✕ Pendiente'}
+                </span>
+              </div>
+            </div>
+          ))}
+          {nextActivationStep && (
+            <button
+              onClick={nextActivationStep.onClick}
+              style={{
+                width: '100%',
+                marginTop: 8,
+                padding: 10,
+                borderRadius: 10,
+                border: 'none',
+                background: '#EC6819',
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              {nextActivationStep.actionLabel}
+            </button>
+          )}
+        </div>
+
         {/* Alerta si no complet? onboarding */}
         {!onboardingCompleted && (
           <div style={{
@@ -264,6 +430,43 @@ function ProviderHomeScreen() {
           </div>
         )}
 
+        {/* CTA prioritario: sin banco no puede conectarse a recibir solicitudes */}
+        {!bankDataComplete && onboardingCompleted && (
+          <div
+            style={{
+              width: '100%',
+              padding: 14,
+              background: 'rgba(236, 104, 25, 0.12)',
+              border: '1px solid rgba(236, 104, 25, 0.65)',
+              borderRadius: 12,
+              marginBottom: 16
+            }}
+          >
+            <p style={{ color: '#EC6819', fontSize: 13, fontWeight: 700, margin: '0 0 8px' }}>
+              Falta un paso para recibir solicitudes
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: '0 0 10px', lineHeight: 1.45 }}>
+              Completa tus datos bancarios para activar disponibilidad y recibir solicitudes.
+            </p>
+            <button
+              onClick={() => navigate('/provider/profile/banco')}
+              style={{
+                width: '100%',
+                padding: 12,
+                background: '#EC6819',
+                border: 'none',
+                borderRadius: 10,
+                color: '#fff',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Completar datos bancarios para recibir solicitudes
+            </button>
+          </div>
+        )}
+
         {/* Centro de disponibilidad */}
         <div style={{
           background: 'linear-gradient(180deg, #363636 0%, #2f2f2f 100%)',
@@ -290,14 +493,14 @@ function ProviderHomeScreen() {
           {/* Toggle visual */}
           <button
             onClick={toggleAvailability}
-            disabled={!onboardingCompleted || isToggling}
+            disabled={!onboardingCompleted || isToggling || isBlockedByBank}
             style={{
               width: 84,
               height: 84,
               borderRadius: '50%',
               border: available ? '2px solid rgba(144,189,211,0.65)' : '2px solid rgba(236,104,25,0.65)',
               background: available && onboardingCompleted ? 'rgba(144,189,211,0.2)' : 'rgba(236,104,25,0.15)',
-              cursor: onboardingCompleted && !isToggling ? 'pointer' : 'not-allowed',
+              cursor: onboardingCompleted && !isToggling && !isBlockedByBank ? 'pointer' : 'not-allowed',
               opacity: isToggling ? 0.7 : 1,
               transition: 'all 0.25s ease',
               display: 'flex',
@@ -335,6 +538,8 @@ function ProviderHomeScreen() {
           }}>
             {!onboardingCompleted
               ? 'Primero completa tu registro para poder recibir solicitudes.'
+              : isBlockedByBank
+                ? 'Siguiente paso: completa tus datos bancarios para conectarte y recibir solicitudes.'
               : (available
                   ? 'Estás visible para solicitudes compatibles según zona, tipo de maquinaria y disponibilidad.'
                   : 'Tu máquina no está visible para nuevas solicitudes.')
@@ -343,7 +548,7 @@ function ProviderHomeScreen() {
 
           {/* CTA explícito: evita ambigüedad del "toca para conectarte" */}
           <button
-            onClick={toggleAvailability}
+            onClick={isBlockedByBank ? () => navigate('/provider/profile/banco') : toggleAvailability}
             disabled={!onboardingCompleted || isToggling}
             style={{
               width: '100%',
@@ -361,11 +566,15 @@ function ProviderHomeScreen() {
             aria-label={
               !onboardingCompleted
                 ? 'Registro incompleto'
+                : isBlockedByBank
+                  ? 'Completar datos bancarios'
                 : (available ? 'Pausar disponibilidad' : 'Conectarme ahora')
             }
           >
             {!onboardingCompleted
               ? 'Completa tu registro para activar'
+              : isBlockedByBank
+                ? 'Completar datos bancarios'
               : (isToggling ? 'Actualizando estado...' : (available ? 'Pausar disponibilidad' : 'Conectarme ahora'))}
           </button>
           {onboardingCompleted && (
@@ -373,6 +582,9 @@ function ProviderHomeScreen() {
               Puedes pausar cuando no quieras recibir solicitudes.
             </p>
           )}
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, margin: '8px 0 0' }}>
+            "Inicio" en la barra inferior solo navega a esta pantalla. Tu estado conectado se controla aquí.
+          </p>
         </div>
 
         {available && onboardingCompleted && (
@@ -386,7 +598,7 @@ function ProviderHomeScreen() {
               Listo para recibir solicitudes
             </p>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0, textAlign: 'center' }}>
-              Priorizamos asignaciones por cercanía, disponibilidad y mejor ajuste operativo. Solicitudes inmediatas pueden pagar hasta <strong style={{ color: '#EC6819' }}>+20% más</strong>.
+              Priorizamos asignaciones por cercanía, disponibilidad y ajuste operativo. Las reservas para <strong style={{ color: '#EC6819' }}>el mismo día</strong> suelen pagar hasta <strong style={{ color: '#EC6819' }}>+20%</strong> más que las programadas para otro día.
             </p>
           </div>
         )}
@@ -405,33 +617,78 @@ function ProviderHomeScreen() {
           </button>
         )}
 
-        {/* Indicador de configuraci?n pendiente */}
-        {!bankDataComplete && (
-          <button 
-            onClick={() => navigate('/provider/profile')}
+      </div>
+      {showBankWarningModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.78)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1200,
+            padding: 24
+          }}
+        >
+          <div
             style={{
               width: '100%',
-              padding: 14,
-              background: 'rgba(236, 104, 25, 0.1)',
-              border: '1px dashed #EC6819',
-              borderRadius: 12,
-              color: '#EC6819',
-              fontSize: 13,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8
+              maxWidth: 360,
+              background: '#2A2A2A',
+              border: '1px solid rgba(236, 104, 25, 0.45)',
+              borderRadius: 14,
+              padding: 20
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 8v4M12 16h.01"/>
-            </svg>
-            Completa tu perfil para recibir pagos
-          </button>
-        )}
-      </div>
+            <h3 style={{ color: '#fff', fontSize: 17, margin: '0 0 8px' }}>
+              Completa datos bancarios
+            </h3>
+            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, lineHeight: 1.5, margin: '0 0 16px' }}>
+              Para conectarte y recibir solicitudes, primero debes configurar tus datos bancarios.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setShowBankWarningModal(false)}
+                style={{
+                  flex: 1,
+                  padding: 11,
+                  borderRadius: 20,
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  background: 'transparent',
+                  color: '#fff',
+                  fontSize: 13,
+                  cursor: 'pointer'
+                }}
+              >
+                Ahora no
+              </button>
+              <button
+                onClick={() => {
+                  setShowBankWarningModal(false);
+                  navigate('/provider/profile/banco');
+                }}
+                style={{
+                  flex: 1,
+                  padding: 11,
+                  borderRadius: 20,
+                  border: 'none',
+                  background: '#EC6819',
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Ir a banco
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

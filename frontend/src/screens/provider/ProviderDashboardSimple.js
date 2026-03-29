@@ -8,10 +8,10 @@ import { downloadVoucherPDF } from '../../utils/voucherPdf';
 
 function buildMockServices() {
   return [
-    { id: 'srv_001', transactionId: 'MQ-12345678', status: 'approved', date: new Date().toISOString(), machineryType: 'Retroexcavadora', hours: 4, operatorName: 'Juan Pérez', serviceAmount: 180000, bonusAmount: 36000, transportAmount: 25000 },
-    { id: 'srv_002', transactionId: 'MQ-12345679', status: 'pending_review', date: new Date(Date.now() - 86400000).toISOString(), machineryType: 'Camión Aljibe', hours: 1, operatorName: 'María González', serviceAmount: 260000, bonusAmount: 26000, transportAmount: 0 },
-    { id: 'srv_003', transactionId: 'MQ-12345680', status: 'invoiced', date: new Date(Date.now() - 172800000).toISOString(), machineryType: 'Excavadora', hours: 6, operatorName: 'Pedro López', serviceAmount: 660000, bonusAmount: 99000, transportAmount: 35000 },
-    { id: 'srv_004', transactionId: 'MQ-12345681', status: 'paid', date: new Date(Date.now() - 604800000).toISOString(), machineryType: 'Minicargador', hours: 8, operatorName: 'Juan Pérez', serviceAmount: 500000, bonusAmount: 50000, transportAmount: 20000 },
+    { id: 'srv_001', transactionId: 'MQ-12345678', status: 'approved', date: new Date().toISOString(), machineryType: 'Retroexcavadora', hours: 4, operatorName: 'Juan Pérez', operatorRut: '18.765.432-1', serviceAmount: 180000, bonusAmount: 36000, transportAmount: 25000 },
+    { id: 'srv_002', transactionId: 'MQ-12345679', status: 'pending_review', date: new Date(Date.now() - 86400000).toISOString(), machineryType: 'Camión Aljibe', hours: 1, operatorName: 'María González', operatorRut: '16.234.567-2', serviceAmount: 260000, bonusAmount: 26000, transportAmount: 0 },
+    { id: 'srv_003', transactionId: 'MQ-12345680', status: 'invoiced', date: new Date(Date.now() - 172800000).toISOString(), machineryType: 'Excavadora', hours: 6, operatorName: 'Pedro López', operatorRut: '14.111.222-3', serviceAmount: 660000, bonusAmount: 99000, transportAmount: 35000 },
+    { id: 'srv_004', transactionId: 'MQ-12345681', status: 'paid', date: new Date(Date.now() - 604800000).toISOString(), machineryType: 'Minicargador', hours: 8, operatorName: 'Juan Pérez', operatorRut: '18.765.432-1', serviceAmount: 500000, bonusAmount: 50000, transportAmount: 20000 },
   ];
 }
 

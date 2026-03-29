@@ -1,10 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone
-from bson import ObjectId
 import re
 from pymongo import MongoClient
+from rate_limit import limiter
+from auth_dependency import get_current_user
+from security.policy import AccessPolicy
 
 from db_config import get_db_name, get_mongo_url
 
@@ -15,12 +17,30 @@ DB_NAME = get_db_name()
 client = MongoClient(MONGO_URL)
 db = client[DB_NAME]
 
+try:
+    # Índices para acelerar queries del chat:
+    # - delta por service_id + created_at
+    # - conteo/patch read por service_id + sender_type + read
+    db.messages.create_index([("service_id", 1), ("created_at", 1)])
+    db.messages.create_index([("service_id", 1), ("sender_type", 1), ("read", 1)])
+except Exception:
+    # No bloqueamos el arranque si por cualquier razón falla indexación.
+    pass
+
 CHAT_CONTACT_BLOCKED_MSG = (
     "Por seguridad, no compartas datos de contacto. Usa el chat de MAQGO"
 )
 CHAT_LOW_QUALITY_BLOCKED_MSG = (
     "Escribe un mensaje claro y útil para coordinar el servicio."
 )
+
+
+def _can_access_service_chat(current_user: dict, service_id: str) -> bool:
+    """
+    Valida pertenencia al servicio en service_requests o services.
+    Evita acceso por adivinación de service_id (IDOR).
+    """
+    return AccessPolicy.can_access_service_sync(db, current_user, service_id)
 
 
 def _normalize_sender_type(sender_type: str) -> str:
@@ -107,7 +127,7 @@ class MessageResponse(BaseModel):
     read: bool
 
 @router.post("/send")
-async def send_message(message: MessageCreate):
+async def send_message(message: MessageCreate, current_user: dict = Depends(get_current_user)):
     """Enviar un mensaje en el chat del servicio"""
     try:
         if _content_contains_phone_or_contact(message.content):
@@ -115,9 +135,25 @@ async def send_message(message: MessageCreate):
         if _is_low_quality_content(message.content):
             raise HTTPException(status_code=400, detail=CHAT_LOW_QUALITY_BLOCKED_MSG)
 
+        if not _can_access_service_chat(current_user, message.service_id):
+            raise HTTPException(status_code=403, detail="No autorizado para este chat")
+
         st = _normalize_sender_type(message.sender_type)
         if st not in ("client", "operator"):
             raise HTTPException(status_code=400, detail="sender_type inválido")
+
+        current_user_id = current_user.get("id")
+        if message.sender_id != current_user_id:
+            raise HTTPException(status_code=403, detail="sender_id inválido")
+
+        # Impide que cliente envíe como operator o viceversa.
+        user_role = current_user.get("role")
+        provider_role = current_user.get("provider_role")
+        expected_sender = "client" if user_role == "client" else "operator"
+        if user_role == "provider" and provider_role == "operator":
+            expected_sender = "operator"
+        if st != expected_sender and not AccessPolicy.is_admin(current_user):
+            raise HTTPException(status_code=403, detail="sender_type no corresponde al usuario")
 
         msg_doc = {
             "service_id": message.service_id,
@@ -141,9 +177,16 @@ async def send_message(message: MessageCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/service/{service_id}")
-async def get_messages(service_id: str):
+@limiter.limit("30/minute")
+async def get_messages(
+    request: Request,
+    service_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """Obtener todos los mensajes de un servicio"""
     try:
+        if not _can_access_service_chat(current_user, service_id):
+            raise HTTPException(status_code=403, detail="No autorizado para este chat")
         messages = list(db.messages.find(
             {"service_id": service_id}
         ).sort("created_at", 1))
@@ -160,13 +203,67 @@ async def get_messages(service_id: str):
             }
             for m in messages
         ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/service/{service_id}/delta")
+@limiter.limit("60/minute")
+async def get_messages_delta(
+    request: Request,
+    service_id: str,
+    since: Optional[str] = None,
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Devuelve solo mensajes nuevos (created_at > since) para reducir carga.
+    since debe venir en el mismo formato ISO que retorna `created_at`.
+    """
+    try:
+        if not _can_access_service_chat(current_user, service_id):
+            raise HTTPException(status_code=403, detail="No autorizado para este chat")
+        q = {"service_id": service_id}
+        if since:
+            # Usamos >= y luego deduplicamos en frontend por id para evitar
+            # perder mensajes si varios comparten el mismo timestamp.
+            q["created_at"] = {"$gte": since}
+
+        safe_limit = max(1, min(int(limit or 50), 200))
+        messages = list(
+            db.messages.find(q).sort("created_at", 1).limit(safe_limit)
+        )
+
+        return [
+            {
+                "id": str(m["_id"]),
+                "service_id": m["service_id"],
+                "sender_type": m["sender_type"],
+                "sender_id": m["sender_id"],
+                "content": m["content"],
+                "created_at": m["created_at"],
+                "read": m.get("read", False),
+            }
+            for m in messages
+        ]
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.patch("/read/{service_id}")
-async def mark_as_read(service_id: str, reader_type: str):
+@limiter.limit("60/minute")
+async def mark_as_read(
+    request: Request,
+    service_id: str,
+    reader_type: str,
+    current_user: dict = Depends(get_current_user),
+):
     """Marcar mensajes como leídos"""
     try:
+        if not _can_access_service_chat(current_user, service_id):
+            raise HTTPException(status_code=403, detail="No autorizado para este chat")
         rt = _normalize_sender_type(reader_type)
         # Marcar como leídos los mensajes del otro participante
         other_type = "client" if rt == "operator" else "operator"
@@ -177,13 +274,21 @@ async def mark_as_read(service_id: str, reader_type: str):
         )
         
         return {"success": True}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/unread/{service_id}/{user_type}")
-async def get_unread_count(service_id: str, user_type: str):
+async def get_unread_count(
+    service_id: str,
+    user_type: str,
+    current_user: dict = Depends(get_current_user),
+):
     """Obtener cantidad de mensajes no leídos"""
     try:
+        if not _can_access_service_chat(current_user, service_id):
+            raise HTTPException(status_code=403, detail="No autorizado para este chat")
         ut = _normalize_sender_type(user_type)
         other_type = "client" if ut == "operator" else "operator"
         
@@ -194,5 +299,7 @@ async def get_unread_count(service_id: str, user_type: str):
         })
         
         return {"unread_count": count}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,0 +1,12 @@
+---
+description: Invariante navegación al panel admin tras login
+globs: "**/LoginScreen.jsx,**/postLoginNavigation.*,**/AdminRoute.jsx"
+alwaysApply: false
+---
+
+# Panel admin tras login
+
+- **`/admin` solo si el backend devolvió admin** (`role === 'admin'` o `roles` incluye `admin`). Nunca usar solo `location.state.redirect === '/admin'` para `navigate('/admin')`.
+- La lógica compartida vive en `frontend/src/utils/postLoginNavigation.js` (`getPostLoginNavigation`). Si cambias el flujo, actualiza ese módulo y **`npm run test:unit`** (incluye `postLoginNavigation.test.js`).
+- Si `error_not_admin`, **no** persistir token/rol en `localStorage` antes de decidir (evita sesión cliente “fantasma” en pantalla de login).
+- `AdminRoute` sigue verificando `GET /api/admin/stats`; el front no puede “inventar” permisos.

@@ -6,7 +6,7 @@ Flujo:
 2. Operador descarga app e ingresa código
 3. Operador queda vinculado automáticamente al dueño
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone, timedelta
@@ -15,6 +15,8 @@ import string
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from db_config import get_db_name, get_mongo_url
+from auth_dependency import get_current_user
+from security.policy import AccessPolicy
 
 router = APIRouter(prefix="/operators", tags=["operators"])
 
@@ -39,13 +41,18 @@ class OperatorStats(BaseModel):
     operator_id: str
 
 
+
 def generate_invite_code():
     """Genera código de 6 caracteres alfanumérico"""
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 
 @router.post("/invite")
-async def create_invitation(data: InvitationCreate):
+async def create_invitation(
+    data: InvitationCreate,
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_owner_scope(current_user, data.owner_id)
     """
     Dueño genera código de invitación para un operador.
     El código expira en 7 días.
@@ -196,7 +203,11 @@ async def use_invitation(data: InvitationUse):
 
 
 @router.get("/invitations/{owner_id}")
-async def get_owner_invitations(owner_id: str):
+async def get_owner_invitations(
+    owner_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_owner_scope(current_user, owner_id)
     """
     Obtener todas las invitaciones de un dueño.
     """
@@ -218,7 +229,12 @@ async def get_owner_invitations(owner_id: str):
 
 
 @router.delete("/invitation/{code}")
-async def cancel_invitation(code: str, owner_id: str):
+async def cancel_invitation(
+    code: str,
+    owner_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_owner_scope(current_user, owner_id)
     """
     Cancelar una invitación pendiente.
     """
@@ -235,10 +251,14 @@ async def cancel_invitation(code: str, owner_id: str):
 
 
 @router.get("/stats/{operator_id}")
-async def get_operator_stats(operator_id: str):
+async def get_operator_stats(
+    operator_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
     Obtener estadísticas del operador (para pantalla post-servicio).
     """
+    AccessPolicy.assert_self_or_admin(current_user, operator_id)
     # Obtener operador
     operator = await db.users.find_one({"id": operator_id}, {"_id": 0})
     if not operator:
@@ -302,7 +322,11 @@ class MasterInvitationUse(BaseModel):
 
 
 @router.post("/masters/invite")
-async def create_master_invitation(data: MasterInvitationCreate):
+async def create_master_invitation(
+    data: MasterInvitationCreate,
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_owner_scope(current_user, data.owner_id)
     """
     Super Master genera código de invitación para un Master.
     Solo Super Masters pueden invitar Masters.
@@ -427,7 +451,11 @@ async def use_master_invitation(data: MasterInvitationUse):
 
 
 @router.get("/team/{owner_id}")
-async def get_team(owner_id: str):
+async def get_team(
+    owner_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_owner_scope(current_user, owner_id)
     """
     Obtener todo el equipo de una empresa (Masters + Operadores) con sus estadísticas.
     """

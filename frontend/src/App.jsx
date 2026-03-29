@@ -1,10 +1,15 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './utils/api'; // Configura timeout global axios (evita esperas indefinidas)
 import { ROUTES } from './constants';
+import { SITE_TITLE, SITE_TITLE_SHORT } from './constants/siteMeta';
 import ProviderHomeScreen from './screens/provider/ProviderHomeScreen'; // Import directo: evita errores de chunks lazy al confirmar onboarding
 import RegisterScreen from './screens/RegisterScreen.jsx'; // Import directo: evita fallo de chunk al tocar "Registrarme"
 import WelcomeScreen from './screens/WelcomeScreen.jsx'; // Import directo: evita fallback a bundle antiguo en pantalla inicial
+import LoginScreen from './screens/LoginScreen.jsx'; // Import directo: evita flash Suspense (spinner) Welcome → Iniciar sesión
+import ClientHome from './screens/client/ClientHome'; // Eager: primer destino post-login/registro cliente (menos flash Suspense)
+import BookingFlowEntry from './screens/client/BookingFlowEntry.jsx';
+import MachinerySelection from './screens/client/MachinerySelection'; // Eager: entrada típica al embudo de reserva
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen.jsx'; // Import directo: evita pantalla legacy de recuperación
 import { AuthProvider } from './context/AuthContext';
 import ToastProvider from './components/Toast';
@@ -15,10 +20,12 @@ import OfflineBanner from './components/OfflineBanner';
 import AdminRoute from './components/AdminRoute';
 import ProtectedRoute from './components/ProtectedRoute';
 import BookingFlowFallback from './components/BookingFlowFallback';
+import { CheckoutProvider } from './context/CheckoutContext';
+import BookingPaymentRouteStateBinding from './components/BookingPaymentRouteStateBinding';
+import BookingNavigationGuard from './components/BookingNavigationGuard';
 
 // Code-splitting: pantallas se cargan bajo demanda (menor bundle inicial, carga más rápida)
 // Públicas
-const LoginScreen = lazy(() => import('./screens/LoginScreen.jsx'));
 const SelectChannelScreen = lazy(() => import('./screens/SelectChannelScreen'));
 const VerifySMSScreen = lazy(() => import('./screens/VerifySMSScreen'));
 const VerifiedScreen = lazy(() => import('./screens/VerifiedScreen'));
@@ -28,11 +35,7 @@ const CodeIncorrectScreen = lazy(() => import('./screens/CodeIncorrectScreen'));
 const ServiceChatScreen = lazy(() => import('./screens/ServiceChatScreen.jsx'));
 
 // Cliente
-const ClientHome = lazy(() => import('./screens/client/ClientHome'));
-const MachinerySelection = lazy(() => import('./screens/client/MachinerySelection'));
-const HoursSelectionScreen = lazy(() => import('./screens/client/HoursSelectionScreen'));
 const UrgencySelectionScreen = lazy(() => import('./screens/client/UrgencySelectionScreen'));
-const CalendarSelection = lazy(() => import('./screens/client/CalendarSelection'));
 const CalendarMultiDayScreen = lazy(() => import('./screens/client/CalendarMultiDayScreen'));
 const ServiceLocationScreen = lazy(() => import('./screens/client/ServiceLocationScreen'));
 const ProviderOptionsScreen = lazy(() => import('./screens/client/ProviderOptionsScreen'));
@@ -41,7 +44,7 @@ const BillingDataScreen = lazy(() => import('./screens/client/BillingDataScreen'
 const CardPaymentScreen = lazy(() => import('./screens/client/CardPaymentScreen'));
 const OneClickCompleteScreen = lazy(() => import('./screens/client/OneClickCompleteScreen'));
 const CardInput = lazy(() => import('./screens/client/CardInput'));
-const PaymentResultScreen = lazy(() => import('./screens/client/PaymentResultScreen'));
+const PaymentResultScreen = lazy(() => import('./screens/client/PaymentResultScreen.jsx'));
 const SearchingProviderScreen = lazy(() => import('./screens/client/SearchingProviderScreen'));
 const WaitingConfirmationScreen = lazy(() => import('./screens/client/WaitingConfirmationScreen'));
 const MachineryAssignedScreen = lazy(() => import('./screens/client/MachineryAssignedScreen'));
@@ -127,6 +130,16 @@ function AppContent() {
   const [, setUserId] = useState(() => localStorage.getItem('userId') || null);
 
   const path = location.pathname;
+
+  useEffect(() => {
+    const normalized = path.replace(/\/$/, '') || '/';
+    const useHomeTitle =
+      normalized === '/' ||
+      normalized === '/welcome' ||
+      normalized === '/client/home' ||
+      normalized === '/client/booking';
+    document.title = useHomeTitle ? SITE_TITLE : SITE_TITLE_SHORT;
+  }, [path]);
   // NUNCA mostrar nav: formularios, onboarding, flujos de reserva/pago
   const noNavPaths = [
     '/provider/data', '/provider/machine-data', '/provider/machine-photos',
@@ -148,7 +161,10 @@ function AppContent() {
   const showBottomNav = !hideNav && mainPathsWithNav.some(p => path === p || path.startsWith(p + '/'));
 
   return (
-    <div className={showBottomNav ? 'maqgo-with-bottom-nav' : ''} style={{ minHeight: '100vh' }}>
+    <CheckoutProvider>
+    <div className={showBottomNav ? 'maqgo-with-bottom-nav' : ''} style={{ minHeight: '100dvh' }}>
+      <BookingPaymentRouteStateBinding />
+      <BookingNavigationGuard>
       <OfflineBanner />
       <ScrollToTop />
       <Suspense fallback={<BookingFlowFallback />}>
@@ -170,10 +186,11 @@ function AppContent() {
         <Route path="/chat/:serviceId" element={<ServiceChatScreen />} />
 
         {/* Cliente */}
+        <Route path="/client/booking" element={<BookingFlowEntry />} />
         <Route path="/client/home" element={<ClientHome />} />
         <Route path="/client/machinery" element={<MachinerySelection />} />
-        <Route path="/client/hours" element={<Navigate to="/client/hours-selection" replace />} />
-        <Route path="/client/hours-selection" element={<HoursSelectionScreen />} />
+        <Route path="/client/hours" element={<Navigate to="/client/service-location" replace />} />
+        <Route path="/client/hours-selection" element={<Navigate to="/client/service-location" replace />} />
         <Route path="/client/urgency" element={<UrgencySelectionScreen />} />
         <Route path="/client/calendar" element={<CalendarMultiDayScreen />} />
         <Route path="/client/calendar-multi" element={<CalendarMultiDayScreen />} />
@@ -185,7 +202,13 @@ function AppContent() {
         <Route path="/client/workday-confirmation" element={<WorkdayConfirmation />} />
         <Route path="/client/card" element={<CardPaymentScreen />} />
         <Route path="/oneclick/complete" element={<OneClickCompleteScreen />} />
-        <Route path="/client/card-input" element={<CardInput />} />
+        {/* Demo legado: en producción el flujo real es Oneclick (/client/card). */}
+        <Route
+          path="/client/card-input"
+          element={
+            import.meta.env.DEV ? <CardInput /> : <Navigate to="/client/card" replace />
+          }
+        />
         <Route path="/client/payment-result" element={<PaymentResultScreen />} />
         <Route path="/client/searching" element={<SearchingProviderScreen />} />
         <Route path="/client/waiting-confirmation" element={<WaitingConfirmationScreen />} />
@@ -273,7 +296,9 @@ function AppContent() {
       </Suspense>
       {showBottomNav && <BottomNavigation />}
       <ChatBot />
+      </BookingNavigationGuard>
     </div>
+    </CheckoutProvider>
   );
 }
 

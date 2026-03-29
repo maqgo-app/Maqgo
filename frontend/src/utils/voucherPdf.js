@@ -71,8 +71,15 @@ export function downloadVoucherPDF(service) {
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Operador: ${service?.operatorName || service?.operator_name || 'Sin asignar'}`, margin, y);
-  y += 12;
+  const opLabel = service?.operatorName || service?.operator_name || 'Sin asignar';
+  doc.text(`Operador: ${opLabel}`, margin, y);
+  y += 5;
+  const opRut = String(service?.operatorRut || service?.operator_rut || '').trim();
+  if (opRut) {
+    doc.text(`RUT operador: ${opRut}`, margin, y);
+    y += 5;
+  }
+  y += 7;
 
   // Desglose
   doc.setFontSize(10);

@@ -120,6 +120,8 @@ function ProviderRegisterScreen() {
             value={form.nombre}
             onChange={e => update('nombre', e.target.value)}
             style={{ marginBottom: 12 }}
+            name="given-name"
+            autoComplete="given-name"
           />
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
             Apellido <span style={{ color: '#EC6819' }}>*</span>
@@ -130,6 +132,8 @@ function ProviderRegisterScreen() {
             value={form.apellido}
             onChange={e => update('apellido', e.target.value)}
             style={{ marginBottom: 12 }}
+            name="family-name"
+            autoComplete="family-name"
           />
           <input
             className="maqgo-input"
@@ -137,6 +141,8 @@ function ProviderRegisterScreen() {
             type="email"
             value={form.email}
             onChange={e => update('email', e.target.value)}
+            name="email"
+            autoComplete="email"
           />
           {errors.email ? <p style={{ color: '#f44336', fontSize: 12, marginTop: -8, marginBottom: 8 }}>{errors.email}</p> : null}
           
@@ -148,6 +154,8 @@ function ProviderRegisterScreen() {
               type="tel"
               value={form.celular}
               onChange={e => update('celular', e.target.value.replace(/\D/g, '').slice(0, 9))}
+              name="tel-national"
+              autoComplete="tel-national"
             />
           </div>
           {errors.celular ? <p style={{ color: '#f44336', fontSize: 12, marginTop: -8, marginBottom: 8 }}>{errors.celular}</p> : null}

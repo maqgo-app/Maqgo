@@ -136,6 +136,15 @@ function MachinePhotosScreen() {
         }}>
           Te recomendamos subir al menos una foto frontal (opcional). Si quieres, agrega también lateral y trasera.
         </p>
+        <p style={{
+          color: 'rgba(144, 189, 211, 0.95)',
+          fontSize: 13,
+          textAlign: 'center',
+          marginBottom: 12,
+          lineHeight: 1.4
+        }}>
+          Fotos claras ayudan a que más clientes elijan tu máquina.
+        </p>
 
         {/* Indicador de fotos */}
         <div style={{

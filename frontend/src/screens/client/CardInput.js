@@ -66,7 +66,9 @@ function CardInput() {
       {/* Contenido */}
       <div style={styles.content}>
         <h1 className="maqgo-h1" style={{ ...styles.title, marginBottom: 8 }}>Método de Pago</h1>
-        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, marginBottom: 16 }}>Valida tu tarjeta para reservar</p>
+        <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, marginBottom: 8, lineHeight: 1.45, textAlign: 'center' }}>
+          Valida tu tarjeta para continuar. El cobro del servicio solo ocurre si un operador acepta.
+        </p>
         
         <div style={styles.alertBox}>
           <span style={styles.alertIcon}>ℹ️</span>

@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { getObject, getArray } from '../../utils/safeStorage';
@@ -6,10 +6,14 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import { getDemoProviders } from '../../utils/pricing';
 
 import BACKEND_URL from '../../utils/api';
+import { getOrCreateBookingId, idempotencyKey } from '../../utils/bookingPaymentKeys';
 import {
   ensureBackendSessionForClientBooking,
   getClientDisplayNameForApi,
+  persistClientEmailToStorage,
 } from '../../utils/clientSessionForPayment';
+import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
+import { useCheckoutState } from '../../context/CheckoutContext';
 
 /**
  * Pantalla de retorno tras completar inscripción OneClick en Transbank.
@@ -21,6 +25,8 @@ import {
  */
 function OneClickCompleteScreen() {
   const navigate = useNavigate();
+  const cardSavedEventSent = useRef(false);
+  const { dispatch: dispatchCheckout } = useCheckoutState();
   const [searchParams] = useSearchParams();
   const tbk_user =
     searchParams.get('tbk_user') ||
@@ -51,7 +57,22 @@ function OneClickCompleteScreen() {
         return;
       }
 
-      const email = (localStorage.getItem('clientEmail') || '').trim();
+      let email = (localStorage.getItem('clientEmail') || '').trim();
+      if (!email && effectiveTbk && !effectiveTbk.startsWith('demo-')) {
+        try {
+          const { data } = await axios.get(`${BACKEND_URL}/api/payments/oneclick/resume-context`, {
+            params: { tbk_user: effectiveTbk },
+            timeout: 10000,
+          });
+          const resolved = (data?.email || '').trim();
+          if (resolved) {
+            email = resolved;
+            persistClientEmailToStorage(email);
+          }
+        } catch {
+          /* se maneja abajo si sigue vacío */
+        }
+      }
       const username = email
         ? email.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60)
         : `user_${Date.now()}`;
@@ -76,28 +97,36 @@ function OneClickCompleteScreen() {
         localStorage.setItem('selectedProvider', JSON.stringify(demoProviders[0]));
         localStorage.setItem('currentServiceId', `demo-${Date.now()}`);
 
-        if (!cancelled) navigate('/client/searching', { replace: true });
+        if (!cancelled) {
+          if (!cardSavedEventSent.current) {
+            cardSavedEventSent.current = true;
+            dispatchCheckout({ type: 'CARD_SAVED' });
+          }
+          navigate('/client/searching', { replace: true });
+        }
         return;
       }
 
       const clientName = getClientDisplayNameForApi();
 
       try {
-        if (email) {
-          await axios.post(
-            `${BACKEND_URL}/api/payments/oneclick/save`,
-            { email, tbk_user: effectiveTbk, username },
-            { timeout: 8000 }
+        const bookingId = getOrCreateBookingId();
+        if (!email) {
+          throw new Error(
+            'No encontramos tu correo asociado a la tarjeta. Vuelve a la pantalla de pago, ingresa tu correo e intenta de nuevo.'
           );
-        } else {
-          console.warn('OneClick: sin email en localStorage; no se persistió inscripción en Mongo (cobro real puede fallar).');
         }
+
+        await axios.post(
+          `${BACKEND_URL}/api/payments/oneclick/save`,
+          { email, tbk_user: effectiveTbk, username, booking_id: bookingId },
+          {
+            timeout: 8000,
+            headers: { 'Idempotency-Key': idempotencyKey('oneclick-save') },
+          }
+        );
 
         if (cancelled) return;
-
-        if (!email) {
-          throw new Error('No encontramos tu correo. Vuelve a la pantalla de pago e ingrésalo de nuevo.');
-        }
         await ensureBackendSessionForClientBooking(email);
         if (cancelled) return;
 
@@ -108,7 +137,7 @@ function OneClickCompleteScreen() {
 
         const serviceLat = parseFloat(localStorage.getItem('serviceLat'));
         const serviceLng = parseFloat(localStorage.getItem('serviceLng'));
-        const serviceLocation = localStorage.getItem('serviceLocation') || '';
+        const serviceLocation = getBookingLocationLineOrEmpty();
 
         const basePrice = parseFloat(localStorage.getItem('serviceBasePrice')) || 150000;
         const transportFee = parseFloat(localStorage.getItem('serviceTransportFee')) || 0;
@@ -121,6 +150,7 @@ function OneClickCompleteScreen() {
           selectedProviderIds.length > 0 ? selectedProviderIds[0] : (selectedProvider?.id || undefined);
 
         const payload = {
+          booking_id: bookingId,
           clientId,
           clientName: clientName || 'Cliente MAQGO',
           clientEmail: email || undefined,
@@ -141,14 +171,21 @@ function OneClickCompleteScreen() {
           scheduledDate: localStorage.getItem('selectedDate') || undefined,
         };
 
-        const FAST_ERROR_MS = 6000;
-        const apiPromise = axios.post(`${BACKEND_URL}/api/service-requests`, payload, { timeout: 12000 });
-        const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_ERROR_MS));
-        const { data } = await Promise.race([apiPromise, timeoutPromise]);
+        const { data } = await axios.post(`${BACKEND_URL}/api/service-requests`, payload, {
+          timeout: 12000,
+          headers: { 'Idempotency-Key': idempotencyKey('service-request') },
+        });
         if (cancelled) return;
         localStorage.setItem('currentServiceId', data.id);
+        if (data.booking_id) {
+          localStorage.setItem('maqgo_booking_id', data.booking_id);
+        }
         if (data.matching) {
           localStorage.setItem('matchingResult', JSON.stringify(data.matching));
+        }
+        if (!cardSavedEventSent.current) {
+          cardSavedEventSent.current = true;
+          dispatchCheckout({ type: 'CARD_SAVED' });
         }
         navigate('/client/searching', { replace: true });
       } catch (e) {
@@ -168,7 +205,7 @@ function OneClickCompleteScreen() {
     return () => {
       cancelled = true;
     };
-  }, [tbk_user, navigate, retryCount, skipMainFlow]);
+  }, [tbk_user, navigate, retryCount, skipMainFlow, dispatchCheckout]);
 
   const handleRetry = () => {
     setError(null);

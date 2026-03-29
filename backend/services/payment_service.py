@@ -15,12 +15,59 @@ Estados de pago:
 - refunded: Reembolsado
 """
 from datetime import datetime, timezone
+from typing import Optional
+
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.errors import DuplicateKeyError
+import asyncio
 import logging
 import uuid
 import os
 
+from services.payment_intent_service import (
+    CAPTURE_FAILED,
+    CAPTURE_PROCESSING,
+    CAPTURE_SUCCEEDED,
+    PaymentIntentService,
+)
+from services.payment_ledger import (
+    EVT_CHARGE_ATTEMPT,
+    EVT_CHARGE_FAILURE,
+    EVT_CHARGE_SUCCESS,
+    EVT_PROVIDER_CALL_EXECUTED,
+    append_dead_letter_payment,
+    append_event,
+    ledger_has_charge_success_for_service_request,
+)
+from services.payment_rollout import (
+    record_charge_attempt,
+    record_charge_failure,
+    record_charge_success,
+)
+from services.oneclick_evidence import record_authorize as evidence_record_authorize
+
 logger = logging.getLogger(__name__)
+
+
+def provider_oneclick_authorize(
+    *,
+    username: str,
+    tbk_user: str,
+    buy_order: str,
+    amount: int,
+) -> dict:
+    """
+    Único punto de llamada a Transbank OneClick authorize (cobro con tarjeta inscrita).
+    No usar authorize_payment del oneclick_service fuera de payment_service.
+    """
+    from services.oneclick_service import authorize_payment as _authorize_payment
+
+    return _authorize_payment(
+        username=username,
+        tbk_user=tbk_user,
+        buy_order=buy_order,
+        amount=amount,
+    )
 
 
 def _is_production_env() -> bool:
@@ -47,11 +94,46 @@ class PaymentService:
     
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
+        self._intents = PaymentIntentService(db)
         # En producción se exige pago real (sin fallback simulado).
         self.require_real_payment = _parse_bool_env(
             "REQUIRE_REAL_PAYMENT",
             _is_production_env(),
         )
+
+    async def _wait_capture_not_processing(self, booking_id: str, timeout: float = 90.0) -> Optional[dict]:
+        import asyncio
+        import time as time_mod
+
+        deadline = time_mod.monotonic() + timeout
+        while time_mod.monotonic() < deadline:
+            doc = await self._intents.get_by_booking_id(booking_id)
+            cap = (doc or {}).get("payment_capture_status") or "idle"
+            if cap != CAPTURE_PROCESSING:
+                return doc
+            await asyncio.sleep(0.3)
+        return await self._intents.get_by_booking_id(booking_id)
+
+    async def _charge_result_if_already_charged(self, service_request_id: str, amount: float) -> dict:
+        existing = await self.db.payments.find_one(
+            {"serviceRequestId": service_request_id, "status": "charged"},
+            {"_id": 0},
+        )
+        if existing:
+            return {
+                "success": True,
+                "status": "charged",
+                "message": "Pago ya registrado",
+                "paymentId": existing["id"],
+                "amount": existing.get("amount", amount),
+                "short_circuit": True,
+            }
+        return {
+            "success": False,
+            "status": "failed",
+            "message": "Estado de captura succeeded sin fila de pago; reintenta o revisa consistencia",
+            "error": "PAYMENT_ROW_MISSING",
+        }
     
     async def validate_card(
         self,
@@ -117,39 +199,237 @@ class PaymentService:
             'validationId': validation['id']
         }
     
+    async def execute_payment_charge(
+        self,
+        *,
+        service_request_id: str,
+        payment_intent_id: Optional[str],
+        client_id: str,
+        amount: float,
+        booking_id: Optional[str] = None,
+        scope: str = "accept",
+        endpoint: str = "payment_service.execute_payment_charge",
+    ) -> dict:
+        """
+        Único flujo de cobro al proveedor: bloqueo vía payment_intent (processing/succeeded)
+        y única llamada al proveedor vía provider_oneclick_authorize.
+        """
+        sr = await self.db.service_requests.find_one({"id": service_request_id}, {"_id": 0})
+        bid = booking_id or (sr.get("bookingId") if sr else None)
+
+        # Exactly-once lógico: ledger como autoridad histórica de éxito
+        if await ledger_has_charge_success_for_service_request(self.db, service_request_id):
+            if bid:
+                try:
+                    await self._intents.set_payment_capture_outcome(bid, CAPTURE_SUCCEEDED)
+                except Exception:
+                    pass
+            paid_ledger = await self.db.payments.find_one(
+                {"serviceRequestId": service_request_id, "status": "charged"},
+                {"_id": 0},
+            )
+            if paid_ledger:
+                return {
+                    "success": True,
+                    "status": "charged",
+                    "message": "Pago ya registrado",
+                    "paymentId": paid_ledger["id"],
+                    "amount": paid_ledger.get("amount", amount),
+                    "short_circuit": True,
+                }
+            return {
+                "success": True,
+                "status": "charged",
+                "message": "Ledger indica cobro exitoso previo (exactly-once lógico)",
+                "short_circuit": True,
+                "ledger_replay": True,
+            }
+
+        paid = await self.db.payments.find_one(
+            {"serviceRequestId": service_request_id, "status": "charged"},
+            {"_id": 0},
+        )
+        if paid:
+            if bid:
+                try:
+                    await self._intents.set_payment_capture_outcome(bid, CAPTURE_SUCCEEDED)
+                except Exception:
+                    pass
+            return {
+                "success": True,
+                "status": "charged",
+                "message": "Pago ya registrado",
+                "paymentId": paid["id"],
+                "amount": paid.get("amount", amount),
+                "short_circuit": True,
+            }
+
+        intent: Optional[dict] = None
+        if payment_intent_id:
+            intent = await self.db.payment_intents.find_one({"id": payment_intent_id}, {"_id": 0})
+            if intent and not bid:
+                bid = intent.get("booking_id")
+        elif bid:
+            intent = await self._intents.get_by_booking_id(bid)
+
+        claimed = False
+        if intent and bid:
+            cap = intent.get("payment_capture_status") or "idle"
+            if cap == CAPTURE_SUCCEEDED:
+                return await self._charge_result_if_already_charged(service_request_id, amount)
+            if cap == CAPTURE_PROCESSING:
+                intent = await self._wait_capture_not_processing(bid)
+                cap = (intent or {}).get("payment_capture_status") or "idle"
+                if cap == CAPTURE_SUCCEEDED:
+                    return await self._charge_result_if_already_charged(service_request_id, amount)
+
+            for _ in range(8):
+                claimed, cur = await self._intents.claim_payment_capture(bid)
+                if claimed:
+                    intent = cur
+                    break
+                cap2 = (cur or {}).get("payment_capture_status") or "idle"
+                if cap2 == CAPTURE_SUCCEEDED:
+                    return await self._charge_result_if_already_charged(service_request_id, amount)
+                if cap2 == CAPTURE_PROCESSING:
+                    await self._wait_capture_not_processing(bid, timeout=5.0)
+                await asyncio.sleep(0.08)
+            else:
+                await append_event(
+                    self.db,
+                    EVT_CHARGE_FAILURE,
+                    {
+                        "service_request_id": service_request_id,
+                        "booking_id": bid,
+                        "scope": scope,
+                        "endpoint": endpoint,
+                        "error": "CHARGE_LOCK_FAILED",
+                    },
+                )
+                return {
+                    "success": False,
+                    "status": "failed",
+                    "message": "No se pudo obtener bloqueo de captura (payment_intent)",
+                    "error": "CHARGE_LOCK_FAILED",
+                }
+
+        ledger_base = {
+            "service_request_id": service_request_id,
+            "client_id": client_id,
+            "amount": amount,
+            "booking_id": bid,
+            "scope": scope,
+            "endpoint": endpoint,
+            "claimed_capture": claimed,
+        }
+        await record_charge_attempt(
+            self.db, service_request_id, scope=scope, endpoint=endpoint
+        )
+        await append_event(self.db, EVT_CHARGE_ATTEMPT, ledger_base)
+        try:
+            result = await self._execute_payment_charge_body(
+                service_request_id,
+                client_id,
+                amount,
+                ledger_context=ledger_base,
+            )
+        except Exception as e:
+            await append_event(
+                self.db,
+                EVT_CHARGE_FAILURE,
+                {**ledger_base, "error": type(e).__name__, "message": str(e)[:500]},
+            )
+            await record_charge_failure(
+                self.db, service_request_id, scope=scope, endpoint=endpoint
+            )
+            if claimed and bid:
+                try:
+                    await self._intents.set_payment_capture_outcome(bid, CAPTURE_FAILED)
+                except Exception as e:
+                    logger.warning("set_payment_capture_outcome failed: %s", e)
+            raise
+
+        if result.get("success"):
+            await append_event(
+                self.db,
+                EVT_CHARGE_SUCCESS,
+                {
+                    **ledger_base,
+                    "payment_id": result.get("paymentId"),
+                    "short_circuit": result.get("short_circuit"),
+                },
+            )
+            await record_charge_success(
+                self.db, service_request_id, scope=scope, endpoint=endpoint
+            )
+            if claimed and bid:
+                try:
+                    await self._intents.set_payment_capture_outcome(bid, CAPTURE_SUCCEEDED)
+                except Exception as e:
+                    logger.warning("set_payment_capture_outcome success: %s", e)
+        else:
+            await append_event(
+                self.db,
+                EVT_CHARGE_FAILURE,
+                {
+                    **ledger_base,
+                    "error": result.get("error"),
+                    "status": result.get("status"),
+                },
+            )
+            await record_charge_failure(
+                self.db, service_request_id, scope=scope, endpoint=endpoint
+            )
+            if claimed and bid:
+                try:
+                    await self._intents.set_payment_capture_outcome(bid, CAPTURE_FAILED)
+                except Exception as e:
+                    logger.warning("set_payment_capture_outcome fail: %s", e)
+        return result
+
     async def charge_service(
         self,
         service_request_id: str,
         client_id: str,
-        amount: float
+        amount: float,
     ) -> dict:
-        """
-        Cobra el monto completo del servicio.
-        SOLO se llama cuando el proveedor acepta.
-        
-        Args:
-            service_request_id: ID de la solicitud
-            client_id: ID del cliente
-            amount: Monto a cobrar
-            
-        Returns:
-            Resultado del cobro
-        """
+        """Compat: delega en execute_payment_charge."""
+        return await self.execute_payment_charge(
+            service_request_id=service_request_id,
+            payment_intent_id=None,
+            client_id=client_id,
+            amount=amount,
+            booking_id=None,
+            scope="charge_service",
+            endpoint="payment_service.charge_service",
+        )
+
+    async def _execute_payment_charge_body(
+        self,
+        service_request_id: str,
+        client_id: str,
+        amount: float,
+        *,
+        ledger_context: Optional[dict] = None,
+    ) -> dict:
+        """Persistencia de cobro tras autorización del proveedor (TBK o simulado)."""
+        lc = ledger_context or {}
         now = datetime.now(timezone.utc)
         
         # Verificar que no se haya cobrado antes
         existing_charge = await self.db.payments.find_one({
-            'serviceRequestId': service_request_id,
-            'status': 'charged'
+            "serviceRequestId": service_request_id,
+            "status": "charged",
         })
-        
         if existing_charge:
-            logger.warning(f"Intento de doble cobro para servicio {service_request_id}")
+            logger.warning("Doble cobro evitado (fila payments) service=%s", service_request_id)
             return {
-                'success': False,
-                'status': 'failed',
-                'message': 'El servicio ya fue cobrado',
-                'error': 'ALREADY_CHARGED'
+                "success": True,
+                "status": "charged",
+                "message": "Pago ya registrado",
+                "paymentId": existing_charge["id"],
+                "amount": existing_charge.get("amount", amount),
+                "short_circuit": True,
             }
         
         # Obtener credenciales OneClick (por email del cliente)
@@ -165,12 +445,28 @@ class PaymentService:
         buy_order = f"MAQ-{service_request_id[:8]}-{int(now.timestamp())}"
         if oneclick and oneclick.get('tbk_user') and oneclick.get('username'):
             try:
-                from services.oneclick_service import authorize_payment as tbk_authorize
-                tbk_response = tbk_authorize(
+                await append_event(
+                    self.db,
+                    EVT_PROVIDER_CALL_EXECUTED,
+                    {
+                        **lc,
+                        "mode": "oneclick_authorize",
+                        "buy_order": buy_order,
+                        "amount_clp": int(round(amount)),
+                    },
+                )
+                tbk_response = provider_oneclick_authorize(
                     username=oneclick['username'],
                     tbk_user=oneclick['tbk_user'],
                     buy_order=buy_order,
-                    amount=int(round(amount))
+                    amount=int(round(amount)),
+                )
+                await evidence_record_authorize(
+                    self.db,
+                    buy_order=buy_order,
+                    tbk_user=oneclick['tbk_user'],
+                    amount=int(round(amount)),
+                    result=tbk_response if isinstance(tbk_response, dict) else {},
                 )
                 # Transbank Mall: details[0].response_code 0 = aprobado (snake_case o camelCase)
                 details = tbk_response.get('details') or []
@@ -198,12 +494,30 @@ class PaymentService:
                     "Cobro rechazado sin OneClick en modo real",
                     extra={"client_id": client_id, "service_request_id": service_request_id},
                 )
+                await append_event(
+                    self.db,
+                    EVT_PROVIDER_CALL_EXECUTED,
+                    {**lc, "mode": "skipped", "reason": "ONECLICK_REQUIRED"},
+                )
+                await append_dead_letter_payment(
+                    self.db,
+                    reason="ONECLICK_REQUIRED_NO_INSCRIPTION",
+                    payload={
+                        **lc,
+                        "client_id": client_id,
+                    },
+                )
                 return {
                     'success': False,
                     'status': 'failed',
                     'message': 'El cliente no tiene tarjeta inscrita para cobro real',
                     'error': 'ONECLICK_REQUIRED'
                 }
+            await append_event(
+                self.db,
+                EVT_PROVIDER_CALL_EXECUTED,
+                {**lc, "mode": "simulated_charge", "buy_order": buy_order},
+            )
             logger.info(f"Sin OneClick para cliente {client_id}, usando flujo simulado")
 
         # Órdenes TBK: guardar padre + detalle Mall (el reembolso exige detail_buy_order correcto)
@@ -240,8 +554,27 @@ class PaymentService:
             'tbkDetailBuyOrder': detail_bo,
         }
         
-        await self.db.payments.insert_one(payment)
-        
+        try:
+            await self.db.payments.insert_one(payment)
+        except DuplicateKeyError:
+            existing = await self.db.payments.find_one(
+                {'serviceRequestId': service_request_id, 'status': 'charged'},
+                {'_id': 0},
+            )
+            if existing:
+                logger.warning(
+                    'Idempotencia cobro: servicio %s ya tenía pago charged; no se duplica TBK',
+                    service_request_id,
+                )
+                return {
+                    'success': True,
+                    'status': 'charged',
+                    'message': 'Pago ya registrado',
+                    'paymentId': existing['id'],
+                    'amount': existing.get('amount', amount),
+                }
+            raise
+
         # Actualizar estado de pago en la solicitud
         await self.db.service_requests.update_one(
             {'id': service_request_id},
@@ -264,6 +597,26 @@ class PaymentService:
             'paymentId': payment['id'],
             'amount': amount
         }
+
+    async def charge_for_accept(
+        self,
+        service_request_id: str,
+        client_id: str,
+        amount: float,
+        booking_id: Optional[str] = None,
+    ) -> dict:
+        """
+        Cobro disparado al aceptar proveedor (payment_intent + execute_payment_charge).
+        """
+        return await self.execute_payment_charge(
+            service_request_id=service_request_id,
+            payment_intent_id=None,
+            client_id=client_id,
+            amount=amount,
+            booking_id=booking_id,
+            scope="accept",
+            endpoint="payment_service.charge_for_accept",
+        )
     
     async def rollback_charge(
         self,
@@ -305,6 +658,7 @@ class PaymentService:
         if buy_order and amount > 0:
             try:
                 from services.oneclick_service import refund_payment as tbk_refund
+
                 tbk_refund(
                     buy_order=buy_order,
                     detail_buy_order=detail_buy_order,

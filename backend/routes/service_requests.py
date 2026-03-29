@@ -1,25 +1,42 @@
-from fastapi import APIRouter, HTTPException, Body, Depends, status
+import uuid
+
+from fastapi import APIRouter, HTTPException, Body, Depends, status, Request
+from fastapi.responses import JSONResponse
 from typing import List, Optional
+
+from pydantic import BaseModel
 
 from auth_dependency import get_current_user, get_current_admin
 from models.service_request import ServiceRequest, ServiceRequestCreate, Location, calculate_commissions
 from pricing.business_rules import LATE_CANCELLATION_FEE_PERCENT
 from services.utils import haversine_meters
 from services.matching_service import (
-    start_matching, 
-    handle_offer_response, 
+    start_matching,
+    handle_offer_response,
     handle_offer_expired,
-    MATCHING_CONFIG
+    revert_confirmed_offer_after_payment_failure,
+    MATCHING_CONFIG,
 )
 from services.payment_service import PaymentService
 from services.timer_service import TimerService
 from services.refund_request_service import RefundRequestService
+from services.idempotency import run_idempotent, get_tenant_id
+from services.payment_intent_service import PaymentIntentService, PI_PAYMENT_PENDING, PI_PROVIDER_ACCEPTED
+from services.payment_metrics_store import ensure_indexes as ensure_payment_metrics_indexes
+from services.payment_rollout import (
+    idempotency_mode_header_value,
+    persist_idempotency_key_resolution,
+    record_booking_id_supplied,
+    record_legacy_booking_id_generated,
+    resolve_idempotency_key,
+)
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ServerSelectionTimeoutError
 from datetime import datetime, timezone
 
 from db_config import get_db_name, get_mongo_url
 import logging
+from rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +46,32 @@ mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
 
+# Índices para rutas consultadas por polling:
+# - /pending filtra por status y currentOfferId
+# - /{request_id} usa find_one por id
+try:
+    ensure_payment_metrics_indexes(db)
+except Exception:
+    pass
+
+try:
+    db.service_requests.create_index([("id", 1)])
+    db.service_requests.create_index([("bookingId", 1)], sparse=True, name="idx_booking_id")
+    db.service_requests.create_index([("status", 1), ("currentOfferId", 1)])
+    db.service_requests.create_index([("offerExpiresAt", 1)])
+    # Un solo cobro "charged" por solicitud (idempotencia ante requests concurrentes)
+    db.payments.create_index(
+        [("serviceRequestId", 1)],
+        unique=True,
+        partialFilterExpression={"status": "charged"},
+        name="uniq_charged_per_service_request",
+    )
+except Exception:
+    pass
+
 # Servicios
 payment_service = PaymentService(db)
+payment_intent_service = PaymentIntentService(db)
 timer_service = TimerService(db)
 refund_request_service = RefundRequestService(db)
 
@@ -83,6 +124,13 @@ def _assert_can_read_service(user: dict, req: dict) -> None:
         )
 
 
+class AssignedOperatorUpdate(BaseModel):
+    """Payload desde app proveedor tras elegir operador (SelectOperator)."""
+    nombre: Optional[str] = None
+    apellido: Optional[str] = None
+    rut: Optional[str] = None
+
+
 def _assert_assigned_provider(user: dict, req: dict) -> None:
     pid = req.get("providerId")
     if not pid or not _provider_matches_user(user, pid):
@@ -94,93 +142,155 @@ def _assert_assigned_provider(user: dict, req: dict) -> None:
 
 @router.post("", response_model=dict)
 async def create_service_request(
-    request: ServiceRequestCreate,
-    current_user: dict = Depends(get_current_user)
+    req: Request,
+    payload: ServiceRequestCreate,
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Crear nueva solicitud de servicio.
-    El cliente debe haber aceptado la jornada (workdayAccepted=true).
-    Inmediatamente inicia el proceso de matching.
-    NO se cobra en este momento.
-    Solo el cliente autenticado puede crear solicitudes a su nombre.
+    Idempotency-Key: resuelta con resolve_idempotency_key(req, ...) (header opcional en modo compatible).
     """
-    if request.clientId and request.clientId != current_user.get("id"):
-        raise HTTPException(
-            status_code=403,
-            detail="Solo puedes crear solicitudes a tu nombre"
-        )
-    # Verificar que aceptó la jornada
-    if not request.workdayAccepted:
-        raise HTTPException(
-            status_code=400, 
-            detail="Debes aceptar la jornada de trabajo para continuar"
-        )
+    idempotency_key, key_legacy = resolve_idempotency_key(req, "create")
+    await persist_idempotency_key_resolution(
+        db,
+        scope="create",
+        endpoint=str(req.url.path),
+        was_auto_generated=key_legacy,
+        generated_key_prefix=idempotency_key if key_legacy else "",
+    )
+    body_hash = payload.model_dump()
 
-    # Asegurar que el cliente existe en users (para cobro OneClick por email)
-    existing = await db.users.find_one({'id': request.clientId}, {'_id': 0})
-    if not existing and request.clientEmail:
-        await db.users.insert_one({
-            'id': request.clientId,
-            'email': request.clientEmail,
-            'name': request.clientName or 'Cliente MAQGO',
-            'role': 'client',
-            'createdAt': datetime.now(timezone.utc).isoformat(),
-        })
-        logger.info(f"Usuario cliente creado: {request.clientId}")
-    
-    # Calcular comisiones con IVA (para desglose; el cobro usa total confirmado si viene)
-    commissions = calculate_commissions(request.basePrice, request.transportFee)
+    async def execute() -> tuple[int, dict]:
+        if payload.clientId and payload.clientId != current_user.get("id"):
+            raise HTTPException(
+                status_code=403,
+                detail="Solo puedes crear solicitudes a tu nombre",
+            )
+        if not payload.workdayAccepted:
+            raise HTTPException(
+                status_code=400,
+                detail="Debes aceptar la jornada de trabajo para continuar",
+            )
 
-    # Excluir campos que ServiceRequest no tiene
-    create_data = {k: v for k, v in request.model_dump().items()
-                   if k not in ('transportFee', 'clientEmail', 'selectedProviderId', 'selectedProviderIds', 'totalAmount', 'needsInvoice')}
-    service_obj = ServiceRequest(**create_data)
-    service_obj.status = 'matching'
-    service_obj.paymentStatus = 'validated'  # Asumimos tarjeta ya validada
-    
-    # Total a cobrar: el que confirmó el cliente (con IVA si pidió factura) o el calculado sin factura
-    if request.totalAmount is not None and request.totalAmount > 0:
-        service_obj.totalAmount = float(request.totalAmount)
-    else:
-        service_obj.totalAmount = commissions['totalAmount']
-    service_obj.basePrice = commissions['basePrice']
-    service_obj.clientCommission = commissions['clientCommission']
-    service_obj.providerCommission = commissions['providerCommission']
-    service_obj.providerEarnings = commissions['providerEarnings']
-    service_obj.maqgoEarnings = commissions['maqgoEarnings']
-    service_obj.events = []
+        existing = await db.users.find_one({"id": payload.clientId}, {"_id": 0})
+        if not existing and payload.clientEmail:
+            await db.users.insert_one(
+                {
+                    "id": payload.clientId,
+                    "email": payload.clientEmail,
+                    "name": payload.clientName or "Cliente MAQGO",
+                    "role": "client",
+                    "createdAt": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            logger.info("Usuario cliente creado: %s", payload.clientId)
 
-    doc = service_obj.model_dump()
-    await db.service_requests.insert_one(doc)
-    
-    # Iniciar matching: si el cliente eligió proveedor(es), usar el primero; si no, buscar el mejor
-    chosen_id = request.selectedProviderId
-    if not chosen_id and request.selectedProviderIds and len(request.selectedProviderIds) > 0:
-        chosen_id = request.selectedProviderIds[0]
-    matching_result = await start_matching(db, service_obj.id, selected_provider_id=chosen_id)
-    
-    return {
-        'id': service_obj.id,
-        'status': matching_result.get('status', 'matching'),
-        'matching': matching_result,
-        'paymentStatus': 'validated',
-        'message': 'Buscando proveedor disponible...',
-        'pricing': {
-            # Lo que paga el cliente (con IVA si pidió factura)
-            'basePrice': commissions['basePrice'],
-            'clientCommission': commissions['clientCommission'],
-            'clientCommissionIVA': commissions['clientCommissionIVA'],
-            'totalClient': service_obj.totalAmount,
-            
-            # Lo que recibe el proveedor
-            'providerCommission': commissions['providerCommission'],
-            'providerCommissionIVA': commissions['providerCommissionIVA'],
-            'providerEarnings': commissions['providerEarnings'],
-            
-            # MAQGO
-            'maqgoEarnings': commissions['maqgoEarnings'],
+        commissions = calculate_commissions(payload.basePrice, payload.transportFee)
+
+        raw_bid = (payload.booking_id or "").strip()
+        if not raw_bid:
+            booking_id = str(uuid.uuid4())
+            await record_legacy_booking_id_generated(
+                db,
+                "create",
+                payload.clientId,
+                booking_id,
+                endpoint=str(req.url.path),
+            )
+        else:
+            booking_id = raw_bid
+            await record_booking_id_supplied(
+                db, scope="create", endpoint=str(req.url.path)
+            )
+
+        dump = payload.model_dump()
+        dump.pop("booking_id", None)
+        create_data = {
+            k: v
+            for k, v in dump.items()
+            if k
+            not in (
+                "transportFee",
+                "clientEmail",
+                "selectedProviderId",
+                "selectedProviderIds",
+                "totalAmount",
+                "needsInvoice",
+            )
         }
-    }
+        create_data["bookingId"] = booking_id
+
+        service_obj = ServiceRequest(**create_data)
+        service_obj.status = "matching"
+        service_obj.paymentStatus = "validated"
+
+        if payload.totalAmount is not None and payload.totalAmount > 0:
+            service_obj.totalAmount = float(payload.totalAmount)
+        else:
+            service_obj.totalAmount = commissions["totalAmount"]
+        service_obj.basePrice = commissions["basePrice"]
+        service_obj.clientCommission = commissions["clientCommission"]
+        service_obj.providerCommission = commissions["providerCommission"]
+        service_obj.providerEarnings = commissions["providerEarnings"]
+        service_obj.maqgoEarnings = commissions["maqgoEarnings"]
+        service_obj.events = []
+
+        doc = service_obj.model_dump()
+        await db.service_requests.insert_one(doc)
+
+        chosen_id = payload.selectedProviderId
+        if not chosen_id and payload.selectedProviderIds and len(payload.selectedProviderIds) > 0:
+            chosen_id = payload.selectedProviderIds[0]
+        matching_result = await start_matching(db, service_obj.id, selected_provider_id=chosen_id)
+
+        try:
+            if not await payment_intent_service.get_by_booking_id(booking_id):
+                await payment_intent_service.create_if_absent(
+                    booking_id=booking_id,
+                    client_id=payload.clientId,
+                    state=PI_PAYMENT_PENDING,
+                )
+            await payment_intent_service.set_state(
+                booking_id,
+                PI_PAYMENT_PENDING,
+                last_idempotency_key=idempotency_key,
+                service_request_id=service_obj.id,
+            )
+        except Exception as e:
+            logger.warning("payment_intent update (non-fatal): %s", e)
+
+        out = {
+            "id": service_obj.id,
+            "booking_id": booking_id,
+            "status": matching_result.get("status", "matching"),
+            "matching": matching_result,
+            "paymentStatus": "validated",
+            "message": "Buscando proveedor disponible...",
+            "pricing": {
+                "basePrice": commissions["basePrice"],
+                "clientCommission": commissions["clientCommission"],
+                "clientCommissionIVA": commissions["clientCommissionIVA"],
+                "totalClient": service_obj.totalAmount,
+                "providerCommission": commissions["providerCommission"],
+                "providerCommissionIVA": commissions["providerCommissionIVA"],
+                "providerEarnings": commissions["providerEarnings"],
+                "maqgoEarnings": commissions["maqgoEarnings"],
+            },
+        }
+        return 200, out
+
+    code, payload = await run_idempotent(
+        db,
+        tenant_id=get_tenant_id(),
+        idempotency_key=idempotency_key,
+        scope="create",
+        endpoint=str(req.url.path),
+        body_for_hash=body_hash,
+        execute=execute,
+    )
+    r = JSONResponse(content=payload, status_code=code)
+    r.headers["X-Idempotency-Mode"] = idempotency_mode_header_value(key_legacy)
+    return r
 
 @router.get("", response_model=List[dict])
 async def get_service_requests(
@@ -223,7 +333,9 @@ async def get_service_requests(
         return []
 
 @router.get("/pending", response_model=List[dict])
+@limiter.limit("60/minute")
 async def get_pending_requests_for_provider(
+    request: Request,
     providerId: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
 ):
@@ -254,6 +366,9 @@ async def get_pending_requests_for_provider(
         logger.warning("MongoDB no disponible en /pending")
         return []
     
+    # Best practice: este endpoint debe ser "read-only".
+    # La expiración de ofertas y el avance al siguiente proveedor la ejecuta el scheduler (TimerService),
+    # no un GET llamado por polling desde el frontend.
     active_requests = []
     for req in requests:
         expires_at_str = req.get('offerExpiresAt')
@@ -265,15 +380,17 @@ async def get_pending_requests_for_provider(
                     req['remainingSeconds'] = max(0, int(remaining))
                     active_requests.append(req)
                 else:
-                    # Oferta expirada
-                    await handle_offer_expired(db, req['id'], req.get('currentOfferId'))
+                    # Oferta expirada: se ignora aquí. El scheduler se encarga de expirar y re-match.
+                    pass
             except:
                 pass
     
     return active_requests
 
 @router.get("/{request_id}", response_model=dict)
+@limiter.limit("120/minute")
 async def get_service_request(
+    request: Request,
     request_id: str,
     current_user: dict = Depends(get_current_user),
 ):
@@ -298,56 +415,93 @@ async def get_service_request(
 @router.put("/{request_id}/accept", response_model=dict)
 async def accept_service_request(
     request_id: str,
+    req: Request,
     body: dict = Body(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Proveedor acepta la solicitud.
     ESTO DISPARA EL COBRO AL CLIENTE.
-    Solo el proveedor con oferta activa puede aceptar.
+    Idempotency-Key: resolve_idempotency_key(req, ...) (legacy si falta).
     """
-    provider_id = body.get('providerId')
+    idempotency_key, key_legacy = resolve_idempotency_key(req, "accept")
+    await persist_idempotency_key_resolution(
+        db,
+        scope="accept",
+        endpoint=str(req.url.path),
+        was_auto_generated=key_legacy,
+        generated_key_prefix=idempotency_key if key_legacy else "",
+    )
+
+    provider_id = body.get("providerId")
     if not provider_id:
         raise HTTPException(status_code=400, detail="providerId requerido")
-    
-    request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
-    if not request:
-        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-    
-    offered_provider_id = request.get('currentOfferId')
-    if not offered_provider_id:
-        raise HTTPException(status_code=400, detail="No hay oferta activa")
-    if not _provider_matches_user(current_user, offered_provider_id):
-        raise HTTPException(status_code=403, detail="Solo puedes aceptar ofertas dirigidas a ti")
-    
-    if request.get('status') != 'offer_sent':
-        raise HTTPException(status_code=400, detail="Esta solicitud ya no está disponible")
-    
-    # Procesar aceptación (esto incluye el cobro)
-    result = await handle_offer_response(db, request_id, offered_provider_id, accepted=True)
-    
-    # Cobrar al cliente
-    if result.get('status') == 'confirmed':
-        payment_result = await payment_service.charge_service(
-            request_id,
-            request['clientId'],
-            request['totalAmount']
-        )
-        
-        if not payment_result.get('success'):
-            # Rollback si falla el pago
-            await payment_service.rollback_charge(request_id, 'payment_failed')
-            error_code = payment_result.get('error') or 'PAYMENT_FAILED'
-            if error_code == 'ONECLICK_REQUIRED':
-                raise HTTPException(
-                    status_code=409,
-                    detail="Cliente sin tarjeta registrada en OneClick para cobro real"
-                )
-            raise HTTPException(status_code=400, detail="Error procesando el pago")
-        
-        result['payment'] = payment_result
-    
-    return result
+
+    body_hash = {"request_id": request_id, "providerId": provider_id}
+
+    async def execute() -> tuple[int, dict]:
+        req = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
+        if not req:
+            raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+        offered_provider_id = req.get("currentOfferId")
+        if not offered_provider_id:
+            raise HTTPException(status_code=400, detail="No hay oferta activa")
+        if not _provider_matches_user(current_user, offered_provider_id):
+            raise HTTPException(status_code=403, detail="Solo puedes aceptar ofertas dirigidas a ti")
+
+        if req.get("status") != "offer_sent":
+            raise HTTPException(status_code=400, detail="Esta solicitud ya no está disponible")
+
+        result = await handle_offer_response(db, request_id, offered_provider_id, accepted=True)
+
+        if result.get("status") == "confirmed":
+            payment_result = await payment_service.charge_for_accept(
+                request_id,
+                req["clientId"],
+                req["totalAmount"],
+                booking_id=req.get("bookingId"),
+            )
+
+            if not payment_result.get("success"):
+                await revert_confirmed_offer_after_payment_failure(db, request_id, offered_provider_id)
+                await payment_service.rollback_charge(request_id, "payment_failed")
+                error_code = payment_result.get("error") or "PAYMENT_FAILED"
+                if error_code == "ONECLICK_REQUIRED":
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Cliente sin tarjeta registrada en OneClick para cobro real",
+                    )
+                raise HTTPException(status_code=400, detail="Error procesando el pago")
+
+            result["payment"] = payment_result
+            booking_id = req.get("bookingId")
+            if booking_id:
+                try:
+                    await payment_intent_service.set_state(
+                        booking_id,
+                        PI_PROVIDER_ACCEPTED,
+                        last_idempotency_key=idempotency_key,
+                        service_request_id=request_id,
+                        extra_set={"payment_authorized": True},
+                    )
+                except Exception as e:
+                    logger.warning("payment_intent accept update: %s", e)
+
+        return 200, result
+
+    code, payload = await run_idempotent(
+        db,
+        tenant_id=get_tenant_id(),
+        idempotency_key=idempotency_key,
+        scope="accept",
+        endpoint=str(req.url.path),
+        body_for_hash=body_hash,
+        execute=execute,
+    )
+    r = JSONResponse(content=payload, status_code=code)
+    r.headers["X-Idempotency-Mode"] = idempotency_mode_header_value(key_legacy)
+    return r
 
 @router.put("/{request_id}/cancel", response_model=dict)
 async def cancel_service_client(
@@ -485,6 +639,49 @@ async def reject_service_request(
     result = await handle_offer_response(db, request_id, provider_id, accepted=False)
     
     return result
+
+@router.patch("/{request_id}/assigned-operator", response_model=dict)
+async def patch_assigned_operator(
+    request_id: str,
+    body: AssignedOperatorUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Persiste nombre/RUT del operador asignado para que el cliente los vea vía GET service-requests.
+    Llamar tras seleccionar operador en el flujo proveedor (p. ej. SelectOperatorScreen).
+    """
+    req = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
+    if not req:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    _assert_assigned_provider(current_user, req)
+    st = (req.get("status") or "").lower()
+    if st not in ("confirmed", "in_progress", "last_30"):
+        raise HTTPException(
+            status_code=400,
+            detail="Estado no permite actualizar operador",
+        )
+
+    nombre = (body.nombre or "").strip()
+    apellido = (body.apellido or "").strip()
+    rut_raw = body.rut
+    rut = rut_raw.strip() if rut_raw else ""
+
+    update: dict = {}
+    if nombre:
+        update["operatorFirstName"] = nombre
+    if apellido:
+        update["operatorLastName"] = apellido
+    if rut:
+        update["operatorRut"] = rut
+    if nombre or apellido:
+        update["providerOperatorName"] = f"{nombre} {apellido}".strip()
+
+    if not update:
+        return {"success": True, "message": "Sin cambios"}
+
+    await db.service_requests.update_one({"id": request_id}, {"$set": update})
+    return {"success": True}
+
 
 @router.post("/{request_id}/mark-arrival", response_model=dict)
 async def mark_arrival(

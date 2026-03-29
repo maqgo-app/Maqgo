@@ -5,6 +5,7 @@
 
 import BACKEND_URL from './api';
 import { getObject } from './safeStorage';
+import { getBookingLocationLineOrEmpty } from './mapPlaceToAddress';
 
 // Pasos del flujo de reserva del cliente
 const BOOKING_STEPS = {
@@ -47,7 +48,7 @@ export const saveBookingProgress = (step, data = {}) => {
       ...data,
       machinery: localStorage.getItem('selectedMachinery'),
       hours: localStorage.getItem('selectedHours'),
-      location: localStorage.getItem('serviceLocation'),
+      location: getBookingLocationLineOrEmpty(),
       reservationType: localStorage.getItem('reservationType')
     }
   };

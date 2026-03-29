@@ -10,6 +10,7 @@ import os
 import random
 import logging
 from typing import Optional, Tuple
+from urllib.parse import urlparse
 import requests
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,36 @@ OTP_EXPIRY_SECONDS = 300  # 5 minutos
 OTP_MAX_ATTEMPTS = 3
 RATE_LIMIT_WINDOW = 600  # 10 minutos
 RATE_LIMIT_MAX = 3  # máx 3 OTP por número cada 10 min
-SMS_MESSAGE = "Tu código MAQGO es: {otp}"
+
+def _extract_host(url_or_host: str) -> str:
+    raw = (url_or_host or '').strip()
+    if not raw:
+        return ''
+    if '://' not in raw:
+        return raw.split('/')[0].split(':')[0]
+    parsed = urlparse(raw)
+    host = parsed.netloc or parsed.path
+    return (host or '').split('/')[0].split(':')[0]
+
+
+def _get_webotp_domains() -> list[str]:
+    """
+    Web OTP requiere que el SMS contenga un token con formato `@dominio`.
+    Usamos el dominio del frontend para aumentar compatibilidad.
+    """
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://www.maqgo.cl')
+    host = _extract_host(frontend_url)
+    if not host:
+        host = 'www.maqgo.cl'
+    root = host[4:] if host.startswith('www.') else host
+    domains = [host]
+    if root and root != host:
+        domains.append(root)
+    return domains
+
+
+WEBOTP_DOMAINS = _get_webotp_domains()
+SMS_MESSAGE = "Tu código MAQGO es: {otp}. Válido por 5 minutos."
 
 REDIS_URL = os.environ.get("REDIS_URL", "")
 LABSMOBILE_USERNAME = os.environ.get("LABSMOBILE_USERNAME", "")

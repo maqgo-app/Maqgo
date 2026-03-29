@@ -8,7 +8,7 @@ Lógica de matching:
 - Timeout: 90 segundos para que responda alguno.
 - Máximo: 5 proveedores notificados por solicitud.
 """
-from typing import List, Optional, Tuple, Any
+from typing import List, Optional, Tuple, Any, Dict
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import math
@@ -49,6 +49,46 @@ def _get_operator_display_name(provider: dict) -> str:
     if owner_name and owner_name != provider.get('providerData', {}).get('businessName'):
         return owner_name
     return 'Operador'
+
+
+def _get_operator_rut_for_service(provider: Optional[dict]) -> Optional[str]:
+    """RUT del operador en faena (misma fuente aproximada que el nombre)."""
+    if not provider:
+        return None
+    ops = provider.get('machineData', {}).get('operators', [])
+    if ops and isinstance(ops, list) and len(ops) > 0:
+        first = ops[0]
+        if isinstance(first, dict):
+            raw = first.get('rut') or first.get('operator_rut') or first.get('operatorRut')
+            if raw:
+                s = str(raw).strip()
+                if s and s.lower() not in ('no registrado', 'sin rut', '-'):
+                    return s
+    pd = provider.get('providerData') or {}
+    for key in ('defaultOperatorRut', 'operatorRut', 'operator_rut'):
+        raw = pd.get(key)
+        if raw:
+            s = str(raw).strip()
+            if s:
+                return s
+    return None
+
+
+def _get_operator_name_parts_for_service(provider: Optional[dict]) -> Tuple[Optional[str], Optional[str]]:
+    """nombre, apellido si vienen explícitos en machineData.operators[0]."""
+    if not provider:
+        return None, None
+    ops = provider.get('machineData', {}).get('operators', [])
+    if not ops or not isinstance(ops, list) or len(ops) < 1:
+        return None, None
+    first = ops[0]
+    if not isinstance(first, dict):
+        return None, None
+    n = first.get('nombre') or first.get('firstName')
+    a = first.get('apellido') or first.get('lastName')
+    if n or a:
+        return (str(n).strip() if n else None, str(a).strip() if a else None)
+    return None, None
 
 
 def _get_license_plate_for_service(provider: Optional[dict]) -> Optional[str]:
@@ -304,7 +344,12 @@ async def start_matching(
     if not request:
         return {'error': 'Solicitud no encontrada'}
     
-    excluded_ids = [a['providerId'] for a in request.get('matchingAttempts', [])]
+    # No excluir intentos con fallo de pago post-aceptación: el proveedor puede volver a recibir oferta.
+    excluded_ids = [
+        a['providerId']
+        for a in request.get('matchingAttempts', [])
+        if a.get('status') != 'payment_failed'
+    ]
     
     if len(excluded_ids) >= MATCHING_CONFIG['max_attempts']:
         await db.service_requests.update_one(
@@ -390,27 +435,34 @@ async def handle_offer_response(
         # Cliente ve solo operador, nunca empresa (providerName interno para facturas)
         operator_display = _get_operator_display_name(provider) if provider else 'Operador'
         license_plate = _get_license_plate_for_service(provider)
+        operator_rut = _get_operator_rut_for_service(provider)
+        op_first, op_last = _get_operator_name_parts_for_service(provider)
+
+        # paymentStatus=charging hasta que PaymentService.charge_service confirme TBK (evita "cobrado" sin pago).
+        set_confirmed: Dict[str, Any] = {
+            'status': 'confirmed',
+            'providerId': provider_id,
+            'providerName': provider.get('providerData', {}).get('businessName', 'Proveedor') if provider else 'Proveedor',
+            'providerOperatorName': operator_display,
+            **({'license_plate': license_plate} if license_plate else {}),
+            'confirmedAt': now.isoformat(),
+            'startTime': now.isoformat(),
+            'endTime': end_time.isoformat(),
+            'last30Time': last_30_time.isoformat(),
+            'matchingAttempts.$[elem].status': 'accepted',
+            'paymentStatus': 'charging',
+        }
+        if operator_rut:
+            set_confirmed['operatorRut'] = operator_rut
+        if op_first:
+            set_confirmed['operatorFirstName'] = op_first
+        if op_last:
+            set_confirmed['operatorLastName'] = op_last
 
         result = await db.service_requests.update_one(
             {'id': service_request_id, 'currentOfferId': provider_id},
-            {
-                '$set': {
-                    'status': 'confirmed',
-                    'providerId': provider_id,
-                    'providerName': provider.get('providerData', {}).get('businessName', 'Proveedor') if provider else 'Proveedor',
-                    'providerOperatorName': operator_display,
-                    **({'license_plate': license_plate} if license_plate else {}),
-                    'confirmedAt': now.isoformat(),
-                    'startTime': now.isoformat(),
-                    'endTime': end_time.isoformat(),
-                    'last30Time': last_30_time.isoformat(),  # Para el scheduler
-                    'matchingAttempts.$[elem].status': 'accepted',
-                    # Estado de pago
-                    'paymentStatus': 'charged',
-                    'chargedAt': now.isoformat()
-                }
-            },
-            array_filters=[{'elem.providerId': provider_id}]
+            {'$set': set_confirmed},
+            array_filters=[{'elem.providerId': provider_id}],
         )
         
         # Actualizar proveedor como ocupado
@@ -422,15 +474,15 @@ async def handle_offer_response(
             }
         )
         
-        logger.info(f"Servicio {service_request_id} confirmado. Pago procesado. Fin: {end_time}")
+        logger.info(f"Servicio {service_request_id} confirmado (pago en proceso OneClick). Fin jornada: {end_time}")
         
         return {
             'status': 'confirmed',
-            'message': '¡Servicio confirmado! El pago ha sido procesado.',
+            'message': '¡Servicio confirmado! Procesando pago…',
             'providerId': provider_id,
             'startTime': now.isoformat(),
             'endTime': end_time.isoformat(),
-            'paymentStatus': 'charged'
+            'paymentStatus': 'charging'
         }
     else:
         # Proveedor rechazó
@@ -452,6 +504,95 @@ async def handle_offer_response(
         logger.info(f"Proveedor {provider_id} rechazó solicitud {service_request_id}")
         
         return await start_matching(db, service_request_id)
+
+
+async def revert_confirmed_offer_after_payment_failure(
+    db: AsyncIOMotorDatabase,
+    service_request_id: str,
+    provider_id: str,
+) -> None:
+    """
+    Si OneClick falla tras la aceptación del proveedor, deshace la confirmación:
+    - No dejar servicio en estado charged sin pago real
+    - Restaurar disponibilidad del proveedor
+    - Volver a matching para reintentar (el intento pasa a payment_failed y no bloquea re-oferta)
+    """
+    sr = await db.service_requests.find_one({"id": service_request_id}, {"_id": 0})
+    if not sr:
+        logger.warning("revert_confirmed_offer_after_payment_failure: solicitud %s no existe", service_request_id)
+        return
+    if sr.get("status") != "confirmed" or sr.get("paymentStatus") != "charging":
+        logger.warning(
+            "revert_confirmed_offer_after_payment_failure: estado inesperado id=%s status=%s pay=%s",
+            service_request_id,
+            sr.get("status"),
+            sr.get("paymentStatus"),
+        )
+        return
+
+    now = datetime.now(timezone.utc)
+    attempts = list(sr.get("matchingAttempts") or [])
+    for att in attempts:
+        if att.get("providerId") == provider_id and att.get("status") == "accepted":
+            att["status"] = "payment_failed"
+
+    unset_fields = [
+        "providerId",
+        "providerName",
+        "providerOperatorName",
+        "confirmedAt",
+        "startTime",
+        "endTime",
+        "last30Time",
+        "chargedAt",
+        "license_plate",
+        "operatorRut",
+        "operatorFirstName",
+        "operatorLastName",
+    ]
+
+    set_doc: Dict[str, Any] = {
+        "status": "matching",
+        "paymentStatus": "failed",
+        "paymentFailedAt": now.isoformat(),
+        "currentOfferId": None,
+        "offerExpiresAt": None,
+        "matchingAttempts": attempts,
+    }
+
+    res = await db.service_requests.update_one(
+        {"id": service_request_id, "status": "confirmed", "paymentStatus": "charging"},
+        {"$set": set_doc, "$unset": {k: "" for k in unset_fields}},
+    )
+    if res.matched_count == 0:
+        logger.warning(
+            "revert_confirmed_offer_after_payment_failure: no match al actualizar id=%s (condición charging)",
+            service_request_id,
+        )
+        return
+
+    prov = await db.users.find_one({"id": provider_id}, {"_id": 0, "acceptedServices": 1, "totalServices": 1})
+    if prov:
+        inc_accepted = -1 if (prov.get("acceptedServices") or 0) > 0 else 0
+        inc_total = -1 if (prov.get("totalServices") or 0) > 0 else 0
+        if inc_accepted or inc_total:
+            await db.users.update_one(
+                {"id": provider_id},
+                {"$inc": {"acceptedServices": inc_accepted, "totalServices": inc_total}, "$set": {"isAvailable": True}},
+            )
+        else:
+            await db.users.update_one({"id": provider_id}, {"$set": {"isAvailable": True}})
+    else:
+        logger.warning(
+            "revert_confirmed_offer_after_payment_failure: proveedor %s no encontrado al revertir stats",
+            provider_id,
+        )
+
+    try:
+        await start_matching(db, service_request_id)
+    except Exception as e:
+        logger.exception("revert_confirmed_offer_after_payment_failure: start_matching falló: %s", e)
+
 
 async def handle_offer_expired(
     db: AsyncIOMotorDatabase,

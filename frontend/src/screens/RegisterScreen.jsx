@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { TermsModal } from '../components/MaqgoComponents';
 import MaqgoLogo from '../components/MaqgoLogo';
 import PasswordField from '../components/PasswordField';
@@ -11,6 +11,9 @@ import { rememberLoginEmail } from '../utils/loginHints';
 import { getObject } from '../utils/safeStorage';
 import { clearClientRegistrationLocalState } from '../utils/clientRegistrationReset';
 
+/** Navegación desde Welcome/Login con cuenta nueva; también acepta `?nuevo=1` en la URL. */
+export const REGISTER_FRESH_STATE_KEY = 'freshClientRegistration';
+
 /**
  * C03 - Registro Cliente
  * Datos: nombre, apellido, correo, celular, RUT
@@ -19,6 +22,7 @@ import { clearClientRegistrationLocalState } from '../utils/clientRegistrationRe
 function RegisterScreen() {
   const DRAFT_KEY = 'clientRegisterDraft';
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -35,6 +39,26 @@ function RegisterScreen() {
   const passwordHint = getPasswordHint(true);
 
   useEffect(() => {
+    const fresh =
+      location.state?.[REGISTER_FRESH_STATE_KEY] === true ||
+      new URLSearchParams(location.search).get('nuevo') === '1';
+
+    if (fresh) {
+      clearClientRegistrationLocalState();
+      setForm({
+        nombre: '',
+        apellido: '',
+        email: '',
+        celular: '',
+        rut: '',
+        password: ''
+      });
+      setAccepted(false);
+      setErrors({ email: '', celular: '', rut: '', password: '' });
+      navigate({ pathname: location.pathname, search: '', hash: location.hash }, { replace: true, state: {} });
+      return;
+    }
+
     let loadedFromDraft = false;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
@@ -66,6 +90,8 @@ function RegisterScreen() {
         password: '',
       }));
     }
+    // Solo al montar: hidratar borrador o cuenta nueva; no re-ejecutar en cada cambio de location.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -206,6 +232,8 @@ function RegisterScreen() {
             style={{ marginBottom: 12 }}
             data-testid="register-nombre"
             aria-label="Nombre"
+            name="given-name"
+            autoComplete="given-name"
           />
 
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
@@ -219,6 +247,8 @@ function RegisterScreen() {
             style={{ marginBottom: 12 }}
             data-testid="register-apellido"
             aria-label="Apellido"
+            name="family-name"
+            autoComplete="family-name"
           />
           
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
@@ -233,6 +263,8 @@ function RegisterScreen() {
             style={{ marginBottom: 4 }}
             data-testid="register-email"
             aria-label="Correo electrónico"
+            name="email"
+            autoComplete="email"
           />
           {errors.email ? <p style={{ color: '#f44336', fontSize: 12, marginBottom: 8 }}>{errors.email}</p> : null}
           
@@ -260,6 +292,8 @@ function RegisterScreen() {
               value={form.celular}
               onChange={e => update('celular', e.target.value.replace(/\D/g, '').slice(0, 9))}
               aria-label="Celular"
+              name="tel-national"
+              autoComplete="tel-national"
               style={{
                 flex: 1,
                 padding: '14px 12px',

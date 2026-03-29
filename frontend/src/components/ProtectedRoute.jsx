@@ -3,7 +3,8 @@ import { Navigate, useLocation, Outlet } from 'react-router-dom';
 
 /**
  * Rutas públicas: no requieren sesión.
- * Cualquier otra ruta de cliente, proveedor u operador requiere userId en localStorage.
+ * Cualquier otra ruta de cliente, proveedor u operador requiere sesión persistida
+ * (token + userId) en localStorage.
  */
 const PUBLIC_PATHS = [
   '/',
@@ -35,7 +36,7 @@ function isPublicPath(pathname) {
 
 /**
  * Layout que protege rutas según sesión.
- * Rutas públicas → pasan. Rutas protegidas sin userId → redirige a Welcome.
+ * Rutas públicas → pasan. Rutas protegidas sin sesión válida → redirige a login.
  */
 function ProtectedRoute() {
   const location = useLocation();
@@ -46,7 +47,8 @@ function ProtectedRoute() {
   }
 
   const userId = localStorage.getItem('userId');
-  if (!userId) {
+  const token = localStorage.getItem('token');
+  if (!userId || !token) {
     // Mantener UX: si venían de Welcome y no hay sesión,
     // enviar a /login y al loguearse redirigir al destino original.
     return <Navigate to="/login" state={{ from: pathname, redirect: pathname }} replace />;

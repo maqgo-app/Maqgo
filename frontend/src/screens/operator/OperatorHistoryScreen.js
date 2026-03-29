@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import { fetchWithAuth } from '../../utils/api';
 
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
@@ -36,7 +37,7 @@ function OperatorHistoryScreen() {
   async function fetchServices() {
     try {
       const operatorId = localStorage.getItem('userId');
-      const response = await fetch(`${BACKEND_URL}/api/services/provider/${operatorId}?user_role=operator`);
+      const response = await fetchWithAuth(`${BACKEND_URL}/api/services/provider/${operatorId}?user_role=operator`);
       const data = await response.json();
       const serviceList = data.services || [];
       setServices(serviceList);

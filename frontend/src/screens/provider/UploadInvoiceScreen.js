@@ -3,7 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
 import { MAQGO_BILLING } from '../../utils/commissions';
-import { fetchWithTimeout } from '../../utils/api';
+import { fetchWithAuth } from '../../utils/api';
 
 import BACKEND_URL from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
@@ -43,7 +43,7 @@ function UploadInvoiceScreen() {
       if (serviceId) {
         try {
           const FAST_FALLBACK_MS = 2500;
-          const fetchPromise = fetchWithTimeout(`${BACKEND_URL}/api/services/${serviceId}`, {}, 6000)
+          const fetchPromise = fetchWithAuth(`${BACKEND_URL}/api/services/${serviceId}`, {}, 6000)
             .then(r => r.json())
             .then(d => normalizeServiceFromApi(d));
           const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
@@ -172,7 +172,7 @@ function UploadInvoiceScreen() {
       reader.onloadend = async () => {
         const base64 = reader.result;
         if (serviceId) {
-          const response = await fetch(`${BACKEND_URL}/api/services/${serviceId}/invoice`, {
+          const response = await fetchWithAuth(`${BACKEND_URL}/api/services/${serviceId}/invoice`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWithTimeout } from '../../utils/api';
+import { fetchWithAuth } from '../../utils/api';
 import { HistoryListSkeleton } from '../../components/ListSkeleton';
 
 import BACKEND_URL from '../../utils/api';
@@ -21,7 +21,7 @@ function ProviderHistoryScreen() {
     const FAST_FALLBACK_MS = 2500;
     const providerId = localStorage.getItem('providerId') || localStorage.getItem('userId') || 'demo-provider-001';
     try {
-      const fetchPromise = fetchWithTimeout(`${BACKEND_URL}/api/services/provider/${providerId}`, {}, 6000)
+      const fetchPromise = fetchWithAuth(`${BACKEND_URL}/api/services/provider/${providerId}`, {}, 6000)
         .then(r => r.json())
         .then(d => d.services || []);
       const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));

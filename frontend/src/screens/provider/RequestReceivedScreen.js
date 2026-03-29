@@ -7,8 +7,11 @@ import { vibrate } from '../../utils/uberUX';
 import { ProviderRequestExpired } from '../../components/ErrorStates';
 
 import BACKEND_URL from '../../utils/api';
+import { idempotencyKey } from '../../utils/bookingPaymentKeys';
+import { syncAssignedOperatorToApi } from '../../utils/syncAssignedOperatorToApi';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { IMMEDIATE_MULTIPLIERS } from '../../utils/pricing';
+import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 const MIN_HOURS_FOR_LUNCH = 6;
 
 function buildInitialIncomingRequest() {
@@ -20,7 +23,7 @@ function buildInitialIncomingRequest() {
   const billingData = getObject('billingData', {});
   const serviceLat = parseFloat(localStorage.getItem('serviceLat'));
   const serviceLng = parseFloat(localStorage.getItem('serviceLng'));
-  const serviceLocation = localStorage.getItem('serviceLocation') || 'Av. Providencia 1234, Santiago';
+  const serviceLocation = getBookingLocationLineOrEmpty() || 'Av. Providencia 1234, Santiago';
   const workCoords =
     Number.isFinite(serviceLat) && Number.isFinite(serviceLng) ? { lat: serviceLat, lng: serviceLng } : null;
   const clientPhone = localStorage.getItem('userPhone') || '+56987654321';
@@ -155,9 +158,14 @@ function RequestReceivedScreen() {
 
       const userId = localStorage.getItem('userId');
       if (request?.id && !request.id.startsWith('req-')) {
-        await axios.put(`${BACKEND_URL}/api/service-requests/${request.id}/accept`, {
-          providerId: userId
-        }, { timeout: 12000 });
+        await axios.put(
+          `${BACKEND_URL}/api/service-requests/${request.id}/accept`,
+          { providerId: userId },
+          {
+            timeout: 12000,
+            headers: { 'Idempotency-Key': idempotencyKey(`accept-${request.id}`) },
+          }
+        );
       }
       localStorage.setItem('currentServiceId', request?.id || `demo-${Date.now()}`);
       localStorage.setItem('activeServiceRequest', JSON.stringify(request));
@@ -169,6 +177,7 @@ function RequestReceivedScreen() {
       } else {
         const operator = savedOperators[0] || {};
         localStorage.setItem('assignedOperator', JSON.stringify(operator));
+        void syncAssignedOperatorToApi(operator);
         navigate('/provider/en-route');
       }
     } catch (e) {

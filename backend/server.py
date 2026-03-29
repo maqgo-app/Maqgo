@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from contextlib import asynccontextmanager
@@ -35,6 +36,65 @@ def parse_bool_env(name: str, default: bool = False) -> bool:
     return raw in {'1', 'true', 'yes', 'on'}
 
 
+def validate_transbank_production_config() -> None:
+    """
+    En MAQGO producción: TBK real, URLs públicas HTTPS, sin modo debug que filtre secretos.
+    """
+    if not is_production_env():
+        return
+    if parse_bool_env("TBK_DEBUG_HTTP", False):
+        raise RuntimeError(
+            "TBK_DEBUG_HTTP=true en producción registra headers/cuerpo TBK en logs (secretos). Desactivar."
+        )
+    tbk_env = os.environ.get("TBK_ENV", "integration").strip().lower()
+    if tbk_env != "production":
+        raise RuntimeError(
+            f"Producción MAQGO requiere TBK_ENV=production (actual={tbk_env!r}). "
+            "Integración Transbank solo en deploys no productivos."
+        )
+    parent = os.environ.get("TBK_PARENT_COMMERCE_CODE", "").strip()
+    child = os.environ.get("TBK_CHILD_COMMERCE_CODE", "").strip()
+    secret = (
+        os.environ.get("TBK_API_KEY_SECRET", "").strip()
+        or os.environ.get("TBK_API_KEY", "").strip()
+    )
+    if not parent or not child or not secret:
+        raise RuntimeError(
+            "Producción: definen TBK_PARENT_COMMERCE_CODE, TBK_CHILD_COMMERCE_CODE y TBK_API_KEY_SECRET (o TBK_API_KEY)."
+        )
+    # TBK_ENV=production implica https://webpay3g.transbank.cl en services.oneclick_service._cfg()
+
+    fe = os.environ.get("FRONTEND_URL", "").strip().rstrip("/")
+    if not fe:
+        raise RuntimeError("FRONTEND_URL es obligatorio en producción (origen canónico del SPA).")
+    fel = fe.lower()
+    if not fel.startswith("https://"):
+        raise RuntimeError("FRONTEND_URL debe ser HTTPS en producción.")
+    if "localhost" in fel or "127.0.0.1" in fe:
+        raise RuntimeError("FRONTEND_URL no puede apuntar a localhost en producción.")
+
+    tbk_return = os.environ.get("TBK_RETURN_URL", "").strip()
+    if tbk_return:
+        trl = tbk_return.lower()
+        if not trl.startswith("https://"):
+            raise RuntimeError("TBK_RETURN_URL debe usar HTTPS en producción.")
+        if "localhost" in trl or "127.0.0.1" in tbk_return:
+            raise RuntimeError("TBK_RETURN_URL no puede apuntar a localhost en producción.")
+        if "/api/payments/oneclick/confirm-return" not in tbk_return:
+            logger.warning(
+                "TBK_RETURN_URL no contiene /api/payments/oneclick/confirm-return; "
+                "verifica coherencia con el flujo OneClick (el cliente suele enviar return_url explícito)."
+            )
+
+    api_public = os.environ.get("MAQGO_API_PUBLIC_URL", "").strip().rstrip("/")
+    if api_public:
+        apl = api_public.lower()
+        if not apl.startswith("https://"):
+            raise RuntimeError("MAQGO_API_PUBLIC_URL debe usar HTTPS en producción.")
+        if "localhost" in apl or "127.0.0.1" in api_public:
+            raise RuntimeError("MAQGO_API_PUBLIC_URL no puede ser localhost en producción.")
+
+
 def validate_production_safety(cors_origins_raw: str) -> None:
     """
     Bloquea arranque en producción si hay configuración insegura.
@@ -51,6 +111,9 @@ def validate_production_safety(cors_origins_raw: str) -> None:
         raise RuntimeError("Configuración insegura: MAQGO_DEMO_MODE=true en producción.")
     if parse_bool_env('TBK_DEMO_MODE', False):
         raise RuntimeError("Configuración insegura: TBK_DEMO_MODE=true en producción.")
+    if parse_bool_env("ONECLICK_PUBLIC_VALIDATION_ENABLED", False):
+        raise RuntimeError("Configuración insegura: ONECLICK_PUBLIC_VALIDATION_ENABLED=true en producción.")
+    validate_transbank_production_config()
 
 # Timer scheduler task
 async def timer_scheduler():
@@ -110,7 +173,16 @@ async def lifespan(app: FastAPI):
     # Iniciar scheduler de timers en background
     scheduler_task = asyncio.create_task(timer_scheduler())
 
-    # Índice abandonment: el módulo usa dict en memoria; si más adelante usas MongoDB aquí crear índices
+    # Índices idempotencia + ledger + métricas persistentes (best-effort)
+    try:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        from db_config import get_db_name, get_mongo_url
+        from services.idempotency import ensure_indexes as ensure_idempotency_indexes
+
+        _ic = AsyncIOMotorClient(get_mongo_url())
+        await ensure_idempotency_indexes(_ic[get_db_name()])
+    except Exception as e:
+        logger.warning("ensure_indexes idempotency/ledger/metrics: %s", e)
 
     yield
     
@@ -131,9 +203,45 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # HTTPS detrás de proxy (Railway/Cloudflare): endurecer transporte en navegador
+        if (request.headers.get("x-forwarded-proto") or "").strip().lower() == "https":
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains; preload"
+            )
+        # CSP mínima: no embeber la app en iframes de terceros; APIs JSON no cargan subrecursos
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "base-uri 'self'; "
+            "frame-ancestors 'none'; "
+            "img-src 'self' data: https: blob:; "
+            "font-src 'self' data: https:; "
+            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "connect-src 'self' https: wss:; "
+            "worker-src 'self' blob:; "
+            "manifest-src 'self'"
+        )
         return response
 
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Incident containment: block compromised/disabled hostnames at app edge.
+BLOCKED_HOSTS = {
+    h.strip().lower()
+    for h in os.environ.get("BLOCKED_HOSTS", "").split(",")
+    if h.strip()
+}
+
+
+@app.middleware("http")
+async def block_compromised_hosts(request, call_next):
+    host = (request.headers.get("host") or "").split(":")[0].strip().lower()
+    if host in BLOCKED_HOSTS:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Host temporalmente deshabilitado por contencion de seguridad"},
+        )
+    return await call_next(request)
 
 # CORS
 cors_origins_raw = os.environ.get('CORS_ORIGINS', '*')
@@ -170,6 +278,7 @@ from routes.admin_config import router as admin_config_router
 from routes.marketing_kpi import router as marketing_kpi_router, cron_router as marketing_cron_router
 from routes.chatbot import router as chatbot_router
 from routes.public_stats import router as public_stats_router
+from routes.bookings import router as bookings_router
 try:
     from routes.maps import router as maps_router
 except Exception as e:
@@ -218,6 +327,7 @@ api_router.include_router(marketing_kpi_router)
 api_router.include_router(marketing_cron_router)
 api_router.include_router(chatbot_router)
 api_router.include_router(public_stats_router)
+api_router.include_router(bookings_router)
 # Register main router
 app.include_router(api_router)
 # Maps router ya trae prefijo /api/maps, se monta directo para evitar /api/api/maps
@@ -227,6 +337,11 @@ if maps_router is not None:
 # Health checks de infraestructura (Railway/monitoreo externo)
 @app.get("/healthz")
 async def infra_healthz():
+    return {"status": "ok"}
+
+
+@app.get("/api/health")
+async def api_health():
     return {"status": "ok"}
 
 

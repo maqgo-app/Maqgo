@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { MAQGO } from '../../styles/theme';
@@ -14,6 +14,9 @@ import BACKEND_URL from '../../utils/api';
 function ServiceInProgress() {
   const navigate = useNavigate();
   const [service, setService] = useState(null);
+  const lastErrorLogAtRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const errorStreakRef = useRef(0);
 
   useEffect(() => {
     const loadService = async () => {
@@ -30,13 +33,51 @@ function ServiceInProgress() {
           }
         }
       } catch (error) {
-        console.error('Error:', error);
+        const now = Date.now();
+        if (now - lastErrorLogAtRef.current > 60000) {
+          console.warn('ServiceInProgress poll error:', error?.message || error);
+          lastErrorLogAtRef.current = now;
+        }
+        throw error;
       }
     };
     
-    loadService();
-    const interval = setInterval(loadService, 5000);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    let timeoutId = null;
+
+    const baseDelayMs = 5000;
+    const maxDelayMs = 30000;
+
+    const run = async () => {
+      if (cancelled) return;
+
+      if (inFlightRef.current) {
+        timeoutId = setTimeout(run, 1000);
+        return;
+      }
+
+      inFlightRef.current = true;
+      try {
+        await loadService();
+        errorStreakRef.current = 0;
+      } catch {
+        errorStreakRef.current += 1;
+      } finally {
+        inFlightRef.current = false;
+        const delay = Math.min(
+          maxDelayMs,
+          baseDelayMs * (2 ** errorStreakRef.current)
+        );
+        timeoutId = setTimeout(run, delay);
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [navigate]);
 
   return (

@@ -1,0 +1,221 @@
+Starting Container
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+INFO:     Started server process [2]
+INFO:     Waiting for application startup.
+2026-03-27 01:37:29,794 - server - INFO - 🚀 MAQGO API iniciando...
+2026-03-27 01:37:31,709 - server - INFO - ⏰ Timer scheduler iniciado
+2026-03-27 01:37:31,709 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.2:23076 - "POST /api/payments/oneclick/authorize HTTP/1.1" 403 Forbidden
+INFO:     100.64.0.3:32664 - "POST /api/payments/oneclick/authorize HTTP/1.1" 403 Forbidden
+INFO:     100.64.0.2:23076 - "POST /api/payments/oneclick/authorize HTTP/1.1" 400 Bad Request
+2026-03-27 01:38:32,906 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:39:34,095 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:40:35,301 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.2:42718 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     100.64.0.2:42718 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     100.64.0.3:30644 - "OPTIONS /api/abandonment/track HTTP/1.1" 200 OK
+INFO:     100.64.0.3:30644 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+INFO:     100.64.0.2:37766 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+2026-03-27 01:41:36,496 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.2:52326 - "OPTIONS /api/providers/match?machinery_type=retroexcavadora&client_lat=-33.3618023&client_lng=-70.5207552&max_radius=30&limit=5&needs_invoice=false HTTP/1.1" 200 OK
+INFO:     100.64.0.4:31202 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+INFO:     100.64.0.4:31202 - "GET /api/providers/match?machinery_type=retroexcavadora&client_lat=-33.3618023&client_lng=-70.5207552&max_radius=30&limit=5&needs_invoice=false HTTP/1.1" 200 OK
+INFO:     100.64.0.3:60002 - "OPTIONS /api/pricing/immediate HTTP/1.1" 200 OK
+INFO:     100.64.0.4:31204 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+INFO:     100.64.0.3:60002 - "POST /api/pricing/immediate HTTP/1.1" 200 OK
+INFO:     100.64.0.3:60002 - "POST /api/pricing/immediate HTTP/1.1" 200 OK
+INFO:     100.64.0.4:31204 - "POST /api/pricing/immediate HTTP/1.1" 200 OK
+2026-03-27 01:42:37,690 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.5:42536 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+INFO:     100.64.0.5:59620 - "OPTIONS /api/users HTTP/1.1" 200 OK
+INFO:     100.64.0.5:59620 - "POST /api/users HTTP/1.1" 200 OK
+INFO:     100.64.0.5:59620 - "OPTIONS /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 01:43:02,674 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "tomas_nevado.cl", "email": "tomas@nevado.cl", "response_url": "https://maqgo-production.up.railway.app/api/payments/oneclick/confirm-return"}
+2026-03-27 01:43:03,697 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01abd58a5c9016de409393139754438957d89644b96558d9faf6a9e6a3b6ad05","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 01:43:04,111 - routes.oneclick - INFO - Oneclick start OK buy_order=MG260327014300P7Z5 user_id=f086ecbe-42b8-4816-94c5-1b647939b1e0
+INFO:     100.64.0.6:55522 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+INFO:     100.64.0.5:24824 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+2026-03-27 01:43:38,883 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.7:32846 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+INFO:     100.64.0.3:43904 - "POST /api/pricing/immediate HTTP/1.1" 200 OK
+2026-03-27 01:44:40,077 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.7:15114 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+2026-03-27 01:45:41,281 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:46:42,476 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.8:49444 - "POST /api/users HTTP/1.1" 200 OK
+2026-03-27 01:47:18,310 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "tomas_nevado.cl", "email": "tomas@nevado.cl", "response_url": "https://maqgo-production.up.railway.app/api/payments/oneclick/confirm-return"}
+2026-03-27 01:47:19,361 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01abca12bbb75b7f6dabf98295725254fdd98db9cd7b9d2c28c747d6c0f44094","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 01:47:19,768 - routes.oneclick - INFO - Oneclick start OK buy_order=MG260327014717NMS9 user_id=f086ecbe-42b8-4816-94c5-1b647939b1e0
+INFO:     100.64.0.5:45488 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 01:47:43,670 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:48:44,864 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:49:46,058 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:49:50,977 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=PUT url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions/01abca12bbb75b7f6dabf98295725254fdd98db9cd7b9d2c28c747d6c0f44094 headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={}
+2026-03-27 01:49:51,985 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"response_code":-96}
+INFO:     100.64.0.9:24200 - "GET /api/payments/oneclick/confirm-return?TBK_TOKEN=01abca12bbb75b7f6dabf98295725254fdd98db9cd7b9d2c28c747d6c0f44094&TBK_ORDEN_COMPRA=16f9d74e-8384-4653-84b1-ad&TBK_ID_SESION= HTTP/1.1" 302 Found
+INFO:     100.64.0.3:59750 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+2026-03-27 01:50:47,252 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:51:48,446 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:52:49,639 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:53:50,851 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:54:52,054 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.3:26408 - "POST /api/users HTTP/1.1" 200 OK
+INFO:     100.64.0.3:26408 - "OPTIONS /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 01:55:47,425 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "tomas_nevadocapital.cl", "email": "tomas@nevadocapital.cl", "response_url": "https://maqgo-production.up.railway.app/api/payments/oneclick/confirm-return"}
+2026-03-27 01:55:48,471 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01abd9b6585eed96cec9709cc6768a4fb148c9a69ca501c8678f39e43a7c5543","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 01:55:48,879 - routes.oneclick - INFO - Oneclick start OK buy_order=MG2603270155475SFM user_id=dfe3f53b-fb90-4dfd-9122-9e821c40101c
+INFO:     100.64.0.9:44430 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 01:55:53,247 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.7:34758 - "OPTIONS /api/users HTTP/1.1" 200 OK
+INFO:     100.64.0.10:53620 - "OPTIONS /api/abandonment/track HTTP/1.1" 200 OK
+INFO:     100.64.0.10:53620 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+INFO:     100.64.0.10:53620 - "OPTIONS /api/pricing/immediate HTTP/1.1" 200 OK
+INFO:     100.64.0.11:54548 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+INFO:     100.64.0.10:53620 - "POST /api/pricing/immediate HTTP/1.1" 200 OK
+2026-03-27 01:56:54,447 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:57:55,718 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:58:56,982 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 01:59:58,180 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.4:48194 - "POST /api/users HTTP/1.1" 200 OK
+2026-03-27 02:00:45,557 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "e2eok1774576843038", "email": "e2eok+1774576843038@maqgo.cl", "response_url": "https://www.maqgo.cl/api/payments/oneclick/confirm-return"}
+2026-03-27 02:00:46,624 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01abb645cadbeb617388be4902d44060372a9de5c92beb490c0bc827a6af65bc","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 02:00:47,031 - routes.oneclick - INFO - Oneclick start OK buy_order=MG260327020045V29G user_id=19245987-f0b3-47b5-bd12-29c6b3ae93b6
+INFO:     100.64.0.12:22710 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 02:00:59,377 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 02:01:00,977 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=PUT url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions/01abb645cadbeb617388be4902d44060372a9de5c92beb490c0bc827a6af65bc headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={}
+2026-03-27 02:01:02,784 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"response_code":0,"tbk_user":"a0cf99ce-3fc4-4d49-bccb-97161e0238bd","authorization_code":"1213","card_type":"Visa","card_number":"XXXXXXXXXXXX6623"}
+2026-03-27 02:01:03,396 - routes.oneclick - INFO - Oneclick confirm OK buy_order=MG260327020045V29G
+INFO:     100.64.0.13:28358 - "GET /api/payments/oneclick/confirm-return?TBK_TOKEN=01abb645cadbeb617388be4902d44060372a9de5c92beb490c0bc827a6af65bc HTTP/1.1" 302 Found
+2026-03-27 02:01:05,286 - routes.oneclick - INFO - Oneclick confirm request source=body token=01ab...65bc
+2026-03-27 02:01:05,485 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=PUT url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions/01abb645cadbeb617388be4902d44060372a9de5c92beb490c0bc827a6af65bc headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={}
+2026-03-27 02:01:05,928 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"response_code":0,"tbk_user":"a0cf99ce-3fc4-4d49-bccb-97161e0238bd","authorization_code":"1213","card_type":"Visa","card_number":"XXXXXXXXXXXX6623"}
+2026-03-27 02:01:06,539 - routes.oneclick - INFO - Oneclick confirm result buy_order=MG260327020045V29G status=INSCRIBED response_code=0 tbk_user=True
+INFO:     100.64.0.9:50406 - "POST /api/payments/oneclick/confirm HTTP/1.1" 200 OK
+2026-03-27 02:01:07,481 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/transactions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "e2eok1774576843038", "tbk_user": "a0cf99ce-3fc4-4d49-bccb-97161e0238bd", "buy_order": "MG260327020045V29G", "details": [{"commerce_code": "597055555542", "buy_order": "MG260327020045V29G", "amount": 1000}]}
+2026-03-27 02:01:10,008 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"details":[{"amount":1000,"status":"AUTHORIZED","authorization_code":"1213","payment_type_code":"VN","response_code":0,"installments_number":0,"commerce_code":"597055555542","buy_order":"MG260327020045V29G"}],"buy_order":"MG260327020045V29G","card_detail":{"card_number":"6623"},"accounting_date":"0326","transaction_date":"2026-03-27T02:01:07.724Z"}
+2026-03-27 02:01:10,417 - routes.oneclick - INFO - Oneclick authorize validation OK buy_order=MG260327020045V29G exists=1 status_before=INSCRIBED approved=True
+INFO:     100.64.0.7:20708 - "POST /api/payments/oneclick/authorize HTTP/1.1" 200 OK
+2026-03-27 02:02:00,575 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 02:03:01,772 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 02:04:02,988 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.14:15438 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     100.64.0.4:22914 - "POST /api/payments/oneclick/start HTTP/1.1" 403 Forbidden
+INFO:     100.64.0.15:20368 - "POST /api/payments/oneclick/test-flow HTTP/1.1" 403 Forbidden
+INFO:     100.64.0.4:22914 - "POST /api/users HTTP/1.1" 200 OK
+2026-03-27 02:04:43,789 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "e2e-success_1774577081696_maqgo.cl", "email": "e2e-success+1774577081696@maqgo.cl", "response_url": "https://www.maqgo.cl/api/payments/oneclick/confirm-return"}
+2026-03-27 02:04:44,771 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01abed846d057d5f1ba94806151704f06fa795c1fcd3267b89ad887d3f4a93b8","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 02:04:45,184 - routes.oneclick - INFO - Oneclick start OK buy_order=MG260327020443ARAJ user_id=7c47fabd-45b9-4be5-9827-af50d2ff658d
+INFO:     100.64.0.16:23928 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 02:04:55,915 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=PUT url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions/01abed846d057d5f1ba94806151704f06fa795c1fcd3267b89ad887d3f4a93b8 headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={}
+2026-03-27 02:04:56,385 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"response_code":0,"tbk_user":"035cbf2e-964d-465a-ae62-357d90d970d2","authorization_code":"1213","card_type":"Visa","card_number":"XXXXXXXXXXXX6623"}
+2026-03-27 02:04:56,995 - routes.oneclick - INFO - Oneclick confirm OK buy_order=MG260327020443ARAJ
+INFO:     100.64.0.13:46460 - "GET /api/payments/oneclick/confirm-return?TBK_TOKEN=01abed846d057d5f1ba94806151704f06fa795c1fcd3267b89ad887d3f4a93b8 HTTP/1.1" 302 Found
+2026-03-27 02:04:59,065 - routes.oneclick - INFO - Oneclick confirm request source=body token=01ab...93b8
+2026-03-27 02:04:59,265 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=PUT url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions/01abed846d057d5f1ba94806151704f06fa795c1fcd3267b89ad887d3f4a93b8 headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={}
+2026-03-27 02:04:59,711 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"response_code":0,"tbk_user":"035cbf2e-964d-465a-ae62-357d90d970d2","authorization_code":"1213","card_type":"Visa","card_number":"XXXXXXXXXXXX6623"}
+2026-03-27 02:05:00,343 - routes.oneclick - INFO - Oneclick confirm result buy_order=MG260327020443ARAJ status=INSCRIBED response_code=0 tbk_user=True
+INFO:     100.64.0.8:34240 - "POST /api/payments/oneclick/confirm HTTP/1.1" 200 OK
+2026-03-27 02:05:01,236 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/transactions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "e2e-success_1774577081696_maqgo.cl", "tbk_user": "035cbf2e-964d-465a-ae62-357d90d970d2", "buy_order": "MG260327020443ARAJ", "details": [{"commerce_code": "597055555542", "buy_order": "MG260327020443ARAJ", "amount": 1000}]}
+2026-03-27 02:05:01,830 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"details":[{"amount":1000,"status":"AUTHORIZED","authorization_code":"1213","payment_type_code":"VN","response_code":0,"installments_number":0,"commerce_code":"597055555542","buy_order":"MG260327020443ARAJ"}],"buy_order":"MG260327020443ARAJ","card_detail":{"card_number":"6623"},"accounting_date":"0326","transaction_date":"2026-03-27T02:05:01.449Z"}
+2026-03-27 02:05:02,237 - routes.oneclick - INFO - Oneclick authorize validation OK buy_order=MG260327020443ARAJ exists=1 status_before=INSCRIBED approved=True
+INFO:     100.64.0.8:34240 - "POST /api/payments/oneclick/authorize HTTP/1.1" 200 OK
+2026-03-27 02:05:04,061 - services.matching_service - INFO - Usando fallback sin machineryType (encontrados 1)
+2026-03-27 02:05:04,187 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 02:05:04,261 - services.matching_service - INFO - Encontrados 1 proveedores disponibles para retroexcavadora
+2026-03-27 02:05:04,465 - services.matching_service - INFO - Oferta enviada a proveedor user_cc37b6cddd0c44cd para solicitud b2f99363-77f3-4ff3-a8b5-c6cd5fd7fb5d
+INFO:     100.64.0.15:11168 - "POST /api/service-requests HTTP/1.1" 200 OK
+INFO:     100.64.0.2:42936 - "GET /api/service-requests/b2f99363-77f3-4ff3-a8b5-c6cd5fd7fb5d HTTP/1.1" 200 OK
+INFO:     100.64.0.12:13658 - "POST /api/users HTTP/1.1" 200 OK
+2026-03-27 02:05:07,567 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "e2e-cancel_1774577105478_maqgo.cl", "email": "e2e-cancel+1774577105478@maqgo.cl", "response_url": "https://www.maqgo.cl/api/payments/oneclick/confirm-return"}
+2026-03-27 02:05:07,900 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01ab0ed489f5af2afb665573582cb339be5049fe6200e779079114ce5e055f7d","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 02:05:08,307 - routes.oneclick - INFO - Oneclick start OK buy_order=MG260327020507V44L user_id=0ec4a175-01a0-488d-9cc6-e931b413517e
+INFO:     100.64.0.11:56632 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 02:05:12,353 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=PUT url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions/01ab0ed489f5af2afb665573582cb339be5049fe6200e779079114ce5e055f7d headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={}
+2026-03-27 02:05:12,646 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"response_code":-96}
+INFO:     100.64.0.17:19426 - "GET /api/payments/oneclick/confirm-return?TBK_TOKEN=01ab0ed489f5af2afb665573582cb339be5049fe6200e779079114ce5e055f7d&TBK_ORDEN_COMPRA=337066b3-7f8e-4388-8bb1-12&TBK_ID_SESION= HTTP/1.1" 302 Found
+2026-03-27 02:05:14,794 - routes.oneclick - INFO - Oneclick confirm request source=body token=01ab...5f7d
+2026-03-27 02:05:14,994 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=PUT url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions/01ab0ed489f5af2afb665573582cb339be5049fe6200e779079114ce5e055f7d headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={}
+2026-03-27 02:05:15,362 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"response_code":-96}
+2026-03-27 02:05:15,769 - routes.oneclick - INFO - Oneclick confirm result buy_order=MG260327020507V44L status=FAILED response_code=-96 tbk_user=False
+INFO:     100.64.0.9:21636 - "POST /api/payments/oneclick/confirm HTTP/1.1" 200 OK
+INFO:     100.64.0.10:59132 - "POST /api/payments/oneclick/authorize HTTP/1.1" 400 Bad Request
+INFO:     100.64.0.9:21636 - "POST /api/users HTTP/1.1" 200 OK
+2026-03-27 02:05:18,729 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "e2e-reject_1774577116728_maqgo.cl", "email": "e2e-reject+1774577116728@maqgo.cl", "response_url": "https://www.maqgo.cl/api/payments/oneclick/confirm-return"}
+2026-03-27 02:05:19,013 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01ab9a7dd1c2bcef2525bf98bf784831a310f04dbe6d245646ec86bff51c8b0e","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 02:05:19,418 - routes.oneclick - INFO - Oneclick start OK buy_order=MG260327020518TKH4 user_id=fa813cf5-4f29-474e-bbb4-6bc712d7db38
+INFO:     100.64.0.4:16238 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 02:06:05,385 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.12:32546 - "POST /api/users HTTP/1.1" 200 OK
+2026-03-27 02:06:18,725 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "e2ecancel_1774577176263_maqgo.cl", "email": "e2ecancel+1774577176263@maqgo.cl", "response_url": "https://www.maqgo.cl/api/payments/oneclick/confirm-return"}
+2026-03-27 02:06:19,787 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01abd9ba01aae68175448f1dc2c214f3cdb510bf22ae6bfba0ec1d6969f28e1b","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 02:06:20,191 - routes.oneclick - INFO - Oneclick start OK buy_order=MG2603270206186WBC user_id=ceabc52a-709f-447e-9381-6e4e9db60b92
+INFO:     100.64.0.18:32962 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 02:06:25,572 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=PUT url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions/01abd9ba01aae68175448f1dc2c214f3cdb510bf22ae6bfba0ec1d6969f28e1b headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={}
+2026-03-27 02:06:25,947 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"response_code":-96}
+INFO:     100.64.0.14:12000 - "GET /api/payments/oneclick/confirm-return?TBK_TOKEN=01abd9ba01aae68175448f1dc2c214f3cdb510bf22ae6bfba0ec1d6969f28e1b&TBK_ORDEN_COMPRA=3e498184-aa59-4338-ab31-14&TBK_ID_SESION= HTTP/1.1" 302 Found
+2026-03-27 02:06:28,901 - routes.oneclick - INFO - Oneclick confirm request source=body token=01ab...8e1b
+2026-03-27 02:06:29,099 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=PUT url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions/01abd9ba01aae68175448f1dc2c214f3cdb510bf22ae6bfba0ec1d6969f28e1b headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={}
+2026-03-27 02:06:29,411 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"response_code":-96}
+2026-03-27 02:06:29,819 - routes.oneclick - INFO - Oneclick confirm result buy_order=MG2603270206186WBC status=FAILED response_code=-96 tbk_user=False
+INFO:     100.64.0.15:46192 - "POST /api/payments/oneclick/confirm HTTP/1.1" 200 OK
+INFO:     100.64.0.8:43662 - "POST /api/payments/oneclick/authorize HTTP/1.1" 400 Bad Request
+INFO:     100.64.0.6:49448 - "POST /api/users HTTP/1.1" 200 OK
+2026-03-27 02:06:56,828 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "e2ereject_1774577214551_maqgo.cl", "email": "e2ereject+1774577214551@maqgo.cl", "response_url": "https://www.maqgo.cl/api/payments/oneclick/confirm-return"}
+2026-03-27 02:06:57,188 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01abf4b57e5a3145afe442ac3e5c223a6ee0dd0249f366f17e998643c40f4978","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 02:06:57,592 - routes.oneclick - INFO - Oneclick start OK buy_order=MG260327020656ZWNZ user_id=4243904f-8f94-4b49-89fb-704ae468b323
+INFO:     100.64.0.9:46332 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 02:07:06,598 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 02:07:07,395 - services.matching_service - INFO - Oferta expirada para proveedor user_cc37b6cddd0c44cd
+2026-03-27 02:07:07,990 - services.matching_service - INFO - Encontrados 0 proveedores disponibles para retroexcavadora
+2026-03-27 02:07:08,192 - services.timer_service - INFO - Oferta expirada para servicio b2f99363-77f3-4ff3-a8b5-c6cd5fd7fb5d
+2026-03-27 02:07:08,787 - services.timer_service - INFO - Timer check completado: {'cancelled_no_arrival': 0, 'auto_started': 0, 'expired_offers': 1, 'last_30_triggered': 0, 'auto_finished': 0, 'auto_approved_6h': 0, 'checked_at': '2026-03-27T02:07:08.787035+00:00'}
+INFO:     100.64.0.2:48606 - "POST /api/users HTTP/1.1" 200 OK
+2026-03-27 02:07:25,296 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "e2ereject_1774577243075_maqgo.cl", "email": "e2ereject+1774577243075@maqgo.cl", "response_url": "https://www.maqgo.cl/api/payments/oneclick/confirm-return"}
+2026-03-27 02:07:25,667 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01ab7fc592abe8e95426c3ae345107c063b15d173c8e6817656fc7577c3a7ff5","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 02:07:26,072 - routes.oneclick - INFO - Oneclick start OK buy_order=MG260327020724FPSR user_id=851c0fc3-dc6a-4051-91e9-87d66fb969b0
+INFO:     100.64.0.12:49770 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 02:08:08,787 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.6:46598 - "POST /api/users HTTP/1.1" 200 OK
+2026-03-27 02:08:19,465 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "e2ereject_1774577297237_maqgo.cl", "email": "e2ereject+1774577297237@maqgo.cl", "response_url": "https://www.maqgo.cl/api/payments/oneclick/confirm-return"}
+2026-03-27 02:08:20,412 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01ab0a02187b8dc919be347c38a718381d9a6763c45eeb667dd31a9760022181","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 02:08:20,817 - routes.oneclick - INFO - Oneclick start OK buy_order=MG2603270208199CSA user_id=aa5303c5-85e5-47a3-967c-c9d4029337f8
+INFO:     100.64.0.6:46598 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 02:08:45,227 - routes.oneclick - INFO - Oneclick confirm request source=body token=01ab...2181
+2026-03-27 02:08:45,426 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=PUT url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions/01ab0a02187b8dc919be347c38a718381d9a6763c45eeb667dd31a9760022181 headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={}
+2026-03-27 02:08:45,751 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"response_code":-96}
+2026-03-27 02:08:46,155 - routes.oneclick - INFO - Oneclick confirm result buy_order=MG2603270208199CSA status=FAILED response_code=-96 tbk_user=False
+INFO:     100.64.0.7:31606 - "POST /api/payments/oneclick/confirm HTTP/1.1" 200 OK
+INFO:     100.64.0.5:29772 - "POST /api/payments/oneclick/authorize HTTP/1.1" 400 Bad Request
+2026-03-27 02:09:09,979 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 02:10:11,171 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.6:42052 - "POST /api/users HTTP/1.1" 200 OK
+2026-03-27 02:10:37,855 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=POST url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={"username": "e2eclose_1774577435422_maqgo.cl", "email": "e2eclose+1774577435422@maqgo.cl", "response_url": "https://www.maqgo.cl/api/payments/oneclick/confirm-return"}
+2026-03-27 02:10:38,856 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"token":"01ab21911adde527be2b53295da1c53d8e0be8c979e74ec68e5c681cfbbcf302","url_webpay":"https://webpay3gint.transbank.cl/webpayserver/bp_multicode_inscription.cgi"}
+2026-03-27 02:10:39,263 - routes.oneclick - INFO - Oneclick start OK buy_order=MG260327021037U4SU user_id=2265258b-6ebe-4843-9967-fe08f762c7ae
+INFO:     100.64.0.4:23128 - "POST /api/payments/oneclick/start HTTP/1.1" 200 OK
+2026-03-27 02:10:39,582 - routes.oneclick - INFO - Oneclick confirm request source=body token=01ab...f302
+2026-03-27 02:10:39,782 - services.oneclick_service - INFO - TBK_REQ(method=curl) method=PUT url=https://webpay3gint.transbank.cl/rswebpaytransaction/api/oneclick/v1.2/inscriptions/01ab21911adde527be2b53295da1c53d8e0be8c979e74ec68e5c681cfbbcf302 headers={'Tbk-Api-Key-Id': '597055555541', 'Tbk-Api-Key-Secret': '579B532A7440BB0C9079DED94D31EA1615BACEB56610332264630D42D0A36B1C', 'Content-Type': 'application/json', 'Accept': '*/*', 'User-Agent': 'curl/8.7.1'} body={}
+2026-03-27 02:10:40,094 - services.oneclick_service - INFO - TBK_RES(method=curl) status=200 body={"response_code":-96}
+2026-03-27 02:10:40,502 - routes.oneclick - INFO - Oneclick confirm result buy_order=MG260327021037U4SU status=FAILED response_code=-96 tbk_user=False
+INFO:     100.64.0.10:48788 - "POST /api/payments/oneclick/confirm HTTP/1.1" 200 OK
+INFO:     100.64.0.5:18418 - "POST /api/payments/oneclick/authorize HTTP/1.1" 400 Bad Request
+2026-03-27 02:11:12,360 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 02:12:13,555 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.17:34052 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     100.64.0.5:47564 - "POST /api/payments/oneclick/start HTTP/1.1" 403 Forbidden
+INFO:     100.64.0.6:54314 - "POST /api/payments/oneclick/test-flow HTTP/1.1" 403 Forbidden
+2026-03-27 02:13:14,749 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.18:22824 - "POST /api/users HTTP/1.1" 200 OK
+INFO:     100.64.0.2:59164 - "OPTIONS /api/abandonment/track HTTP/1.1" 200 OK
+INFO:     100.64.0.2:59164 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+INFO:     100.64.0.18:22824 - "POST /api/abandonment/track HTTP/1.1" 200 OK
+2026-03-27 02:14:15,945 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 02:15:17,140 - services.timer_service - INFO - Ejecutando verificación de timers...
+2026-03-27 02:16:18,336 - services.timer_service - INFO - Ejecutando verificación de timers...
+INFO:     100.64.0.2:22200 - "POST /api/users HTTP/1.1" 200 OK
+2026-03-27 02:16:52,071 - services.matching_service - INFO - Usando fallback sin machineryType (encontrados 1)
+2026-03-27 02:16:52,269 - services.matching_service - INFO - Encontrados 1 proveedores disponibles para retroexcavadora
+2026-03-27 02:16:52,472 - services.matching_service - INFO - Oferta enviada a proveedor user_cc37b6cddd0c44cd para solicitud 4507a9e5-755b-4632-9383-52b3e758623d
+INFO:     100.64.0.5:49466 - "POST /api/service-requests HTTP/1.1" 200 OK
+INFO:     100.64.0.6:10928 - "GET /api/service-requests/4507a9e5-755b-4632-9383-52b3e758623d HTTP/1.1" 200 OK

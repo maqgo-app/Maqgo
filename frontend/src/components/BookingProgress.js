@@ -40,11 +40,23 @@ const CheckIcon = ({ size = 10 }) => (
   </svg>
 );
 
+function resolveBookingStep(path) {
+  const base = ROUTE_TO_STEP[path] || 0;
+  if (path === '/client/service-location') {
+    const rt = localStorage.getItem('reservationType') || 'immediate';
+    const pt = localStorage.getItem('priceType') || 'hour';
+    // Inmediato por hora: horas y ubicación comparten pantalla → paso 2 (evita salto 2↔3 en la misma vista).
+    if (rt === 'immediate' && pt === 'hour') return 2;
+    return 3;
+  }
+  return base;
+}
+
 function BookingProgress() {
   const navigate = useNavigate();
   const location = useLocation();
   const path = location.pathname.replace(/\/$/, '') || '/';
-  const currentStep = ROUTE_TO_STEP[path] || 0;
+  const currentStep = resolveBookingStep(path);
 
   if (currentStep === 0) return null;
 
@@ -78,7 +90,8 @@ function BookingProgress() {
     ? (hasCalendarMulti ? '/client/calendar-multi' : '/client/calendar')
     : '/client/machinery';
 
-  const step2Route = priceType === 'trip' ? '/client/urgency' : '/client/hours-selection';
+  // Horas por maquinaria viven en service-location (pantalla dedicada de horas eliminada).
+  const step2Route = priceType === 'trip' ? '/client/urgency' : '/client/service-location';
 
   const stepToPath = {
     1: step1Route,

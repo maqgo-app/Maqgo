@@ -57,6 +57,14 @@
   animation: maqgo-toast-in 0.25s ease-out;
 }
 
+/*
+ * Google Places Autocomplete: el contenedor de sugerencias usa z-index bajo por defecto
+ * y queda detrás de .maqgo-fixed-bottom-bar (9999) → parece que “no despliega” direcciones.
+ */
+.pac-container {
+  z-index: calc(var(--maqgo-z-modal) + 1) !important;
+}
+
 /* Spinner para botones y cargas (global, respeta reduced-motion) */
 @keyframes maqgo-spin {
   to { transform: rotate(360deg); }
@@ -173,20 +181,35 @@ html, body, #root {
   color: #F5A623;
 }
 
-/* Container móvil centrado */
+/* Container móvil centrado — 100dvh evita toolbar Android tapando CTAs (fallback 100vh) */
 .maqgo-app {
   width: 100%;
   max-width: 430px;
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
   background: var(--maqgo-bg);
   position: relative;
   overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  /* Filete interior: ~0.055 era invisible sobre #101010; 0.12–0.14 es legible y sigue discreto */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.13);
+}
+
+/* Desktop: columna sobre --maqgo-bg-outer (#000); sumamos aro exterior para marcar el “teléfono” */
+@media (min-width: var(--maqgo-breakpoint-mobile)) {
+  .maqgo-app:not(.welcome-desktop) {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.11),
+      0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
 }
 
 /* Pantalla base. Respeta safe area (notch/isla). Contenido interno: preferir padding 24px. */
 .maqgo-screen {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--maqgo-bg);
   display: flex;
   flex-direction: column;
@@ -270,8 +293,21 @@ html, body, #root {
     max-width: 520px;
     overflow: visible;
     min-height: calc(100vh - 48px);
+    min-height: calc(100dvh - 48px);
     margin: 28px auto;
   }
+}
+
+/* Flujo cliente P1–P6: app llena alto dinámico; pantalla central scrollea (CTA fijo abajo) */
+.maqgo-client-funnel {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.maqgo-client-funnel > .maqgo-screen--scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Headings */

@@ -11,6 +11,29 @@ import "@fontsource/space-grotesk/600.css";
 import "@fontsource/space-grotesk/700.css";
 import "./styles/maqgo.css";
 import App from "./App.jsx";
+import { validateMaqgoEnvAtStartup } from "./runtime/validateMaqgoEnv.js";
+
+validateMaqgoEnvAtStartup();
+
+/**
+ * Canónico producción: forzar https + www (evita sesiones/cookies separadas entre apex y www).
+ * No aplica en localhost ni IPs de desarrollo.
+ */
+(function enforceCanonicalHost() {
+  if (typeof window === "undefined") return;
+  const host = String(window.location.hostname || "").toLowerCase();
+  const isProdFlag = import.meta.env.VITE_IS_PRODUCTION === "true";
+  const isCanonicalHost = host === "www.maqgo.cl";
+  const isApexHost = host === "maqgo.cl";
+  if (!isProdFlag || (!isCanonicalHost && !isApexHost)) return;
+
+  const mustUseHttps = window.location.protocol !== "https:";
+  const mustUseWww = isApexHost;
+  if (!mustUseHttps && !mustUseWww) return;
+
+  const target = `https://www.maqgo.cl${window.location.pathname}${window.location.search}${window.location.hash}`;
+  window.location.replace(target);
+})();
 
 class ErrorBoundary extends React.Component {
   state = { hasError: false, error: null };

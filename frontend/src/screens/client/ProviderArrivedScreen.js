@@ -8,7 +8,11 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { MACHINERY_PER_TRIP } from '../../utils/pricing';
 import { getObjectFirst } from '../../utils/safeStorage';
-import { getProviderLicensePlate } from '../../utils/providerDisplay';
+import {
+  getProviderLicensePlate,
+  getOperatorDisplayNameForSite,
+  getOperatorRutForSite
+} from '../../utils/providerDisplay';
 
 // Constantes de tiempo (en segundos)
 const MAX_WAIT_TIME = 30 * 60; // 30 minutos
@@ -372,10 +376,10 @@ function ProviderArrivedScreen() {
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
-                {provider.operator_name || provider.providerOperatorName || 'Operador asignado'}
+                {getOperatorDisplayNameForSite(provider)}
               </p>
-              <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: 0 }}>
-                Operador de maquinaria
+              <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '4px 0 0' }}>
+                Ingreso a obra — verifica nombre y RUT con quien recibe en faena.
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -394,9 +398,9 @@ function ProviderArrivedScreen() {
             justifyContent: 'space-between',
             alignItems: 'center'
           }}>
-            <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>RUT Operador</span>
+            <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>RUT operador</span>
             <span style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>
-              {provider.operator_rut || '12.345.678-9'}
+              {getOperatorRutForSite(provider) || 'Por confirmar'}
             </span>
           </div>
         </div>
@@ -460,7 +464,7 @@ function ProviderArrivedScreen() {
         serviceId={serviceId}
         userType="client"
         userName={localStorage.getItem('userName') || 'Cliente'}
-        otherName={provider.operator_name || provider.providerOperatorName || 'Operador'}
+        otherName={getOperatorDisplayNameForSite(provider)}
       />
     </div>
   );

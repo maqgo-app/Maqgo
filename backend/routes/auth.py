@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Body, Request
 import re
+from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import AliasChoices, BaseModel, EmailStr, Field, field_validator
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timezone, timedelta
 import os
@@ -10,6 +11,7 @@ import secrets
 import asyncio
 import smtplib
 import ssl
+import logging
 from email.message import EmailMessage
 from html import escape
 
@@ -22,6 +24,7 @@ from communications import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
@@ -30,6 +33,8 @@ db = client[get_db_name()]
 MAX_SMS_RESET_REQUESTS = 3
 SMS_RESET_WINDOW_MINUTES = 10
 SMS_RESET_BLOCK_MINUTES = 30
+RECOVERY_OTP_EXPIRY_SECONDS = 300
+RECOVERY_OTP_MAX_ATTEMPTS = 3
 
 try:
     import resend
@@ -72,17 +77,33 @@ class RegisterRequest(BaseModel):
         return v
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Compatibilidad: frontend nuevo envía `identifier` (email o RUT),
+    # frontend antiguo puede seguir enviando `email`.
+    identifier: Optional[str] = None
+    email: Optional[EmailStr] = None
     password: str
 
 class PasswordResetRequest(BaseModel):
-    email: EmailStr
-    celular: str
+    # Nuevo flujo: un solo identificador (correo o celular).
+    # Compatibilidad legacy: email/celular siguen aceptados.
+    identifier: Optional[str] = None
+    email: Optional[EmailStr] = None
+    celular: Optional[str] = None
 
 class PasswordResetConfirmRequest(BaseModel):
-    email: EmailStr
-    celular: str
-    code: str = Field(..., min_length=4, max_length=8)
+    model_config = {"populate_by_name": True}
+
+    # Nuevo flujo: confirmar con identificador + OTP + nueva clave.
+    identifier: Optional[str] = None
+    email: Optional[EmailStr] = None
+    celular: Optional[str] = None
+    otp: str = Field(
+        ...,
+        min_length=6,
+        max_length=6,
+        validation_alias=AliasChoices('otp', 'code'),
+        description="Código de 6 dígitos (acepta `otp` o `code` en JSON)",
+    )
     new_password: str = Field(..., min_length=8, max_length=12)
 
     @field_validator('new_password')
@@ -94,7 +115,13 @@ class PasswordResetConfirmRequest(BaseModel):
 
 
 class SendOtpRequest(BaseModel):
-    phone: str
+    # Legacy auth/send-otp (registro): acepta phone.
+    # Nuevo recovery: acepta identifier (+ canal opcional).
+    phone: Optional[str] = None
+    identifier: Optional[str] = None
+    channel: Optional[str] = None
+    email: Optional[EmailStr] = None
+    celular: Optional[str] = None
 
 
 class VerifyOtpRequest(BaseModel):
@@ -122,15 +149,153 @@ def generate_token() -> str:
 @router.post("/send-otp")
 @limiter.limit("5/minute")
 async def send_otp_auth(request: Request, body: SendOtpRequest):
-    """Endpoint OTP simple para flujos auth (/auth/send-otp)."""
-    celular_err = _validate_celular_chile(body.phone)
-    if celular_err:
-        raise HTTPException(status_code=400, detail=celular_err)
-    phone_e164 = _format_phone(body.phone)
-    result = send_sms_otp(phone_e164, channel='sms')
-    if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "No se pudo enviar OTP"))
-    return {"success": True, "message": "OTP enviado"}
+    """
+    /auth/send-otp
+    - Legacy: body.phone (registro/verificación)
+    - Recovery: body.identifier + body.channel (sms/email)
+    """
+    # Legacy path compatibility
+    if body.phone and not body.identifier and not (body.email and body.celular):
+        celular_err = _validate_celular_chile(body.phone)
+        if celular_err:
+            raise HTTPException(status_code=400, detail=celular_err)
+        phone_e164 = _format_phone(body.phone)
+        result = send_sms_otp(phone_e164, channel='sms')
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "No se pudo enviar OTP"))
+        return {"success": True, "message": "OTP enviado"}
+
+    # Recuperación estricta: correo + celular deben corresponder a la misma cuenta (SMS).
+    email_pair = str(body.email or "").strip()
+    cel_pair = str(body.celular or "").strip()
+    if email_pair and cel_pair:
+        celular_err = _validate_celular_chile(cel_pair)
+        if celular_err:
+            raise HTTPException(status_code=400, detail=celular_err)
+        phone9_in = _normalize_phone_last9(_format_phone(cel_pair))
+        if len(phone9_in) != 9:
+            raise HTTPException(status_code=400, detail="Celular inválido")
+        user = await db.users.find_one({"email": email_pair.lower()})
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        if _normalize_phone_last9(user.get("phone", "")) != phone9_in:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        channels = _recovery_channels_for_user(user)
+        if "sms" not in channels:
+            raise HTTPException(status_code=400, detail="Cuenta sin método de recuperación disponible")
+        selected_channel = str(body.channel or "sms").strip().lower() or "sms"
+        if selected_channel != "sms":
+            raise HTTPException(status_code=400, detail="Canal inválido para esta cuenta")
+        phone_e164 = _format_phone(_normalize_phone_last9(user.get("phone", "")))
+        send_result = send_sms_otp(phone_e164, channel="sms")
+        if not send_result.get("success"):
+            raise HTTPException(status_code=400, detail=send_result.get("error", "No se pudo enviar OTP"))
+        now = datetime.now(timezone.utc).isoformat()
+        ident_norm = email_pair.lower()
+        ident_type = "email"
+        await db.password_reset_requests.update_one(
+            {"userId": user["id"]},
+            {
+                "$set": {
+                    "userId": user["id"],
+                    "identifierType": ident_type,
+                    "identifierNormalized": ident_norm,
+                    "channel": selected_channel,
+                    "createdAt": now,
+                    "updatedAt": now,
+                }
+            },
+            upsert=True,
+        )
+        masked_sms = _mask_phone_for_display(user.get("phone", ""))
+        logger.info(
+            "PASSWORD_RESET_SEND_OTP identifier=%s channel=%s result=success mode=email_plus_phone",
+            ident_norm,
+            selected_channel,
+        )
+        return {
+            "success": True,
+            "otp_sent": True,
+            "requires_channel_selection": False,
+            "channel": selected_channel,
+            "masked_phone": masked_sms,
+            "masked": {
+                "sms": masked_sms,
+                "email": _mask_email_for_display(user.get("email", "")),
+            },
+            "message": "Código enviado",
+        }
+
+    identifier = _normalize_identifier(body.identifier or "")
+    if not identifier:
+        raise HTTPException(status_code=400, detail="Ingresa celular o correo")
+
+    user, ident_type, ident_norm = await _find_user_for_recovery(identifier)
+    channels = _recovery_channels_for_user(user) if user else []
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not channels:
+        raise HTTPException(status_code=400, detail="Cuenta sin método de recuperación disponible")
+
+    selected_channel = str(body.channel or "").strip().lower()
+    if not selected_channel:
+        if len(channels) > 1:
+            return {
+                "success": True,
+                "requires_channel_selection": True,
+                "channels": channels,
+                "masked": {
+                    "sms": _mask_phone_for_display(user.get("phone", "")) if "sms" in channels else None,
+                    "email": _mask_email_for_display(user.get("email", "")) if "email" in channels else None,
+                },
+            }
+        selected_channel = channels[0]
+
+    if selected_channel not in channels:
+        raise HTTPException(status_code=400, detail="Canal inválido para esta cuenta")
+
+    if selected_channel == "sms":
+        phone_e164 = _format_phone(_normalize_phone_last9(user.get("phone", "")))
+        send_result = send_sms_otp(phone_e164, channel="sms")
+    else:
+        send_result = await _send_recovery_otp_email(str(user.get("email", "")).lower())
+
+    if not send_result.get("success"):
+        raise HTTPException(status_code=400, detail=send_result.get("error", "No se pudo enviar OTP"))
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.password_reset_requests.update_one(
+        {"userId": user["id"]},
+        {
+            "$set": {
+                "userId": user["id"],
+                "identifierType": ident_type,
+                "identifierNormalized": ident_norm,
+                "channel": selected_channel,
+                "createdAt": now,
+                "updatedAt": now,
+            }
+        },
+        upsert=True,
+    )
+    logger.info(
+        "PASSWORD_RESET_SEND_OTP identifier=%s channel=%s result=success",
+        ident_norm,
+        selected_channel,
+    )
+    masked_sms = _mask_phone_for_display(user.get("phone", "")) if "sms" in channels else None
+    return {
+        "success": True,
+        "otp_sent": True,
+        "requires_channel_selection": False,
+        "channel": selected_channel,
+        "masked_phone": masked_sms,
+        "masked": {
+            "sms": masked_sms,
+            "email": _mask_email_for_display(user.get("email", "")) if "email" in channels else None,
+        },
+        "message": "Código enviado",
+    }
 
 
 @router.post("/verify-otp")
@@ -159,6 +324,237 @@ def _normalize_phone_last9(phone: str) -> str:
     if digits.startswith('56') and len(digits) >= 11:
         digits = digits[2:]
     return digits[-9:] if len(digits) >= 9 else digits
+
+
+def _normalize_identifier(identifier: str) -> str:
+    return str(identifier or "").strip()
+
+
+def _normalize_rut_for_lookup(raw: str) -> Optional[str]:
+    cleaned = re.sub(r"[^0-9kK]", "", str(raw or ""))
+    if len(cleaned) < 2:
+        return None
+    return f"{cleaned[:-1]}-{cleaned[-1].upper()}"
+
+
+def _looks_like_email(value: str) -> bool:
+    return "@" in str(value or "")
+
+
+def _mask_email_for_display(email: str) -> str:
+    local, _, domain = str(email or "").partition("@")
+    if not local or not domain:
+        return "••••@••••"
+    if len(local) <= 2:
+        masked_local = local[0] + "•"
+    else:
+        masked_local = local[:2] + "•" * max(2, len(local) - 2)
+    return f"{masked_local}@{domain}"
+
+
+def _normalize_email_for_lookup(value: str) -> Optional[str]:
+    ident = _normalize_identifier(value).lower()
+    if not ident or "@" not in ident:
+        return None
+    return ident
+
+
+def _normalize_phone_for_lookup(value: str) -> Optional[str]:
+    digits = _normalize_phone_last9(value)
+    if len(digits) != 9:
+        return None
+    return _format_phone(digits)
+
+
+async def _resolve_user_for_password_reset_confirm(
+    body: PasswordResetConfirmRequest,
+) -> tuple[dict, str]:
+    """
+    Resuelve usuario para confirmar reset: modo estricto correo+celular (misma cuenta)
+    o búsqueda legacy por un solo identificador.
+    """
+    email_b = body.email
+    cel_b = body.celular
+    if email_b and cel_b:
+        email_norm = str(email_b).strip().lower()
+        cel_raw = str(cel_b).strip()
+        celular_err = _validate_celular_chile(cel_raw)
+        if celular_err:
+            raise HTTPException(status_code=400, detail=celular_err)
+        phone9_in = _normalize_phone_last9(_format_phone(cel_raw))
+        if len(phone9_in) != 9:
+            raise HTTPException(status_code=400, detail="Celular inválido")
+        user = await db.users.find_one({"email": email_norm})
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        if _normalize_phone_last9(user.get("phone", "")) != phone9_in:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        return user, email_norm
+
+    identifier = _normalize_identifier(
+        body.identifier or (str(body.email) if body.email else "") or (str(body.celular) if body.celular else "")
+    )
+    if not identifier:
+        raise HTTPException(status_code=400, detail="Ingresa celular o correo")
+
+    user, _, ident_norm = await _find_user_for_recovery(identifier)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return user, ident_norm or identifier
+
+
+async def _find_user_for_recovery(identifier: str) -> tuple[Optional[dict], Optional[str], Optional[str]]:
+    """
+    Busca usuario para recuperación SOLO por email o celular.
+    Retorna: (user, identifier_type, normalized_identifier)
+    """
+    ident = _normalize_identifier(identifier)
+    if not ident:
+        return None, None, None
+
+    email_norm = _normalize_email_for_lookup(ident)
+    if email_norm:
+        user = await db.users.find_one({"email": email_norm})
+        return user, "email", email_norm
+
+    phone_e164 = _normalize_phone_for_lookup(ident)
+    if phone_e164:
+        phone9 = _normalize_phone_last9(phone_e164)
+        user = await db.users.find_one({"phone": {"$regex": f"{phone9}$"}})
+        return user, "sms", phone_e164
+
+    return None, None, None
+
+
+def _recovery_channels_for_user(user: dict) -> list[str]:
+    channels = []
+    email = str(user.get("email") or "").strip().lower()
+    if email and "@" in email:
+        channels.append("email")
+    phone = _normalize_phone_last9(user.get("phone", ""))
+    if len(phone) == 9 and not _validate_celular_chile(phone):
+        channels.append("sms")
+    return channels
+
+
+def _get_redis_client():
+    redis_url = os.environ.get("REDIS_URL", "").strip()
+    if not redis_url:
+        return None
+    try:
+        import redis
+        return redis.from_url(redis_url, decode_responses=True)
+    except Exception:
+        return None
+
+
+async def _send_recovery_otp_email(email_to: str) -> dict:
+    """
+    OTP email con TTL 5 min y max 3 intentos (Redis).
+    """
+    r = _get_redis_client()
+    if not r:
+        return {"success": False, "error": "Servicio OTP no disponible"}
+
+    otp = "".join(secrets.choice("0123456789") for _ in range(6))
+    key = f"otp:recovery:email:{email_to.lower()}"
+    attempts_key = f"otp:recovery:email:attempts:{email_to.lower()}"
+    r.setex(key, RECOVERY_OTP_EXPIRY_SECONDS, otp)
+    r.setex(attempts_key, RECOVERY_OTP_EXPIRY_SECONDS, "0")
+
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+    subject = "Tu código MAQGO"
+    text = f"Tu código MAQGO es: {otp}"
+    html = f"<p>Tu código MAQGO es: <strong>{otp}</strong></p>"
+
+    try:
+        smtp_host = os.environ.get("EMAIL_SMTP_HOST", "").strip()
+        smtp_user = os.environ.get("EMAIL_SMTP_USER", "").strip()
+        smtp_pass = os.environ.get("EMAIL_SMTP_PASS", "").strip()
+        smtp_port = int(os.environ.get("EMAIL_SMTP_PORT", "587"))
+        use_ssl = os.environ.get("EMAIL_SMTP_SSL", "false").lower() == "true"
+        if smtp_host and smtp_user and smtp_pass:
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = sender
+            msg["To"] = email_to
+            msg.set_content(text)
+            msg.add_alternative(html, subtype="html")
+            if use_ssl:
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=15) as server:
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+                    server.starttls(context=ssl.create_default_context())
+                    server.login(smtp_user, smtp_pass)
+                    server.send_message(msg)
+            return {"success": True}
+
+        key_api = os.environ.get("RESEND_API_KEY", "").strip()
+        if resend and key_api:
+            resend.api_key = key_api
+            await asyncio.to_thread(
+                resend.Emails.send,
+                {"from": sender, "to": email_to, "subject": subject, "text": text, "html": html},
+            )
+            return {"success": True}
+        return {"success": False, "error": "Proveedor de email no configurado"}
+    except Exception:
+        return {"success": False, "error": "No se pudo enviar OTP por email"}
+
+
+def _verify_recovery_otp_email(email_to: str, otp: str) -> dict:
+    r = _get_redis_client()
+    if not r:
+        return {"success": False, "valid": False, "error": "Servicio OTP no disponible"}
+    code = str(otp or "").strip()
+    if len(code) != 6 or not code.isdigit():
+        return {"success": True, "valid": False, "error": "Código incorrecto"}
+    key = f"otp:recovery:email:{email_to.lower()}"
+    attempts_key = f"otp:recovery:email:attempts:{email_to.lower()}"
+    stored = r.get(key)
+    attempts = int(r.get(attempts_key) or "0")
+    if attempts >= RECOVERY_OTP_MAX_ATTEMPTS:
+        r.delete(key, attempts_key)
+        return {"success": True, "valid": False, "error": "Código expirado"}
+    if not stored:
+        return {"success": True, "valid": False, "error": "Código expirado"}
+    if stored != code:
+        r.incr(attempts_key)
+        r.expire(attempts_key, max(1, r.ttl(key)))
+        return {"success": True, "valid": False, "error": "Código incorrecto"}
+    r.delete(key, attempts_key)
+    return {"success": True, "valid": True}
+
+
+def _mask_phone_for_display(phone: str) -> str:
+    d = _normalize_phone_last9(phone)
+    if len(d) != 9:
+        return "+56 •••• ••••"
+    return f"+56 9 •••• •{d[-3:]}"
+
+
+async def _find_user_for_password_reset(identifier: str) -> Optional[dict]:
+    ident = _normalize_identifier(identifier)
+    if not ident:
+        return None
+
+    if _looks_like_email(ident):
+        return await db.users.find_one({"email": ident.lower()})
+
+    rut_norm = _normalize_rut_for_lookup(ident)
+    if rut_norm:
+        user = await db.users.find_one({"rut": rut_norm})
+        if user:
+            return user
+
+    # fallback: celular (últimos 9 dígitos)
+    phone9 = _normalize_phone_last9(ident)
+    if len(phone9) == 9:
+        return await db.users.find_one({"phone": {"$regex": f"{phone9}$"}})
+    return None
 
 
 async def _send_password_reset_fallback_email(email_to: str) -> bool:
@@ -383,10 +779,23 @@ async def register(request: Request, body: RegisterRequest):
 @limiter.limit("10/minute")
 async def login(request: Request, body: LoginRequest):
     """Iniciar sesión"""
-    user = await db.users.find_one(
-        {"email": body.email},
-        {"_id": 0}
-    )
+    identifier_raw = str(body.identifier or body.email or "").strip()
+    if not identifier_raw:
+        raise HTTPException(status_code=422, detail="identifier o email requerido")
+    identifier_low = identifier_raw.lower()
+
+    # Resolver por email o por RUT (normalizado). Mantener errores genéricos (anti-enumeración).
+    user = None
+    if "@" in identifier_raw:
+        user = await db.users.find_one({"email": identifier_low}, {"_id": 0})
+    else:
+        # Normalizar RUT: quitar puntos/espacios; asegurar guion antes del DV.
+        cleaned = re.sub(r"[^0-9kK]", "", identifier_raw)
+        if len(cleaned) >= 2:
+            body_part = cleaned[:-1]
+            dv = cleaned[-1].upper()
+            rut_norm = f"{body_part}-{dv}"
+            user = await db.users.find_one({"rut": rut_norm}, {"_id": 0})
     
     if not user:
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
@@ -516,207 +925,48 @@ async def logout(body: dict = Body(...)):
 @router.post("/password-reset/request")
 @limiter.limit("5/minute")
 async def password_reset_request(request: Request, body: PasswordResetRequest):
-    """
-    Inicia restablecimiento de contraseña por SMS OTP.
-    Respuesta genérica para no filtrar si un email existe.
-    """
-    celular_err = _validate_celular_chile(body.celular)
-    if celular_err:
-        raise HTTPException(status_code=400, detail=celular_err)
+    if body.email and body.celular:
+        send_body = SendOtpRequest(email=body.email, celular=body.celular, channel="sms")
+    else:
+        send_body = SendOtpRequest(identifier=body.identifier or body.email or body.celular)
+    return await send_otp_auth(request, send_body)
 
-    # otp_sent=false si no hay usuario o el celular no calza (sin filtrar cuentas).
-    generic_no_send = {
-        "success": True,
-        "message": "Si los datos coinciden con tu cuenta, te enviamos un código por SMS.",
-        "otp_sent": False,
-        "reason": "no_match",
-    }
 
-    user = await db.users.find_one({"email": body.email})
-    if not user:
-        return generic_no_send
+@router.post("/reset-password")
+@limiter.limit("10/minute")
+async def password_reset_confirm(request: Request, body: PasswordResetConfirmRequest):
+    user, ident_norm = await _resolve_user_for_password_reset_confirm(body)
 
-    user_phone_9 = _normalize_phone_last9(user.get("phone", ""))
-    input_phone_9 = _normalize_phone_last9(body.celular)
-    if not user_phone_9 or user_phone_9 != input_phone_9:
-        return generic_no_send
+    pending = await db.password_reset_requests.find_one({"userId": user["id"]})
+    if not pending:
+        raise HTTPException(status_code=400, detail="Primero solicita un código")
 
-    phone_e164 = _format_phone(body.celular)
-    now = datetime.now(timezone.utc)
-    existing_req = await db.password_reset_requests.find_one({"userId": user["id"]})
-    if existing_req:
-        blocked_raw = existing_req.get("smsBlockedUntil")
-        if blocked_raw:
-            try:
-                blocked_until = datetime.fromisoformat(str(blocked_raw).replace("Z", "+00:00"))
-                if blocked_until.tzinfo is None:
-                    blocked_until = blocked_until.replace(tzinfo=timezone.utc)
-                if blocked_until > now:
-                    email_sent = await _send_password_reset_fallback_email(body.email)
-                    fallback_message = (
-                        "Por seguridad pausamos temporalmente el envío de SMS. "
-                        "Revisa tu correo registrado para continuar."
-                        if email_sent else
-                        "Por seguridad pausamos temporalmente el envío de SMS. "
-                        "Intenta nuevamente en 30 minutos."
-                    )
-                    await db.password_reset_requests.update_one(
-                        {"userId": user["id"]},
-                        {"$set": {
-                            "fallbackEmailSentAt": now.isoformat() if email_sent else None,
-                            "updatedAt": now.isoformat(),
-                        }},
-                        upsert=True
-                    )
-                    return {
-                        "success": True,
-                        "message": fallback_message,
-                        "otp_sent": False,
-                        "reason": "sms_blocked",
-                    }
-            except Exception:
-                pass
+    channel = str(pending.get("channel") or "").lower()
+    if channel == "sms":
+        phone_e164 = _format_phone(_normalize_phone_last9(user.get("phone", "")))
+        verify_result = verify_sms_otp(phone_e164, body.otp)
+    elif channel == "email":
+        verify_result = _verify_recovery_otp_email(str(user.get("email", "")).lower(), body.otp)
+    else:
+        raise HTTPException(status_code=400, detail="Canal de verificación inválido")
 
-        first_raw = existing_req.get("smsWindowStartAt")
-        sms_count = int(existing_req.get("smsRequestCount") or 0)
-        window_start = None
-        if first_raw:
-            try:
-                window_start = datetime.fromisoformat(str(first_raw).replace("Z", "+00:00"))
-                if window_start.tzinfo is None:
-                    window_start = window_start.replace(tzinfo=timezone.utc)
-            except Exception:
-                window_start = None
+    if not verify_result.get("success", True):
+        logger.info("PASSWORD_RESET identifier=%s channel=%s result=fail reason=verify_error", ident_norm, channel)
+        raise HTTPException(status_code=400, detail="No se pudo validar el código")
+    if not verify_result.get("valid"):
+        msg = verify_result.get("error") or "Código incorrecto"
+        logger.info("PASSWORD_RESET identifier=%s channel=%s result=fail reason=%s", ident_norm, channel, msg)
+        raise HTTPException(status_code=400, detail=msg)
 
-        if not window_start or (now - window_start) > timedelta(minutes=SMS_RESET_WINDOW_MINUTES):
-            sms_count = 0
-            window_start = now
-
-        if sms_count >= MAX_SMS_RESET_REQUESTS:
-            blocked_until = now + timedelta(minutes=SMS_RESET_BLOCK_MINUTES)
-            email_sent = await _send_password_reset_fallback_email(body.email)
-            fallback_message = (
-                "Por seguridad pausamos temporalmente el envío de SMS. "
-                "Revisa tu correo registrado para continuar."
-                if email_sent else
-                "Por seguridad pausamos temporalmente el envío de SMS. "
-                "Intenta nuevamente en 30 minutos."
-            )
-            await db.password_reset_requests.update_one(
-                {"userId": user["id"]},
-                {"$set": {
-                    "smsBlockedUntil": blocked_until.isoformat(),
-                    "smsRequestCount": sms_count,
-                    "smsWindowStartAt": window_start.isoformat(),
-                    "fallbackEmailSentAt": now.isoformat() if email_sent else None,
-                    "updatedAt": now.isoformat(),
-                }},
-                upsert=True
-            )
-            return {
-                "success": True,
-                "message": fallback_message,
-                "otp_sent": False,
-                "reason": "sms_blocked",
-            }
-
-    sms_result = send_sms_otp(phone_e164, channel='sms')
-    if not sms_result.get("success"):
-        # En modo real devolvemos error explícito para reintento controlado.
-        if not sms_result.get("demo_mode"):
-            raise HTTPException(status_code=400, detail=sms_result.get("error", "No se pudo enviar el código"))
-
-    # Alineado con OTP (5 min en Redis); ventana de documento un poco mayor por clock skew
-    expires_at = now + timedelta(minutes=10)
-    next_sms_count = 1
-    window_start_to_store = now
-    if existing_req:
-        first_raw = existing_req.get("smsWindowStartAt")
-        sms_count = int(existing_req.get("smsRequestCount") or 0)
-        if first_raw:
-            try:
-                existing_window = datetime.fromisoformat(str(first_raw).replace("Z", "+00:00"))
-                if existing_window.tzinfo is None:
-                    existing_window = existing_window.replace(tzinfo=timezone.utc)
-                if (now - existing_window) <= timedelta(minutes=SMS_RESET_WINDOW_MINUTES):
-                    next_sms_count = sms_count + 1
-                    window_start_to_store = existing_window
-            except Exception:
-                pass
-    await db.password_reset_requests.update_one(
-        {"userId": user["id"]},
-        {"$set": {
-            "userId": user["id"],
-            "email": body.email,
-            "phone": phone_e164,
-            "createdAt": now.isoformat(),
-            "expiresAt": expires_at.isoformat(),
-            "smsRequestCount": next_sms_count,
-            "smsWindowStartAt": window_start_to_store.isoformat(),
-            "smsBlockedUntil": None,
-            "updatedAt": now.isoformat(),
-        }},
-        upsert=True
-    )
-    return {
-        "success": True,
-        "message": generic_no_send["message"],
-        "otp_sent": True,
-        "demo_mode": bool(sms_result.get("demo_mode")),
-    }
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password": hash_password(body.new_password)}})
+    await db.password_reset_requests.delete_one({"userId": user["id"]})
+    await db.sessions.delete_many({"userId": user["id"]})
+    logger.info("PASSWORD_RESET identifier=%s channel=%s result=success", ident_norm, channel)
+    return {"success": True, "message": "Contraseña actualizada correctamente"}
 
 
 @router.post("/password-reset/confirm")
 @limiter.limit("10/minute")
-async def password_reset_confirm(request: Request, body: PasswordResetConfirmRequest):
-    """
-    Confirma código OTP y actualiza contraseña.
-    """
-    celular_err = _validate_celular_chile(body.celular)
-    if celular_err:
-        raise HTTPException(status_code=400, detail=celular_err)
-
-    user = await db.users.find_one({"email": body.email})
-    if not user:
-        raise HTTPException(status_code=400, detail="Datos inválidos")
-
-    user_phone_9 = _normalize_phone_last9(user.get("phone", ""))
-    input_phone_9 = _normalize_phone_last9(body.celular)
-    if not user_phone_9 or user_phone_9 != input_phone_9:
-        raise HTTPException(status_code=400, detail="Datos inválidos")
-
-    pending = await db.password_reset_requests.find_one({"userId": user["id"]})
-    if not pending:
-        raise HTTPException(status_code=400, detail="Primero solicita el código de recuperación")
-
-    exp_raw = pending.get("expiresAt")
-    if exp_raw:
-        try:
-            exp = datetime.fromisoformat(str(exp_raw).replace("Z", "+00:00"))
-            if exp.tzinfo is None:
-                exp = exp.replace(tzinfo=timezone.utc)
-            if datetime.now(timezone.utc) > exp:
-                await db.password_reset_requests.delete_one({"userId": user["id"]})
-                raise HTTPException(
-                    status_code=400,
-                    detail="El código expiró. Solicita uno nuevo desde el paso anterior.",
-                )
-        except HTTPException:
-            raise
-        except Exception:
-            pass
-
-    phone_e164 = _format_phone(body.celular)
-    verify_result = verify_sms_otp(phone_e164, body.code)
-    if not verify_result.get("valid"):
-        raise HTTPException(status_code=400, detail=verify_result.get("error") or "Código incorrecto")
-
-    await db.users.update_one(
-        {"id": user["id"]},
-        {"$set": {"password": hash_password(body.new_password)}}
-    )
-    await db.password_reset_requests.delete_one({"userId": user["id"]})
-    # Invalidar sesiones activas para forzar login con nueva clave.
-    await db.sessions.delete_many({"userId": user["id"]})
-
-    return {"success": True, "message": "Contraseña actualizada correctamente"}
+async def password_reset_confirm_legacy(request: Request, body: PasswordResetConfirmRequest):
+    # Compatibilidad legacy: alias al endpoint nuevo.
+    return await password_reset_confirm(request, body)

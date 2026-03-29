@@ -2,7 +2,7 @@
 MAQGO Admin - Configuración (Precios de referencia)
 Permite editar precios sugeridos por maquinaria desde el admin.
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 
 from auth_dependency import get_current_admin
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -17,6 +17,12 @@ from pricing.constants import (
     REFERENCE_PRICES_PER_SERVICE,
 )
 
+from services.payment_auto_healer import run_auto_heal
+from services.payment_consistency_engine import run_consistency_check
+from services.payment_rollout import get_payment_hardening_metrics_snapshot
+from services.payment_saga_recovery import recover_saga
+from services.reconciliation_service import reconcile_payment_intents
+
 router = APIRouter(prefix="/admin", tags=["admin-config"])
 
 mongo_url = get_mongo_url()
@@ -24,6 +30,56 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
 
 CONFIG_KEY = "reference_prices"
+
+
+@router.get("/payment-hardening-metrics")
+async def payment_hardening_metrics(_: dict = Depends(get_current_admin)):
+    """
+    Métricas de endurecimiento de pagos / idempotencia + agregados del ledger append-only
+    (total_events_logged, event_counts_by_type, reconciliation_mismatches).
+    Incluye consistencia: inconsistency_count, saga_repair_count, auto_heal_success_rate,
+    dead_letter_payment_count.
+    """
+    return await get_payment_hardening_metrics_snapshot(db)
+
+
+@router.post("/payment-consistency-run")
+async def payment_consistency_run(
+    _: dict = Depends(get_current_admin),
+    limit: int = Query(500, ge=1, le=5000),
+):
+    """Ejecuta detección + reparación segura (`run_consistency_check`)."""
+    return await run_consistency_check(db, limit=limit)
+
+
+@router.post("/payment-auto-heal-run")
+async def payment_auto_heal_run(
+    _: dict = Depends(get_current_admin),
+    limit: int = Query(500, ge=1, le=5000),
+):
+    """Auto-healing: reparaciones seguras + dead letter en casos no seguros."""
+    return await run_auto_heal(db, limit=limit)
+
+
+@router.post("/payment-saga-recover/{intent_id}")
+async def payment_saga_recover(
+    intent_id: str,
+    _: dict = Depends(get_current_admin),
+):
+    """Recuperación de saga para un payment_intent concreto."""
+    return await recover_saga(db, intent_id)
+
+
+@router.post("/payment-reconciliation-run")
+async def payment_reconciliation_run(
+    _: dict = Depends(get_current_admin),
+    limit: int = Query(500, ge=1, le=5000),
+):
+    """
+    Job batch idempotente: compara payment_intents vs fila `payments` y registra
+    eventos `reconciliation_mismatch` en el ledger si hay drift.
+    """
+    return await reconcile_payment_intents(db, limit=limit)
 
 
 @router.get("/stats")

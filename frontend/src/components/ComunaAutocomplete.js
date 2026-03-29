@@ -4,12 +4,13 @@ import { searchComunas } from '../data/comunas';
 /**
  * Input con autocomplete para comunas de Chile
  */
-export const ComunaAutocomplete = ({ 
-  value, 
-  onChange, 
+export const ComunaAutocomplete = ({
+  value,
+  onChange,
   placeholder = "Ej: Providencia",
   className = "maqgo-input",
-  style = {}
+  style = {},
+  id
 }) => {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -70,6 +71,7 @@ export const ComunaAutocomplete = ({
   return (
     <div ref={wrapperRef} style={{ position: 'relative' }}>
       <input
+        id={id}
         type="text"
         value={value}
         onChange={handleInputChange}

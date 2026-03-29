@@ -31,6 +31,7 @@ function TeamManagementScreen() {
   const [operatorApellido, setOperatorApellido] = useState('');
   const [operatorRut, setOperatorRut] = useState('');
   const [operatorPhone, setOperatorPhone] = useState('');
+  const [didAttemptInvite, setDidAttemptInvite] = useState(false);
 
   useEffect(() => {
     const fetchTeam = async () => {
@@ -60,6 +61,7 @@ function TeamManagementScreen() {
   const loadTeam = () => setRefreshKey(k => k + 1);
 
   const generateInviteCode = async () => {
+    setDidAttemptInvite(true);
     setInviting(true);
     try {
       const userId = localStorage.getItem('userId');
@@ -96,6 +98,7 @@ function TeamManagementScreen() {
       setOperatorApellido('');
       setOperatorRut('');
       setOperatorPhone('');
+      setDidAttemptInvite(false);
       loadTeam(); // Recargar para ver la invitación pendiente
     } catch (e) {
       console.error('Error generating invite:', e);
@@ -120,6 +123,14 @@ function TeamManagementScreen() {
       console.error('Error canceling invitation:', e);
     }
   };
+
+  const missingInviteFields = [];
+  if (inviteType === 'operator') {
+    if (!operatorNombre.trim()) missingInviteFields.push('Nombre');
+    if (!operatorApellido.trim()) missingInviteFields.push('Apellido');
+    if (!operatorRut.trim()) missingInviteFields.push('RUT');
+  }
+  const isInviteFormValid = inviteType !== 'operator' || missingInviteFields.length === 0;
 
   return (
     <div className="maqgo-app">
@@ -550,7 +561,7 @@ function TeamManagementScreen() {
                           width: '100%',
                           padding: '10px 12px',
                           borderRadius: 8,
-                          border: '1px solid #444',
+                          border: didAttemptInvite && !operatorNombre.trim() ? '1px solid #F44336' : '1px solid #444',
                           background: '#1F1F1F',
                           color: '#fff',
                           fontSize: 14,
@@ -571,7 +582,7 @@ function TeamManagementScreen() {
                           width: '100%',
                           padding: '10px 12px',
                           borderRadius: 8,
-                          border: '1px solid #444',
+                          border: didAttemptInvite && !operatorApellido.trim() ? '1px solid #F44336' : '1px solid #444',
                           background: '#1F1F1F',
                           color: '#fff',
                           fontSize: 14,
@@ -592,7 +603,7 @@ function TeamManagementScreen() {
                           width: '100%',
                           padding: '10px 12px',
                           borderRadius: 8,
-                          border: '1px solid #444',
+                          border: didAttemptInvite && !operatorRut.trim() ? '1px solid #F44336' : '1px solid #444',
                           background: '#1F1F1F',
                           color: '#fff',
                           fontSize: 14,
@@ -601,6 +612,11 @@ function TeamManagementScreen() {
                         }}
                       />
                     </div>
+                    {didAttemptInvite && missingInviteFields.length > 0 && (
+                      <p style={{ color: '#F44336', fontSize: 12, margin: '2px 0 10px' }}>
+                        Falta completar: {missingInviteFields.join(', ')}.
+                      </p>
+                    )}
                     <div>
                       <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
                         Celular (opcional)
@@ -628,7 +644,8 @@ function TeamManagementScreen() {
                 <button
                   className="maqgo-btn-primary"
                   onClick={generateInviteCode}
-                  disabled={inviting}
+                  disabled={inviting || !isInviteFormValid}
+                  style={{ opacity: (inviting || !isInviteFormValid) ? 0.6 : 1 }}
                   data-testid="generate-code-btn"
                 >
                   {inviting ? 'Generando...' : 'Generar código de invitación'}
@@ -730,7 +747,10 @@ function TeamManagementScreen() {
                   marginBottom: 20
                 }}>
                   <p style={{ color: '#EC6819', fontSize: 13, margin: 0 }}>
-                    Comparte este código con {inviteType === 'master' ? 'tu nuevo gerente' : 'tu operador'} para que se una a tu equipo
+                    Este código lo comparte la oficina por su canal interno (WhatsApp, SMS, llamada o correo).
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '6px 0 0' }}>
+                    MAQGO no envía mensajes automáticos al operador.
                   </p>
                 </div>
 

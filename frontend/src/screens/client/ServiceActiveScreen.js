@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
@@ -7,6 +7,7 @@ import { getMachineryDisplayName } from '../../utils/machineryNames';
 import BACKEND_URL from '../../utils/api';
 import { getObjectFirst } from '../../utils/safeStorage';
 import { getClientProviderDisplayName } from '../../utils/privacy';
+import { getOperatorDisplayNameForSite, getOperatorRutForSite } from '../../utils/providerDisplay';
 import OpenServiceChatButton from '../../components/OpenServiceChatButton';
 
 /**
@@ -16,6 +17,9 @@ function ServiceActiveScreen() {
   const navigate = useNavigate();
   const [service, setService] = useState(null);
   const serviceId = localStorage.getItem('currentServiceId');
+  const lastErrorLogAtRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const errorStreakRef = useRef(0);
 
   useEffect(() => {
     const loadService = async () => {
@@ -39,13 +43,52 @@ function ServiceActiveScreen() {
           });
         }
       } catch (e) {
-        console.error(e);
+        const now = Date.now();
+        if (now - lastErrorLogAtRef.current > 60000) {
+          console.warn('ServiceActiveScreen poll error:', e?.message || e);
+          lastErrorLogAtRef.current = now;
+        }
+        throw e;
       }
     };
 
-    loadService();
-    const interval = setInterval(loadService, 5000);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    let timeoutId = null;
+
+    const baseDelayMs = 5000;
+    const maxDelayMs = 30000;
+
+    const run = async () => {
+      if (cancelled) return;
+
+      // Backpressure: sólo 1 request a la vez.
+      if (inFlightRef.current) {
+        timeoutId = setTimeout(run, 1000);
+        return;
+      }
+
+      inFlightRef.current = true;
+      try {
+        await loadService();
+        errorStreakRef.current = 0;
+      } catch {
+        errorStreakRef.current += 1;
+      } finally {
+        inFlightRef.current = false;
+        const delay = Math.min(
+          maxDelayMs,
+          baseDelayMs * (2 ** errorStreakRef.current)
+        );
+        timeoutId = setTimeout(run, delay);
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [navigate]);
 
   // Demo: Botón para simular fin de servicio
@@ -54,8 +97,19 @@ function ServiceActiveScreen() {
     navigate('/client/service-finished');
   };
 
-  const providerDisplayName = service?.providerOperatorName
-    || getClientProviderDisplayName(getObjectFirst(['acceptedProvider', 'selectedProvider'], {}));
+  const savedProvider = getObjectFirst(['acceptedProvider', 'selectedProvider'], {});
+  const cid = localStorage.getItem('currentServiceId') || '';
+  const mergedForSite =
+    service && !cid.startsWith('demo')
+      ? {
+          ...savedProvider,
+          providerOperatorName: service.providerOperatorName ?? savedProvider.providerOperatorName,
+          operator_name: service.providerOperatorName ?? savedProvider.operator_name,
+          operator_rut: service.operatorRut ?? service.operator_rut ?? savedProvider.operator_rut,
+        }
+      : savedProvider;
+  const operatorSiteName = getOperatorDisplayNameForSite(mergedForSite);
+  const operatorSiteRut = getOperatorRutForSite(mergedForSite);
 
   return (
     <div className="maqgo-app">
@@ -122,8 +176,14 @@ function ServiceActiveScreen() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
             <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>Operador</span>
+            <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, textAlign: 'right', maxWidth: '62%' }}>
+              {operatorSiteName}
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>RUT</span>
             <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
-              {providerDisplayName}
+              {operatorSiteRut || 'Por confirmar'}
             </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -136,7 +196,7 @@ function ServiceActiveScreen() {
 
         <OpenServiceChatButton
           serviceId={serviceId || service?.id}
-          otherName="Operador"
+          otherName={operatorSiteName}
           label="Abrir chat"
           style={{ width: '100%', marginTop: 16, background: '#2A2A2A' }}
         />

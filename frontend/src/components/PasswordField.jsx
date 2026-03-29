@@ -43,6 +43,7 @@ function IconEye({ hidden }) {
  */
 function PasswordField({
   value,
+  defaultValue,
   onChange,
   placeholder = 'Contraseña',
   autoComplete = 'current-password',
@@ -77,7 +78,8 @@ function PasswordField({
         id={inputId}
         name={name}
         type={visible ? 'text' : 'password'}
-        value={value}
+        {...(value != null ? { value } : {})}
+        {...(defaultValue != null ? { defaultValue } : {})}
         onChange={onChange}
         placeholder={placeholder}
         autoComplete={autoComplete}

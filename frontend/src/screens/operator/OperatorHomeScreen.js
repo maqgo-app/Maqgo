@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
@@ -22,6 +22,9 @@ import { getObject, getJSON } from '../../utils/safeStorage';
 function OperatorHomeScreen() {
   const navigate = useNavigate();
   const toast = useToast();
+  const inFlightRef = useRef(false);
+  const errorStreakRef = useRef(0);
+  const lastErrorLogAtRef = useRef(0);
   const [available, setAvailable] = useState(() => {
     return localStorage.getItem('providerAvailable') === 'true';
   });
@@ -101,26 +104,62 @@ function OperatorHomeScreen() {
   useEffect(() => {
     // Polling para verificar solicitudes entrantes
     const checkRequests = async () => {
-      try {
-        const userId = localStorage.getItem('userId');
-        if (userId && available) {
-          const res = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
-          if (res.data && res.data.length > 0) {
-            localStorage.setItem('incomingRequest', JSON.stringify(res.data[0]));
-            // ¡Sonido y vibración de nueva solicitud!
-            unlockAudio();
-            playNewRequestSound();
-            vibrate('newRequest');
-            navigate('/provider/request-received');
-          }
+      const userId = localStorage.getItem('userId');
+      if (userId && available) {
+        const res = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
+        if (res.data && res.data.length > 0) {
+          localStorage.setItem('incomingRequest', JSON.stringify(res.data[0]));
+          unlockAudio();
+          playNewRequestSound();
+          vibrate('newRequest');
+          navigate('/provider/request-received');
         }
-      } catch {
-        // Silenciar errores de polling
       }
     };
 
-    const interval = setInterval(checkRequests, 5000);
-    return () => clearInterval(interval);
+    if (!available) return undefined;
+
+    let cancelled = false;
+    let timeoutId = null;
+
+    const baseDelayMs = 5000;
+    const maxDelayMs = 30000;
+
+    const run = async () => {
+      if (cancelled) return;
+
+      if (inFlightRef.current) {
+        timeoutId = setTimeout(run, 1000);
+        return;
+      }
+
+      inFlightRef.current = true;
+      try {
+        await checkRequests();
+        errorStreakRef.current = 0;
+      } catch (e) {
+        const now = Date.now();
+        if (now - lastErrorLogAtRef.current > 60000) {
+          console.warn('OperatorHomeScreen poll error:', e?.message || e);
+          lastErrorLogAtRef.current = now;
+        }
+        errorStreakRef.current += 1;
+      } finally {
+        inFlightRef.current = false;
+        const delay = Math.min(
+          maxDelayMs,
+          baseDelayMs * (2 ** errorStreakRef.current)
+        );
+        timeoutId = setTimeout(run, delay);
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [available, navigate]);
 
   useEffect(() => {

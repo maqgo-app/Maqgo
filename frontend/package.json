@@ -3,20 +3,25 @@
   "private": true,
   "version": "0.0.1",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=20.0.0"
   },
   "type": "module",
   "scripts": {
     "dev": "vite",
     "start": "vite",
     "build": "vite build",
-    "gate:deploy": "npm run test:unit && npm run build",
+    "verify:build": "npm run build && node scripts/verify-build.mjs",
+    "generate:pwa-assets": "node scripts/generate-pwa-assets.mjs",
+    "test:guardrails": "VITE_IS_PRODUCTION=true VITE_MAQGO_ENV=production VITE_ENABLE_DEMO_MODE=false vitest run src/guardrails/productionNoDemoUi.test.jsx --mode production",
+    "gate:deploy": "npm run test:unit && npm run test:guardrails && npm run verify:build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "npm run test:unit",
     "test:unit": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test qa-artifacts/desktop-qa.spec.js"
+    "test:e2e": "playwright test qa-artifacts",
+    "test:e2e:checkout": "playwright test qa-artifacts/checkout-navigation.spec.js",
+    "test:e2e:sellado": "playwright test qa-artifacts/smoke-sellado.spec.js"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
@@ -42,5 +47,9 @@
     "vite": "^7.3.1",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.1.0"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.33.5",
+    "to-ico": "^1.1.5"
   }
 }

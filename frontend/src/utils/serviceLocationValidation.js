@@ -18,6 +18,7 @@ export const REF_MIN_MANUAL_NOT_IN_LIST = 20;
  * @param {number|null|undefined} p.serviceLng
  * @param {boolean} p.manualAddressNotFound
  * @param {boolean} p.isValidComuna
+ * @param {boolean} [p.comunaFromGoogle] — si true, no se exige coincidencia con lista (viene de Places)
  * @returns {{ ok: true } | { ok: false, code: string }}
  */
 export function validateServiceLocationContinue(p) {
@@ -31,12 +32,13 @@ export function validateServiceLocationContinue(p) {
     serviceLat,
     serviceLng,
     manualAddressNotFound,
-    isValidComuna
+    isValidComuna,
+    comunaFromGoogle = false
   } = p;
 
   if (!locationTrimmed) return { ok: false, code: 'NO_LOCATION' };
   if (!comunaTrimmed) return { ok: false, code: 'NO_COMUNA' };
-  if (!isValidComuna) return { ok: false, code: 'INVALID_COMUNA' };
+  if (!comunaFromGoogle && !isValidComuna) return { ok: false, code: 'INVALID_COMUNA' };
   if (waitingForPlaces) return { ok: false, code: 'WAITING_PLACES' };
 
   if (!hasApiKey) {

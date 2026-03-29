@@ -50,8 +50,68 @@ CVV: 123, cualquier fecha de expiración futura.
 
 Ver `backend/.env.example` para la lista completa.
 
+### Endpoints públicos de validación (hardened)
+
+Para exponer `start`, `authorize` y `test-flow` sin sesión durante validación:
+
+- `TBK_ENV=integration`
+- `ONECLICK_PUBLIC_VALIDATION_ENABLED=true`
+- y además **al menos uno**:
+  - `ONECLICK_VALIDATION_TOKEN=<secreto>` (header `x-oneclick-validation-token`)
+  - `ONECLICK_VALIDATION_IP_ALLOWLIST=ip1,ip2`
+
+En producción real (`TBK_ENV=production`) estos endpoints públicos quedan bloqueados.
+
 ## Errores comunes
 
 - **Página en blanco al registrar**: La URL de retorno no es alcanzable. Usa ngrok.
 - **"Falta TBK_TOKEN"**: El usuario canceló en Transbank o hubo un error de red.
 - **Cobro falla al aceptar proveedor**: Verifica que el `email` del usuario en la DB coincida con el usado al registrar la tarjeta.
+
+## Endpoint interno de validación automática
+
+`POST /api/payments/oneclick/test-flow` (solo admin).
+
+Permite ejecutar de forma controlada `start -> confirm -> authorize` usando la integración actual (sin bypass, sin cambio de headers).
+
+Body mínimo:
+
+```json
+{
+  "username": "usuario-validacion",
+  "email": "validacion@maqgo.cl",
+  "amount": 1000,
+  "run_confirm": false,
+  "run_authorize": false
+}
+```
+
+Notas:
+- Si no envías `buy_order`, el endpoint crea uno real en DB con `start`.
+- Para `run_confirm=true`, debes incluir `token` válido.
+- Para `run_authorize=true`, el `buy_order` debe estar `INSCRIBED` y con `tbk_user`.
+- Respuesta incluye `buy_order`, resultados por paso y estado real en colección `payments_oneclick`.
+
+## Evidencia estructurada para Transbank
+
+Cada operación guarda evidencia en `oneclick_validation_events` con:
+- `buy_order`
+- `type` (`inscription_approved`, `inscription_rejected`, `authorize_approved`, `authorize_rejected`, `debit`, `installments`)
+- `timestamp`
+- `status`
+- `detail` (incluye `incident_id` si aparece en errores WAF/Incapsula)
+
+## Checklist pre-validación automática
+
+- inscripción aprobada con `buy_order` real persistido en DB
+- inscripción rechazada con evento registrado
+- authorize aprobado con `buy_order` real y estado final `AUTHORIZED`
+- authorize rechazado con evento registrado
+- débito registrado como `type=debit` (cuando `payment_type_code` es `VD/VP`)
+- cuotas registradas como `type=installments` (cuando `installments_number >= 2`)
+
+## Logo para formulario de validación
+
+Requisito operativo TBK: usar logo cuyo ancho sea exactamente `130px` (no una captura gigante con CSS).
+
+Para el formulario de Transbank, usar el archivo `frontend/public/maqgo_logo_130.svg` (logo limpio, sin fondo negro, y auto-contenido).

@@ -78,9 +78,13 @@ const DEFAULT_MACHINES = [
 export function getMachines() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
+    const restored = restoreFromOnboardingIfPossible();
+    if (restored.length) return restored;
     const migrated = migrateFromLegacy();
     if (migrated.length) return migrated;
-    const initial = JSON.parse(JSON.stringify(DEFAULT_MACHINES));
+    // En pruebas reales, partir vacío (evita “maquinarias demo” que confunden).
+    // Si en algún flujo se quiere demo explícito, debe sembrarse desde ese flujo, no aquí.
+    const initial = [];
     saveMachines(initial);
     return initial;
   }
@@ -88,15 +92,44 @@ export function getMachines() {
   try {
     list = JSON.parse(raw);
   } catch {
-    list = JSON.parse(JSON.stringify(DEFAULT_MACHINES));
+    // Storage corrupto: preferir vacío a demo.
+    list = [];
     saveMachines(list);
     return list;
   }
   if (!Array.isArray(list)) {
-    list = JSON.parse(JSON.stringify(DEFAULT_MACHINES));
+    list = [];
     saveMachines(list);
   }
+  // Si una máquina quedó sin operadores por una sincronización parcial,
+  // intentar rehidratar desde operatorsData del onboarding.
+  list = backfillOperatorsFromOnboarding(list);
+  if (Array.isArray(list) && list.length === 0) {
+    const restored = restoreFromOnboardingIfPossible();
+    if (restored.length) return restored;
+  }
   return list;
+}
+
+export function resetMachines() {
+  saveMachines([]);
+  // Limpieza de legado para evitar re-hidrataciones extrañas.
+  localStorage.removeItem('providerMachinePricing');
+}
+
+function restoreFromOnboardingIfPossible() {
+  try {
+    const machineData = getObject('machineData', {});
+    const machinePricing = getObject('machinePricing', {});
+    const operatorsData = getObject('operatorsData', []);
+    const completed = localStorage.getItem('providerOnboardingCompleted') === 'true';
+    if (!completed || !machineData?.machineryType) return [];
+
+    const seeded = upsertOnboardingMachine(machineData, machinePricing, operatorsData);
+    return Array.isArray(seeded) ? seeded : [];
+  } catch {
+    return [];
+  }
 }
 
 function migrateFromLegacy() {
@@ -166,6 +199,109 @@ export function addMachine(machine) {
   machines.push(newMachine);
   saveMachines(machines);
   return newMachine;
+}
+
+/**
+ * Sincroniza la máquina creada en onboarding con "Mis Máquinas".
+ * Evita que quede un placeholder ("Nueva máquina") cuando el usuario ya ingresó datos reales.
+ */
+export function upsertOnboardingMachine(machineData = {}, machinePricing = {}, operators = []) {
+  const machineryType = machineData?.machineryType;
+  if (!machineryType) return getMachines();
+
+  const isPerSvc = PER_SERVICE_IDS.includes(machineryType);
+  const typeName = MACHINERY_TYPES.find(m => m.id === machineryType)?.name || machineData.type || 'Retroexcavadora';
+  const brandModel = [machineData.brand, machineData.model].filter(Boolean).join(' ').trim();
+  const normalizedLicense = String(machineData.licensePlate || '').trim().toUpperCase();
+
+  const priceBase = Number(machinePricing?.priceBase || 0);
+  const transport = Number(machinePricing?.transportCost || 0);
+
+  const normalizedOperators = normalizeOperators(operators);
+  const nextMachine = {
+    machineryType,
+    type: typeName,
+    brand: brandModel || machineData.brand || 'Nueva máquina',
+    model: machineData.model || '',
+    year: machineData.year || '',
+    licensePlate: machineData.licensePlate || '',
+    // Evitar "valores fantasma": solo mostrar precio si realmente fue definido.
+    pricePerHour: isPerSvc ? null : (priceBase > 0 ? priceBase : null),
+    pricePerService: isPerSvc ? (priceBase > 0 ? priceBase : null) : null,
+    transportCost: needsTransport(machineryType) ? (transport > 0 ? transport : null) : 0,
+    operators: normalizedOperators,
+    available: true,
+  };
+
+  const machines = getMachines();
+  let idx = -1;
+
+  if (normalizedLicense) {
+    idx = machines.findIndex(m => String(m.licensePlate || '').trim().toUpperCase() === normalizedLicense);
+  }
+  if (idx < 0 && nextMachine.brand && nextMachine.model) {
+    idx = machines.findIndex(
+      m =>
+        String(m.machineryType || '') === machineryType &&
+        String(m.brand || '').trim().toLowerCase() === String(nextMachine.brand || '').trim().toLowerCase()
+    );
+  }
+  if (idx < 0 && machines.length === 1 && String(machines[0]?.brand || '').trim().toLowerCase() === 'nueva máquina') {
+    idx = 0;
+  }
+
+  if (idx >= 0) {
+    machines[idx] = { ...machines[idx], ...nextMachine };
+  } else {
+    machines.push({ id: `mach_${Date.now()}`, ...nextMachine });
+  }
+
+  saveMachines(machines);
+  return machines;
+}
+
+function normalizeOperators(operators = []) {
+  if (!Array.isArray(operators)) return [];
+  return operators
+    .map((op, index) => {
+      if (!op || typeof op !== 'object') return null;
+      const fullName = String(op.name || `${op.nombre || ''} ${op.apellido || ''}`.trim()).trim();
+      if (!fullName) return null;
+      const phone = String(op.phone || op.telefono || '').trim();
+      const rut = String(op.rut || '').trim();
+      return {
+        id: String(op.id || `op-onboarding-${Date.now()}-${index}`),
+        name: fullName,
+        phone,
+        rut,
+        isOwner: Boolean(op.isOwner),
+        online: Boolean(op.online),
+        lastSeen: op.lastSeen || new Date().toISOString(),
+      };
+    })
+    .filter(Boolean);
+}
+
+function backfillOperatorsFromOnboarding(machines = []) {
+  if (!Array.isArray(machines) || machines.length === 0) return machines;
+  const onboardingOperators = normalizeOperators(getObject('operatorsData', []));
+  if (onboardingOperators.length === 0) return machines;
+
+  let changed = false;
+  const next = machines.map((m, idx) => {
+    const currentOps = Array.isArray(m?.operators) ? m.operators : [];
+    if (currentOps.length > 0) return m;
+    // Regla simple y segura: si no tiene operadores, tomar los del onboarding.
+    // Priorizamos la primera máquina (alta inicial) y evitamos dejar "Sin operadores asignados".
+    if (idx === 0 || machines.length === 1) {
+      changed = true;
+      return { ...m, operators: onboardingOperators };
+    }
+    return m;
+  });
+
+  if (changed) saveMachines(next);
+  return next;
 }
 
 export function removeMachine(machineId) {

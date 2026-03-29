@@ -8,6 +8,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, getMachineryCapacityOptions, getProviderSpecLabelShort } from '../../utils/machineryNames';
 import { getObject } from '../../utils/safeStorage';
+import { upsertOnboardingMachine } from '../../utils/providerMachines';
 
 /**
  * P08 - Revisión y Confirmación
@@ -76,10 +77,27 @@ function ReviewScreen() {
       if (machineData?.machineryType) payload.machineryType = machineData.machineryType;
 
       await axios.patch(`${BACKEND_URL}/api/users/${userId}`, payload, { timeout: 8000 });
+
+      // Publicar al proveedor para pruebas reales: dejar disponible tras completar onboarding.
+      // (La disponibilidad se puede desactivar luego desde el toggle.)
+      try {
+        await axios.put(
+          `${BACKEND_URL}/api/users/${userId}/availability`,
+          { isAvailable: true, machineryType: machineData?.machineryType || undefined },
+          { timeout: 8000 }
+        );
+      } catch (e) {
+        // No bloquear: el perfil quedó guardado; si falla disponibilidad, el toggle la repara.
+        console.warn('ReviewScreen: no se pudo activar disponibilidad:', e?.response?.status || e?.message);
+      }
       
       // Marcar onboarding como completado y limpiar paso
       localStorage.setItem('providerOnboardingCompleted', 'true');
       localStorage.removeItem('providerOnboardingStep');
+
+      // Sincronizar onboarding -> Mis Máquinas (fuente de UI local del proveedor)
+      const pricing = getObject('machinePricing', {});
+      upsertOnboardingMachine(machineData, pricing, operatorsPayload);
       
       // Check if there's a return URL from before registration
       const returnUrl = getAndClearProviderReturnUrl();

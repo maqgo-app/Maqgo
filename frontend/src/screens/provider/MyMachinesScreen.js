@@ -4,7 +4,7 @@ import axios from 'axios';
 import { ProviderNavigation } from '../../components/BottomNavigation';
 import { useToast } from '../../components/Toast';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
-import { getMachines, updateMachine, addMachine, removeMachine, needsTransport, MACHINERY_TYPES } from '../../utils/providerMachines';
+import { getMachines, resetMachines, updateMachine, addMachine, removeMachine, needsTransport, MACHINERY_TYPES } from '../../utils/providerMachines';
 import { REFERENCE_PRICES, REFERENCE_TRANSPORT, MAX_PRICE_ABOVE_MARKET_PCT, getPriceAlert, getTransportAlert } from '../../utils/pricing';
 import BACKEND_URL from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
@@ -29,6 +29,12 @@ function MyMachinesScreen() {
   const [deleteOperatorConfirm, setDeleteOperatorConfirm] = useState(null);
 
   const loadMachines = () => setMachines(getMachines());
+
+  const handleResetAllMachines = () => {
+    resetMachines();
+    loadMachines();
+    setDeleteMachineConfirm(null);
+  };
 
 
   const setDefaultOperator = (machineryId, operatorId) => {
@@ -127,24 +133,45 @@ function MyMachinesScreen() {
             Gestiona tus equipos, precios y operadores
           </p>
         </div>
-        <button
-          onClick={handleAddMachine}
-          style={{
-            background: '#EC6819',
-            border: 'none',
-            borderRadius: 8,
-            padding: '10px 16px',
-            color: '#fff',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6
-          }}
-        >
-          + Agregar
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {machines.length > 0 && (
+            <button
+              onClick={() => setDeleteMachineConfirm({ kind: 'reset_all' })}
+              style={{
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 8,
+                padding: '10px 12px',
+                color: 'rgba(255,255,255,0.8)',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+              data-testid="reset-all-machines"
+              title="Eliminar todas las máquinas (reset)"
+            >
+              Limpiar
+            </button>
+          )}
+          <button
+            onClick={handleAddMachine}
+            style={{
+              background: '#EC6819',
+              border: 'none',
+              borderRadius: 8,
+              padding: '10px 16px',
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            + Agregar
+          </button>
+        </div>
       </div>
 
       {/* Lista de máquinas o empty state */}
@@ -211,6 +238,9 @@ function MyMachinesScreen() {
               <div>
                 <p style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: '0 0 2px' }}>{machine.type}</p>
                 <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>{machine.brand}</p>
+                <p style={{ color: '#EC6819', fontSize: 12, margin: '4px 0 0', fontWeight: 700 }}>
+                  Patente: {machine.licensePlate ? String(machine.licensePlate).toUpperCase() : 'SIN PATENTE'}
+                </p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
@@ -243,25 +273,37 @@ function MyMachinesScreen() {
 
             {/* Precios */}
             <div style={{ marginBottom: 12 }}>
+              {(() => {
+                const machineMainPrice = machine.pricePerHour ?? machine.pricePerService ?? null;
+                const machineNeedsTransport = needsTransport(machine.machineryType || machine.type);
+                const hasMainPrice = Number(machineMainPrice) > 0;
+                const hasTransport = Number(machine.transportCost) > 0;
+                return (
+                  <>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 Valores netos (hora/servicio y traslado)
               </p>
               <div style={{ background: '#2A2A2A', borderRadius: 8, padding: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
                   <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>
-                    {machine.pricePerHour ? 'Precio/hora neto' : 'Precio/servicio neto'}
+                    {machine.pricePerHour != null ? 'Precio/hora neto' : 'Precio/servicio neto'}
                   </span>
                   <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>
-                    {formatPrice(machine.pricePerHour || machine.pricePerService)}
+                    {hasMainPrice ? formatPrice(machineMainPrice) : 'Sin definir'}
                   </span>
                 </div>
-                {machine.transportCost > 0 && (
+                {(machineNeedsTransport || hasTransport) && (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Traslado</span>
-                    <span style={{ color: '#fff', fontSize: 13 }}>{formatPrice(machine.transportCost)}</span>
+                    <span style={{ color: '#fff', fontSize: 13 }}>
+                      {hasTransport ? formatPrice(machine.transportCost) : 'Sin definir'}
+                    </span>
                   </div>
                 )}
               </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Operadores */}
@@ -269,6 +311,19 @@ function MyMachinesScreen() {
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 Operadores ({(machine.operators || []).length})
               </p>
+              <div
+                style={{
+                  background: 'rgba(236, 104, 25, 0.1)',
+                  border: '1px solid rgba(236, 104, 25, 0.35)',
+                  borderRadius: 8,
+                  padding: '7px 10px',
+                  marginBottom: 8
+                }}
+              >
+                <p style={{ color: '#EC6819', fontSize: 11, margin: 0, fontWeight: 700 }}>
+                  Máquina: {machine.type} · Patente {machine.licensePlate ? String(machine.licensePlate).toUpperCase() : 'SIN PATENTE'}
+                </p>
+              </div>
               {(machine.operators || []).length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(machine.operators || []).map(op => {
@@ -430,9 +485,17 @@ function MyMachinesScreen() {
 
       {deleteMachineConfirm && (
         <ConfirmModal
-          title="Eliminar máquina"
-          message={`¿Eliminar ${deleteMachineConfirm.type} ${deleteMachineConfirm.brand}? Esta acción no se puede deshacer.`}
-          onConfirm={() => handleDeleteMachine(deleteMachineConfirm.id)}
+          title={deleteMachineConfirm.kind === 'reset_all' ? 'Limpiar máquinas' : 'Eliminar máquina'}
+          message={
+            deleteMachineConfirm.kind === 'reset_all'
+              ? '¿Eliminar todas tus máquinas? Quedará la lista vacía para que agregues una por una.'
+              : `¿Eliminar ${deleteMachineConfirm.type} ${deleteMachineConfirm.brand}? Esta acción no se puede deshacer.`
+          }
+          onConfirm={() =>
+            deleteMachineConfirm.kind === 'reset_all'
+              ? handleResetAllMachines()
+              : handleDeleteMachine(deleteMachineConfirm.id)
+          }
           onCancel={() => setDeleteMachineConfirm(null)}
         />
       )}

@@ -7,6 +7,8 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
 
 /**
+ * STABLE FLOW - DO NOT MODIFY WITHOUT PRODUCT APPROVAL
+ *
  * C11 - Seleccion de Maquinaria
  * Con estimador de precio e iconografía estilo Uber
  */
@@ -214,15 +216,43 @@ function MachinerySelection() {
         navigate('/client/urgency');
       } else {
         localStorage.setItem('priceType', 'hour');
-        localStorage.setItem('clientBookingStep', 'hours');
-        navigate('/client/hours-selection');
+        // Conversión: eliminar pantalla separada de horas.
+        // Horas se seleccionan directamente en pantalla de ubicación.
+        if (!localStorage.getItem('selectedHours')) {
+          localStorage.setItem('selectedHours', '4');
+        }
+        localStorage.setItem('clientBookingStep', 'location');
+        navigate('/client/service-location');
       }
     }
   };
 
+  // MVP conversión: atajo para llegar más rápido al "primer valor" (solicitar).
+  // No elimina el flujo normal; solo precarga valores mínimos seguros y lleva a ubicación.
+  const handleQuickRequest = () => {
+    if (!selectedMachinery) return;
+    const isPerTrip = isPerTripMachineryType(selectedMachinery);
+    localStorage.setItem('selectedMachinery', selectedMachinery);
+    localStorage.removeItem('selectedMachineryList');
+    localStorage.setItem('reservationType', 'immediate');
+    localStorage.setItem('urgencyType', 'today');
+    localStorage.setItem('urgencyBonus', '5');
+    localStorage.setItem('priceType', isPerTrip ? 'trip' : 'hour');
+    if (isPerTrip) {
+      localStorage.setItem('clientBookingStep', 'urgency');
+      saveBookingProgress('urgency', { machinery: selectedMachinery, mode: 'quick' });
+      navigate('/client/urgency');
+      return;
+    }
+    localStorage.setItem('selectedHours', '4');
+    localStorage.setItem('clientBookingStep', 'location');
+    saveBookingProgress('location', { machinery: selectedMachinery, mode: 'quick' });
+    navigate('/client/service-location');
+  };
+
   return (
-    <div className="maqgo-app" style={{ overflowY: 'auto' }}>
-      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 0', flexDirection: 'column', minHeight: '100vh' }}>
+    <div className="maqgo-app maqgo-client-funnel">
+      <div className="maqgo-screen maqgo-screen--scroll" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 0', flexDirection: 'column' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20, gap: 12, flexShrink: 0 }}>
           <button onClick={() => navigate(backRoute || '/client/home')} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} aria-label="Volver">
@@ -244,8 +274,8 @@ function MachinerySelection() {
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>
           Elige la maquinaria para esta reserva
         </p>
-        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, textAlign: 'center', marginBottom: 20 }}>
-          En el siguiente paso eliges horas, ubicación y más.
+        <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, textAlign: 'center', marginBottom: 20, lineHeight: 1.45, padding: '0 8px' }}>
+          Después indicarás lugar y duración; más adelante verás proveedores disponibles.
         </p>
 
         {/* Lista scrollable + estimador */}
@@ -293,14 +323,30 @@ function MachinerySelection() {
 
         {/* Botón fijo abajo - siempre visible (90px para barra inferior) */}
         <div style={{ flexShrink: 0, padding: '16px 0 56px', background: 'var(--maqgo-bg)' }}>
-          <button
-            className="maqgo-btn-primary"
-            onClick={handleContinue}
-            disabled={!selectedMachinery}
-            style={{ opacity: selectedMachinery ? 1 : 0.5, width: '100%' }}
-          >
-            Siguiente
-          </button>
+          {reservationType === 'immediate' && (
+            <button
+              className="maqgo-btn-primary"
+              type="button"
+              onClick={handleQuickRequest}
+              disabled={!selectedMachinery}
+              style={{
+                width: '100%',
+                opacity: selectedMachinery ? 1 : 0.5
+              }}
+            >
+              Solicitud rápida (recomendado)
+            </button>
+          )}
+          {reservationType !== 'immediate' && (
+            <button
+              className="maqgo-btn-primary"
+              onClick={handleContinue}
+              disabled={!selectedMachinery}
+              style={{ opacity: selectedMachinery ? 1 : 0.5, width: '100%' }}
+            >
+              Siguiente
+            </button>
+          )}
         </div>
       </div>
     </div>

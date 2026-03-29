@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { MACHINERY_LIST } from '../../components/MachineryIcons';
@@ -17,6 +17,9 @@ function ProviderAvailability({ userId: userIdProp }) {
   const navigate = useNavigate();
   const toast = useToast();
   const userId = userIdProp || localStorage.getItem('userId') || localStorage.getItem('ownerId');
+  const inFlightRef = useRef(false);
+  const errorStreakRef = useRef(0);
+  const lastErrorLogAtRef = useRef(0);
   const [isAvailable, setIsAvailable] = useState(false);
   const [selectedMachinery, setSelectedMachinery] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -25,25 +28,63 @@ function ProviderAvailability({ userId: userIdProp }) {
   // Polling para detectar solicitudes pendientes
   useEffect(() => {
     if (isAvailable && userId) {
-      const interval = setInterval(async () => {
-        try {
-          const response = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
-          if (response.data && response.data.length > 0) {
-            const request = response.data[0];
-            localStorage.setItem('currentServiceId', request.id);
-            localStorage.setItem('pendingRequest', JSON.stringify(request));
-            localStorage.setItem('incomingRequest', JSON.stringify(request));
-            unlockAudio();
-            playNewRequestSound();
-            vibrate('newRequest');
-            navigate('/provider/request-received');
-          }
-        } catch {
-          // Silenciar errores de polling
+      const checkRequests = async () => {
+        const response = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
+        if (response.data && response.data.length > 0) {
+          const request = response.data[0];
+          localStorage.setItem('currentServiceId', request.id);
+          localStorage.setItem('pendingRequest', JSON.stringify(request));
+          localStorage.setItem('incomingRequest', JSON.stringify(request));
+          unlockAudio();
+          playNewRequestSound();
+          vibrate('newRequest');
+          navigate('/provider/request-received');
         }
-      }, 2000);
-      return () => clearInterval(interval);
+      };
+
+      let cancelled = false;
+      let timeoutId = null;
+
+      const baseDelayMs = 2000;
+      const maxDelayMs = 20000;
+
+      const run = async () => {
+        if (cancelled) return;
+
+        if (inFlightRef.current) {
+          timeoutId = setTimeout(run, 800);
+          return;
+        }
+
+        inFlightRef.current = true;
+        try {
+          await checkRequests();
+          errorStreakRef.current = 0;
+        } catch (e) {
+          const now = Date.now();
+          if (now - lastErrorLogAtRef.current > 60000) {
+            console.warn('ProviderAvailability poll error:', e?.message || e);
+            lastErrorLogAtRef.current = now;
+          }
+          errorStreakRef.current += 1;
+        } finally {
+          inFlightRef.current = false;
+          const delay = Math.min(
+            maxDelayMs,
+            baseDelayMs * (2 ** errorStreakRef.current)
+          );
+          timeoutId = setTimeout(run, delay);
+        }
+      };
+
+      void run();
+
+      return () => {
+        cancelled = true;
+        if (timeoutId) clearTimeout(timeoutId);
+      };
     }
+    return undefined;
   }, [isAvailable, userId, navigate]);
 
   const handleToggleAvailability = async () => {

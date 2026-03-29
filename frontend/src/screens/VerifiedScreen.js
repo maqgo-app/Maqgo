@@ -19,9 +19,10 @@ function VerifiedScreen() {
     } else if (returnUrl && returnUrl.startsWith('/client/')) {
       preselect = 'client';
     }
+    // Dejar la pantalla visible lo suficiente para leer (micro-UX).
     const timer = setTimeout(() => {
       navigate('/select-role', preselect ? { state: { preselect } } : {});
-    }, 1500);
+    }, 2500);
     return () => clearTimeout(timer);
   }, [navigate]);
 

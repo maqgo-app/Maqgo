@@ -16,7 +16,8 @@ const base = {
   serviceLat: -33.4,
   serviceLng: -70.6,
   manualAddressNotFound: false,
-  isValidComuna: true
+  isValidComuna: true,
+  comunaFromGoogle: false
 };
 
 describe('validateServiceLocationContinue', () => {
@@ -115,5 +116,15 @@ describe('validateServiceLocationContinue', () => {
 
   it('con selección de lista y coords ok permite continuar', () => {
     expect(validateServiceLocationContinue(base).ok).toBe(true);
+  });
+
+  it('comuna desde Google no exige lista si isValidComuna es false', () => {
+    expect(
+      validateServiceLocationContinue({
+        ...base,
+        comunaFromGoogle: true,
+        isValidComuna: false
+      }).ok
+    ).toBe(true);
   });
 });

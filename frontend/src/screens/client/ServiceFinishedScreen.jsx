@@ -9,7 +9,8 @@ import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { CON_FACTURA_FACTOR, getClientBreakdown } from '../../utils/pricing';
 import { getObject, getObjectFirst } from '../../utils/safeStorage';
-import { getClientProviderDisplayName } from '../../utils/privacy';
+import { getOperatorDisplayNameForSite, getOperatorRutForSite } from '../../utils/providerDisplay';
+import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 
 /**
  * Arma un desglose que sume exactamente totalPagado (evita desglose incoherente con factura).
@@ -114,6 +115,7 @@ function ServiceFinishedScreen() {
                 name: res.data.providerName || res.data.provider?.name,
                 operator_name: res.data.providerOperatorName || res.data.provider?.operator_name,
                 providerOperatorName: res.data.providerOperatorName,
+                operator_rut: res.data.operatorRut ?? res.data.operator_rut ?? res.data.provider?.operator_rut,
               };
             }
             // Horarios reales conforme a lo arrendado:
@@ -132,9 +134,10 @@ function ServiceFinishedScreen() {
       if (cancelled) return;
 
       const machinery = localStorage.getItem('selectedMachinery') || 'Retroexcavadora';
-      const provider = providerFromApi || getObjectFirst(['acceptedProvider', 'selectedProvider'], {});
+      const localProv = getObjectFirst(['acceptedProvider', 'selectedProvider'], {});
+      const provider = providerFromApi ? { ...localProv, ...providerFromApi } : localProv;
       const hours = parseInt(localStorage.getItem('selectedHours') || '4');
-      const location = localStorage.getItem('serviceLocation') || 'Santiago';
+      const location = getBookingLocationLineOrEmpty() || 'Santiago';
       const pricing = getObject('servicePricing', {});
       const totalAmount = totalFromApi ?? parseInt(localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0');
       const isPerTrip = isPerTripMachineryType(machinery);
@@ -293,7 +296,15 @@ function ServiceFinishedScreen() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Operador</span>
-              <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{getClientProviderDisplayName(serviceData.provider)}</span>
+              <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, textAlign: 'right', maxWidth: '62%' }}>
+                {getOperatorDisplayNameForSite(serviceData.provider)}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>RUT operador</span>
+              <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>
+                {getOperatorRutForSite(serviceData.provider) || 'Por confirmar'}
+              </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Ubicación de la obra</span>
@@ -458,7 +469,7 @@ function ServiceFinishedScreen() {
             </div>
             <div>
               <p style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: 0 }}>
-                {getClientProviderDisplayName(serviceData.provider)}
+                {getOperatorDisplayNameForSite(serviceData.provider)}
               </p>
               <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0 }}>
                 {serviceData.machinery}

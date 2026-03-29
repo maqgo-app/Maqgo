@@ -22,7 +22,7 @@ describe('Recuperación / registro / rol', () => {
     expect(forgot).toContain('password-reset/request');
     expect(forgot).toContain('password-reset/confirm');
     expect(forgot).toContain('Restablecer contraseña');
-    expect(forgot).toContain('Guardar nueva contraseña');
+    expect(forgot).toContain('Cambiar contraseña');
     expect(forgot).not.toMatch(/pr[oó]ximamente/i);
   });
 

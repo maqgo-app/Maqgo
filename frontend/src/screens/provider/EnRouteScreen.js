@@ -17,6 +17,7 @@ const DEMO_WORK_LOCATION = { lat: -33.4489, lng: -70.6693 };
 import BACKEND_URL from '../../utils/api';
 import { getObject, getArray, getObjectFirst } from '../../utils/safeStorage';
 import { isPerTripMachineryType } from '../../utils/machineryNames';
+import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 
 /**
  * Pantalla: En Camino a la Obra (PROVEEDOR)

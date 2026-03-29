@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
-import { getClientBookingRoute, clearClientBookingStorage } from '../../utils/bookingFlow';
+import { getClientBookingRoute, resetBookingState } from '../../utils/bookingFlow';
 import { preloadClientBookingFunnel } from '../../utils/preloadClientBookingFunnel';
 
 /**
@@ -40,12 +40,13 @@ function ClientHome() {
       setPendingRoute(null);
     } else {
       // Nueva reserva: limpiar todo el flujo de reserva
-      clearClientBookingStorage();
+      resetBookingState();
       setPendingRoute(null);
     }
   };
 
   const handleSelect = (type) => {
+    resetBookingState();
     localStorage.setItem('reservationType', type);
     // Inmediato: Maquinaria → Horas (si aplica) → ...
     // Programado: Calendario → Maquinaria → ...
