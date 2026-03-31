@@ -264,7 +264,7 @@ def send_sms_otp(phone_number: str, channel: str = 'sms') -> dict:
     Send 6-digit OTP via SMS.
     - Proveedor: LabsMobile
     - OTP valid for 5 minutes, max 3 attempts, rate limit 3/10min
-    - MVP: Always return success even if Redis/SMS fail
+    - Secure: Falla claramente si hay problemas, sin ocultar errores
     """
     print("OTP_SERVICE_START", phone_number, channel)
     
@@ -282,13 +282,11 @@ def send_sms_otp(phone_number: str, channel: str = 'sms') -> dict:
         print("OTP_CONFIG_CHECK_RESULT", configured)
         
         if not configured:
-            print("OTP_NOT_CONFIGURED - MVP_FALLBACK_SUCCESS")
+            print("OTP_NOT_CONFIGURED")
             return {
-                'success': True,  # MVP: Return success even if not configured
-                'channel': 'sms',
-                'demo_mode': False,
-                'fallback': True,
-                'log': log_message('sms', phone_number, 'otp', 'fallback_success', 'OTP not configured but returning success for MVP')
+                'success': False,
+                'error': 'OTP service not configured. Check REDIS_URL, LABSMOBILE credentials.',
+                'log': log_message('sms', phone_number, 'otp', 'error', 'OTP not configured')
             }
         
         print("OTP_SEND_START", phone_number)
@@ -305,37 +303,25 @@ def send_sms_otp(phone_number: str, channel: str = 'sms') -> dict:
             }
         
         print("OTP_SEND_FAILED", result.get('error'))
-        # MVP: Return success even if OTP fails
         return {
-            'success': True,  # MVP: Always return success
-            'channel': 'sms',
-            'demo_mode': False,
-            'fallback': True,
-            'error': result.get('error'),
-            'log': log_message('sms', phone_number, 'otp', 'fallback_success', f"OTP failed but returning success: {result.get('error')}")
+            'success': False,
+            'error': result.get('error', 'OTP send failed'),
+            'log': log_message('sms', phone_number, 'otp', 'error', result.get('error'))
         }
         
     except ImportError as e:
         print("OTP_IMPORT_ERROR", str(e))
-        # MVP: Return success even if import fails
         return {
-            'success': True,  # MVP: Always return success
-            'channel': 'sms',
-            'demo_mode': False,
-            'fallback': True,
-            'error': str(e),
-            'log': log_message('sms', phone_number, 'otp', 'fallback_success', f"Import error but returning success: {str(e)}")
+            'success': False,
+            'error': 'OTP service not available',
+            'log': log_message('sms', phone_number, 'otp', 'error', f"Import error: {str(e)}")
         }
     except Exception as e:
         print("OTP_SERVICE_ERROR", str(e))
-        # MVP: Return success even if everything fails
         return {
-            'success': True,  # MVP: Always return success
-            'channel': 'sms',
-            'demo_mode': False,
-            'fallback': True,
-            'error': str(e),
-            'log': log_message('sms', phone_number, 'otp', 'fallback_success', f"Service error but returning success: {str(e)}")
+            'success': False,
+            'error': 'OTP service error',
+            'log': log_message('sms', phone_number, 'otp', 'error', f"Service error: {str(e)}")
         }
 
 

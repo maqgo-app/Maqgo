@@ -153,14 +153,9 @@ async def send_otp_auth(request: Request, body: SendOtpRequest):
     /auth/send-otp
     - Legacy: body.phone (registro/verificación)
     - Recovery: body.identifier + body.channel (sms/email)
-    - MVP: Always return success, include OTP fallback if SMS fails
+    - Secure: OTP nunca se expone, SMS es obligatorio
     """
     print("SEND_OTP_REQUEST", body.model_dump())
-    
-    # Generate OTP upfront - always available for fallback
-    import secrets
-    otp = ''.join(str(secrets.randbelow(10)) for _ in range(6))
-    print("OTP_GENERATED_UPFRONT", otp)
     
     try:
         # Legacy path compatibility
@@ -169,14 +164,7 @@ async def send_otp_auth(request: Request, body: SendOtpRequest):
             celular_err = _validate_celular_chile(body.phone)
             if celular_err:
                 print("VALIDATION_ERROR", celular_err)
-                # Even with validation error, return OTP fallback
-                return {
-                    "success": True,
-                    "otp_fallback": True,
-                    "otp": otp,
-                    "message": "Código generado",
-                    "error": celular_err
-                }
+                raise HTTPException(status_code=400, detail=celular_err)
             
             # Fix phone format
             if not body.phone.startswith("+569"):
@@ -185,31 +173,20 @@ async def send_otp_auth(request: Request, body: SendOtpRequest):
                 phone_e164 = body.phone
             print("PHONE_FORMATTED", phone_e164)
             
-            # Try to send SMS (may fail)
-            sms_success = False
-            try:
-                print("SMS_SEND_START", phone_e164)
-                result = send_sms_otp(phone_e164, channel='sms')
-                print("SMS_SEND_RESULT", result)
-                sms_success = result.get("success", False)
-                if sms_success:
-                    print("SMS_SEND_OK")
-                else:
-                    print("SMS_SEND_FAILED", result.get("error"))
-            except Exception as e:
-                print("SMS_SEND_EXCEPTION", str(e))
-                sms_success = False
+            print("SMS_SEND_START", phone_e164)
+            result = send_sms_otp(phone_e164, channel='sms')
+            print("SMS_SEND_RESULT", result)
             
-            if sms_success:
-                return {"success": True, "message": "Código enviado"}
-            else:
-                # SMS failed - return OTP fallback
+            if not result.get("success"):
+                print("SMS_SEND_FAILED", result.get("error"))
+                # SMS failed - return error (no fallback)
                 return {
-                    "success": True,
-                    "otp_fallback": True,
-                    "otp": otp,
-                    "message": "Código generado"
+                    "success": False,
+                    "error": "No se pudo enviar el código. Intenta nuevamente."
                 }
+            
+            print("SMS_SEND_OK")
+            return {"success": True, "message": "Código enviado"}
 
         # Recuperación estricta: correo + celular deben corresponder a la misma cuenta (SMS).
         email_pair = str(body.email or "").strip()
@@ -219,65 +196,29 @@ async def send_otp_auth(request: Request, body: SendOtpRequest):
             celular_err = _validate_celular_chile(cel_pair)
             if celular_err:
                 print("VALIDATION_ERROR", celular_err)
-                return {
-                    "success": True,
-                    "otp_fallback": True,
-                    "otp": otp,
-                    "message": "Código generado",
-                    "error": celular_err
-                }
+                raise HTTPException(status_code=400, detail=celular_err)
             phone9_in = _normalize_phone_last9(_format_phone(cel_pair))
             if len(phone9_in) != 9:
                 print("INVALID_PHONE_LENGTH", phone9_in)
-                return {
-                    "success": True,
-                    "otp_fallback": True,
-                    "otp": otp,
-                    "message": "Código generado",
-                    "error": "Celular inválido"
-                }
+                raise HTTPException(status_code=400, detail="Celular inválido")
             
             print("DB_USER_LOOKUP_START", email_pair)
             user = await db.users.find_one({"email": email_pair.lower()})
             if not user:
                 print("USER_NOT_FOUND", email_pair)
-                return {
-                    "success": True,
-                    "otp_fallback": True,
-                    "otp": otp,
-                    "message": "Código generado",
-                    "error": "Usuario no encontrado"
-                }
+                raise HTTPException(status_code=404, detail="Usuario no encontrado")
             if _normalize_phone_last9(user.get("phone", "")) != phone9_in:
                 print("PHONE_MISMATCH", user.get("phone", ""), phone9_in)
-                return {
-                    "success": True,
-                    "otp_fallback": True,
-                    "otp": otp,
-                    "message": "Código generado",
-                    "error": "Usuario no encontrado"
-                }
+                raise HTTPException(status_code=404, detail="Usuario no encontrado")
             
             channels = _recovery_channels_for_user(user)
             if "sms" not in channels:
                 print("NO_SMS_CHANNEL", channels)
-                return {
-                    "success": True,
-                    "otp_fallback": True,
-                    "otp": otp,
-                    "message": "Código generado",
-                    "error": "Cuenta sin método de recuperación disponible"
-                }
+                raise HTTPException(status_code=400, detail="Cuenta sin método de recuperación disponible")
             selected_channel = str(body.channel or "sms").strip().lower() or "sms"
             if selected_channel != "sms":
                 print("INVALID_CHANNEL", selected_channel)
-                return {
-                    "success": True,
-                    "otp_fallback": True,
-                    "otp": otp,
-                    "message": "Código generado",
-                    "error": "Canal inválido para esta cuenta"
-                }
+                raise HTTPException(status_code=400, detail="Canal inválido para esta cuenta")
             
             # Fix phone format
             user_phone = user.get("phone", "")
@@ -287,66 +228,19 @@ async def send_otp_auth(request: Request, body: SendOtpRequest):
                 phone_e164 = user_phone
             print("PHONE_FORMATTED", phone_e164)
             
-            # Try to send SMS (may fail)
-            sms_success = False
-            try:
-                print("SMS_SEND_START", phone_e164)
-                send_result = send_sms_otp(phone_e164, channel="sms")
-                print("SMS_SEND_RESULT", send_result)
-                sms_success = send_result.get("success", False)
-                if sms_success:
-                    print("SMS_SEND_OK")
-                else:
-                    print("SMS_SEND_FAILED", send_result.get("error"))
-            except Exception as e:
-                print("SMS_SEND_EXCEPTION", str(e))
-                sms_success = False
+            print("SMS_SEND_START", phone_e164)
+            send_result = send_sms_otp(phone_e164, channel="sms")
+            print("SMS_SEND_RESULT", send_result)
             
-            # Try to save to DB (may fail)
-            try:
-                now = datetime.now(timezone.utc).isoformat()
-                ident_norm = email_pair.lower()
-                ident_type = "email"
-                await db.password_reset_requests.update_one(
-                    {"userId": user["id"]},
-                    {
-                        "$set": {
-                            "userId": user["id"],
-                            "identifierType": ident_type,
-                            "identifierNormalized": ident_norm,
-                            "channel": selected_channel,
-                            "createdAt": now,
-                            "updatedAt": now,
-                        }
-                    },
-                    upsert=True,
-                )
-                print("DB_SAVE_OK")
-            except Exception as e:
-                print("DB_SAVE_ERROR", str(e))
+            if not send_result.get("success"):
+                print("SMS_SEND_FAILED", send_result.get("error"))
+                # SMS failed - return error (no fallback)
+                return {
+                    "success": False,
+                    "error": "No se pudo enviar el código. Intenta nuevamente."
+                }
             
-            if sms_success:
-                masked_sms = _mask_phone_for_display(user.get("phone", ""))
-                return {
-                    "success": True,
-                    "otp_sent": True,
-                    "requires_channel_selection": False,
-                    "channel": selected_channel,
-                    "masked_phone": masked_sms,
-                    "masked": {
-                        "sms": masked_sms,
-                        "email": _mask_email_for_display(user.get("email", "")),
-                    },
-                    "message": "Código enviado",
-                }
-            else:
-                # SMS failed - return OTP fallback
-                return {
-                    "success": True,
-                    "otp_fallback": True,
-                    "otp": otp,
-                    "message": "Código generado"
-                }
+            print("SMS_SEND_OK")
         now = datetime.now(timezone.utc).isoformat()
         ident_norm = email_pair.lower()
         ident_type = "email"
@@ -386,35 +280,17 @@ async def send_otp_auth(request: Request, body: SendOtpRequest):
     identifier = _normalize_identifier(body.identifier or "")
     if not identifier:
         print("NO_IDENTIFIER")
-        return {
-            "success": True,
-            "otp_fallback": True,
-            "otp": otp,
-            "message": "Código generado",
-            "error": "Ingresa celular o correo"
-        }
+        raise HTTPException(status_code=400, detail="Ingresa celular o correo")
 
     print("USER_RECOVERY_START", identifier)
     user, ident_type, ident_norm = await _find_user_for_recovery(identifier)
     channels = _recovery_channels_for_user(user) if user else []
     if not user:
         print("USER_NOT_FOUND", identifier)
-        return {
-            "success": True,
-            "otp_fallback": True,
-            "otp": otp,
-            "message": "Código generado",
-            "error": "Usuario no encontrado"
-        }
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     if not channels:
         print("NO_RECOVERY_CHANNELS", channels)
-        return {
-            "success": True,
-            "otp_fallback": True,
-            "otp": otp,
-            "message": "Código generado",
-            "error": "Cuenta sin método de recuperación disponible"
-        }
+        raise HTTPException(status_code=400, detail="Cuenta sin método de recuperación disponible")
 
     selected_channel = str(body.channel or "").strip().lower()
     if not selected_channel:
@@ -434,16 +310,8 @@ async def send_otp_auth(request: Request, body: SendOtpRequest):
 
     if selected_channel not in channels:
         print("INVALID_CHANNEL", selected_channel, channels)
-        return {
-            "success": True,
-            "otp_fallback": True,
-            "otp": otp,
-            "message": "Código generado",
-            "error": "Canal inválido para esta cuenta"
-        }
+        raise HTTPException(status_code=400, detail="Canal inválido para esta cuenta")
 
-    # Try to send SMS/Email (may fail)
-    send_success = False
     if selected_channel == "sms":
         # Fix phone format
         user_phone = user.get("phone", "")
@@ -453,93 +321,78 @@ async def send_otp_auth(request: Request, body: SendOtpRequest):
             phone_e164 = user_phone
         print("PHONE_FORMATTED", phone_e164)
         
-        try:
-            print("SMS_SEND_START", phone_e164)
-            send_result = send_sms_otp(phone_e164, channel="sms")
-            print("SMS_SEND_RESULT", send_result)
-            send_success = send_result.get("success", False)
-            if send_success:
-                print("SMS_SEND_OK")
-            else:
-                print("SMS_SEND_FAILED", send_result.get("error"))
-        except Exception as e:
-            print("SMS_SEND_EXCEPTION", str(e))
-            send_success = False
+        print("SMS_SEND_START", phone_e164)
+        send_result = send_sms_otp(phone_e164, channel="sms")
+        print("SMS_SEND_RESULT", send_result)
+        
+        if not send_result.get("success"):
+            print("SMS_SEND_FAILED", send_result.get("error"))
+            # SMS failed - return error (no fallback)
+            return {
+                "success": False,
+                "error": "No se pudo enviar el código. Intenta nuevamente."
+            }
+        
+        print("SMS_SEND_OK")
     else:
-        try:
-            print("EMAIL_SEND_START", user.get("email", ""))
-            send_result = await _send_recovery_otp_email(str(user.get("email", "")).lower())
-            print("EMAIL_SEND_RESULT", send_result)
-            send_success = send_result.get("success", False)
-            if send_success:
-                print("EMAIL_SEND_OK")
-            else:
-                print("EMAIL_SEND_FAILED", send_result.get("error"))
-        except Exception as e:
-            print("EMAIL_SEND_EXCEPTION", str(e))
-            send_success = False
+        print("EMAIL_SEND_START", user.get("email", ""))
+        send_result = await _send_recovery_otp_email(str(user.get("email", "")).lower())
+        print("EMAIL_SEND_RESULT", send_result)
+        
+        if not send_result.get("success"):
+            print("EMAIL_SEND_FAILED", send_result.get("error"))
+            # Email failed - return error (no fallback)
+            return {
+                "success": False,
+                "error": "No se pudo enviar el código. Intenta nuevamente."
+            }
+        
+        print("EMAIL_SEND_OK")
 
-    # Try to save to DB (may fail)
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        print("DB_SAVE_START", user["id"])
-        await db.password_reset_requests.update_one(
-            {"userId": user["id"]},
-            {
-                "$set": {
-                    "userId": user["id"],
-                    "identifierType": ident_type,
-                    "identifierNormalized": ident_norm,
-                    "channel": selected_channel,
-                    "createdAt": now,
-                    "updatedAt": now,
-                }
-            },
-            upsert=True,
-        )
-        print("DB_SAVE_OK")
-    except Exception as e:
-        print("DB_SAVE_ERROR", str(e))
-    
+    now = datetime.now(timezone.utc).isoformat()
+    print("DB_SAVE_START", user["id"])
+    await db.password_reset_requests.update_one(
+        {"userId": user["id"]},
+        {
+            "$set": {
+                "userId": user["id"],
+                "identifierType": ident_type,
+                "identifierNormalized": ident_norm,
+                "channel": selected_channel,
+                "createdAt": now,
+                "updatedAt": now,
+            }
+        },
+        upsert=True,
+    )
+    print("DB_SAVE_OK")
     logger.info(
         "PASSWORD_RESET_SEND_OTP identifier=%s channel=%s result=success",
         ident_norm,
         selected_channel,
     )
-    
-    if send_success:
-        masked_sms = _mask_phone_for_display(user.get("phone", "")) if "sms" in channels else None
-        print("SEND_OTP_SUCCESS", selected_channel)
-        return {
-            "success": True,
-            "otp_sent": True,
-            "requires_channel_selection": False,
-            "channel": selected_channel,
-            "masked_phone": masked_sms,
-            "masked": {
-                "sms": masked_sms,
-                "email": _mask_email_for_display(user.get("email", "")) if "email" in channels else None,
-            },
-            "message": "Código enviado",
-        }
-    else:
-        # Send failed - return OTP fallback
-        return {
-            "success": True,
-            "otp_fallback": True,
-            "otp": otp,
-            "message": "Código generado"
-        }
+    masked_sms = _mask_phone_for_display(user.get("phone", "")) if "sms" in channels else None
+    print("SEND_OTP_SUCCESS", selected_channel)
+    return {
+        "success": True,
+        "otp_sent": True,
+        "requires_channel_selection": False,
+        "channel": selected_channel,
+        "masked_phone": masked_sms,
+        "masked": {
+            "sms": masked_sms,
+            "email": _mask_email_for_display(user.get("email", "")) if "email" in channels else None,
+        },
+        "message": "Código enviado",
+    }
     
     except Exception as e:
         print("SEND_OTP_ERROR", str(e))
-        # Even with everything failed, return OTP fallback
+        # Return error - no fallback
         return {
-            "success": True,
-            "otp_fallback": True,
-            "otp": otp,
-            "message": "Código generado",
-            "error": str(e)
+            "success": False,
+            "error": "No se pudo enviar el código. Intenta nuevamente.",
+            "debug": str(e)
         }
 
 
