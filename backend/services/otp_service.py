@@ -73,19 +73,39 @@ def send_sms(phone: str, message: str) -> Tuple[bool, Optional[str]]:
     """
     Envía SMS vía LabsMobile.
     Retorna (success, error_message).
+    - Logging completo para diagnóstico en producción
+    - Validación estricta de credenciales y formato
     """
-    if not LABSMOBILE_USERNAME or not LABSMOBILE_API_TOKEN:
-        return False, "LabsMobile no configurado"
+    print("SMS_SEND_START", phone)
+    
+    # Validar credenciales
+    username_exists = bool(LABSMOBILE_USERNAME and LABSMOBILE_USERNAME.strip())
+    token_exists = bool(LABSMOBILE_API_TOKEN and LABSMOBILE_API_TOKEN.strip())
+    print("SMS_PROVIDER", "LabsMobile")
+    print("SMS_CREDENTIALS_PRESENT", username_exists, token_exists)
+    
+    if not username_exists or not token_exists:
+        print("SMS_CREDENTIALS_MISSING", f"username={username_exists}, token={token_exists}")
+        return False, "Configuración de SMS incompleta"
 
+    # Validar formato teléfono
+    if not phone.startswith("+569") or len(phone) != 12:
+        print("PHONE_INVALID_FORMAT", phone)
+        return False, f"Formato de teléfono inválido: {phone} (debe ser +569XXXXXXXX)"
+    
     msisdn = "".join(c for c in phone if c.isdigit())
-    if not msisdn:
-        return False, "Número destino inválido"
+    if not msisdn or len(msisdn) != 11:  # 56 + 9 dígitos
+        print("PHONE_INVALID_DIGITS", msisdn)
+        return False, f"Número destino inválido: {phone}"
+    
+    print("SMS_PHONE_FINAL", phone)
 
     payload = {
         "message": message,
         "tpoa": LABSMOBILE_SENDER,
         "recipient": [{"msisdn": msisdn}],
     }
+    print("SMS_REQUEST_PAYLOAD", {k: v for k, v in payload.items() if k != 'recipient'})  # Sin token
 
     try:
         res = requests.post(
@@ -95,23 +115,47 @@ def send_sms(phone: str, message: str) -> Tuple[bool, Optional[str]]:
             headers={"Content-Type": "application/json", "Cache-Control": "no-cache"},
             timeout=12,
         )
+        
+        print("SMS_STATUS_CODE", res.status_code)
+        print("SMS_RESPONSE_RAW", res.text[:500])  # Limitar largo
+        
         if res.status_code != 200:
-            logger.error("LabsMobile SMS HTTP error %s: %s", res.status_code, res.text[:400])
+            logger.error("LabsMobile HTTP error %s: %s", res.status_code, res.text[:400])
             return False, f"LabsMobile error HTTP {res.status_code}"
+        
         try:
             data = res.json()
         except ValueError:
+            print("SMS_RESPONSE_NOT_JSON", res.text[:200])
             logger.error("LabsMobile response not JSON: %s", res.text[:400])
             return False, "LabsMobile respuesta inválida"
 
         api_code = str(data.get("code", "")).strip()
-        if api_code and api_code != "0":
+        api_message = str(data.get("message", "")).strip().lower()
+        
+        print("SMS_API_CODE", api_code)
+        print("SMS_API_MESSAGE", api_message)
+        
+        # Detectar errores aunque HTTP sea 200
+        if api_code != "0" or "error" in api_message:
+            print("SMS_PROVIDER_ERROR", f"code={api_code}, message={api_message}")
             logger.error("LabsMobile API error code=%s body=%s", api_code, str(data)[:500])
-            return False, f"LabsMobile error {api_code}"
+            return False, f"Error proveedor SMS: {api_code}"
 
         logger.info("SMS LabsMobile enviado a %s", phone)
+        print("SMS_SEND_SUCCESS")
         return True, None
+        
+    except requests.exceptions.Timeout as e:
+        print("SMS_SEND_TIMEOUT", str(e))
+        logger.error("LabsMobile timeout: %s", e)
+        return False, "Timeout enviando SMS"
+    except requests.exceptions.ConnectionError as e:
+        print("SMS_SEND_CONNECTION_ERROR", str(e))
+        logger.error("LabsMobile connection error: %s", e)
+        return False, "Error de conexión SMS"
     except Exception as e:
+        print("SMS_SEND_EXCEPTION", str(e))
         logger.error("LabsMobile request error: %s", e)
         return False, str(e)
 

@@ -931,7 +931,72 @@ async def login(request: Request, body: LoginRequest):
         "token": token
     }
 
-@router.post("/debug/send-otp-test")
+@router.post("/debug/test-sms")
+@limiter.limit("5/minute")
+async def debug_test_sms(request: Request, body: dict = Body(...)):
+    """
+    Endpoint temporal SOLO ADMIN para test directo de SMS.
+    Permite diagnosticar problemas de envío sin flujo OTP.
+    """
+    phone = body.get("phone", "")
+    message = body.get("message", "MAQGO: Test de SMS desde debug endpoint.")
+    
+    print("DEBUG_SMS_TEST_START", phone)
+    
+    if not phone:
+        return {
+            "success": False,
+            "error": "Phone required",
+            "debug": "Missing phone parameter"
+        }
+    
+    # Validar y formatear teléfono
+    if not phone.startswith("+569"):
+        if len(phone) == 9 and phone.startswith("9"):
+            phone = "+56" + phone
+        elif len(phone) == 8:
+            phone = "+569" + phone
+        else:
+            return {
+                "success": False,
+                "error": "Formato de teléfono inválido",
+                "debug": f"Original: {phone}, esperado: +569XXXXXXXX o 9XXXXXXXX"
+            }
+    
+    print("DEBUG_PHONE_FORMATTED", phone)
+    
+    # Enviar SMS real
+    try:
+        from services.otp_service import send_sms
+        success, error = send_sms(phone, message)
+        
+        print("DEBUG_SMS_RESULT", success, error)
+        
+        return {
+            "success": success,
+            "phone_original": body.get("phone"),
+            "phone_formatted": phone,
+            "message_sent": message,
+            "error": error,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "debug_info": {
+                "provider": "LabsMobile",
+                "credentials_check": {
+                    "LABSMOBILE_USERNAME": bool(os.environ.get("LABSMOBILE_USERNAME")),
+                    "LABSMOBILE_API_TOKEN": bool(os.environ.get("LABSMOBILE_API_TOKEN")),
+                    "LABSMOBILE_SENDER": os.environ.get("LABSMOBILE_SENDER", "MAQGO")
+                }
+            }
+        }
+        
+    except Exception as e:
+        print("DEBUG_SMS_EXCEPTION", str(e))
+        return {
+            "success": False,
+            "error": str(e),
+            "phone_formatted": phone,
+            "debug": "Exception during SMS send"
+        }
 @limiter.limit("10/minute")
 async def debug_send_otp_test(request: Request, body: dict = Body(...)):
     """
