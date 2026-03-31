@@ -8,6 +8,7 @@ import os
 import logging
 import asyncio
 from pathlib import Path
+from datetime import datetime, timezone
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -158,20 +159,28 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 MAQGO API iniciando...")
 
-    # Advertencias de producción
-    cors_origins_raw = os.environ.get('CORS_ORIGINS', '*')
-    validate_production_safety(cors_origins_raw)
-    if cors_origins_raw.strip() == '*':
-        logger.warning("⚠️ CORS_ORIGINS=* (permite cualquier origen). En producción definir dominios explícitos.")
-    demo_mode = parse_bool_env('MAQGO_DEMO_MODE', False)
-    if demo_mode:
-        logger.warning("⚠️ MAQGO_DEMO_MODE=true. En producción usar false para SMS reales.")
-    tbk_demo = parse_bool_env('TBK_DEMO_MODE', False)
-    if tbk_demo:
-        logger.warning("⚠️ TBK_DEMO_MODE=true. En producción usar false para Transbank real.")
+    # Advertencias de producción (no crashear si faltan variables)
+    try:
+        cors_origins_raw = os.environ.get('CORS_ORIGINS', '*')
+        validate_production_safety(cors_origins_raw)
+        if cors_origins_raw.strip() == '*':
+            logger.warning("⚠️ CORS_ORIGINS=* (permite cualquier origen). En producción definir dominios explícitos.")
+        demo_mode = parse_bool_env('MAQGO_DEMO_MODE', False)
+        if demo_mode:
+            logger.warning("⚠️ MAQGO_DEMO_MODE=true. En producción usar false para SMS reales.")
+        tbk_demo = parse_bool_env('TBK_DEMO_MODE', False)
+        if tbk_demo:
+            logger.warning("⚠️ TBK_DEMO_MODE=true. En producción usar false para Transbank real.")
+    except Exception as e:
+        logger.warning(f"Error en validaciones de producción (continuando): {e}")
 
-    # Iniciar scheduler de timers en background
-    scheduler_task = asyncio.create_task(timer_scheduler())
+    # Iniciar scheduler de timers en background (best-effort)
+    try:
+        scheduler_task = asyncio.create_task(timer_scheduler())
+        logger.info("Timer scheduler iniciado")
+    except Exception as e:
+        logger.warning(f"Timer scheduler no iniciado (continuando): {e}")
+        scheduler_task = None
 
     # Índices idempotencia + ledger + métricas persistentes (best-effort)
     try:
@@ -181,13 +190,16 @@ async def lifespan(app: FastAPI):
 
         _ic = AsyncIOMotorClient(get_mongo_url())
         await ensure_idempotency_indexes(_ic[get_db_name()])
+        logger.info("Índices de MongoDB creados")
     except Exception as e:
         logger.warning("ensure_indexes idempotency/ledger/metrics: %s", e)
 
     yield
     
     # Shutdown
-    scheduler_task.cancel()
+    if scheduler_task:
+        scheduler_task.cancel()
+        logger.info("Timer scheduler detenido")
     logger.info("👋 MAQGO API detenida")
 
 # Create FastAPI app with lifespan
@@ -334,10 +346,25 @@ app.include_router(api_router)
 if maps_router is not None:
     app.include_router(maps_router)
 
-# Health checks de infraestructura (Railway/monitoreo externo)
+# Health check simple
+def get_health_status() -> dict:
+    """Health check que no depende de servicios externos"""
+    return {
+        "status": "ok",
+        "service": "maqgo-backend",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": "1.0.0"
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return get_health_status()
+
 @app.get("/healthz")
 async def infra_healthz():
-    return {"status": "ok"}
+    """Health check para Railway/infraestructura"""
+    return get_health_status()
 
 
 @app.get("/api/health")
@@ -351,16 +378,20 @@ async def infra_healthz_otp_readiness():
     Infra: OTP vía Redis+LabsMobile. Separado de /api/communications/status para no mezclar dominio con despliegue.
     No expone secretos; solo presencia de variables y flag canónico is_otp_configured().
     """
+    try:
+        from services.otp_service import is_otp_configured
+        ready = is_otp_configured()
+    except ImportError:
+        ready = False
+    except Exception as e:
+        logger.warning(f"Error checking OTP configuration: {e}")
+        ready = False
+        
     redis_url_set = bool(str(os.environ.get("REDIS_URL", "")).strip())
     labsmobile_username_set = bool(str(os.environ.get("LABSMOBILE_USERNAME", "")).strip())
     labsmobile_token_set = bool(str(os.environ.get("LABSMOBILE_API_TOKEN", "")).strip())
     labsmobile_sender_set = bool(str(os.environ.get("LABSMOBILE_SENDER", "")).strip())
-    try:
-        from services.otp_service import is_otp_configured
-
-        ready = is_otp_configured()
-    except ImportError:
-        ready = False
+    
     return {
         "ready": ready,
         "redis_url_set": redis_url_set,
