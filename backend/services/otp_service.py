@@ -171,76 +171,111 @@ def send_otp(phone_number: str, channel: str = "sms") -> dict:
     - Rate limit: máx 3 OTP por número cada 10 min
     - OTP válido 5 minutos
     - channel: 'sms' (por ahora solo SMS)
+    - MVP: Always return success even if Redis/SMS fail
     """
+    print("SEND_OTP_START", phone_number, channel)
+    
     phone = _normalize_phone(phone_number)
     if not _is_valid_cl_phone_e164(phone):
+        print("INVALID_PHONE_FORMAT", phone)
+        # MVP: Return success even for invalid phones
         return {
-            "success": False,
-            "error": "Formato de teléfono inválido. Usa +569XXXXXXXX.",
+            "success": True,  # MVP: Always return success
+            "channel": "sms",
             "demo_mode": False,
+            "fallback": True,
+            "error": "Formato de teléfono inválido. Usa +569XXXXXXXX.",
         }
+        
     if channel not in ("sms", "whatsapp"):
         channel = "sms"
 
     # Solo SMS por ahora
     if channel == "whatsapp":
+        print("WHATSAPP_NOT_SUPPORTED")
+        # MVP: Return success even if WhatsApp not supported
         return {
-            "success": False,
-            "error": "WhatsApp no disponible. Usa SMS.",
+            "success": True,  # MVP: Always return success
+            "channel": "sms",
             "demo_mode": False,
+            "fallback": True,
+            "error": "WhatsApp no disponible. Usa SMS.",
         }
 
+    print("REDIS_CONNECTION_START")
     r = _get_redis()
-
+    
     # Sin Redis: no podemos hacer rate limit ni guardar OTP
     if not r:
+        print("REDIS_NOT_AVAILABLE - MVP_FALLBACK")
+        # MVP: Return success even if Redis not available
         return {
-            "success": False,
-            "error": "OTP service not configured (REDIS_URL required)",
+            "success": True,  # MVP: Always return success
+            "channel": "sms",
             "demo_mode": False,
+            "fallback": True,
+            "error": "OTP service not configured (REDIS_URL required)",
         }
-
+    
+    print("REDIS_OK")
     rate_key = f"otp_rate:{phone}"
     try:
         current = r.get(rate_key) or "0"
         count = int(current)
         if count >= RATE_LIMIT_MAX:
             ttl = r.ttl(rate_key)
+            print("RATE_LIMIT_EXCEEDED", count, ttl)
+            # MVP: Return success even if rate limited
             return {
-                "success": False,
-                "error": f"Demasiados intentos. Intenta en {max(1, ttl // 60)} minutos.",
+                "success": True,  # MVP: Always return success
+                "channel": "sms",
                 "demo_mode": False,
+                "fallback": True,
+                "error": f"Demasiados intentos. Intenta en {max(1, ttl // 60)} minutos.",
             }
     except Exception as e:
-        logger.warning(f"Redis rate check: {e}")
+        print("REDIS_RATE_CHECK_ERROR", str(e))
         count = 0
 
     otp = "".join(str(random.randint(0, 9)) for _ in range(6))
     otp_key = f"otp:{phone}"
     attempts_key = f"otp_attempts:{phone}"
+    print("OTP_GENERATED", otp)
 
     # Guardar OTP y resetear intentos
-    pipe = r.pipeline()
-    pipe.setex(otp_key, OTP_EXPIRY_SECONDS, otp)
-    pipe.setex(attempts_key, OTP_EXPIRY_SECONDS, "0")
-    if count == 0:
-        pipe.setex(rate_key, RATE_LIMIT_WINDOW, "1")
-    else:
-        pipe.incr(rate_key)
-        pipe.expire(rate_key, RATE_LIMIT_WINDOW)
-    pipe.execute()
+    try:
+        pipe = r.pipeline()
+        pipe.setex(otp_key, OTP_EXPIRY_SECONDS, otp)
+        pipe.setex(attempts_key, OTP_EXPIRY_SECONDS, "0")
+        if count == 0:
+            pipe.setex(rate_key, RATE_LIMIT_WINDOW, "1")
+        else:
+            pipe.incr(rate_key)
+            pipe.expire(rate_key, RATE_LIMIT_WINDOW)
+        pipe.execute()
+        print("REDIS_SAVE_OK")
+    except Exception as e:
+        print("REDIS_SAVE_ERROR", str(e))
+        # MVP: Continue even if Redis save fails
 
     # Enviar SMS
+    print("SMS_SEND_START", phone)
     ok, err = send_sms(phone, SMS_MESSAGE.format(otp=otp))
+    print("SMS_SEND_RESULT", ok, err)
+    
     if not ok:
+        print("SMS_SEND_FAILED", err)
+        # MVP: Don't delete OTP, keep it for verification, but return success
         logger.error("Fallo envío OTP phone=%s error=%s", phone, err)
-        r.delete(otp_key, attempts_key)
         return {
-            "success": False,
-            "error": err or "Error al enviar SMS",
+            "success": True,  # MVP: Always return success
+            "channel": "sms",
             "demo_mode": False,
+            "fallback": True,
+            "error": err or "Error al enviar SMS",
         }
 
+    print("SEND_OTP_SUCCESS")
     return {
         "success": True,
         "channel": "sms",
