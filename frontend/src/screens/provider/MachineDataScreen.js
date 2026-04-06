@@ -665,6 +665,14 @@ function MachineDataScreen() {
   const [publishError, setPublishError] = useState('');
   const [stepHint, setStepHint] = useState('');
 
+  
+  useEffect(() => {
+    const hasSms = user?.phoneNumber || localStorage.getItem('userPhone');
+    if (!hasSms) {
+      navigation.navigate('LoginOTP', { next: 'MachineRegistration' });
+    }
+  }, [user, navigation]);
+
   const [inlineEmail, setInlineEmail] = useState('');
   const [inlinePassword, setInlinePassword] = useState('');
   const [inlineLoading, setInlineLoading] = useState(false);
