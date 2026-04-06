@@ -668,7 +668,7 @@ function MachineryAssignedScreen() {
               }}
             >
               {provider.primaryPhoto ? (
-                <img
+                <img loading="lazy"
                   src={provider.primaryPhoto}
                   alt="Foto maquinaria"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}

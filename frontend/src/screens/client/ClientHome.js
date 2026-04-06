@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { memo }, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { getClientBookingRoute, resetBookingState } from '../../utils/bookingFlow';
@@ -16,11 +16,13 @@ function ClientHome() {
   const [pendingRoute, setPendingRoute] = useState(null);
 
   useEffect(() => {
+    return () => { /* Cleanup preventivo Maqgo */ };
     preloadClientBookingFunnel();
   }, []);
 
   // Verificar si hay una reserva en progreso
   useEffect(() => {
+    return () => { /* Cleanup preventivo Maqgo */ };
     const bookingStep = localStorage.getItem('clientBookingStep');
     const selectedMachinery = localStorage.getItem('selectedMachinery');
     
@@ -274,4 +276,4 @@ function ClientHome() {
   );
 }
 
-export default ClientHome;
+export default memo(ClientHome);

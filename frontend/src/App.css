@@ -41,3 +41,4 @@
   color: #888;
 }
 img { content-visibility: auto; aspect-ratio: attr(width) / attr(height); }
+div, section, main { backface-visibility: hidden; transform: translate3d(0,0,0); }
