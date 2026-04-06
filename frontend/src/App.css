@@ -40,3 +40,4 @@
 .read-the-docs {
   color: #888;
 }
+img { content-visibility: auto; aspect-ratio: attr(width) / attr(height); }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { memo }, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth, clearLocalSession } from '../../utils/api';
 import { pingBackendHealth, maskBackendHost } from '../../utils/apiHealth';
@@ -1970,7 +1970,7 @@ function AdminDashboard() {
                     </a>
                   </>
                 ) : (
-                  <img src={invoiceModalSrc} alt="Factura" style={{ width: '100%', borderRadius: 8 }} />
+                  <img loading="lazy" src={invoiceModalSrc} alt="Factura" style={{ width: '100%', borderRadius: 8 }} />
                 )}
                 <button
                   type="button"

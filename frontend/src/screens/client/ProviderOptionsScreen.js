@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { memo }, { useState, useEffect, useCallback, useMemo } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
@@ -784,7 +784,7 @@ function ProviderOptionsScreen() {
                   }}
                 >
                   {provider.primaryPhoto ? (
-                    <img
+                    <img loading="lazy"
                       src={provider.primaryPhoto}
                       alt={`${MACHINERY_NAMES[selectedMachinery] || 'Maquinaria'} - ${optionLabel}`}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
