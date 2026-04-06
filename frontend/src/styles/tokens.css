@@ -1,0 +1,114 @@
+/**
+ * MAQGO Design Tokens
+ * Variables centralizadas para consistencia y mantenibilidad.
+ * Usar: var(--maqgo-orange), var(--maqgo-bg), etc.
+ */
+
+:root {
+  /* === COLORES === */
+  --maqgo-orange: #EC6819;
+  --maqgo-orange-dark: #D45A10;
+  --maqgo-cyan: #90BDD3;
+
+  /* Fondos: mobile-first. Desktop override más abajo. */
+  /* Neutro frío mínimo: evita mezcla “gris + rojo” con el naranja de interfaz */
+  --maqgo-bg: #101010;
+  --maqgo-bg-outer: #000000;
+  --maqgo-bg-card: #1A1A1F;
+  --maqgo-bg-input: #2A2A2A;
+
+  --maqgo-text: #FAFAFA;
+  --maqgo-text-secondary: #E0E0E0;
+  --maqgo-text-muted: rgba(255, 255, 255, 0.6);
+  /** Placeholders sobre fondos oscuros (inputs Maqgo) */
+  --maqgo-input-placeholder: #9a9a9a;
+  --maqgo-border: #2A2A2A;
+
+  /* Filete neutro (legado / otros usos). */
+  --maqgo-welcome-stroke: rgba(255, 255, 255, 0.14);
+  --maqgo-welcome-stroke-inset: rgba(255, 255, 255, 0.28);
+  /** Marco mockup desktop Welcome (≥768px): filete un poco más legible sobre interior casi negro */
+  --maqgo-welcome-frame-stroke: rgba(255, 255, 255, 0.19);
+  --maqgo-welcome-frame-stroke-inset: rgba(255, 255, 255, 0.34);
+
+  /** Pill hero — “Arrienda maquinaria en minutos…” (borde naranja + fondo vidrio) */
+  --maqgo-welcome-caluga-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  --maqgo-welcome-caluga-border: 1px solid rgba(255, 255, 255, 0.14);
+  --maqgo-welcome-caluga-box-shadow:
+    0 3px 20px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --maqgo-welcome-caluga-font-size-desktop: 13px;
+  --maqgo-welcome-caluga-font-weight: 500;
+  --maqgo-welcome-caluga-letter-spacing: 0.02em;
+  --maqgo-welcome-caluga-line-height: 1.4;
+  --maqgo-welcome-caluga-pad-y-desktop: 9px;
+  --maqgo-welcome-caluga-pad-x-desktop: 18px;
+
+  /* Welcome entrada escalonada (`.welcome-mounted` + `.welcome-reveal` en WelcomeScreen) */
+  --maqgo-welcome-reveal-duration: 0.55s;
+  --maqgo-welcome-reveal-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --maqgo-error: #E53935;
+  --maqgo-success: #4CAF50;
+  --maqgo-warning: #F5A623;
+
+  /* === ESPACIADO === */
+  --maqgo-space-xs: 4px;
+  --maqgo-space-sm: 8px;
+  --maqgo-space-md: 16px;
+  --maqgo-space-lg: 24px;
+  --maqgo-space-xl: 32px;
+
+  --maqgo-screen-padding-top: max(50px, env(safe-area-inset-top, 0px) + 24px);
+
+  /** Funnel / auth: menos aire vertical que pantalla genérica (menos scroll en formularios; listas largas siguen scrolleando). */
+  --maqgo-funnel-scroll-padding-top: max(12px, env(safe-area-inset-top, 0px) + 8px);
+  --maqgo-funnel-scroll-padding-x: max(16px, env(safe-area-inset-left, 0px));
+  --maqgo-funnel-scroll-padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+
+  /* === BORDES === */
+  --maqgo-radius-sm: 8px;
+  --maqgo-radius-md: 12px;
+  --maqgo-radius-lg: 16px;
+
+  /* === TIPOGRAFÍA === */
+  --maqgo-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --maqgo-font-display: 'Space Grotesk', 'Inter', sans-serif;
+  /** Mínimo legible en móvil (evitar 10–11px en UI principal) */
+  --maqgo-text-xs: 13px;
+  --maqgo-text-sm: 14px;
+  --maqgo-text-base: 16px;
+  --maqgo-text-lg: 18px;
+  --maqgo-text-xl: 22px;
+
+  /* === BREAKPOINTS === */
+  --maqgo-breakpoint-mobile: 768px;
+  --maqgo-breakpoint-narrow: 380px;
+
+  /* === Z-INDEX === */
+  --maqgo-z-base: 1;
+  --maqgo-z-sticky: 10;
+  --maqgo-z-dropdown: 100;
+  --maqgo-z-overlay: 1000;
+  --maqgo-z-fixed-bar: 9999;
+  --maqgo-z-modal: 10000;
+
+  /* === SOMBRAS === */
+  --maqgo-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --maqgo-shadow-md: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --maqgo-shadow-orange: 0 4px 16px rgba(236, 104, 25, 0.3);
+}
+
+/* Desktop: interior “caja negra” — menos gris que #141414; el marco + sombra leen el volumen */
+@media (min-width: 768px) {
+  :root {
+    --maqgo-bg: #0c0c0c;
+    /* Fondo más oscuro: +luminosidad mínima en secundario/muted y placeholders (pantallas con poco brillo) */
+    --maqgo-text-secondary: #e8e8e8;
+    --maqgo-text-muted: rgba(255, 255, 255, 0.7);
+    --maqgo-input-placeholder: #aeaeae;
+  }
+}

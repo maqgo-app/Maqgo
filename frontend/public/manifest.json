@@ -1,0 +1,26 @@
+{
+  "id": "https://www.maqgo.cl/",
+  "name": "MAQGO",
+  "short_name": "MAQGO",
+  "description": "Arrienda maquinaria pesada con operador de forma rápida y segura. Excavadoras, retroexcavadoras y más, disponibles cuando las necesites en todo Chile.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101010",
+  "theme_color": "#EC6819",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/maqgo_logo_130.svg",
+      "sizes": "130x130",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/maqgo_logo_clean.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
