@@ -62,15 +62,7 @@ function ProviderServiceActiveScreen() {
               <path d="M34 14L44 8" stroke="#fff" strokeWidth="4" strokeLinecap="round"/>
             </svg>
             {/* Pulso */}
-            <div style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              borderRadius: '50%',
-              border: '3px solid #EC6819',
-              animation: 'pulse 2s infinite'
-            }}/>
-          </div>
+            
 
           <span style={{
             display: 'inline-block',
@@ -111,7 +103,7 @@ padding: 24,
           </div>
         </div>
 
-        <div className="maqgo-spacer"></div>
+        
 
         {/* Botón */}
         <button 

@@ -141,15 +141,7 @@ function ServiceActiveScreen() {
               <path d="M25 12V25L32 32" stroke="#fff" strokeWidth="3" strokeLinecap="round"/>
             </svg>
             {/* Pulso */}
-            <div style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              borderRadius: '50%',
-              border: '3px solid #EC6819',
-              animation: 'maqgo-pulse-service-active 2s infinite'
-            }}/>
-          </div>
+            
 
           <span style={{
             display: 'inline-block',
@@ -196,7 +188,7 @@ function ServiceActiveScreen() {
           </div>
         </div>
 
-        <div className="maqgo-spacer"></div>
+        
 
         <OpenServiceChatButton
           serviceId={serviceId || service?.id}

@@ -118,7 +118,7 @@ function OperatorHistoryScreen() {
           }}>
             Mis Trabajos
           </h1>
-          <div style={{ width: 40 }}></div>
+          
         </div>
 
         {/* Stats del operador */}

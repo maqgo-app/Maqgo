@@ -196,7 +196,7 @@ function ProviderAvailability({ userId: userIdProp }) {
         <div className="availability-card">
           <div className="availability-header">
             <div className="availability-status">
-              <div className={`status-indicator ${isAvailable ? 'online' : 'offline'}`}></div>
+              
               <span className="status-text">
                 {isAvailable ? 'Disponible' : 'No disponible'}
               </span>
@@ -207,7 +207,7 @@ function ProviderAvailability({ userId: userIdProp }) {
               disabled={loading || !selectedMachinery}
             >
               {loading ? (
-                <span className="button-loading"></span>
+                
               ) : isAvailable ? 'Desactivar' : 'Activar'}
             </button>
           </div>
@@ -215,10 +215,10 @@ function ProviderAvailability({ userId: userIdProp }) {
           {isAvailable && (
             <div className="waiting-section">
               <div className="pulse-animation">
-                <div className="pulse-ring"></div>
-                <div className="pulse-ring delay-1"></div>
-                <div className="pulse-ring delay-2"></div>
-                <div className="pulse-core"></div>
+                
+                
+                
+                
               </div>
               <p className="waiting-text">Esperando solicitudes...</p>
               <p className="waiting-subtext">Te notificaremos cuando llegue una solicitud</p>

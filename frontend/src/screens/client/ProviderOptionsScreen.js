@@ -426,8 +426,7 @@ function ProviderOptionsScreen() {
             <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
               <MaqgoLogo size="small" />
             </div>
-            <div style={{ width: 24 }} />
-          </div>
+            
           <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 8 }}>
             Buscando proveedores para tu solicitud…
           </h1>
@@ -656,7 +655,7 @@ function ProviderOptionsScreen() {
           <div style={{ flex: 1 }}>
             <MaqgoLogo size="small" />
           </div>
-          <div style={{ width: 24 }}></div>
+          
         </div>
 
         {isDemoProviders && (

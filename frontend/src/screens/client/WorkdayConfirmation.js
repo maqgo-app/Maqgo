@@ -58,7 +58,7 @@ function WorkdayConfirmation() {
           <span className="maqgo-checkbox-label">Acepto la jornada estándar</span>
         </div>
         
-        <div className="maqgo-spacer"></div>
+        
         
         <MaqgoButton
           onClick={handleConfirm}

@@ -390,8 +390,7 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
             );
           })
         )}
-        <div ref={messagesEndRef} />
-      </div>
+        
 
       {/* Feedback de mensaje enviado */}
       {justSent && (

@@ -5,7 +5,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 
 /**
- * Pantalla de Tarifas y Disponibilidad - Proveedor
+ * Pantalla de  y Disponibilidad - Proveedor
  */
 function TariffsScreen() {
   const navigate = useNavigate();
@@ -37,12 +37,12 @@ function TariffsScreen() {
         <div style={styles.headerCenter}>
           <MaqgoLogo size="small" />
         </div>
-        <div style={{width: 24}}></div>
+        
       </div>
 
       {/* Contenido */}
       <div style={styles.content}>
-        <h2 style={styles.title}>Tarifas y disponibilidad</h2>
+        <h2 style={styles.title}> y disponibilidad</h2>
         <p style={styles.subtitle}>Define cuánto cobras y cuándo estás disponible</p>
 
         <div style={styles.field}>

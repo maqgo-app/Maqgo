@@ -254,7 +254,7 @@ function ProviderHistoryScreen() {
           <h1 className="maqgo-h1" style={{ flex: 1, textAlign: 'center', margin: 0 }}>
             Mis Cobros
           </h1>
-          <div style={{ width: 40 }}></div>
+          
         </div>
         <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textAlign: 'center', marginTop: -8, marginBottom: 20 }}>
           Pendientes por facturar y pagos recibidos

@@ -29,7 +29,7 @@ function OperatorScreen() {
         <div style={styles.headerCenter}>
           <MaqgoLogo size="small" />
         </div>
-        <div style={{width: 24}}></div>
+        
       </div>
 
       <div style={styles.content}>
@@ -43,7 +43,7 @@ function OperatorScreen() {
             style={{...styles.toggle, background: isOperator ? MAQGO.colors.orange : '#555'}}
             onClick={() => setIsOperator(!isOperator)}
           >
-            <div style={{...styles.toggleKnob, transform: isOperator ? 'translateX(22px)' : 'translateX(2px)'}}></div>
+            
           </button>
         </div>
 

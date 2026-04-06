@@ -341,18 +341,7 @@ function ProviderHomeScreen() {
     return (
       <div className="maqgo-app maqgo-provider-funnel">
         <div className="maqgo-screen" style={{ alignItems: 'center', justifyContent: 'center' }}>
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              border: '3px solid rgba(236,104,25,0.25)',
-              borderTopColor: '#EC6819',
-              borderRadius: '50%',
-              animation: 'maqgo-spin 0.8s linear infinite',
-            }}
-            aria-label="Cargando estado del proveedor"
-          />
-        </div>
+          
       </div>
     );
   }
@@ -405,15 +394,7 @@ function ProviderHomeScreen() {
               {activationCompletedCount}/{activationItems.length} completados
             </p>
             <div style={{ width: '100%', height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}>
-              <div
-                style={{
-                  width: `${activationProgressPct}%`,
-                  height: '100%',
-                  background: activationCompletedCount === activationItems.length ? '#4CAF50' : '#EC6819',
-                  transition: 'width 0.2s ease'
-                }}
-              />
-            </div>
+              
           </div>
           {activationItems.map((item) => (
             <div
@@ -665,7 +646,7 @@ function ProviderHomeScreen() {
           </div>
         )}
 
-        <div className="maqgo-spacer"></div>
+        
 
         {/* Botón demo: solo en desarrollo local */}
         {import.meta.env.DEV && (

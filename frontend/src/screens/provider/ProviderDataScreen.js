@@ -136,7 +136,7 @@ function ProviderDataScreen() {
           <div style={{ flex: 1 }}>
             <MaqgoLogo size="small" />
           </div>
-          <div style={{ width: 24 }}></div>
+          
         </div>
 
         <ProviderOnboardingProgress currentStep={1} />

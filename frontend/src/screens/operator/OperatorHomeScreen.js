@@ -507,7 +507,7 @@ function OperatorHomeScreen() {
           </div>
         )}
 
-        <div style={{ flex: 1 }}></div>
+        
 
         {/* Botón demo: oculto en producción live */}
         {import.meta.env.VITE_IS_PRODUCTION !== 'true' && (

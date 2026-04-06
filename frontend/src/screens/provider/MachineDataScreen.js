@@ -1121,8 +1121,7 @@ function MachineDataScreen() {
             <div style={{ flex: 1 }}>
               <MaqgoLogo size="small" />
             </div>
-            <div style={{ width: 24 }} />
-          </div>
+            
 
           <ProviderOnboardingProgress currentStep={mfStep} steps={MACHINE_FIRST_ONBOARDING_STEPS} />
 
@@ -1145,7 +1144,7 @@ function MachineDataScreen() {
                 padding: '0 4px',
               }}
             >
-              Fotos opcionales. Tarifas obligatorias para publicar.
+              Fotos opcionales.  obligatorias para publicar.
             </p>
           )}
           {mfStep !== 2 && (
@@ -1207,7 +1206,7 @@ function MachineDataScreen() {
                     padding: 4,
                   }}
                 >
-                  Ir a tarifas
+                  
                 </button>
               </p>
               <div id="machine-wizard-tarifas" style={{ scrollMarginTop: 72 }}>
@@ -1513,7 +1512,7 @@ function MachineDataScreen() {
           <div style={{ flex: 1 }}>
             <MaqgoLogo size="small" />
           </div>
-          <div style={{ width: 24 }}></div>
+          
         </div>
 
         {!isEditMode && !isAddMachineEntry && <ProviderOnboardingProgress currentStep={2} />}

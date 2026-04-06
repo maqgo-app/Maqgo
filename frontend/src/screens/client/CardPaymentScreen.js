@@ -389,7 +389,7 @@ function CardPaymentScreen() {
               {PAYMENT_COPY.P6_VERIFY.screenTitle}
             </span>
           </div>
-          <div style={{ width: 24 }}></div>
+          
         </div>
 
         {/* Cobro vs registro: un bloque, dos líneas (sin duplicar abajo del botón) */}

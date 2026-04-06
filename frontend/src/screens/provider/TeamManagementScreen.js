@@ -329,12 +329,7 @@ function TeamManagementScreen() {
                             </p>
                           </div>
                         </div>
-                        <div style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: '50%',
-                          background: op.isAvailable ? '#4CAF50' : '#666'
-                        }} title={op.isAvailable ? 'Disponible' : 'No disponible'}></div>
+                        
                       </div>
                     ))
                   ) : (

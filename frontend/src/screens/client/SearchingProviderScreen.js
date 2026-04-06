@@ -635,16 +635,7 @@ function SearchingProviderScreen() {
                 marginTop: 12,
                 overflow: 'hidden'
               }}>
-                <div style={{
-                  background: '#EC6819',
-                  height: '100%',
-                  width: isRealRequest
-                    ? `${(secondsLeft / SECONDS_PER_ATTEMPT) * 100}%`
-                    : `${((maxAttempts * 60 - totalElapsed) / (maxAttempts * 60)) * 100}%`,
-                  borderRadius: 4,
-                  transition: 'width 1s linear'
-                }} />
-              </div>
+                
             </div>
 
             {/* Nota sobre selección de proveedor */}

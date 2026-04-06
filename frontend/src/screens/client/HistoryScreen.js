@@ -182,8 +182,7 @@ function HistoryScreen() {
           <h1 className="maqgo-h1" style={{ flex: 1, textAlign: 'center', margin: 0 }}>
             {isProvider ? 'Mis Trabajos' : 'Mi Historial'}
           </h1>
-          <div style={{ width: 24 }} />
-        </div>
+          
 
         {/* Tabs */}
         <div style={{

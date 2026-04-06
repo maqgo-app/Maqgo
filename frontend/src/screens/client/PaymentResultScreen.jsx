@@ -862,7 +862,7 @@ function PaymentResultScreen() {
                 {getProviderLicensePlate(provider) || 'Por confirmar'}
               </div>
             </div>
-            <div style={{ width: 1, height: 30, background: '#444' }}></div>
+            
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 9, marginBottom: 2 }}>LLEGADA ESTIMADA</div>
               <div style={{ color: '#90BDD3', fontSize: 14, fontWeight: 600 }}>{provider?.eta_minutes || 40} min</div>

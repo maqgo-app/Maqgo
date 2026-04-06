@@ -61,7 +61,7 @@ function ServiceInProgressProvider() {
       <div className="content" style={{ justifyContent: 'flex-start', paddingTop: '10px', flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Estado del servicio */}
         <div className="status-badge" data-status={status}>
-          <span className="status-dot"></span>
+          
           <span className="status-text">
             {status === 'en_camino' ? 'En camino al sitio' : 'Servicio en progreso'}
           </span>
@@ -125,7 +125,7 @@ function ServiceInProgressProvider() {
           </button>
         ) : (
           <div className="working-indicator">
-            <div className="pulse-ring"></div>
+            
             <span>Trabajo en curso...</span>
           </div>
         )}

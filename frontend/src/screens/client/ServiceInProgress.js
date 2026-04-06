@@ -94,7 +94,7 @@ function ServiceInProgress() {
       <div style={styles.content}>
         {/* Icono activo */}
         <div style={styles.activeIcon}>
-          <div style={styles.pulseRing}></div>
+          
           <svg width="50" height="50" viewBox="0 0 50 50" fill="none">
             <circle cx="25" cy="25" r="20" stroke="#fff" strokeWidth="3"/>
             <path d="M25 12V25L32 32" stroke="#fff" strokeWidth="3" strokeLinecap="round"/>

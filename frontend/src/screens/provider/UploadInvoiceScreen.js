@@ -228,7 +228,7 @@ function UploadInvoiceScreen() {
           <h1 style={{ flex: 1, color: '#fff', fontSize: 18, fontWeight: 700, textAlign: 'center', fontFamily: "'Space Grotesk', sans-serif" }}>
             Subir Factura
           </h1>
-          <div style={{ width: 40 }}></div>
+          
         </div>
 
         {/* ID de transacción */}

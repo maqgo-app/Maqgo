@@ -93,8 +93,7 @@ function BillingDataScreen() {
             <BackArrowIcon style={{ color: '#fff' }} />
           </button>
           <div style={{ flex: 1 }} />
-          <div style={{ width: 24 }} />
-        </div>
+          
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 4 }}>
           Datos de Facturación
         </h1>

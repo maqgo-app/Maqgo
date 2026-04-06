@@ -69,7 +69,7 @@ function ServiceSummary() {
           </div>
         )}
         
-        <div className="maqgo-spacer"></div>
+        
         
         <button 
           className="maqgo-btn-primary"

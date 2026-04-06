@@ -212,7 +212,7 @@ function ClientHome() {
           En horas, no días. Paga solo al confirmar.
         </p>
 
-        <div style={{ flex: 1 }}></div>
+        
       </div>
 
       {/* Modal: Reserva en progreso */}

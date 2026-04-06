@@ -332,11 +332,7 @@ function ChatBot() {
                     width: 8, height: 8, borderRadius: '50%', background: '#666',
                     animation: 'bounce 1s infinite 0.2s'
                   }}/>
-                  <span style={{ 
-                    width: 8, height: 8, borderRadius: '50%', background: '#666',
-                    animation: 'bounce 1s infinite 0.4s'
-                  }}/>
-                </div>
+                  
               </div>
             )}
           </div>

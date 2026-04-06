@@ -26,8 +26,7 @@ function MaqgoBillingScreen() {
           <div style={{ flex: 1 }}>
             <MaqgoLogo size="small" />
           </div>
-          <div style={{ width: 24 }} />
-        </div>
+          
 
         <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>
           Facturación a MAQGO

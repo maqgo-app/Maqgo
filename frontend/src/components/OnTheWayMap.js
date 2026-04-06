@@ -114,11 +114,11 @@ function OnTheWayMap({ operatorLocation, serviceLocation }) {
         marginTop: -4
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#EC6819' }}></div>
+          
           <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>Operador</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#90BDD3' }}></div>
+          
           <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>Tu obra</span>
         </div>
       </div>
