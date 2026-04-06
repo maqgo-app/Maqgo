@@ -176,302 +176,36 @@ async def create_service_request(
     body_hash = payload.model_dump()
 
     async def execute() -> tuple[int, dict]:
-        if payload.clientId and payload.clientId != current_user.get("id"):
-            raise HTTPException(
-                status_code=403,
-                detail="Solo puedes crear solicitudes a tu nombre",
-            )
-        if not payload.workdayAccepted:
-            raise HTTPException(
-                status_code=400,
-                detail="Debes aceptar la jornada de trabajo para continuar",
-            )
+        # --- LÓGICA DE NEGOCIO: RESERVA Y PAGO ATÓMICO ---
+        # Intentamos marcar el servicio como en proceso de pago solo si está disponible.
+        # Esto garantiza que UN solo proveedor entre al flujo de cobro.
+        req = await db.service_requests.find_one_and_update(
+            {"id": request_id, "status": {"$in": ["SEARCHING", "OPEN"]}},
+            {"$set": {"status": "PROCESSING_PAYMENT", "provider_id": provider_id}},
+            return_document=True
+        )
 
-        existing = await db.users.find_one({"id": payload.clientId}, {"_id": 0})
-        if not existing and payload.clientEmail:
-            await db.users.insert_one(
-                {
-                    "id": payload.clientId,
-                    "email": payload.clientEmail,
-                    "name": payload.clientName or "Cliente MAQGO",
-                    "role": "client",
-                    "createdAt": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-            logger.info("Usuario cliente creado: %s", payload.clientId)
-
-        commissions = calculate_commissions(payload.basePrice, payload.transportFee)
-
-        raw_bid = (payload.booking_id or "").strip()
-        if not raw_bid:
-            booking_id = str(uuid.uuid4())
-            await record_legacy_booking_id_generated(
-                db,
-                "create",
-                payload.clientId,
-                booking_id,
-                endpoint=str(req.url.path),
-            )
-        else:
-            booking_id = raw_bid
-            await record_booking_id_supplied(
-                db, scope="create", endpoint=str(req.url.path)
-            )
-
-        dump = payload.model_dump()
-        dump.pop("booking_id", None)
-        create_data = {
-            k: v
-            for k, v in dump.items()
-            if k
-            not in (
-                "transportFee",
-                "clientEmail",
-                "selectedProviderId",
-                "selectedProviderIds",
-                "totalAmount",
-                "needsInvoice",
-            )
-        }
-        create_data["bookingId"] = booking_id
-
-        service_obj = ServiceRequest(**create_data)
-        service_obj.status = "matching"
-        service_obj.paymentStatus = "validated"
-
-        if payload.totalAmount is not None and payload.totalAmount > 0:
-            service_obj.totalAmount = float(payload.totalAmount)
-        else:
-            service_obj.totalAmount = commissions["totalAmount"]
-        service_obj.basePrice = commissions["basePrice"]
-        service_obj.clientCommission = commissions["clientCommission"]
-        service_obj.providerCommission = commissions["providerCommission"]
-        service_obj.providerEarnings = commissions["providerEarnings"]
-        service_obj.maqgoEarnings = commissions["maqgoEarnings"]
-        service_obj.events = []
-
-        doc = service_obj.model_dump()
-        await db.service_requests.insert_one(doc)
-
-        chosen_id = payload.selectedProviderId
-        if not chosen_id and payload.selectedProviderIds and len(payload.selectedProviderIds) > 0:
-            chosen_id = payload.selectedProviderIds[0]
-        matching_result = await start_matching(db, service_obj.id, selected_provider_id=chosen_id)
-
-        try:
-            if not await payment_intent_service.get_by_booking_id(booking_id):
-                await payment_intent_service.create_if_absent(
-                    booking_id=booking_id,
-                    client_id=payload.clientId,
-                    state=PI_PAYMENT_PENDING,
-                )
-            await payment_intent_service.set_state(
-                booking_id,
-                PI_PAYMENT_PENDING,
-                last_idempotency_key=idempotency_key,
-                service_request_id=service_obj.id,
-            )
-        except Exception as e:
-            logger.warning("payment_intent update (non-fatal): %s", e)
-
-        out = {
-            "id": service_obj.id,
-            "booking_id": booking_id,
-            "status": matching_result.get("status", "matching"),
-            "matching": matching_result,
-            "paymentStatus": "validated",
-            "message": "Buscando proveedor disponible...",
-            "pricing": {
-                "basePrice": commissions["basePrice"],
-                "clientCommission": commissions["clientCommission"],
-                "clientCommissionIVA": commissions["clientCommissionIVA"],
-                "totalClient": service_obj.totalAmount,
-                "providerCommission": commissions["providerCommission"],
-                "providerCommissionIVA": commissions["providerCommissionIVA"],
-                "providerEarnings": commissions["providerEarnings"],
-                "maqgoEarnings": commissions["maqgoEarnings"],
-            },
-        }
-        return 200, out
-
-    code, payload = await run_idempotent(
-        db,
-        tenant_id=get_tenant_id(),
-        idempotency_key=idempotency_key,
-        scope="create",
-        endpoint=str(req.url.path),
-        body_for_hash=body_hash,
-        execute=execute,
-    )
-    r = JSONResponse(content=payload, status_code=code)
-    r.headers["X-Idempotency-Mode"] = idempotency_mode_header_value(key_legacy)
-    return r
-
-@router.get("", response_model=List[dict])
-async def get_service_requests(
-    service_status: Optional[str] = None,
-    clientId: Optional[str] = None,
-    providerId: Optional[str] = None,
-    current_user: dict = Depends(get_current_user),
-):
-    """Listado acotado al usuario autenticado (admin puede filtrar con cuidado)."""
-    try:
-        role = current_user.get("role")
-        if role == "admin":
-            query = {}
-            if service_status:
-                query["status"] = service_status
-            if clientId:
-                query["clientId"] = clientId
-            if providerId:
-                query["providerId"] = providerId
-        elif role == "client":
-            query = {"clientId": current_user.get("id")}
-            if service_status:
-                query["status"] = service_status
-        else:
-            ep = _effective_provider_account_id(current_user)
-            if not ep:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Sin permiso para listar solicitudes",
-                )
-            base = {"$or": [{"providerId": ep}, {"currentOfferId": ep}]}
-            if service_status:
-                query = {"$and": [base, {"status": service_status}]}
-            else:
-                query = base
-        requests = await db.service_requests.find(query, {"_id": 0}).to_list(1000)
-        return requests
-    except ServerSelectionTimeoutError:
-        logger.warning("MongoDB no disponible en get_service_requests")
-        return []
-
-@router.get("/pending", response_model=List[dict])
-@limiter.limit("60/minute")
-async def get_pending_requests_for_provider(
-    request: Request,
-    providerId: Optional[str] = None,
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Obtener solicitudes con ofertas pendientes para el proveedor.
-    """
-    try:
-        now = datetime.now(timezone.utc)
-        query = {"status": "offer_sent"}
-        if current_user.get("role") == "admin":
-            if providerId:
-                query["currentOfferId"] = providerId
-        else:
-            effective_provider_id = _effective_provider_account_id(current_user)
-            if not effective_provider_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Sin permiso para consultar ofertas",
-                )
-            if providerId and not _provider_matches_user(current_user, providerId):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="providerId no coincide con tu sesión",
-                )
-            query["currentOfferId"] = effective_provider_id
-        requests = await db.service_requests.find(query, {"_id": 0}).to_list(100)
-    except ServerSelectionTimeoutError:
-        logger.warning("MongoDB no disponible en /pending")
-        return []
-    
-    # Best practice: este endpoint debe ser "read-only".
-    # La expiración de ofertas y el avance al siguiente proveedor la ejecuta el scheduler (TimerService),
-    # no un GET llamado por polling desde el frontend.
-    active_requests = []
-    for req in requests:
-        expires_at_str = req.get('offerExpiresAt')
-        if expires_at_str:
-            try:
-                expires_at = datetime.fromisoformat(expires_at_str.replace('Z', '+00:00'))
-                if expires_at > now:
-                    remaining = (expires_at - now).total_seconds()
-                    req['remainingSeconds'] = max(0, int(remaining))
-                    active_requests.append(req)
-                else:
-                    # Oferta expirada: se ignora aquí. El scheduler se encarga de expirar y re-match.
-                    pass
-            except:
-                pass
-    
-    return active_requests
-
-@router.get("/{request_id}", response_model=dict)
-@limiter.limit("120/minute")
-async def get_service_request(
-    request: Request,
-    request_id: str,
-    current_user: dict = Depends(get_current_user),
-):
-    """Obtener una solicitud específica (cliente, proveedor involucrado o admin)."""
-    request = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
-    if not request:
-        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-    _assert_can_read_service(current_user, request)
-
-    # Calcular tiempo restante si hay oferta activa
-    if request.get('status') == 'offer_sent' and request.get('offerExpiresAt'):
-        now = datetime.now(timezone.utc)
-        try:
-            expires_at = datetime.fromisoformat(request['offerExpiresAt'].replace('Z', '+00:00'))
-            remaining = (expires_at - now).total_seconds()
-            request['remainingSeconds'] = max(0, int(remaining))
-        except:
-            pass
-
-    _attach_client_matching_view(request)
-    
-    return request
-
-@router.put("/{request_id}/accept", response_model=dict)
-async def accept_service_request(
-    request_id: str,
-    req: Request,
-    body: dict = Body(...),
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Proveedor acepta la solicitud.
-    ESTO DISPARA EL COBRO AL CLIENTE.
-    Idempotency-Key: resolve_idempotency_key(req, ...) (legacy si falta).
-    """
-    idempotency_key, key_legacy = resolve_idempotency_key(req, "accept")
-    await persist_idempotency_key_resolution(
-        db,
-        scope="accept",
-        endpoint=str(req.url.path),
-        was_auto_generated=key_legacy,
-        generated_key_prefix=idempotency_key if key_legacy else "",
-    )
-
-    provider_id = body.get("providerId")
-    if not provider_id:
-        raise HTTPException(status_code=400, detail="providerId requerido")
-
-    body_hash = {"request_id": request_id, "providerId": provider_id}
-
-    async def execute() -> tuple[int, dict]:
-        req = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
         if not req:
-            raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+            return 409, {"error": "Servicio ya asignado o no disponible"}
 
-        offered_provider_id = provider_id
-        pending_ids = [
-            a.get("providerId")
-            for a in (req.get("matchingAttempts") or [])
-            if a.get("status") == "pending"
-        ]
-        if offered_provider_id not in pending_ids:
-            raise HTTPException(
-                status_code=400,
-                detail="No hay oferta pendiente para ti en esta solicitud",
-            )
+        try:
+            # El cobro es condición obligatoria para la aceptación final
+            payment_result = await payment_service.charge_for_accept(service_obj=req)
+            if not payment_result.get('success'):
+                # Si falla el pago, liberamos el servicio inmediatamente
+                await db.service_requests.update_one(
+                    {"id": request_id},
+                    {"$set": {"status": "SEARCHING"}, "$unset": {"provider_id": ""}}
+                )
+                return 402, {"error": "Pago rechazado", "details": payment_result.get('error')}
+        except Exception as e:
+            # Reversión de seguridad ante errores inesperados
+            await db.service_requests.update_one({"id": request_id}, {"$set": {"status": "SEARCHING"}})
+            raise e
+
+        # Si llegamos aquí, el pago fue exitoso. Procedemos con la lógica de éxito.
+        return 200, {"message": "Servicio aceptado y pagado correctamente", "request": req}
+
         if not _provider_matches_user(current_user, offered_provider_id):
             raise HTTPException(status_code=403, detail="Solo puedes aceptar ofertas dirigidas a ti")
 

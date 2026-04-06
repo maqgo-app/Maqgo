@@ -292,7 +292,6 @@ function MachinePhotosPricingScreen() {
               padding: 4,
             }}
           >
-            Ir a tarifas
           </button>
         </p>
 
@@ -594,7 +593,12 @@ function MachinePhotosPricingScreen() {
                 }}
                 data-testid="price-input"
               />
+          
+          
+          )}
             </div>
+          {isLowerThanAverage && (<div style={{ backgroundColor: "#3c2f1b", padding: 12, marginTop: 8, borderRadius: 8, border: "1px solid #8f6e21" }}><span style={{ color: "#e6b052", fontSize: 12 }}>Precio bajo — ¡atractivo! Verifica que sea correcto</span></div>)}
+          
             <p style={inputHintStyle}>
               Ingresa tu precio. El valor sugerido es solo una referencia.
             </p>
@@ -698,7 +702,11 @@ function MachinePhotosPricingScreen() {
                   }}
                   data-testid="transport-input"
                 />
+          
+          )}
               </div>
+          {isCompetitive && (<div style={{ backgroundColor: "#172e1f", padding: 12, marginTop: 8, borderRadius: 8, border: "1px solid #284e36" }}><span style={{ color: "#6be689", fontSize: 12 }}>✓ Traslado competitivo — atractivo para clientes</span></div>)}
+          
               <p style={inputHintStyle}>
                 Ingresa el costo de traslado. El valor sugerido es solo una referencia.
               </p>

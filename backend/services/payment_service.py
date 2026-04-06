@@ -613,14 +613,21 @@ class PaymentService:
 
     async def charge_for_accept(
         self,
-        service_request_id: str,
-        client_id: str,
-        amount: float,
-        booking_id: Optional[str] = None,
+        service_request_id: str = None,
+        client_id: str = None,
+        amount: float = None,
+        booking_id: str = None,
+        service_obj: dict = None,
     ) -> dict:
         """
-        Cobro disparado al aceptar proveedor (payment_intent + execute_payment_charge).
+        Cobro robusto. Acepta argumentos directos o un objeto de servicio (service_obj).
         """
+        if service_obj:
+            service_request_id = service_obj.get('id')
+            client_id = service_obj.get('clientId') or service_obj.get('client_id')
+            amount = service_obj.get('totalPrice') or service_obj.get('amount')
+            booking_id = service_obj.get('bookingId')
+
         return await self.execute_payment_charge(
             service_request_id=service_request_id,
             payment_intent_id=None,
@@ -630,7 +637,7 @@ class PaymentService:
             scope="accept",
             endpoint="payment_service.charge_for_accept",
         )
-    
+
     async def rollback_charge(
         self,
         service_request_id: str,
