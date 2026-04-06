@@ -673,6 +673,16 @@ function MachineDataScreen() {
     }
   }, [user, navigation]);
 
+  
+  useEffect(() => {
+    // Si el usuario no tiene teléfono validado en la sesión activa, 
+    // lo mandamos a enrolar. Sin excepciones.
+    if (!user?.phoneNumber) {
+      console.log("Acceso denegado: No se detectó enrolamiento SMS.");
+      navigation.navigate('LoginOTP', { next: 'MachineRegistration' });
+    }
+  }, [user, navigation]);
+
   const [inlineEmail, setInlineEmail] = useState('');
   const [inlinePassword, setInlinePassword] = useState('');
   const [inlineLoading, setInlineLoading] = useState(false);
