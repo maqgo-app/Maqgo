@@ -272,7 +272,7 @@ function MachinePhotosPricingScreen() {
             padding: '0 4px',
           }}
         >
-          Fotos opcionales.  obligatorias para publicar.
+          Fotos opcionales (no visibles para clientes, solo respaldo interno de MAQGO)
         </p>
         <p style={{ textAlign: 'center', marginBottom: 22 }}>
           <button
@@ -592,6 +592,9 @@ function MachinePhotosPricingScreen() {
                 data-testid="price-input"
               />
             </div>
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 6, marginLeft: 4 }}>
+              Referencia: {formatPrice(minPrice)} - {formatPrice(maxPrice)} (ref {formatPrice(refPrice)})
+            </p>
             <p style={inputHintStyle}>
               Ingresa tu precio. El valor sugerido es solo una referencia.
             </p>
@@ -696,29 +699,30 @@ function MachinePhotosPricingScreen() {
                   data-testid="transport-input"
                 />
               </div>
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 6, marginLeft: 4 }}>
+                Referencia: {formatPrice(MIN_TRANSPORT)} - {formatPrice(maxTransport)} (ref{' '}
+                {formatPrice(REFERENCE_TRANSPORT)})
+              </p>
               <p style={inputHintStyle}>
                 Ingresa el costo de traslado. El valor sugerido es solo una referencia.
               </p>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-              <button
-                type="button"
-                onClick={() => setTransportCost(String(REFERENCE_TRANSPORT))}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#90BDD3',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  padding: '2px 0',
-                }}
-              >
-                Usar valor sugerido
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setTransportCost(String(REFERENCE_TRANSPORT))}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#90BDD3',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: '2px 0',
+                  }}
+                >
+                  Usar valor sugerido
+                </button>
               </div>
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 6, marginLeft: 4 }}>
-                Ref: {formatPrice(REFERENCE_TRANSPORT)} · Máx: {formatPrice(maxTransport)}
-              </p>
               {transportAlert && (
                 <div
                   style={{
