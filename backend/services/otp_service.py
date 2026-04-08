@@ -55,7 +55,7 @@ def _get_webotp_domains() -> list[str]:
 
 
 WEBOTP_DOMAINS = _get_webotp_domains()
-SMS_MESSAGE = "Tu código MAQGO es: {otp}. Válido por 5 minutos."
+SMS_MESSAGE = "{otp}\n\nMAQGO - Código de verificación. Expira en 5 minutos."
 
 REDIS_URL = os.environ.get("REDIS_URL", "")
 LABSMOBILE_USERNAME = os.environ.get("LABSMOBILE_USERNAME", "")
