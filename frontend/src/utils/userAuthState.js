@@ -52,28 +52,38 @@ function readPhoneLast9FromRegisterData() {
 /**
  * @returns {{
  *   hasSession: boolean,
+ *   authToken: string | null,
  *   userId: string | null,
+ *   maqgo_device_id: string | null,
  *   phone: string | null,
  *   deviceTrusted: boolean
  * }}
  */
 export function getUserAuthState() {
   const ls = safeLs();
+  let authToken = null;
   let userId = null;
   try {
+    authToken =
+      ls?.getItem('authToken')?.trim() ||
+      ls?.getItem('token')?.trim() ||
+      null;
     userId = ls?.getItem('userId')?.trim() || null;
   } catch {
+    authToken = null;
     userId = null;
   }
 
-  const hasSession = hasPersistedSessionCredentials();
+  const hasSession = Boolean(authToken && userId) && hasPersistedSessionCredentials();
   const phone = readStoredPhoneLast9() || readPhoneLast9FromRegisterData();
   const devId = readPersistedDeviceId();
   const deviceTrusted = Boolean(devId && String(devId).length >= 8);
 
   return {
     hasSession,
+    authToken: authToken || null,
     userId: userId || null,
+    maqgo_device_id: devId || null,
     phone,
     deviceTrusted,
   };

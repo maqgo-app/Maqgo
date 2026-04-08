@@ -665,24 +665,6 @@ function MachineDataScreen() {
   const [publishError, setPublishError] = useState('');
   const [stepHint, setStepHint] = useState('');
 
-  
-  useEffect(() => {
-    const hasSms = user?.phoneNumber || localStorage.getItem('userPhone');
-    if (!hasSms) {
-      navigation.navigate('LoginOTP', { next: 'MachineRegistration' });
-    }
-  }, [user, navigation]);
-
-  
-  useEffect(() => {
-    // Si el usuario no tiene teléfono validado en la sesión activa, 
-    // lo mandamos a enrolar. Sin excepciones.
-    if (!user?.phoneNumber) {
-      console.log("Acceso denegado: No se detectó enrolamiento SMS.");
-      navigation.navigate('LoginOTP', { next: 'MachineRegistration' });
-    }
-  }, [user, navigation]);
-
   const [inlineEmail, setInlineEmail] = useState('');
   const [inlinePassword, setInlinePassword] = useState('');
   const [inlineLoading, setInlineLoading] = useState(false);
@@ -727,9 +709,7 @@ function MachineDataScreen() {
     const emailErr = validateEmail(inlineEmail);
     const pwdErr = validatePassword(inlinePassword, passwordHintInline);
     const cel9 = getUserAuthState().phone;
-    const celErr = cel9
-      ? validateCelularChile(cel9)
-      : 'No detectamos tu celular en este dispositivo. Recarga la página (actualiza la sesión) o inicia sesión una vez con celular y código SMS.';
+    const celErr = cel9 ? validateCelularChile(cel9) : 'Primero valida tu celular con código SMS.';
     if (emailErr || pwdErr || celErr) {
       setInlineError(emailErr || pwdErr || celErr);
       return;
@@ -776,9 +756,7 @@ function MachineDataScreen() {
       const emailErr = validateEmail(inlineEmail);
       const pwdErr = validatePassword(inlinePassword, passwordHintInline);
       const cel9 = getUserAuthState().phone;
-      const celErr = cel9
-        ? validateCelularChile(cel9)
-        : 'No detectamos tu celular en este dispositivo. Recarga la página (actualiza la sesión) o inicia sesión una vez con celular y código SMS.';
+      const celErr = cel9 ? validateCelularChile(cel9) : 'Primero valida tu celular con código SMS.';
       if (emailErr || pwdErr || celErr) {
         setPublishError(emailErr || pwdErr || celErr);
         return false;
@@ -1139,7 +1117,7 @@ function MachineDataScreen() {
             <div style={{ flex: 1 }}>
               <MaqgoLogo size="small" />
             </div>
-            
+        </div>
 
           <ProviderOnboardingProgress currentStep={mfStep} steps={MACHINE_FIRST_ONBOARDING_STEPS} />
 
