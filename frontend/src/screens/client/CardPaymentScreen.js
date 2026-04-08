@@ -24,7 +24,6 @@ import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 import { PAYMENT_COPY } from '../../constants/bookingPaymentCopy';
 import { useCheckoutState } from '../../context/CheckoutContext';
 import { touchCheckoutStateForExhaustiveUi } from '../../domain/checkout/checkoutStateMachine';
-import { isEmpresaBillingComplete } from '../../utils/clientBillingInvoice';
 
 const ONECLICK_ERROR_MESSAGES = {
   token_faltante: 'Transbank no redirigió correctamente. Intenta de nuevo.',
@@ -68,8 +67,6 @@ function CardPaymentScreen() {
   const [email, setEmail] = useState('');
   /** Nombre para comprobante (opcional; perfil progresivo) */
   const [clientName, setClientName] = useState('');
-  /** Error de facturación (p. ej. datos incompletos al reanudar) */
-  const [billingError, setBillingError] = useState('');
   /** null | 'card_error' (TBK / inscripción) | 'session_error' (sync perfil / sesión antes de TBK) */
   const [error, setError] = useState(null);
   /** Mensaje legible del backend o red (sin stack); no usar para códigos TBK en query. */
@@ -120,9 +117,6 @@ function CardPaymentScreen() {
         ''
     );
     setNeedsInvoice(invoiceNeeded);
-    if (invoiceNeeded && merged.billingType === 'empresa' && !isEmpresaBillingComplete(merged)) {
-      navigate('/client/billing', { replace: true });
-    }
   }, [navigate]);
 
   useEffect(() => {
@@ -145,14 +139,6 @@ function CardPaymentScreen() {
     if (validationError) {
       setEmailError(validationError);
       return;
-    }
-    if (needsInvoice) {
-      if (!isEmpresaBillingComplete(billingData)) {
-        setBillingError('Completa razón social, RUT, giro y dirección tributaria para la factura.');
-        navigate('/client/billing');
-        return;
-      }
-      setBillingError('');
     }
     if (submitInFlightRef.current || loading) {
       return;
@@ -293,8 +279,6 @@ function CardPaymentScreen() {
       setLoading(false);
     }
   };
-
-  const isEmpresa = billingData.billingType === 'empresa';
 
   // Estado: Error de sesión/API (antes de TBK) o error al registrar tarjeta / retorno TBK
   if (error === 'session_error' || error === 'card_error') {
@@ -439,64 +423,6 @@ function CardPaymentScreen() {
           {PAYMENT_COPY.P6_VERIFY.cardStorageNote}
         </p>
 
-        {/* Datos de facturación (solo si el usuario lo solicitó) */}
-        {needsInvoice && (
-        <div style={{
-          background: '#2A2A2A',
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 20
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 8, 
-            marginBottom: 12 
-          }}>
-            <span style={{ fontSize: 18 }}>{isEmpresa ? '🏢' : '👤'}</span>
-            <span style={{ 
-              color: '#fff', 
-              fontSize: 14, 
-              fontWeight: 600,
-              fontFamily: "'Space Grotesk', sans-serif"
-            }}>
-              Datos de facturación
-            </span>
-          </div>
-          
-          <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, lineHeight: 1.8 }}>
-            {isEmpresa ? (
-              <>
-                <p><strong>Razón Social:</strong> {billingData.razonSocial}</p>
-                <p><strong>RUT:</strong> {billingData.rut}</p>
-                <p><strong>Giro:</strong> {billingData.giro}</p>
-                <p><strong>Dirección tributaria:</strong> {billingData.direccion}</p>
-              </>
-            ) : (
-              <>
-                <p><strong>Nombre:</strong> {billingData.nombre} {billingData.apellido}</p>
-                <p><strong>RUT:</strong> {billingData.rut}</p>
-              </>
-            )}
-          </div>
-
-          <button
-            onClick={() => navigate('/client/billing')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#90BDD3',
-              fontSize: 13,
-              cursor: 'pointer',
-              marginTop: 10,
-              padding: 0
-            }}
-          >
-            Modificar datos →
-          </button>
-        </div>
-        )}
-
         {/* Campo Email para comprobante */}
         <div style={{
           background: '#2A2A2A',
@@ -577,9 +503,6 @@ function CardPaymentScreen() {
           />
         </div>
 
-        {billingError ? (
-          <p style={{ color: '#EF4444', fontSize: 13, textAlign: 'center', marginBottom: 16 }}>{billingError}</p>
-        ) : null}
       </div>
 
       <div className="maqgo-funnel-split-footer" role="region" aria-label="Registrar tarjeta">
