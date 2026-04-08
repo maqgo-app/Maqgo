@@ -17,7 +17,7 @@ mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
 
-DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 días
+DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 180  # 180 días (MVP suave)
 
 
 def _session_ttl_seconds() -> int:

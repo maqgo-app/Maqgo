@@ -10,7 +10,8 @@ from datetime import datetime, timedelta, timezone
 # Límites de almacenamiento (evita documentos enormes por UA/IP)
 MAX_IP_LEN = 128
 MAX_USER_AGENT_LEN = 512
-DEFAULT_TRUSTED_DEVICE_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 días
+# MVP suave: confianza de dispositivo muy larga para minimizar fricción OTP.
+DEFAULT_TRUSTED_DEVICE_TTL_SECONDS = 60 * 60 * 24 * 365  # 365 días
 
 
 def _trusted_device_ttl_seconds() -> int:
