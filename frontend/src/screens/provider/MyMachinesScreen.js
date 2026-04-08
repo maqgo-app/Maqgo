@@ -640,16 +640,17 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
     const p = String(phone || '').replace(/\D/g, '').slice(0, 9);
     if (!nom) { setError('Ingresa el nombre del operador'); return; }
     if (!ape) { setError('Ingresa el apellido del operador'); return; }
-    if (!/^9\d{8}$/.test(p)) { setError('Ingresa el celular completo: 9 dígitos empezando en 9'); return; }
-    if (rut.trim() && !validateRut(rut)) { setError('RUT inválido'); return; }
+    if (!rut.trim()) { setError('Ingresa el RUT del operador'); return; }
+    if (!validateRut(rut)) { setError('RUT inválido'); return; }
+    if (p && !/^9\d{8}$/.test(p)) { setError('Si ingresas celular, debe tener 9 dígitos empezando en 9'); return; }
     setInviting(true);
     try {
       const ownerId = localStorage.getItem('ownerId') || localStorage.getItem('userId');
       const r = await axios.post(`${BACKEND_URL}/api/operators/invite`, {
         owner_id: ownerId,
         operator_name: fullName,
-        operator_phone: `+56${p}`,
-        operator_rut: rut.trim() || null
+        operator_phone: p ? `+56${p}` : null,
+        operator_rut: rut.trim()
       });
       setInviteCode(r.data.code);
       setMode('inviteNew');
@@ -736,7 +737,7 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
               <input type="text" placeholder="Ej: Pérez" value={apellido} onChange={e => setApellido(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label htmlFor="invite-op-phone" style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>Celular *</label>
+              <label htmlFor="invite-op-phone" style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>Celular (opcional)</label>
               <LoginPhoneChileInput
                 id="invite-op-phone"
                 name="operatorPhone"
@@ -746,10 +747,10 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
               />
             </div>
             <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>RUT (opcional)</label>
+              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>RUT *</label>
               <input type="text" placeholder="12.345.678-9" value={rut} onChange={e => setRut(formatRut(e.target.value))} maxLength={12} className="maqgo-input" style={{ width: '100%', fontFamily: "'JetBrains Mono', monospace" }} />
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '6px 0 0', lineHeight: 1.35 }}>
-                Si no lo tienes a mano, déjalo vacío: el operador puede completar su identidad al aceptar la invitación.
+                El RUT es necesario para generar el código de enrolamiento.
               </p>
             </div>
             {error && <p style={{ color: '#F44336', fontSize: 12, marginBottom: 12 }}>{error}</p>}
