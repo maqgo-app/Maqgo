@@ -20,7 +20,7 @@ import {
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
 
 /**
- * Onboarding proveedor: fotos (opcional) +  en una sola vista.
+ * Onboarding proveedor: fotos (opcional) + tarifas en una sola vista.
  * Fotos: uso interno / respaldo; comprimir agresivo para poco peso en localStorage (móvil).
  */
 const MULTIPLIERS_HOURS = { 4: 1.2, 5: 1.175, 6: 1.15, 7: 1.125, 8: 1.1 };
@@ -117,7 +117,7 @@ function MachinePhotosPricingScreen() {
     if (prevMachineTypeRef.current !== machineType) {
       setPriceBase('');
       setTransportCost('');
-      toast.info('Se actualizaron las  sugeridas según el tipo de máquina');
+      toast.info('Se actualizaron las tarifas sugeridas según el tipo de máquina');
       prevMachineTypeRef.current = machineType;
     }
   }, [machineType, toast]);
@@ -217,7 +217,7 @@ function MachinePhotosPricingScreen() {
       machineType,
     };
     localStorage.setItem('machinePricing', JSON.stringify(pricing));
-    // Misma numeración que PricingScreen legacy: tras  → paso 5 (operador).
+    // Misma numeración que PricingScreen legacy: tras tarifas -> paso 5 (operador).
     localStorage.setItem('providerOnboardingStep', '5');
     navigate('/provider/operator-data');
   };
@@ -260,7 +260,7 @@ function MachinePhotosPricingScreen() {
         <ProviderOnboardingProgress currentStep={3} />
 
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 8 }}>
-          Fotos y 
+          Fotos y tarifas
         </h1>
         <p
           style={{
@@ -278,7 +278,9 @@ function MachinePhotosPricingScreen() {
           <button
             type="button"
             onClick={() =>
-              document.getElementById('seccion-')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              document
+                .getElementById('seccion-tarifas')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }
             style={{
               background: 'none',
@@ -290,6 +292,7 @@ function MachinePhotosPricingScreen() {
               padding: 4,
             }}
           >
+            Ir a tarifas
           </button>
         </p>
 
@@ -537,12 +540,12 @@ function MachinePhotosPricingScreen() {
           </div>
         </div>
 
-        {/* ——  —— */}
+        {/* —— Tarifas —— */}
         <div
           style={{ ...sectionCard, scrollMarginTop: 72 }}
-          id="seccion-"
+          id="seccion-tarifas"
         >
-          <h2 style={sectionTitle}>Define tus </h2>
+          <h2 style={sectionTitle}>Define tus tarifas</h2>
           <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>
             {machineName}
           </p>

@@ -1146,7 +1146,7 @@ function MachineDataScreen() {
                 padding: '0 4px',
               }}
             >
-              Fotos opcionales.  obligatorias para publicar.
+              Fotos opcionales. Tarifas obligatorias para publicar.
             </p>
           )}
           {mfStep !== 2 && (
@@ -1208,7 +1208,7 @@ function MachineDataScreen() {
                     padding: 4,
                   }}
                 >
-                  
+                  Ir a tarifas
                 </button>
               </p>
               <div id="machine-wizard-tarifas" style={{ scrollMarginTop: 72 }}>
