@@ -29,40 +29,18 @@ function ProviderHomeScreen() {
   const [showBankWarningModal, setShowBankWarningModal] = useState(false);
   const isBlockedByBank = onboardingCompleted && !bankDataComplete && !available;
   const providerData = getObject('providerData', {});
-  const machineData = getObject('machineData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
-  const machineComplete = !!(machineData?.machineryType && machineData?.licensePlate);
 
   const nextActivationStep = (() => {
     if (!companyComplete) {
       return {
-        title: 'Completa datos de empresa',
-        hint: 'Necesario para activar cobros.',
-        actionLabel: 'Ir a empresa',
+        label: 'Completar empresa',
         onClick: () => navigate('/provider/profile/empresa'),
-      };
-    }
-    if (!machineComplete) {
-      return {
-        title: 'Completa tu máquina',
-        hint: 'Define tipo y patente.',
-        actionLabel: 'Ir a máquinas',
-        onClick: () => navigate('/provider/machines'),
-      };
-    }
-    if (!onboardingCompleted) {
-      return {
-        title: 'Finaliza activación',
-        hint: 'Termina el flujo de activación en Máquinas.',
-        actionLabel: 'Continuar',
-        onClick: () => navigate('/provider/machines'),
       };
     }
     if (!bankDataComplete) {
       return {
-        title: 'Completa datos bancarios',
-        hint: 'Requerido para recibir pagos.',
-        actionLabel: 'Ir a banco',
+        label: 'Completar banco',
         onClick: () => navigate('/provider/profile/banco'),
       };
     }
@@ -282,51 +260,7 @@ function ProviderHomeScreen() {
   return (
     <div className="maqgo-app maqgo-provider-funnel">
       <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
-        <MaqgoLogo size="medium" style={{ marginBottom: 24 }} />
-
-        <div
-          style={{
-            background: '#2A2A2A',
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 14,
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '0 0 8px', textTransform: 'uppercase' }}>
-            Activación
-          </p>
-          {nextActivationStep ? (
-            <>
-              <p style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>
-                {nextActivationStep.title}
-              </p>
-              <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '0 0 10px' }}>
-                {nextActivationStep.hint}
-              </p>
-              <button
-                onClick={nextActivationStep.onClick}
-                style={{
-                  width: '100%',
-                  padding: 12,
-                  borderRadius: 10,
-                  border: 'none',
-                  background: '#EC6819',
-                  color: '#fff',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                {nextActivationStep.actionLabel}
-              </button>
-            </>
-          ) : (
-            <p style={{ color: '#90BDD3', fontSize: 14, fontWeight: 600, margin: 0 }}>
-              Activación completa.
-            </p>
-          )}
-        </div>
+        <MaqgoLogo size="medium" style={{ marginBottom: 20 }} />
 
         <div
           style={{
@@ -339,11 +273,9 @@ function ProviderHomeScreen() {
             textAlign: 'center',
           }}
         >
-          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: 0, marginBottom: 8 }}>
-            Estado
-          </p>
+          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: 0, marginBottom: 8 }}>Estado</p>
           <p style={{ color: available ? '#90BDD3' : '#ffb182', fontSize: 24, margin: 0, fontWeight: 700 }}>
-            {!onboardingCompleted ? 'Bloqueado' : available ? 'Conectado' : 'Pausado'}
+            {available && onboardingCompleted && bankDataComplete ? '🟢 Conectado' : '⚪ Pausado'}
           </p>
           <button
             onClick={toggleAvailability}
@@ -364,7 +296,7 @@ function ProviderHomeScreen() {
             data-testid="availability-toggle"
           >
             {!onboardingCompleted
-              ? 'Completa activación'
+              ? 'Completar activación en Máquinas'
               : isBlockedByBank
                 ? 'Completar banco en Perfil'
                 : isToggling
@@ -375,14 +307,46 @@ function ProviderHomeScreen() {
           </button>
         </div>
 
+        {nextActivationStep ? (
+          <div
+            style={{
+              background: '#2A2A2A',
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 12,
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+          >
+            <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 6px' }}>
+              Completa tu perfil para recibir pagos
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, margin: '0 0 10px' }}>
+              Siguiente paso: {nextActivationStep.label}
+            </p>
+            <button
+              onClick={nextActivationStep.onClick}
+              style={{
+                width: '100%',
+                padding: 12,
+                borderRadius: 10,
+                border: 'none',
+                background: '#EC6819',
+                color: '#fff',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Completar ahora
+            </button>
+          </div>
+        ) : null}
+
         <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: 0, textAlign: 'center', lineHeight: 1.4 }}>
-          {!onboardingCompleted
-            ? 'Completa activación para empezar a recibir solicitudes.'
-            : !bankDataComplete
-              ? 'Completa banco en Perfil para poder conectarte.'
-              : available
-                ? 'Estás visible para nuevas solicitudes.'
-                : 'Puedes activarte cuando quieras desde Inicio o Perfil.'}
+          Recibirás solicitudes según tu zona y disponibilidad
+        </p>
+        <p style={{ color: '#EC6819', fontSize: 13, margin: '8px 0 0', textAlign: 'center', lineHeight: 1.4 }}>
+          🔥 Activa tu disponibilidad hoy y gana hasta +20% más
         </p>
       </div>
 

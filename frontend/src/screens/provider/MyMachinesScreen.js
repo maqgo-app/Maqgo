@@ -843,7 +843,7 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
             )}
             <div style={{ background: 'rgba(236, 104, 25, 0.1)', borderRadius: 10, padding: 12, marginBottom: 16 }}>
               <p style={{ color: '#EC6819', fontSize: 13, margin: 0 }}>
-                Envía este código al operador. Solo debe abrir Maqgo → <strong>Soy operador</strong> → ingresar el código.
+                Comparte este código con el operador para que se registre.
               </p>
             </div>
             <a

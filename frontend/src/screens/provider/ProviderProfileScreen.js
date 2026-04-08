@@ -303,13 +303,6 @@ function ProviderProfileScreen() {
               sublabel={providerData.businessName || 'Sin completar'}
               onClick={() => navigate('/provider/profile/empresa')}
             />
-            {providerData.emitsInvoice !== false && (
-              <MenuItem 
-                label="Datos para facturar a MAQGO" 
-                sublabel="Razón social, RUT, giro, dirección"
-                onClick={() => navigate('/provider/profile/maqgo-billing')}
-              />
-            )}
             <MenuItem 
               label="Datos bancarios" 
               sublabel={bankComplete ? 'Configurado' : 'Requerido para recibir pagos'}
