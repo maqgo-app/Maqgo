@@ -126,10 +126,8 @@ function OperatorDataScreen() {
 
   const handleBack = () => navigate('/provider/machine-photos-pricing');
 
-  // Validación: todos los operadores deben tener nombre, apellido y RUT válido
-  const isValid = sameAsOwner || operators.every(op => 
-    op.nombre && op.apellido && op.rut && validateRut(op.rut)
-  );
+  // Operador opcional: no bloquear avance por este paso.
+  const isValid = true;
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
@@ -157,7 +155,7 @@ function OperatorDataScreen() {
         <ProviderOnboardingProgress currentStep={4} />
 
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 8 }}>
-          Datos del Operador
+          Operador (opcional)
         </h1>
 
         <p style={{
@@ -166,7 +164,7 @@ function OperatorDataScreen() {
           textAlign: 'center',
           marginBottom: 25
         }}>
-          ¿Quién operará la máquina?
+          Puedes asignarlo ahora o después.
         </p>
 
         {/* Opción: Yo mismo */}
