@@ -1226,8 +1226,11 @@ async def _send_recovery_otp_email(email_to: str) -> dict:
 
     sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
     subject = "Tu código MAQGO"
-    text = f"Tu código MAQGO es: {otp}"
-    html = f"<p>Tu código MAQGO es: <strong>{otp}</strong></p>"
+    text = f"{otp}\n\nMAQGO - Código de verificación. Expira en 5 minutos."
+    html = (
+        f"<p><strong>{otp}</strong></p>"
+        "<p>MAQGO - Código de verificación. Expira en 5 minutos.</p>"
+    )
 
     try:
         smtp_host = os.environ.get("EMAIL_SMTP_HOST", "").strip()
