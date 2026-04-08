@@ -167,12 +167,12 @@ function HistoryScreen() {
     <div className="maqgo-app maqgo-client-funnel">
       <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 90px' }}>
         {/* Header */}
-        <div style={{ 
-          display: 'flex', 
+        <div style={{
+          display: 'flex',
           alignItems: 'center',
           marginBottom: 25
         }}>
-          <button 
+          <button
             onClick={() => navigate(-1)}
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
             aria-label="Volver"
@@ -182,7 +182,7 @@ function HistoryScreen() {
           <h1 className="maqgo-h1" style={{ flex: 1, textAlign: 'center', margin: 0 }}>
             {isProvider ? 'Mis Trabajos' : 'Mi Historial'}
           </h1>
-          
+        </div>
 
         {/* Tabs */}
         <div style={{

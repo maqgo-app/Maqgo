@@ -341,7 +341,8 @@ function ProviderHomeScreen() {
     return (
       <div className="maqgo-app maqgo-provider-funnel">
         <div className="maqgo-screen" style={{ alignItems: 'center', justifyContent: 'center' }}>
-          
+          <MaqgoLogo size="small" />
+        </div>
       </div>
     );
   }
@@ -394,7 +395,8 @@ function ProviderHomeScreen() {
               {activationCompletedCount}/{activationItems.length} completados
             </p>
             <div style={{ width: '100%', height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}>
-              
+              <div style={{ width: `${activationProgressPct}%`, height: '100%', background: '#EC6819' }} />
+            </div>
           </div>
           {activationItems.map((item) => (
             <div

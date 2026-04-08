@@ -38,7 +38,7 @@ function ServiceDetailDemoScreen() {
           <div style={{ flex: 1, textAlign: 'center' }}>
             <span style={{ color: '#fff', fontSize: 18, fontWeight: 600 }}>Detalle de Servicio</span>
           </div>
-          
+        </div>
 
         <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginBottom: 16, textAlign: 'center' }}>
           Ejemplo: Retro 5h + 1 día · $1.145.000 subtotal

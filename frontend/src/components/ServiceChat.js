@@ -390,7 +390,7 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
             );
           })
         )}
-        
+      </div>
 
       {/* Feedback de mensaje enviado */}
       {justSent && (

@@ -335,475 +335,320 @@ function SearchingProviderScreen() {
     }).format(price);
   };
 
-  // Pantalla de carga
-  if (status === 'loading') {
-    return (
-      <div className="maqgo-app maqgo-client-funnel">
+  const maxAttempts = Math.max(eligibleProviders.length, 1);
+
+  const headerNav = (
+    <div
+      style={{
+        position: 'absolute',
+        top: 16,
+        left: 16,
+        right: 16,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        zIndex: Z_INDEX.sticky,
+      }}
+    >
+      <button
+        onClick={() => navigate(backFromSearching)}
+        style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}
+        aria-label="Volver"
+      >
+        <BackArrowIcon style={{ color: '#fff' }} />
+      </button>
+      <button
+        onClick={() => navigate('/client/home')}
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: '8px 12px',
+          cursor: 'pointer',
+          color: 'rgba(255,255,255,0.9)',
+          fontSize: 13,
+        }}
+      >
+        Inicio
+      </button>
+    </div>
+  );
+
+  const renderSearching = () => (
+    <>
+      <p
+        style={{
+          color: 'rgba(255,255,255,0.88)',
+          fontSize: 13,
+          textAlign: 'center',
+          margin: '0 16px 14px',
+          maxWidth: 320,
+          lineHeight: 1.45,
+        }}
+      >
+        Estamos buscando un proveedor disponible. Esto puede tardar algunos minutos.
+      </p>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 30 }}>
+        {eligibleProviders.map((_, index) => (
+          <div
+            key={index}
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              background:
+                index + 1 < currentAttempt
+                  ? '#666'
+                  : index + 1 === currentAttempt
+                    ? '#EC6819'
+                    : '#444',
+              transition: 'all 0.3s',
+            }}
+          />
+        ))}
+      </div>
+
+      <div style={{ position: 'relative', width: 140, height: 140, marginBottom: 30 }}>
+        <svg width="140" height="140" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx="70" cy="70" r="60" fill="none" stroke="#363636" strokeWidth="8" />
+          <circle
+            cx="70"
+            cy="70"
+            r="60"
+            fill="none"
+            stroke="#EC6819"
+            strokeWidth="8"
+            strokeDasharray={`${(secondsLeft / SECONDS_PER_ATTEMPT) * 377} 377`}
+            strokeLinecap="round"
+            style={{ transition: 'stroke-dasharray 1s linear' }}
+          />
+        </svg>
         <div
-          className="maqgo-screen"
-          style={{ justifyContent: 'center', alignItems: 'center' }}
-          role="status"
-          aria-live="polite"
-          aria-busy={true}
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: 32, fontWeight: 700, color: '#fff', fontFamily: 'monospace' }}>
+            {formatTime(secondsLeft)}
+          </div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+            {isRealRequest
+              ? clientPhase === 'contacting'
+                ? `Intento ${currentAttempt} de 5`
+                : 'Buscando en tu zona'
+              : `Proveedor ${currentAttempt} de ${maxAttempts}`}
+          </div>
+        </div>
+      </div>
+
+      <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, textAlign: 'center', marginBottom: 8 }}>
+        {isRealRequest
+          ? clientPhase === 'contacting'
+            ? 'Contactando proveedor'
+            : 'Buscando proveedor disponible'
+          : `Contactando proveedor ${currentAttempt} de ${maxAttempts}`}
+      </h1>
+
+      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, textAlign: 'center', marginBottom: 6 }}>
+        {isRealRequest && clientPhase === 'searching'
+          ? 'Buscando…'
+          : isRealRequest && clientPhase === 'contacting'
+            ? 'Esperando respuesta…'
+            : 'Esperando confirmación...'}
+      </p>
+      <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, textAlign: 'center', marginBottom: 25 }}>
+        En maquinaria pesada la respuesta suele tardar varios minutos; no es instantánea.
+      </p>
+
+      <div
+        style={{
+          background: 'rgba(144, 189, 211, 0.15)',
+          border: '1px solid rgba(144, 189, 211, 0.3)',
+          borderRadius: 10,
+          padding: '10px 16px',
+          marginBottom: 20,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        <span style={{ fontSize: 16 }}>🛡️</span>
+        <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>
+          Solo proveedores con precio ≤ {formatPrice(maxTotal)}
+        </span>
+      </div>
+
+      <div style={{ background: '#363636', borderRadius: 12, padding: '16px 24px', marginBottom: 20, textAlign: 'center' }}>
+        <p
+          style={{
+            color: 'rgba(255,255,255,0.7)',
+            fontSize: 13,
+            margin: '0 0 6px',
+            textTransform: 'uppercase',
+            letterSpacing: 1,
+          }}
+        >
+          Tiempo total
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <span style={{ color: '#EC6819', fontSize: 28, fontWeight: 700, fontFamily: 'monospace' }}>
+            {isRealRequest ? formatTime(secondsLeft) : formatTime((maxAttempts * 60) - totalElapsed)}
+          </span>
+          <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>restantes</span>
+        </div>
+        <div
+          style={{
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: 4,
+            height: 6,
+            marginTop: 12,
+            overflow: 'hidden',
+          }}
         >
           <div
             style={{
-              width: 50,
-              height: 50,
-              border: '4px solid rgba(255,255,255,0.2)',
-              borderTopColor: '#EC6819',
-              borderRadius: '50%',
-              animation: 'maqgo-spin-searching 1s linear infinite',
+              width: `${Math.max(
+                0,
+                Math.min(
+                  100,
+                  isRealRequest
+                    ? (secondsLeft / SECONDS_PER_ATTEMPT) * 100
+                    : (((maxAttempts * 60) - totalElapsed) / (maxAttempts * 60)) * 100
+                )
+              )}%`,
+              height: '100%',
+              background: '#EC6819',
+              transition: 'width 1s linear',
             }}
-            aria-hidden="true"
           />
-          <p style={{ color: '#fff', marginTop: 20 }}>Preparando búsqueda...</p>
-          <style>{`@keyframes maqgo-spin-searching { to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
-    );
-  }
 
-  // No hay proveedores elegibles
-  if (status === 'no_eligible') {
-    return (
-      <div className="maqgo-app maqgo-client-funnel">
-        <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: 'var(--maqgo-screen-padding-top) 30px 30px' }}>
-          <div style={{
-            width: 90,
-            height: 90,
-            borderRadius: '50%',
-            background: '#ff9800',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 25
-          }}>
-            <svg width="45" height="45" viewBox="0 0 24 24" fill="none">
-              <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h1 style={{ color: '#fff', fontSize: 20, textAlign: 'center', marginBottom: 10 }}>
-            Nadie disponible para iniciar hoy
-          </h1>
-          <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, textAlign: 'center', marginBottom: 30, lineHeight: 1.5 }}>
-            Puedes agendar desde mañana o elegir otra fecha.
+      <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, textAlign: 'center', maxWidth: 280 }}>
+        Tu solicitud se envía a los proveedores que seleccionaste. Cualquiera de ellos puede aceptar; el primero que acepte se queda con el servicio.
+      </p>
+
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          marginTop: 20,
+          alignItems: 'stretch',
+          maxWidth: 280,
+        }}
+      >
+        <button type="button" className="maqgo-btn-secondary" onClick={() => navigate('/client/providers')} style={{ width: '100%' }}>
+          Cancelar búsqueda
+        </button>
+        <button type="button" className="maqgo-btn-secondary" onClick={() => navigate('/client/home')} style={{ width: '100%' }}>
+          Volver al inicio
+        </button>
+      </div>
+    </>
+  );
+
+  const renderFound = () => (
+    <>
+      <div className="maqgo-success-icon">
+        <svg width="55" height="55" viewBox="0 0 55 55" fill="none">
+          <path d="M14 27L23 36L41 18" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      <h1 style={{ color: '#fff', fontSize: 24, fontWeight: 700, textAlign: 'center', marginTop: 20 }}>
+        ¡Proveedor confirmado!
+      </h1>
+      <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 15, textAlign: 'center', marginTop: 10 }}>
+        Tu servicio está en camino
+      </p>
+      {currentProvider && selectedProvider && currentProvider.id !== selectedProvider.id ? (
+        <div style={{ background: 'rgba(144, 189, 211, 0.2)', borderRadius: 10, padding: 12, marginTop: 20 }}>
+          <p style={{ color: '#90BDD3', fontSize: 13, margin: 0, textAlign: 'center' }}>
+            🎉 ¡Encontramos un proveedor a mejor precio!
           </p>
-          <button 
-            className="maqgo-btn-primary"
-            onClick={() => navigate('/client/providers')}
-            style={{ width: '100%', maxWidth: 280, marginBottom: 12 }}
-          >
-            Volver a proveedores
-          </button>
-          <button 
-            onClick={() => navigate('/client/home')}
-            style={{ 
-              background: 'none', 
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: 30,
-              padding: '12px 24px',
-              color: 'rgba(255,255,255,0.95)',
-              fontSize: 14,
-              cursor: 'pointer',
-              width: '100%',
-              maxWidth: 280
-            }}
-          >
-            Elegir otra fecha
-          </button>
         </div>
-      </div>
-    );
-  }
+      ) : null}
+    </>
+  );
 
-  const maxAttempts = Math.max(eligibleProviders.length, 1);
+  const renderNotFound = () => (
+    <>
+      <div
+        style={{
+          width: 100,
+          height: 100,
+          borderRadius: '50%',
+          background: '#ff6b6b',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 25,
+        }}
+      >
+        <svg width="45" height="45" viewBox="0 0 45 45" fill="none">
+          <path d="M12 12L33 33" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+          <path d="M33 12L12 33" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+        </svg>
+      </div>
+      <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, textAlign: 'center', marginBottom: 10 }}>
+        No encontramos un proveedor disponible en este momento
+      </h1>
+      <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, textAlign: 'center', marginBottom: 24, maxWidth: 280 }}>
+        Contactamos a {maxAttempts} proveedores con tu precio garantizado pero ninguno pudo aceptar.
+      </p>
+      <p
+        style={{
+          color: 'rgba(255,255,255,0.75)',
+          fontSize: 13,
+          textAlign: 'center',
+          marginBottom: 28,
+          maxWidth: 280,
+          lineHeight: 1.5,
+        }}
+      >
+        Te recomendamos programar la maquinaria para otro día o ajustar tu búsqueda.
+      </p>
+      <div style={{ width: '100%', maxWidth: 300 }}>
+        <button
+          className="maqgo-btn-primary"
+          onClick={() => {
+            localStorage.removeItem('currentServiceId');
+            navigate('/client/providers');
+          }}
+          style={{ width: '100%', marginBottom: 12 }}
+        >
+          Intentar nuevamente
+        </button>
+        <button
+          className="maqgo-btn-primary"
+          onClick={() => {
+            localStorage.setItem('reservationType', 'scheduled');
+            navigate('/client/calendar');
+          }}
+          style={{ width: '100%', marginBottom: 12 }}
+        >
+          Buscar para otro día
+        </button>
+        <button onClick={() => window.location.reload()} className="maqgo-btn-secondary" style={{ width: '100%', marginBottom: 12 }}>
+          Refrescar página
+        </button>
+        <button onClick={() => navigate('/client/home')} className="maqgo-btn-secondary" style={{ width: '100%' }}>
+          Volver al inicio
+        </button>
+      </div>
+    </>
+  );
 
   return (
     <div className="maqgo-app maqgo-client-funnel">
       <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center' }}>
-        {/* Header con botón volver */}
-        <div style={{ 
-          position: 'absolute',
-          top: 16,
-          left: 16,
-          right: 16,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          zIndex: Z_INDEX.sticky
-        }}>
-          <button 
-            onClick={() => navigate(backFromSearching)}
-            style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}
-            aria-label="Volver"
-          >
-            <BackArrowIcon style={{ color: '#fff' }} />
-          </button>
-          <button 
-            onClick={() => navigate('/client/home')}
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              padding: '8px 12px', 
-              cursor: 'pointer',
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: 13
-            }}
-          >
-            Inicio
-          </button>
-        </div>
-
-        {status === 'searching' && (
-          <>
-            <p
-              style={{
-                color: 'rgba(255,255,255,0.88)',
-                fontSize: 13,
-                textAlign: 'center',
-                margin: '0 16px 14px',
-                maxWidth: 320,
-                lineHeight: 1.45
-              }}
-            >
-              Estamos buscando un proveedor disponible. Esto puede tardar algunos minutos.
-            </p>
-            {/* Progress de intentos */}
-            <div style={{
-              display: 'flex',
-              gap: 8,
-              marginBottom: 30
-            }}>
-              {eligibleProviders.map((_, index) => (
-                <div key={index} style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: '50%',
-                  background: index + 1 < currentAttempt 
-                    ? '#666' 
-                    : index + 1 === currentAttempt 
-                      ? '#EC6819' 
-                      : '#444',
-                  transition: 'all 0.3s'
-                }} />
-              ))}
-            </div>
-
-            {/* Spinner: proveedor actual */}
-            <div style={{
-              position: 'relative',
-              width: 140,
-              height: 140,
-              marginBottom: 30
-            }}>
-              <svg width="140" height="140" style={{ transform: 'rotate(-90deg)' }}>
-                <circle cx="70" cy="70" r="60" fill="none" stroke="#363636" strokeWidth="8" />
-                <circle
-                  cx="70"
-                  cy="70"
-                  r="60"
-                  fill="none"
-                  stroke="#EC6819"
-                  strokeWidth="8"
-                  strokeDasharray={`${(secondsLeft / SECONDS_PER_ATTEMPT) * 377} 377`}
-                  strokeLinecap="round"
-                  style={{ transition: 'stroke-dasharray 1s linear' }}
-                />
-              </svg>
-              <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                textAlign: 'center'
-              }}>
-                <div style={{
-                  fontSize: 32,
-                  fontWeight: 700,
-                  color: '#fff',
-                  fontFamily: 'monospace'
-                }}>
-                  {formatTime(secondsLeft)}
-                </div>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-                  {isRealRequest
-                    ? clientPhase === 'contacting'
-                      ? `Intento ${currentAttempt} de 5`
-                      : 'Buscando en tu zona'
-                    : `Proveedor ${currentAttempt} de ${maxAttempts}`}
-                </div>
-              </div>
-            </div>
-
-          {/* Info actual */}
-          <h1 style={{
-            color: '#fff',
-            fontSize: 20,
-            fontWeight: 700,
-            textAlign: 'center',
-            marginBottom: 8
-          }}>
-            {isRealRequest
-              ? clientPhase === 'contacting'
-                ? 'Contactando proveedor'
-                : 'Buscando proveedor disponible'
-              : `Contactando proveedor ${currentAttempt} de ${maxAttempts}`}
-          </h1>
-
-            <p style={{
-              color: 'rgba(255,255,255,0.95)',
-              fontSize: 14,
-              textAlign: 'center',
-              marginBottom: 6
-            }}>
-              {isRealRequest && clientPhase === 'searching'
-                ? 'Buscando…'
-                : isRealRequest && clientPhase === 'contacting'
-                  ? 'Esperando respuesta…'
-                  : 'Esperando confirmación...'}
-            </p>
-            <p style={{
-              color: 'rgba(255,255,255,0.6)',
-              fontSize: 12,
-              textAlign: 'center',
-              marginBottom: 25
-            }}>
-              En maquinaria pesada la respuesta suele tardar varios minutos; no es instantánea.
-            </p>
-
-            {/* Garantía de precio */}
-            <div style={{
-              background: 'rgba(144, 189, 211, 0.15)',
-              border: '1px solid rgba(144, 189, 211, 0.3)',
-              borderRadius: 10,
-              padding: '10px 16px',
-              marginBottom: 20,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
-            }}>
-              <span style={{ fontSize: 16 }}>🛡️</span>
-              <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>
-                Solo proveedores con precio ≤ {formatPrice(maxTotal)}
-              </span>
-            </div>
-
-            {/* Temporizador: tiempo total restante */}
-            <div style={{
-              background: '#363636',
-              borderRadius: 12,
-              padding: '16px 24px',
-              marginBottom: 20,
-              textAlign: 'center'
-            }}>
-              <p style={{
-                color: 'rgba(255,255,255,0.7)',
-                fontSize: 13,
-                margin: '0 0 6px',
-                textTransform: 'uppercase',
-                letterSpacing: 1
-              }}>
-                Tiempo total
-              </p>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8
-              }}>
-                <span style={{
-                  color: '#EC6819',
-                  fontSize: 28,
-                  fontWeight: 700,
-                  fontFamily: 'monospace'
-                }}>
-                  {isRealRequest ? formatTime(secondsLeft) : formatTime((maxAttempts * 60) - totalElapsed)}
-                </span>
-                <span style={{
-                  color: 'rgba(255,255,255,0.6)',
-                  fontSize: 13
-                }}>
-                  restantes
-                </span>
-              </div>
-              {/* Barra de progreso tiempo total */}
-              <div style={{
-                background: 'rgba(255,255,255,0.1)',
-                borderRadius: 4,
-                height: 6,
-                marginTop: 12,
-                overflow: 'hidden'
-              }}>
-                
-            </div>
-
-            {/* Nota sobre selección de proveedor */}
-            <p style={{
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: 12,
-              textAlign: 'center',
-              maxWidth: 280
-            }}>
-              Tu solicitud se envía a los proveedores que seleccionaste. Cualquiera de ellos puede aceptar; el primero que acepte se queda con el servicio.
-            </p>
-
-            {/* Opciones de navegación */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 20, alignItems: 'stretch', maxWidth: 280 }}>
-              <button
-                type="button"
-                className="maqgo-btn-secondary"
-                onClick={() => navigate('/client/providers')}
-                style={{ width: '100%' }}
-              >
-                Cancelar búsqueda
-              </button>
-              <button
-                type="button"
-                className="maqgo-btn-secondary"
-                onClick={() => navigate('/client/home')}
-                style={{ width: '100%' }}
-              >
-                Volver al inicio
-              </button>
-            </div>
-          </>
-        )}
-
-        {status === 'found' && (
-          <>
-            <div className="maqgo-success-icon">
-              <svg width="55" height="55" viewBox="0 0 55 55" fill="none">
-                <path d="M14 27L23 36L41 18" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-
-            <h1 style={{
-              color: '#fff',
-              fontSize: 24,
-              fontWeight: 700,
-              textAlign: 'center',
-              marginTop: 20
-            }}>
-              ¡Proveedor confirmado!
-            </h1>
-
-            <p style={{
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: 15,
-              textAlign: 'center',
-              marginTop: 10
-            }}>
-              Tu servicio está en camino
-            </p>
-
-            {/* Mostrar si el precio fue menor */}
-            {currentProvider && selectedProvider && currentProvider.id !== selectedProvider.id && (
-              <div style={{
-                background: 'rgba(144, 189, 211, 0.2)',
-                borderRadius: 10,
-                padding: 12,
-                marginTop: 20
-              }}>
-                <p style={{ color: '#90BDD3', fontSize: 13, margin: 0, textAlign: 'center' }}>
-                  🎉 ¡Encontramos un proveedor a mejor precio!
-                </p>
-              </div>
-            )}
-          </>
-        )}
-
-        {status === 'not_found' && (
-          <>
-            <div style={{
-              width: 100,
-              height: 100,
-              borderRadius: '50%',
-              background: '#ff6b6b',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 25
-            }}>
-              <svg width="45" height="45" viewBox="0 0 45 45" fill="none">
-                <path d="M12 12L33 33" stroke="#fff" strokeWidth="4" strokeLinecap="round"/>
-                <path d="M33 12L12 33" stroke="#fff" strokeWidth="4" strokeLinecap="round"/>
-              </svg>
-            </div>
-
-            <h1 style={{
-              color: '#fff',
-              fontSize: 22,
-              fontWeight: 700,
-              textAlign: 'center',
-              marginBottom: 10
-            }}>
-              No encontramos un proveedor disponible en este momento
-            </h1>
-            
-            <p style={{
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: 14,
-              textAlign: 'center',
-              marginBottom: 24,
-              maxWidth: 280
-            }}>
-              Contactamos a {maxAttempts} proveedores con tu precio garantizado pero ninguno pudo aceptar.
-            </p>
-
-            <p style={{
-              color: 'rgba(255,255,255,0.75)',
-              fontSize: 13,
-              textAlign: 'center',
-              marginBottom: 28,
-              maxWidth: 280,
-              lineHeight: 1.5
-            }}>
-              Te recomendamos programar la maquinaria para otro día o ajustar tu búsqueda.
-            </p>
-
-            {/* Opciones */}
-            <div style={{ width: '100%', maxWidth: 300 }}>
-              <button 
-                className="maqgo-btn-primary"
-                onClick={() => {
-                  localStorage.removeItem('currentServiceId');
-                  navigate('/client/providers');
-                }}
-                style={{ width: '100%', marginBottom: 12 }}
-              >
-                Intentar nuevamente
-              </button>
-
-              <button 
-                className="maqgo-btn-primary"
-                onClick={() => {
-                  localStorage.setItem('reservationType', 'scheduled');
-                  navigate('/client/calendar');
-                }}
-                style={{ width: '100%', marginBottom: 12 }}
-              >
-                Buscar para otro día
-              </button>
-
-              <button 
-                onClick={() => window.location.reload()}
-                className="maqgo-btn-secondary"
-                style={{ width: '100%', marginBottom: 12 }}
-              >
-                Refrescar página
-              </button>
-
-              <button 
-                onClick={() => navigate('/client/home')}
-                className="maqgo-btn-secondary"
-                style={{ width: '100%' }}
-              >
-                Volver al inicio
-              </button>
-            </div>
-          </>
-        )}
+        {headerNav}
+        {status === 'searching' ? renderSearching() : null}
+        {status === 'found' ? renderFound() : null}
+        {status === 'not_found' ? renderNotFound() : null}
       </div>
     </div>
   );

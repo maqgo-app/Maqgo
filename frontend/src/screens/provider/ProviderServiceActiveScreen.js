@@ -62,7 +62,16 @@ function ProviderServiceActiveScreen() {
               <path d="M34 14L44 8" stroke="#fff" strokeWidth="4" strokeLinecap="round"/>
             </svg>
             {/* Pulso */}
-            
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                borderRadius: '50%',
+                border: '2px solid rgba(236, 104, 25, 0.4)',
+                animation: 'pulse 2s infinite',
+              }}
+            />
+          </div>
 
           <span style={{
             display: 'inline-block',
@@ -82,8 +91,8 @@ function ProviderServiceActiveScreen() {
         <div style={{
           background: '#363636',
           borderRadius: 16,
-padding: 24,
-        marginBottom: 20
+          padding: 24,
+          marginBottom: 20
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid #444444' }}>
             <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>Maquinaria</span>

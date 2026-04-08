@@ -22,7 +22,7 @@ import {
 } from '../../utils/clientBookingTruck';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 import { PAYMENT_COPY } from '../../constants/bookingPaymentCopy';
-import { useCheckout } from '../../context/CheckoutContext';
+import { useCheckoutState } from '../../context/CheckoutContext';
 import { touchCheckoutStateForExhaustiveUi } from '../../domain/checkout/checkoutStateMachine';
 import { isEmpresaBillingComplete } from '../../utils/clientBillingInvoice';
 
@@ -83,7 +83,7 @@ function CardPaymentScreen() {
   const enrollmentFailureDispatched = useRef(false);
   /** Evita doble submit / doble POST a /start mientras la petición está en curso. */
   const submitInFlightRef = useRef(false);
-  const { state: checkoutState, dispatch: dispatchCheckout } = useCheckout();
+  const { state: checkoutState, dispatch: dispatchCheckout } = useCheckoutState();
 
   useEffect(() => {
     touchCheckoutStateForExhaustiveUi(checkoutState);

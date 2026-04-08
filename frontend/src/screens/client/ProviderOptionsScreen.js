@@ -1,4 +1,4 @@
-import React, { memo }, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
@@ -426,7 +426,7 @@ function ProviderOptionsScreen() {
             <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
               <MaqgoLogo size="small" />
             </div>
-            
+          </div>
           <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 8 }}>
             Buscando proveedores para tu solicitud…
           </h1>

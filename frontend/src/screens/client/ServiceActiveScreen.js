@@ -141,7 +141,16 @@ function ServiceActiveScreen() {
               <path d="M25 12V25L32 32" stroke="#fff" strokeWidth="3" strokeLinecap="round"/>
             </svg>
             {/* Pulso */}
-            
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                borderRadius: '50%',
+                border: '2px solid rgba(255,255,255,0.45)',
+                animation: 'maqgo-pulse-service-active 2s infinite',
+              }}
+            />
+          </div>
 
           <span style={{
             display: 'inline-block',
