@@ -2,6 +2,7 @@
 STABLE MODULE — NO MODIFICAR SIN REVISIÓN DE PRODUCCIÓN
 """
 from fastapi import APIRouter, HTTPException, Body, Request, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import re
 from typing import Optional
 
@@ -47,6 +48,7 @@ from services.risk_auth_service import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
+_logout_bearer = HTTPBearer(auto_error=False)
 
 # Reintento seguro tras DuplicateKeyError (carrera / índice único): segunda pasada ve al usuario en Mongo.
 _register_dup_pass: ContextVar[int] = ContextVar("_register_dup_pass", default=0)
@@ -242,6 +244,13 @@ def verify_password(plain: str, hashed: str) -> bool:
 def generate_token() -> str:
     """Generate a simple token. Use JWT in production."""
     return secrets.token_urlsafe(32)
+
+
+async def _create_session_with_token(user_id: str) -> str:
+    """
+    Crea sesión usando el helper central (con TTL/touch uniforme) y retorna el token emitido.
+    """
+    return await create_session_for_user(user_id)
 
 
 def _user_roles(existing: dict) -> list:
@@ -643,7 +652,7 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
     - Si no existe, crea usuario client con ese teléfono como identidad base (siempre OTP).
     - Si existe y hay dispositivo de confianza sin señales de riesgo → sesión directa (sin OTP).
     - Si no → envía OTP (TTL 5 min, rate limit SMS en otp_service).
-    La decisión de confianza no usa caducidad temporal: solo riesgo (dispositivo, país, fallos recientes).
+    La decisión de confianza considera riesgo y una caducidad explícita del trusted device.
     No se pide OTP por “cambio de rol” ni por flujo proveedor: la política es riesgo/sesión/dispositivo.
     """
     try:
@@ -694,14 +703,7 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
             risky = True
 
         if not risky:
-            token = generate_token()
-            await db.sessions.insert_one(
-                {
-                    "userId": existing["id"],
-                    "token": token,
-                    "createdAt": datetime.now(timezone.utc).isoformat(),
-                }
-            )
+            token = await _create_session_with_token(existing["id"])
             if device_norm and trusted:
                 cc = (country or trusted.get("last_country") or "").strip().upper()[:2]
                 await db.trusted_devices.update_one(
@@ -874,14 +876,7 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 record_login_verify_failure(user["id"], device_norm)
             raise HTTPException(status_code=400, detail="El código no es correcto. Intenta nuevamente.")
 
-        token = generate_token()
-        await db.sessions.insert_one(
-            {
-                "userId": user["id"],
-                "token": token,
-                "createdAt": datetime.now(timezone.utc).isoformat(),
-            }
-        )
+        token = await _create_session_with_token(user["id"])
 
         if device_norm:
             await upsert_trusted_device(
@@ -1858,14 +1853,7 @@ async def login(request: Request, body: LoginRequest):
             {"$set": {"password": hash_password(body.password)}}
         )
 
-    token = generate_token()
-    
-    # Guardar token (en producción usar Redis o similar)
-    await db.sessions.insert_one({
-        "userId": user["id"],
-        "token": token,
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    })
+    token = await _create_session_with_token(user["id"])
     
     roles = _user_roles(user)
     legacy_role = user.get("role") or "client"
@@ -2076,9 +2064,14 @@ async def resend_code(request: Request, body: dict = Body(...)):
     return {"message": "Código reenviado"}
 
 @router.post("/logout")
-async def logout(body: dict = Body(...)):
+async def logout(
+    body: dict = Body(default_factory=dict),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_logout_bearer),
+):
     """Cerrar sesión"""
-    token = body.get("token")
+    token = (body or {}).get("token")
+    if (not token) and credentials and credentials.credentials:
+        token = credentials.credentials.strip()
     if token:
         await db.sessions.delete_one({"token": token})
     return {"message": "Sesión cerrada"}

@@ -83,8 +83,8 @@ function ProviderProfileScreen() {
   const isOperator = providerRole === 'operator';
   const operatorName = localStorage.getItem('operatorName') || 'Operador';
 
-  const handleLogout = () => {
-    clearAuthSessionPreservingDraft();
+  const handleLogout = async () => {
+    await clearAuthSessionPreservingDraft();
     navigate('/');
   };
 

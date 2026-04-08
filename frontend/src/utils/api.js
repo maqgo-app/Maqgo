@@ -63,6 +63,27 @@ export function clearLocalSession() {
   localStorage.removeItem('ownerId');
 }
 
+/**
+ * Cierre de sesión completo:
+ * 1) intenta invalidar sesión en backend (best effort),
+ * 2) siempre limpia credenciales locales para evitar sesión zombie en frontend.
+ */
+export async function logoutAndClearSession() {
+  const token = getBearerToken();
+  if (token) {
+    try {
+      await axios.post(
+        `${BACKEND_URL}/api/auth/logout`,
+        { token },
+        { timeout: 8000, headers: getAuthHeaders() }
+      );
+    } catch {
+      // Best effort: incluso si backend falla, se limpia sesión local.
+    }
+  }
+  clearLocalSession();
+}
+
 function shouldRedirectToLoginOn401() {
   const p = window.location.pathname || '';
   if (p === '/login') return false;

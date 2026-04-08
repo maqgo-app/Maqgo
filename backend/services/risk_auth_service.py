@@ -1,5 +1,5 @@
 """
-MAQGO — Autenticación por riesgo (sin caducidad temporal de confianza).
+MAQGO — Autenticación por riesgo (con caducidad temporal de confianza).
 
 - trusted_devices en MongoDB
 - Fallos de verificación OTP (Redis): umbral en ventana deslizante
@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import Request
@@ -101,6 +102,8 @@ def is_risky_login(
         return True
     if too_many_failed:
         return True
+    if is_trusted_device_expired(trusted_row):
+        return True
     return risk_engine_is_risky(
         trusted_row,
         current_ip,
@@ -111,6 +114,37 @@ def is_risky_login(
 
 def _fail_key(user_id: str, device_id: str) -> str:
     return f"login_verify_fail:{user_id}:{device_id}"
+
+
+def _parse_dt_utc(raw: Any) -> Optional[datetime]:
+    if raw is None:
+        return None
+    if isinstance(raw, datetime):
+        return raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+    try:
+        text = str(raw).strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
+def is_trusted_device_expired(trusted_row: Optional[dict[str, Any]]) -> bool:
+    """
+    True cuando la confianza del dispositivo ya expiró o no es verificable.
+    Si la fila no existe, la evaluación de riesgo ya la trata como "nuevo dispositivo".
+    """
+    if not trusted_row:
+        return False
+    trusted_until = _parse_dt_utc(trusted_row.get("trusted_until"))
+    if not trusted_until:
+        # Backward compatibility: filas legacy sin trusted_until requieren revalidación por OTP.
+        return True
+    return trusted_until <= datetime.now(timezone.utc)
 
 
 def get_login_verify_fail_count(user_id: str, device_id: str) -> int:

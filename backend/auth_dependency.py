@@ -1,12 +1,13 @@
 """
 MAQGO - Dependencia de autenticación para rutas protegidas.
-Valida token Bearer contra sesiones en MongoDB.
+Valida token Bearer contra sesiones en MongoDB (con expiración explícita).
 """
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import secrets
+import os
 
 from db_config import get_db_name, get_mongo_url
 
@@ -15,6 +16,61 @@ security = HTTPBearer(auto_error=False)
 mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
+
+DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 días
+
+
+def _session_ttl_seconds() -> int:
+    raw = str(os.environ.get("MAQGO_SESSION_TTL_SECONDS", DEFAULT_SESSION_TTL_SECONDS)).strip()
+    try:
+        parsed = int(raw)
+    except Exception:
+        parsed = DEFAULT_SESSION_TTL_SECONDS
+    # Nunca menos de 5 min para no romper UX de navegación.
+    return max(300, parsed)
+
+
+def _parse_iso_utc(raw: str | None):
+    if not raw:
+        return None
+    try:
+        text = str(raw).strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
+def _session_expiry_from_created(created_at_raw: str | None):
+    created_at = _parse_iso_utc(created_at_raw)
+    if not created_at:
+        return None
+    return created_at + timedelta(seconds=_session_ttl_seconds())
+
+
+async def _validate_and_touch_session(token: str):
+    """
+    Retorna sesión válida o None.
+    Aplica TTL explícito y toca last_seen_at para trazabilidad operativa.
+    """
+    session = await db.sessions.find_one({"token": token})
+    if not session:
+        return None
+
+    expires_at = _session_expiry_from_created(session.get("createdAt"))
+    if not expires_at or expires_at <= datetime.now(timezone.utc):
+        await db.sessions.delete_one({"token": token})
+        return None
+
+    await db.sessions.update_one(
+        {"_id": session["_id"]},
+        {"$set": {"lastSeenAt": datetime.now(timezone.utc).isoformat()}},
+    )
+    return session
 
 
 def _normalize_phone(phone: str) -> str:
@@ -33,10 +89,12 @@ async def create_session_for_user(user_id: str) -> str:
     Usado tras verificación OTP, creación de usuario o join de operador.
     """
     token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc).isoformat()
     await db.sessions.insert_one({
         "userId": user_id,
         "token": token,
-        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "createdAt": now,
+        "lastSeenAt": now,
     })
     return token
 
@@ -56,7 +114,7 @@ async def get_current_user(
         )
     token = credentials.credentials.strip()
 
-    session = await db.sessions.find_one({"token": token})
+    session = await _validate_and_touch_session(token)
     if not session:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -94,7 +152,7 @@ async def get_current_user_optional(
         return None
 
     token = credentials.credentials.strip()
-    session = await db.sessions.find_one({"token": token})
+    session = await _validate_and_touch_session(token)
     if not session:
         return None
 

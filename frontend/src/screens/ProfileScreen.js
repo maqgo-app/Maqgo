@@ -89,8 +89,8 @@ function ProfileScreen() {
     }
   };
 
-  const handleLogout = () => {
-    clearAuthSessionPreservingDraft();
+  const handleLogout = async () => {
+    await clearAuthSessionPreservingDraft();
     navigate('/welcome');
   };
 

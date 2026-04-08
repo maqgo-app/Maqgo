@@ -80,10 +80,10 @@ const Icons = {
   )
 };
 
-function logoutAndGoWelcome(navigate) {
+async function logoutAndGoWelcome(navigate) {
   const confirmed = window.confirm('¿Quieres cerrar sesión ahora?');
   if (!confirmed) return;
-  clearAuthSessionPreservingDraft();
+  await clearAuthSessionPreservingDraft();
   navigate('/welcome');
 }
 
@@ -159,7 +159,9 @@ export function ClientNavigation() {
       />
       <NavItem
         active={false}
-        onClick={() => logoutAndGoWelcome(navigate)}
+        onClick={() => {
+          void logoutAndGoWelcome(navigate);
+        }}
         label="Salir"
         icon={Icons.logout}
       />
@@ -224,7 +226,9 @@ export function ProviderNavigation() {
         />
         <NavItem
           active={false}
-          onClick={() => logoutAndGoWelcome(navigate)}
+          onClick={() => {
+            void logoutAndGoWelcome(navigate);
+          }}
           label="Salir"
           icon={Icons.logout}
         />
@@ -269,7 +273,9 @@ export function ProviderNavigation() {
       />
       <NavItem
         active={false}
-        onClick={() => logoutAndGoWelcome(navigate)}
+        onClick={() => {
+          void logoutAndGoWelcome(navigate);
+        }}
         label="Salir"
         icon={Icons.logout}
       />
