@@ -1,8 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { getObject } from '../../utils/safeStorage';
 import { clearAuthSessionPreservingDraft } from '../../utils/sessionCleanup';
-import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
+import BACKEND_URL from '../../utils/api';
+import { useToast } from '../../components/Toast';
+import {
+  readProviderAvailableDefaultOn,
+  writeProviderAvailability,
+  subscribeProviderAvailability,
+  isDemoProviderUserId,
+} from '../../utils/providerAvailability';
 
 function MenuItem({ label, sublabel, onClick, showBadge }) {
   return (
@@ -73,15 +81,97 @@ function SectionTitle({ title }) {
  */
 function ProviderProfileScreen() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [providerData] = useState(() => getObject('providerData', {}));
-  const [bankComplete] = useState(() => {
+  const [bankComplete, setBankComplete] = useState(() => {
     const bank = getObject('bankData', {});
     return !!bank.bank && !!bank.accountNumber;
   });
+  const [onboardingCompleted, setOnboardingCompleted] = useState(
+    () => localStorage.getItem('providerOnboardingCompleted') === 'true'
+  );
+  const [available, setAvailable] = useState(() => readProviderAvailableDefaultOn());
+  const [isTogglingAvailability, setIsTogglingAvailability] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const providerRole = localStorage.getItem('providerRole') || 'super_master';
   const isOperator = providerRole === 'operator';
   const operatorName = localStorage.getItem('operatorName') || 'Operador';
+
+  useEffect(() => {
+    const unsubscribe = subscribeProviderAvailability((next) => setAvailable(next));
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const localBank = getObject('bankData', {});
+    const localBankComplete = !!localBank.bank && !!localBank.accountNumber;
+    setBankComplete(localBankComplete);
+
+    const userId = localStorage.getItem('userId');
+    if (!userId || isDemoProviderUserId(userId)) return;
+
+    axios
+      .get(`${BACKEND_URL}/api/users/${userId}`, { timeout: 5000 })
+      .then((res) => {
+        const onboardingDb = Boolean(res.data?.onboarding_completed);
+        setOnboardingCompleted((prev) => onboardingDb || prev);
+        if (onboardingDb) localStorage.setItem('providerOnboardingCompleted', 'true');
+
+        const avail = res.data?.isAvailable ?? res.data?.available ?? false;
+        setAvailable(!!avail);
+        writeProviderAvailability(!!avail, { notify: false });
+
+        const bankDataFromDb = res.data?.providerData?.bankData;
+        if (bankDataFromDb && typeof bankDataFromDb === 'object') {
+          localStorage.setItem('bankData', JSON.stringify(bankDataFromDb));
+          setBankComplete(!!bankDataFromDb.bank && !!bankDataFromDb.accountNumber);
+        }
+      })
+      .catch(() => {
+        setAvailable(readProviderAvailableDefaultOn());
+      });
+  }, []);
+
+  const toggleAvailability = async () => {
+    if (!onboardingCompleted || isTogglingAvailability) return;
+    if (!bankComplete && !available) {
+      toast.warning('Completa tus datos bancarios antes de conectarte.');
+      navigate('/provider/profile/banco');
+      return;
+    }
+
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      toast.error('Debes iniciar sesión para conectarte.');
+      return;
+    }
+
+    setIsTogglingAvailability(true);
+    const newStatus = !available;
+    setAvailable(newStatus);
+    writeProviderAvailability(newStatus);
+
+    if (isDemoProviderUserId(userId)) {
+      setIsTogglingAvailability(false);
+      toast.success(newStatus ? 'Te conectaste' : 'Te desconectaste', 'availability');
+      return;
+    }
+
+    try {
+      await axios.patch(
+        `${BACKEND_URL}/api/users/${userId}`,
+        { available: newStatus },
+        { timeout: 8000 }
+      );
+      toast.success(newStatus ? 'Te conectaste' : 'Te desconectaste', 'availability');
+    } catch {
+      setAvailable(!newStatus);
+      writeProviderAvailability(!newStatus);
+      toast.error('No se pudo actualizar disponibilidad. Intenta de nuevo.');
+    } finally {
+      setIsTogglingAvailability(false);
+    }
+  };
 
   const handleLogout = async () => {
     await clearAuthSessionPreservingDraft();
@@ -126,6 +216,48 @@ function ProviderProfileScreen() {
         {/* TITULAR/GERENTE: ve todo */}
         {!isOperator && (
           <>
+            <SectionTitle title="Disponibilidad" />
+            <div
+              style={{
+                background: '#2A2A2A',
+                borderRadius: 12,
+                border: '1px solid rgba(255,255,255,0.12)',
+                padding: 14,
+                marginBottom: 4
+              }}
+            >
+              <p style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: '0 0 6px' }}>
+                {onboardingCompleted ? (available ? 'Conectado' : 'Pausado') : 'Bloqueado'}
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '0 0 10px', lineHeight: 1.35 }}>
+                Este es el mismo estado que en Inicio.
+              </p>
+              <button
+                onClick={toggleAvailability}
+                disabled={!onboardingCompleted || isTogglingAvailability}
+                style={{
+                  width: '100%',
+                  padding: 11,
+                  borderRadius: 10,
+                  border: available ? '1px solid rgba(255,255,255,0.2)' : 'none',
+                  background: available ? 'rgba(255,255,255,0.08)' : '#EC6819',
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: onboardingCompleted && !isTogglingAvailability ? 'pointer' : 'not-allowed',
+                  opacity: isTogglingAvailability ? 0.7 : 1
+                }}
+              >
+                {!onboardingCompleted
+                  ? 'Completa activación'
+                  : isTogglingAvailability
+                    ? 'Actualizando...'
+                    : available
+                      ? 'Pausar disponibilidad'
+                      : 'Activar disponibilidad'}
+              </button>
+            </div>
+
             {!bankComplete && (
               <div
                 style={{
@@ -160,29 +292,12 @@ function ProviderProfileScreen() {
                 </button>
               </div>
             )}
-            <SectionTitle title="Mi negocio" />
-            <MenuItem 
-              label="Inicio" 
-              sublabel="Ver solicitudes y estado"
-              onClick={() => navigate(getProviderLandingPath())}
+            <SectionTitle title="Mi perfil" />
+            <MenuItem
+              label="Datos de usuario"
+              sublabel="Nombre, correo y teléfono"
+              onClick={() => navigate('/profile')}
             />
-            <MenuItem 
-              label="Mis máquinas" 
-              sublabel="Gestionar maquinaria registrada"
-              onClick={() => navigate('/provider/machines')}
-            />
-            <MenuItem 
-              label="Mis cobros" 
-              sublabel="Historial de pagos recibidos"
-              onClick={() => navigate('/provider/cobros')}
-            />
-            <MenuItem 
-              label="Mis operadores" 
-              sublabel="Invitar y gestionar operadores"
-              onClick={() => navigate('/provider/team')}
-            />
-
-            <SectionTitle title="Mi cuenta" />
             <MenuItem 
               label="Datos de la empresa" 
               sublabel={providerData.businessName || 'Sin completar'}

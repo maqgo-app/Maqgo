@@ -149,7 +149,7 @@ function MyMachinesScreen() {
             Mis Máquinas
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '4px 0 0' }}>
-            Gestiona tus equipos, precios y operadores
+            Gestiona tus equipos y asigna operadores desde aquí
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -437,7 +437,7 @@ function MyMachinesScreen() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
                 }}
               >
-                + Agregar operador
+                + Agregar operador (con código)
               </button>
             </div>
 
@@ -692,7 +692,7 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
                 <span style={{ fontSize: 20 }}>📱</span>
                 <div>
                   <div>Invitar nuevo operador</div>
-                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 400 }}>Inscríbelo y genera código · Solo necesitará el código</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 400 }}>Inscríbelo y genera código · No depende de Inicio</div>
                 </div>
               </button>
               <button
@@ -812,6 +812,9 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
         {mode === 'inviteNew' && inviteCode && (
           <>
             <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 24, marginBottom: 16, textAlign: 'center' }}>
+              <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '0 0 8px', textTransform: 'uppercase' }}>
+                Código de enrolamiento
+              </p>
               <p style={{ color: '#90BDD3', fontSize: 28, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 6, margin: '0 0 8px' }}>{inviteCode}</p>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>Válido 7 días</p>
             </div>
