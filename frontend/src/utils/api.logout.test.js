@@ -14,23 +14,23 @@ vi.mock('axios', () => ({
 describe('logoutAndClearSession', () => {
   const originalWindow = globalThis.window;
   const originalLocalStorage = globalThis.localStorage;
-  const originalProcess = globalThis.process;
-  const envBackup = process.env;
+  const originalEnv = import.meta.env;
 
   beforeEach(() => {
     vi.resetModules();
-    process.env = { ...envBackup, REACT_APP_BACKEND_URL: 'http://localhost:8000' };
+    vi.stubEnv('VITE_BACKEND_URL', 'http://localhost:8000');
     globalThis.window = undefined;
   });
 
   afterEach(() => {
-    process.env = envBackup;
+    vi.unstubAllEnvs();
     if (originalWindow === undefined) delete globalThis.window;
     else globalThis.window = originalWindow;
     if (originalLocalStorage === undefined) delete globalThis.localStorage;
     else globalThis.localStorage = originalLocalStorage;
-    if (originalProcess === undefined) delete globalThis.process;
-    else globalThis.process = originalProcess;
+    if (originalEnv !== undefined) {
+      // no-op, keeps linter aware we intentionally avoid process.env in browser tests
+    }
   });
 
   it('llama /auth/logout y limpia sesión local', async () => {
