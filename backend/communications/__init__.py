@@ -36,7 +36,7 @@ def _is_demo_allowed() -> bool:
 # Repetir "No se realizó ningún cobro" cuando aplique
 
 SMS_TEMPLATES = {
-    'otp': 'MAQGO: Tu código de verificación es {otp}. Válido por 5 minutos.',
+    'otp': '{otp}\n\nMAQGO - Código de verificación. Expira en 5 minutos.',
     
     # === CLIENTE - SMS ===
     'client_request_sent': """MAQGO: Recibimos tu solicitud de maquinaria.
