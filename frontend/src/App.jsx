@@ -396,7 +396,7 @@ function AppContent() {
 
 export default function App() {
   return (
-    <div className="maqgo-app-shell" style={{ width: '100%', background: '#000000' }}>
+    <div className="maqgo-app-shell maqgo-device-frame" style={{ width: '100%', background: '#000000' }}>
       <AuthProvider>
         <ToastProvider>
           <AppContent />
