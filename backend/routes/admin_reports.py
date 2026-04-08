@@ -6,9 +6,10 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from auth_dependency import get_current_admin
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from collections import Counter
+from zoneinfo import ZoneInfo
 import io
 import csv
 import os
@@ -27,6 +28,7 @@ db = client[get_db_name()]
 
 DEFAULT_DAILY_REPORT_TO = "tomas@maqgo.cl"
 DEFAULT_DAILY_REPORT_CC = "tomas@nevadocapital.cl"
+DEFAULT_DAILY_REPORT_TIMEZONE = "America/Santiago"
 
 
 def _split_emails(value: str) -> list[str]:
@@ -41,6 +43,74 @@ def _daily_report_recipients() -> tuple[list[str], list[str]]:
     return to_list, cc_list
 
 
+def _daily_report_timezone_name() -> str:
+    return (
+        str(os.environ.get("MAQGO_DAILY_REPORT_TIMEZONE", DEFAULT_DAILY_REPORT_TIMEZONE))
+        .strip()
+        or DEFAULT_DAILY_REPORT_TIMEZONE
+    )
+
+
+def _daily_report_tzinfo():
+    name = _daily_report_timezone_name()
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        return timezone.utc
+
+
+def _local_day_bounds_utc(days_ago: int = 0) -> tuple[datetime, datetime, datetime]:
+    """
+    Ventana [inicio_día, fin_día) para timezone local configurado, convertida a UTC.
+    También retorna inicio de mes local (UTC) para métricas MTD.
+    """
+    tzinfo = _daily_report_tzinfo()
+    now_local = datetime.now(tzinfo) - timedelta(days=days_ago)
+    start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_local = start_local + timedelta(days=1)
+    month_start_local = start_local.replace(day=1)
+    return (
+        start_local.astimezone(timezone.utc),
+        end_local.astimezone(timezone.utc),
+        month_start_local.astimezone(timezone.utc),
+    )
+
+
+def _build_created_at_filter(start_utc: datetime, end_utc: datetime) -> dict:
+    """
+    Compatibilidad: algunos documentos usan created_at (datetime) y otros createdAt (ISO string).
+    """
+    return {
+        "$or": [
+            {"created_at": {"$gte": start_utc, "$lt": end_utc}},
+            {"createdAt": {"$gte": start_utc.isoformat(), "$lt": end_utc.isoformat()}},
+        ]
+    }
+
+
+async def _count_users_with_role(role: str, *, start_utc: datetime | None = None, end_utc: datetime | None = None) -> int:
+    role_filter = {"$or": [{"role": role}, {"roles": role}]}
+    if start_utc and end_utc:
+        query = {"$and": [role_filter, _build_created_at_filter(start_utc, end_utc)]}
+    else:
+        query = role_filter
+    return await db.users.count_documents(query)
+
+
+async def _count_machineries(*, start_utc: datetime | None = None, end_utc: datetime | None = None) -> int:
+    machinery_filter = {
+        "$or": [
+            {"machineryType": {"$exists": True, "$nin": [None, ""]}},
+            {"machineData.machineryType": {"$exists": True, "$nin": [None, ""]}},
+        ]
+    }
+    if start_utc and end_utc:
+        query = {"$and": [machinery_filter, _build_created_at_filter(start_utc, end_utc)]}
+    else:
+        query = machinery_filter
+    return await db.users.count_documents(query)
+
+
 def _verify_cron_secret(secret: Optional[str]) -> None:
     expected = str(os.environ.get("MAQGO_CRON_SECRET", "")).strip()
     if not expected or str(secret or "").strip() != expected:
@@ -51,6 +121,7 @@ def format_report_as_html(report: dict, *, title: str) -> str:
     """HTML simple para envío por correo (MVP)."""
     resumen = report.get("resumen") or {}
     periodo = report.get("periodo") or {}
+    kpis = report.get("kpis") or {}
     por_estado = resumen.get("por_estado") or {}
     top_maquinaria = resumen.get("top_maquinaria") or []
     alertas = report.get("alertas") or []
@@ -75,6 +146,9 @@ def format_report_as_html(report: dict, *, title: str) -> str:
     gmv = resumen.get("gmv_pagado_semana_clp", 0)
     cancelacion = resumen.get("tasa_cancelacion", "0%")
     revision_h = resumen.get("tiempo_promedio_revision_h", 0)
+    clientes = kpis.get("clientes") or {}
+    proveedores = kpis.get("proveedores") or {}
+    maquinarias = kpis.get("maquinarias") or {}
 
     return f"""
 <html>
@@ -90,6 +164,13 @@ def format_report_as_html(report: dict, *, title: str) -> str:
       <li>GMV pagado (CLP): {gmv}</li>
       <li>Tasa cancelación: {cancelacion}</li>
       <li>Tiempo promedio revisión (h): {revision_h}</li>
+    </ul>
+
+    <h3>KPI diario (Total / Hoy / Mes)</h3>
+    <ul>
+      <li><strong>Clientes:</strong> {clientes.get("total", 0)} / {clientes.get("hoy", 0)} / {clientes.get("mes", 0)}</li>
+      <li><strong>Proveedores:</strong> {proveedores.get("total", 0)} / {proveedores.get("hoy", 0)} / {proveedores.get("mes", 0)}</li>
+      <li><strong>Maquinarias:</strong> {maquinarias.get("total", 0)} / {maquinarias.get("hoy", 0)} / {maquinarias.get("mes", 0)}</li>
     </ul>
 
     <h3>Por estado</h3>
@@ -235,14 +316,14 @@ async def _build_daily_report(days_ago: int = 0):
     """
     Informe diario operativo (hoy por defecto) para envío ejecutivo.
     """
-    now = datetime.utcnow()
-    start_of_day = (now - timedelta(days=days_ago)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    end_of_day = start_of_day + timedelta(days=1)
+    start_of_day_utc, end_of_day_utc, month_start_utc = _local_day_bounds_utc(days_ago=days_ago)
+    tz_name = _daily_report_timezone_name()
+    tzinfo = _daily_report_tzinfo()
+    start_local = start_of_day_utc.astimezone(tzinfo)
+    end_local = end_of_day_utc.astimezone(tzinfo)
 
     services = await db.services.find(
-        {"created_at": {"$gte": start_of_day, "$lt": end_of_day}}
+        {"created_at": {"$gte": start_of_day_utc, "$lt": end_of_day_utc}}
     ).to_list(None)
 
     pipeline_keys = ["pending_review", "approved", "invoiced", "paid", "disputed", "cancelled"]
@@ -267,7 +348,7 @@ async def _build_daily_report(days_ago: int = 0):
     tiempo_promedio_revision_min = round(tiempo_promedio_revision_h * 60, 1) if tiempo_promedio_revision_h else 0.0
 
     paid_docs = await db.services.find(
-        {"status": "paid", "paid_at": {"$gte": start_of_day, "$lt": end_of_day}}
+        {"status": "paid", "paid_at": {"$gte": start_of_day_utc, "$lt": end_of_day_utc}}
     ).to_list(None)
     gmv_day = sum(float(d.get("gross_total") or 0) for d in paid_docs)
     n_pagados_cerrados = len(paid_docs)
@@ -278,7 +359,19 @@ async def _build_daily_report(days_ago: int = 0):
 
     mach = Counter((s.get("machinery_type") or "—") for s in services)
     top_maquinaria = [{"tipo": k, "n": v} for k, v in mach.most_common(5)]
-    alertas = await generate_alerts(db, start_of_day, end_of_day)
+    alertas = await generate_alerts(db, start_of_day_utc, end_of_day_utc)
+
+    clientes_total = await _count_users_with_role("client")
+    clientes_hoy = await _count_users_with_role("client", start_utc=start_of_day_utc, end_utc=end_of_day_utc)
+    clientes_mes = await _count_users_with_role("client", start_utc=month_start_utc, end_utc=end_of_day_utc)
+
+    proveedores_total = await _count_users_with_role("provider")
+    proveedores_hoy = await _count_users_with_role("provider", start_utc=start_of_day_utc, end_utc=end_of_day_utc)
+    proveedores_mes = await _count_users_with_role("provider", start_utc=month_start_utc, end_utc=end_of_day_utc)
+
+    maquinarias_total = await _count_machineries()
+    maquinarias_hoy = await _count_machineries(start_utc=start_of_day_utc, end_utc=end_of_day_utc)
+    maquinarias_mes = await _count_machineries(start_utc=month_start_utc, end_utc=end_of_day_utc)
 
     etiquetas = {
         "pending_review": "En revisión MAQGO",
@@ -292,9 +385,10 @@ async def _build_daily_report(days_ago: int = 0):
 
     return {
         "periodo": {
-            "inicio": start_of_day.isoformat(),
-            "fin": end_of_day.isoformat(),
-            "dia": f"{start_of_day.strftime('%d/%m/%Y')}",
+            "inicio": start_of_day_utc.isoformat(),
+            "fin": end_of_day_utc.isoformat(),
+            "dia": f"{start_local.strftime('%d/%m/%Y')}",
+            "timezone": tz_name,
         },
         "resumen": {
             "total_servicios_creados_semana": total_creados,
@@ -316,6 +410,12 @@ async def _build_daily_report(days_ago: int = 0):
             "tasa_aceptacion_inmediatas": "N/A",
         },
         "alertas": alertas,
+        "kpis": {
+            "clientes": {"total": clientes_total, "hoy": clientes_hoy, "mes": clientes_mes},
+            "proveedores": {"total": proveedores_total, "hoy": proveedores_hoy, "mes": proveedores_mes},
+            "maquinarias": {"total": maquinarias_total, "hoy": maquinarias_hoy, "mes": maquinarias_mes},
+        },
+        "report_definition": "total=histórico, hoy=día local, mes=acumulado desde inicio de mes local",
         "generado_el": datetime.utcnow().isoformat(),
         "pipeline": "facturacion_post_servicio",
     }
@@ -867,7 +967,7 @@ async def send_daily_report_email(
     report = await _build_daily_report(days_ago=days_ago)
     to_list, cc_list = _daily_report_recipients()
     html = format_report_as_html(report, title="MAQGO - Reporte Diario Operativo")
-    subject = f"MAQGO - Reporte diario ({report.get('periodo', {}).get('dia', '')})"
+    subject = "MAQGO - Reporte Diario"
 
     result = await send_email(
         {
@@ -891,15 +991,17 @@ async def send_daily_report_if_due() -> dict:
     Envío automático diario (una vez por día UTC), best-effort.
     Persistencia de control en colección admin_email_jobs.
     """
-    now = datetime.utcnow()
-    day_key = now.strftime("%Y-%m-%d")
+    tzinfo = _daily_report_tzinfo()
+    now_local = datetime.now(tzinfo)
+    now_utc = datetime.now(timezone.utc)
+    day_key = now_local.strftime("%Y-%m-%d")
     lock_id = f"daily_report:{day_key}"
 
     lock_result = await db.admin_email_jobs.update_one(
         {"_id": lock_id, "sent": {"$ne": True}},
         {
-            "$setOnInsert": {"_id": lock_id, "created_at": now},
-            "$set": {"attempted_at": now},
+            "$setOnInsert": {"_id": lock_id, "created_at": now_utc},
+            "$set": {"attempted_at": now_utc, "timezone": _daily_report_timezone_name()},
         },
         upsert=True,
     )
@@ -910,7 +1012,7 @@ async def send_daily_report_if_due() -> dict:
     report = await _build_daily_report(days_ago=0)
     to_list, cc_list = _daily_report_recipients()
     html = format_report_as_html(report, title="MAQGO - Reporte Diario Operativo")
-    subject = f"MAQGO - Reporte diario ({report.get('periodo', {}).get('dia', '')})"
+    subject = "MAQGO - Reporte Diario"
     result = await send_email(
         {
             "to": to_list,

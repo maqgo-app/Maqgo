@@ -9,6 +9,7 @@ import logging
 import asyncio
 from pathlib import Path
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -178,12 +179,12 @@ def _daily_report_scheduler_interval_sec() -> float:
     return max(300.0, value)
 
 
-def _daily_report_send_hour_utc() -> int:
-    raw = os.environ.get("MAQGO_DAILY_REPORT_UTC_HOUR", "13").strip()
+def _daily_report_send_hour_chile() -> int:
+    raw = os.environ.get("MAQGO_DAILY_REPORT_CHILE_HOUR", "8").strip()
     try:
         hour = int(raw)
     except ValueError:
-        hour = 12
+        hour = 8
     if hour < 0:
         return 0
     if hour > 23:
@@ -205,9 +206,10 @@ async def daily_report_scheduler():
         return
 
     interval = _daily_report_scheduler_interval_sec()
-    target_hour = _daily_report_send_hour_utc()
+    target_hour = _daily_report_send_hour_chile()
+    chile_tz = ZoneInfo("America/Santiago")
     logger.info(
-        "📧 Daily report scheduler iniciado (intervalo=%ss, hora_utc=%s)",
+        "📧 Daily report scheduler iniciado (intervalo=%ss, hora_chile=%s)",
         interval,
         target_hour,
     )
@@ -215,7 +217,7 @@ async def daily_report_scheduler():
 
     while True:
         try:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(chile_tz)
             day_key = now.strftime("%Y-%m-%d")
             if now.hour >= target_hour and day_key != last_sent_day_key:
                 try:
