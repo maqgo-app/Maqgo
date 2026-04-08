@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import BackToPortadaButton from '../../components/BackToPortadaButton';
@@ -16,14 +16,8 @@ import { useAuth } from '../../context/authHooks';
 import { getDeviceId } from '../../utils/deviceId';
 import { formatHttpErrorWithStatus, getHttpErrorMessage } from '../../utils/httpErrors';
 import {
-  buildOtpDecisionUser,
-  OTP_INTENT_PROVIDER_SIGNUP,
-  canSkipSmsForProviderSignup,
-} from '../../utils/otpDecision';
-import {
   getUserAuthState,
   logProviderFlowState,
-  logProviderFlowDecision,
   isProviderAccountInStorage,
   isOperatorAccountInStorage,
 } from '../../utils/userAuthState';
@@ -56,12 +50,6 @@ const JSON_POST = {
 
 /** API canónica; en www a veces falla solo directo o solo mismo origen (rewrite). */
 const MAQGO_API_ORIGIN = 'https://api.maqgo.cl';
-
-/** Sesión JWT sin SMS: celular ya verificado en MAQGO (backend existente; no usa login-sms/start). */
-function providerRegisterEstablishSessionUrl(base) {
-  const b = String(base ?? '').replace(/\/+$/, '');
-  return `${b}/api/auth/provider-register/establish-session`;
-}
 
 /** Reintento otro transporte en prod www si no hay respuesta HTTP. */
 async function postWithTransportRetry(urlBuilder, payload, extraHeaders = {}) {
@@ -129,7 +117,6 @@ function ProviderRegisterScreen() {
     },
     [login]
   );
-  const [searchParams] = useSearchParams();
   const toast = useToast();
   const [step, setStep] = useState('phone');
   const [phoneDigits, setPhoneDigits] = useState('');
@@ -141,10 +128,8 @@ function ProviderRegisterScreen() {
     password: ''
   });
   const [accepted, setAccepted] = useState(false);
-  /** True si el alta puede marcar phone_preverified: OTP reciente en Redis o cuenta con celular ya verificado. */
+  /** True cuando verify-otp(intent=provider_register) fue exitoso en esta sesión. */
   const [phonePreverified, setPhonePreverified] = useState(false);
-  /** UX: saltamos SMS porque el número ya estaba verificado en MAQGO (p. ej. cliente). */
-  const [skipOtpBecauseAccountVerified, setSkipOtpBecauseAccountVerified] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const resendTimerRef = useRef(null);
@@ -159,8 +144,6 @@ function ProviderRegisterScreen() {
   /** Depuración temporal: detalle crudo del API (quitar cuando estabilice). */
   const [submitErrorDebug, setSubmitErrorDebug] = useState('');
   const passwordHint = getPasswordHint(false);
-  /** Evita doble POST /login-sms/start por doble clic o condiciones de carrera. */
-  const smsStartInFlightRef = useRef(false);
 
   const celularStorage = phoneDigits.replace(/\D/g, '').slice(-9);
 
@@ -189,22 +172,11 @@ function ProviderRegisterScreen() {
       navigate(getProviderLandingPath(), { replace: true });
       return;
     }
-    const last9 = state.phone;
-    if (last9) {
-      setPhoneDigits(last9);
-      setPhonePreverified(true);
-      setSkipOtpBecauseAccountVerified(true);
-      setStep('details');
-      try {
-        localStorage.setItem('desiredRole', 'provider');
-        localStorage.setItem('providerCameFromWelcome', 'true');
-      } catch {
-        /* ignore */
-      }
-      logProviderFlowState(getUserAuthState(), 'details');
-    } else {
-      logProviderFlowState(state, 'mount');
-    }
+    // Enrolamiento proveedor independiente: siempre iniciar con paso SMS.
+    if (state.phone) setPhoneDigits(state.phone);
+    setStep('phone');
+    setPhonePreverified(false);
+    logProviderFlowState(getUserAuthState(), 'mount');
   }, [navigate]);
 
   useEffect(() => {
@@ -244,9 +216,6 @@ function ProviderRegisterScreen() {
           if (typeof draft.accepted === 'boolean') setAccepted(draft.accepted);
           if (draft.step === 'otp' || draft.step === 'details') setStep(draft.step);
           if (typeof draft.phonePreverified === 'boolean') setPhonePreverified(draft.phonePreverified);
-          if (typeof draft.skipOtpBecauseAccountVerified === 'boolean') {
-            setSkipOtpBecauseAccountVerified(draft.skipOtpBecauseAccountVerified);
-          }
         }, 0);
       }
     } catch {
@@ -264,13 +233,12 @@ function ProviderRegisterScreen() {
           form,
           accepted,
           phonePreverified,
-          skipOtpBecauseAccountVerified,
         })
       );
     } catch {
       /* ignore */
     }
-  }, [step, phoneDigits, form, accepted, phonePreverified, skipOtpBecauseAccountVerified]);
+  }, [step, phoneDigits, form, accepted, phonePreverified]);
 
   useEffect(() => {
     return () => {
@@ -285,10 +253,7 @@ function ProviderRegisterScreen() {
     setSubmitErrorDebug('');
   };
 
-  /**
-   * Único punto de entrada teléfono → POST /auth/login-sms/start (mismo criterio que LoginScreen).
-   * 1 request por clic; sin reintentos automáticos ni segunda llamada encadenada (evita loops).
-   */
+  /** Paso 1 proveedor: siempre enviar OTP por /auth/send-otp (flujo independiente). */
   const handlePhoneSubmit = useCallback(
     async (phone) => {
       const nine = String(phone ?? phoneDigits ?? '')
@@ -298,215 +263,27 @@ function ProviderRegisterScreen() {
         setErrors((e) => ({ ...e, celular: 'Ingresa un celular válido (9XXXXXXXX)' }));
         return;
       }
-      const authSnapshot = getUserAuthState();
-      const samePhone = Boolean(authSnapshot.phone && nine === authSnapshot.phone);
-      const deviceTrusted = authSnapshot.deviceTrusted;
-
       setLoading(true);
       setErrors((e) => ({ ...e, celular: '' }));
       setSubmitError('');
-      let acquiredSmsStart = false;
       try {
-        const user = buildOtpDecisionUser();
-        const otpContext = {
-          enteredPhoneLast9: nine,
-          intent: OTP_INTENT_PROVIDER_SIGNUP,
-          sessionExpired: searchParams.get('expired') === '1',
-          riskSignals: {},
-        };
-        const device = { trusted: authSnapshot.deviceTrusted };
-        if (canSkipSmsForProviderSignup(user, device, otpContext)) {
-          logProviderFlowDecision({
-            hasSession: authSnapshot.hasSession,
-            samePhone,
-            deviceTrusted,
-            decision: 'no-sms-session',
-          });
-          let rolesSkip = [];
-          try {
-            rolesSkip = JSON.parse(localStorage.getItem('userRoles') || '[]');
-            if (!Array.isArray(rolesSkip)) rolesSkip = [];
-          } catch {
-            rolesSkip = [];
-          }
-          logProviderUnifiedFlow({
-            requiresOTP: false,
-            roles: rolesSkip,
-            destination: 'step:details',
-            decision: 'details',
-          });
-          try {
-            localStorage.setItem('desiredRole', 'provider');
-            localStorage.setItem('providerCameFromWelcome', 'true');
-          } catch {
-            /* ignore */
-          }
-          setPhonePreverified(true);
-          setSkipOtpBecauseAccountVerified(true);
-          setStep('details');
-          setOtpCode('');
-          toast.success(
-            'Continúa con tus datos y contraseña para crear tu perfil de proveedor.'
-          );
-          return;
-        }
-
-        // Sin JWT pero mismo celular guardado + dispositivo conocido: JWT vía establish-session (sin SMS), no login-sms/start.
-        if (!authSnapshot.hasSession && samePhone && deviceTrusted) {
-          try {
-            const esRes = await postWithTransportRetry(
-              providerRegisterEstablishSessionUrl,
-              { celular: `+56${nine}` },
-              {}
-            );
-            const esData = esRes.data || {};
-            if (esData.token && establishSession(esData)) {
-              const enriched = {
-                ...esData,
-                role: 'client',
-                roles:
-                  Array.isArray(esData.roles) && esData.roles.length ? esData.roles : ['client'],
-                phone: `+56${nine}`,
-              };
-              persistLoginSessionMetadata(enriched);
-              afterSmsSessionEstablished(enriched);
-              logProviderFlowDecision({
-                hasSession: false,
-                samePhone,
-                deviceTrusted,
-                decision: 'no-sms-trusted-device',
-              });
-              try {
-                localStorage.setItem('desiredRole', 'provider');
-                localStorage.setItem('providerCameFromWelcome', 'true');
-              } catch {
-                /* ignore */
-              }
-              setPhonePreverified(true);
-              setSkipOtpBecauseAccountVerified(true);
-              setStep('details');
-              setOtpCode('');
-              toast.success(
-                'Continúa con tus datos y contraseña para crear tu perfil de proveedor.'
-              );
-              logProviderUnifiedFlow({
-                requiresOTP: false,
-                roles: enriched.roles,
-                destination: 'step:details',
-                decision: 'no-sms-trusted-device',
-              });
-              return;
-            }
-          } catch {
-            logProviderFlowDecision({
-              hasSession: false,
-              samePhone,
-              deviceTrusted,
-              decision: 'establish-session-fallback-sms',
-            });
-          }
-        }
-
-        logProviderFlowDecision({
-          hasSession: authSnapshot.hasSession,
-          samePhone,
-          deviceTrusted,
-          decision: 'sms',
-        });
-
-        if (smsStartInFlightRef.current) {
-          setLoading(false);
-          return;
-        }
-        smsStartInFlightRef.current = true;
-        acquiredSmsStart = true;
-
-        const celular = `+56${nine}`;
         const res = await postWithTransportRetry(
-          (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/login-sms/start`,
-          { celular, device_id: getDeviceId() },
+          (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/send-otp`,
+          { phone: `+56${nine}` },
           {}
         );
         const data = res.data || {};
-        const ro = data.requires_otp;
-        const roles = Array.isArray(data.roles) ? data.roles : [];
-        const hasToken = Boolean(data.token);
-
-        // Misma regla que LoginScreen: solo trusted = token + requires_otp explícitamente false.
-        if (hasToken && ro === false) {
-          if (!establishSession(data)) {
-            const msg = 'No se pudo guardar la sesión. Intenta de nuevo.';
-            setErrors((e) => ({ ...e, celular: msg }));
-            toast.error(msg);
-            logProviderUnifiedFlow({ requiresOTP: false, roles, destination: 'error:no-session' });
-            return;
-          }
-          afterSmsSessionEstablished(data);
-          logProviderUnifiedFlow({
-            requiresOTP: false,
-            roles,
-            destination: 'step:details',
-            decision: 'details',
-          });
-          try {
-            localStorage.setItem('desiredRole', 'provider');
-            localStorage.setItem('providerCameFromWelcome', 'true');
-          } catch {
-            /* ignore */
-          }
-          setPhonePreverified(true);
-          setSkipOtpBecauseAccountVerified(true);
-          setStep('details');
-          setOtpCode('');
-          toast.success(
-            'Sesión lista. Completa tus datos y contraseña para crear tu perfil de proveedor.'
-          );
-          return;
-        }
-
-        // Sin token = SMS/correo enviado → paso OTP (no exigir requires_otp === true: proxies/json raros).
-        if (!hasToken) {
-          logProviderUnifiedFlow({
-            requiresOTP: true,
-            roles,
-            destination: 'step:otp',
-            decision: 'sms',
-          });
-          setPhonePreverified(false);
-          setSkipOtpBecauseAccountVerified(false);
-          setStep('otp');
-          setOtpCode('');
-          const hint = typeof data.message === 'string' ? data.message.trim() : '';
-          if (hint) toast.success(hint);
-          return;
-        }
-
-        // Token pero no cumple trusted (ro !== false): intentar sesión y detalles (defensa).
-        if (!establishSession(data)) {
-          const msg = 'No se pudo guardar la sesión. Intenta de nuevo.';
-          setErrors((e) => ({ ...e, celular: msg }));
-          toast.error(msg);
-          logProviderUnifiedFlow({ requiresOTP: false, roles, destination: 'error:no-session' });
-          return;
-        }
-        afterSmsSessionEstablished(data);
         logProviderUnifiedFlow({
-          requiresOTP: false,
-          roles,
-          destination: 'step:details',
-          decision: 'details',
+          requiresOTP: true,
+          roles: [],
+          destination: 'step:otp',
+          decision: 'sms',
         });
-        try {
-          localStorage.setItem('desiredRole', 'provider');
-          localStorage.setItem('providerCameFromWelcome', 'true');
-        } catch {
-          /* ignore */
-        }
-        setPhonePreverified(true);
-        setSkipOtpBecauseAccountVerified(true);
-        setStep('details');
+        setPhonePreverified(false);
+        setStep('otp');
         setOtpCode('');
-        toast.success('Sesión lista. Completa tus datos y contraseña para crear tu perfil de proveedor.');
+        const hint = typeof data.message === 'string' ? data.message.trim() : '';
+        if (hint) toast.success(hint);
       } catch (err) {
         const msg = getHttpErrorMessage(err, {
           fallback: 'No pudimos continuar. Intenta nuevamente.',
@@ -518,51 +295,25 @@ function ProviderRegisterScreen() {
         setErrors((e) => ({ ...e, celular: msg }));
         toast.error(msg);
       } finally {
-        if (acquiredSmsStart) {
-          smsStartInFlightRef.current = false;
-        }
         setLoading(false);
       }
     },
-    [phoneDigits, toast, searchParams, afterSmsSessionEstablished]
+    [phoneDigits, toast]
   );
 
-  const resendLoginSms = useCallback(async () => {
+  const resendProviderOtp = useCallback(async () => {
     const nine = String(phoneDigits || '').replace(/\D/g, '').slice(-9);
     if (!/^9\d{8}$/.test(nine)) return;
     setLoading(true);
     try {
-      const res = await postWithTransportRetry(
-        (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/login-sms/start`,
-        { celular: `+56${nine}`, device_id: getDeviceId() },
-        {}
-      );
+      const res = await postWithTransportRetry((base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/send-otp`, {
+        phone: `+56${nine}`,
+      });
       const data = res.data || {};
-      const roles = Array.isArray(data.roles) ? data.roles : [];
-      if (data.requires_otp === false && data.token) {
-        if (!establishSession(data)) {
-          toast.error('No se pudo guardar la sesión.');
-          logProviderUnifiedFlow({
-            requiresOTP: false,
-            roles,
-            destination: 'error:no-session',
-          });
-          return;
-        }
-        afterSmsSessionEstablished(data);
-        logProviderUnifiedFlow({
-          requiresOTP: false,
-          roles,
-          destination: 'step:details',
-          decision: 'details',
-        });
-        setPhonePreverified(true);
-        setSkipOtpBecauseAccountVerified(true);
-        setStep('details');
-        toast.success('Sesión lista. Completa tus datos y contraseña para crear tu perfil de proveedor.');
-        return;
-      }
-      const hint = typeof data.message === 'string' && data.message.trim() ? data.message.trim() : 'Te enviamos un nuevo código.';
+      const hint =
+        typeof data.message === 'string' && data.message.trim()
+          ? data.message.trim()
+          : 'Te enviamos un nuevo código.';
       toast.success(hint);
       setOtpCode('');
       setResendCooldown(45);
@@ -587,7 +338,7 @@ function ProviderRegisterScreen() {
     } finally {
       setLoading(false);
     }
-  }, [phoneDigits, toast, afterSmsSessionEstablished]);
+  }, [phoneDigits, toast]);
 
   const verifyOtpAndContinue = useCallback(
     async (digitsOverride) => {
@@ -599,38 +350,43 @@ function ProviderRegisterScreen() {
       setLoading(true);
       try {
         const vres = await postWithTransportRetry(
-          (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/login-sms/verify`,
+          (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/verify-otp`,
           {
-            celular: `+56${nine}`,
+            phone: `+56${nine}`,
             code,
             device_id: getDeviceId(),
+            intent: 'provider_register',
           },
           {}
         );
         const data = vres.data || {};
-        const roVerify = data.requires_otp !== undefined ? data.requires_otp : false;
         if (!establishSession(data)) {
-          toast.error('No se pudo iniciar sesión con el código. Intenta de nuevo o solicita otro SMS.');
+          toast.error('No se pudo validar el código. Intenta de nuevo o solicita otro SMS.');
           setOtpCode('');
           logProviderUnifiedFlow({
-            requiresOTP: Boolean(roVerify),
-            roles: Array.isArray(data.roles) ? data.roles : [],
+            requiresOTP: true,
+            roles: [],
             destination: 'error:no-session',
           });
           return;
         }
-        afterSmsSessionEstablished(data);
-        const roles = Array.isArray(data.roles) ? data.roles : [];
+        const enriched = {
+          ...data,
+          role: 'client',
+          roles: Array.isArray(data.roles) && data.roles.length ? data.roles : ['client'],
+          phone: `+56${nine}`,
+        };
+        persistLoginSessionMetadata(enriched);
+        afterSmsSessionEstablished(enriched);
         logProviderUnifiedFlow({
           requiresOTP: false,
-          roles,
+          roles: enriched.roles,
           destination: 'step:details',
           decision: 'details',
         });
         setPhonePreverified(true);
-        setSkipOtpBecauseAccountVerified(false);
         setStep('details');
-        setOtpCode(code);
+        setOtpCode('');
         toast.success('Código verificado. Completa tus datos y contraseña para tu perfil de proveedor.');
       } catch (err) {
         toast.error(
@@ -649,6 +405,12 @@ function ProviderRegisterScreen() {
 
   const handleSubmitRegister = async () => {
     if (!accepted) return;
+    if (!phonePreverified) {
+      const msg = 'Debes verificar tu celular por SMS antes de crear la cuenta de proveedor.';
+      setErrors((prev) => ({ ...prev, celular: msg }));
+      toast.error(msg);
+      return;
+    }
     const emailTrim = String(form.email || '').trim();
     const nm = String(form.nombreMostrar || '').trim();
     const emailErr = validateEmail(emailTrim);
@@ -924,13 +686,14 @@ function ProviderRegisterScreen() {
     !emailErrLive &&
     !pwdErrLive &&
     celularStorage.length === 9 &&
+    phonePreverified &&
     accepted;
 
   const detailsBlockers = [];
   if (step === 'details') {
     if (emailErrLive) detailsBlockers.push('Correo electrónico válido');
     if (pwdErrLive) detailsBlockers.push('Contraseña (8–12 caracteres, letras y números)');
-    if (celularStorage.length !== 9) detailsBlockers.push('Celular verificado');
+    if (!phonePreverified || celularStorage.length !== 9) detailsBlockers.push('Celular verificado');
     if (!accepted) detailsBlockers.push('Aceptar términos y política de privacidad');
   }
 
@@ -938,7 +701,6 @@ function ProviderRegisterScreen() {
     setStep('phone');
     setOtpCode('');
     setPhonePreverified(false);
-    setSkipOtpBecauseAccountVerified(false);
   };
 
   const handleBackToWelcome = () => {
@@ -1007,8 +769,8 @@ function ProviderRegisterScreen() {
               <p style={{ color: '#f44336', fontSize: 12, marginTop: 8 }}>{errors.celular}</p>
             ) : null}
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 12, lineHeight: 1.4 }}>
-              Si tu celular ya está verificado en MAQGO, solo correo y contraseña de proveedor. Si no,
-              te enviaremos un código SMS; empresa, máquina y banco los completas después en el panel.
+              Primero validaremos tu celular con código SMS. Luego eliges correo y contraseña de
+              proveedor; empresa, máquina y banco los completas después en el panel.
             </p>
           </>
         )}
@@ -1084,7 +846,7 @@ function ProviderRegisterScreen() {
                 type="button"
                 className="maqgo-link"
                 disabled={loading || resendCooldown > 0}
-                onClick={() => resendLoginSms()}
+                onClick={() => resendProviderOtp()}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -1124,9 +886,7 @@ function ProviderRegisterScreen() {
                 lineHeight: 1.45
               }}
             >
-              {skipOtpBecauseAccountVerified
-                ? 'Este número ya estaba verificado en tu cuenta MAQGO. Solo elige correo y contraseña de acceso; los datos de empresa los completas después.'
-                : `Celular verificado: ${maskPhone9(phoneDigits)}. Correo y contraseña para tu perfil proveedor; el resto es progresivo.`}
+              {`Celular verificado: ${maskPhone9(phoneDigits)}. Correo y contraseña para tu perfil proveedor; el resto es progresivo.`}
             </p>
 
             {submitError || submitErrorDebug ? (
@@ -1214,34 +974,21 @@ function ProviderRegisterScreen() {
               htmlFor="provider-register-password"
               style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
             >
-              {skipOtpBecauseAccountVerified ? (
-                <>
-                  Contraseña de tu cuenta MAQGO <span style={{ color: '#EC6819' }}>*</span>
-                </>
-              ) : (
-                <>
-                  Contraseña <span style={{ color: '#EC6819' }}>*</span>
-                </>
-              )}
+              Contraseña <span style={{ color: '#EC6819' }}>*</span>
             </label>
             <PasswordField
               id="provider-register-password"
-              name={skipOtpBecauseAccountVerified ? 'password' : 'new-password'}
+              name="new-password"
               placeholder="Letras y números, 8–12 caracteres"
               value={form.password}
               onChange={(e) => update('password', e.target.value)}
               style={{ marginBottom: errors.password ? 8 : 12 }}
               error={Boolean(errors.password)}
-              autoComplete={skipOtpBecauseAccountVerified ? 'current-password' : 'new-password'}
+              autoComplete="new-password"
               minLength={PASSWORD_RULES.minLength}
               maxLength={PASSWORD_RULES.maxLength}
             />
             {errors.password ? <p style={{ color: '#f44336', fontSize: 12, marginTop: -8, marginBottom: 8 }}>{errors.password}</p> : null}
-            {skipOtpBecauseAccountVerified ? (
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: -4, marginBottom: 12, lineHeight: 1.35 }}>
-                Usa la misma contraseña con la que inicias sesión; así confirmamos que eres tú.
-              </p>
-            ) : null}
 
             <div className="maqgo-checkbox-row">
               <div
