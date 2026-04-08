@@ -5,16 +5,12 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import BackToPortadaButton from '../../components/BackToPortadaButton';
 import LoginPhoneChileInput from '../../components/LoginPhoneChileInput';
 import OtpSixDigitsInput from '../../components/OtpSixDigitsInput';
-import PasswordField from '../../components/PasswordField';
-import { validateEmail, validateCelularChile } from '../../utils/chileanValidation';
 import { useToast } from '../../components/Toast';
-import { getPasswordHint, validatePassword, PASSWORD_RULES } from '../../utils/passwordValidation';
 import BACKEND_URL from '../../utils/api';
-import { submitBecomeProviderMinimal, getBecomeProviderUrlForLogs } from '../../utils/providerBecomeApi';
 import { establishSession, persistLoginSessionMetadata } from '../../utils/sessionPersistence';
 import { useAuth } from '../../context/authHooks';
 import { getDeviceId } from '../../utils/deviceId';
-import { formatHttpErrorWithStatus, getHttpErrorMessage } from '../../utils/httpErrors';
+import { getHttpErrorMessage } from '../../utils/httpErrors';
 import {
   getUserAuthState,
   logProviderFlowState,
@@ -26,8 +22,13 @@ import { isAdminRoleStored } from '../../utils/welcomeHome';
 import { ROUTES } from '../../constants';
 
 const DRAFT_KEY = 'providerRegisterDraft';
+const AUTH_FLOW_TIMEOUT_MS = 60000;
+const JSON_POST = {
+  timeout: AUTH_FLOW_TIMEOUT_MS,
+  headers: { 'Content-Type': 'application/json' },
+};
+const MAQGO_API_ORIGIN = 'https://api.maqgo.cl';
 
-/** Auditable: sesión + OTP + destino (rol no decide autenticación). */
 function logProviderUnifiedFlow({ requiresOTP, destination, roles, decision }) {
   const state = getUserAuthState();
   const roleList = Array.isArray(roles) ? roles : [];
@@ -41,17 +42,6 @@ function logProviderUnifiedFlow({ requiresOTP, destination, roles, decision }) {
   logProviderFlowState(state, decision || (requiresOTP ? 'sms' : 'no-sms'));
 }
 
-/** OTP/registro: primera petición tras despertar la API (p. ej. Railway) puede superar 20s. */
-const AUTH_FLOW_TIMEOUT_MS = 60000;
-const JSON_POST = {
-  timeout: AUTH_FLOW_TIMEOUT_MS,
-  headers: { 'Content-Type': 'application/json' }
-};
-
-/** API canónica; en www a veces falla solo directo o solo mismo origen (rewrite). */
-const MAQGO_API_ORIGIN = 'https://api.maqgo.cl';
-
-/** Reintento otro transporte en prod www si no hay respuesta HTTP. */
 async function postWithTransportRetry(urlBuilder, payload, extraHeaders = {}) {
   const primary = urlBuilder(BACKEND_URL);
   try {
@@ -68,10 +58,6 @@ async function postWithTransportRetry(urlBuilder, payload, extraHeaders = {}) {
     if (!isMaqgoWww) throw firstErr;
     const current = String(BACKEND_URL || '').replace(/\/+$/, '');
     const alternate = current === MAQGO_API_ORIGIN ? '' : MAQGO_API_ORIGIN;
-    console.warn('PROVIDER_API_RETRY alternate_transport', {
-      failedUrl: firstErr.config?.url || primary,
-      to: alternate || '(same-origin /api)',
-    });
     try {
       return await axios.post(urlBuilder(alternate), payload, {
         ...JSON_POST,
@@ -91,16 +77,26 @@ function maskPhone9(nineDigits) {
   return `+56 ${d.slice(0, 1)} ${d.slice(1, 5)} ${d.slice(5, 9)}`;
 }
 
-/**
- * Registro proveedor en 3 pasos: celular → OTP → cuenta mínima (correo + contraseña).
- * Datos de empresa, máquina, banco, etc. van en onboarding progresivo (/provider/data…).
- */
+function resolveProviderNextPath(location) {
+  const redirectTarget =
+    typeof location?.state?.redirect === 'string' ? location.state.redirect.trim() : '';
+  if (redirectTarget.startsWith('/provider/')) return redirectTarget;
+  return '/provider/add-machine';
+}
+
 function ProviderRegisterScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
+  const toast = useToast();
+  const [step, setStep] = useState('phone');
+  const [phoneDigits, setPhoneDigits] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const resendTimerRef = useRef(null);
+  const [errors, setErrors] = useState({ celular: '' });
 
-  /** Igual que LoginScreen tras login-sms: LS + AuthContext alineados (Bearer + become-provider). */
   const afterSmsSessionEstablished = useCallback(
     (data) => {
       persistLoginSessionMetadata(data);
@@ -117,40 +113,17 @@ function ProviderRegisterScreen() {
     },
     [login]
   );
-  const toast = useToast();
-  const [step, setStep] = useState('phone');
-  const [phoneDigits, setPhoneDigits] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [form, setForm] = useState({
-    /** Opcional; nombre para mostrar. Empresa/RUT van después en /provider/data. */
-    nombreMostrar: '',
-    email: '',
-    password: ''
-  });
-  const [accepted, setAccepted] = useState(false);
-  /** True cuando verify-otp(intent=provider_register) fue exitoso en esta sesión. */
-  const [phonePreverified, setPhonePreverified] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const resendTimerRef = useRef(null);
-  const [errors, setErrors] = useState({
-    nombreMostrar: '',
-    email: '',
-    celular: '',
-    password: ''
-  });
-  /** Error global del POST become-provider (toast se va; esto queda visible). */
-  const [submitError, setSubmitError] = useState('');
-  /** Depuración temporal: detalle crudo del API (quitar cuando estabilice). */
-  const [submitErrorDebug, setSubmitErrorDebug] = useState('');
-  const passwordHint = getPasswordHint(false);
 
-  const celularStorage = phoneDigits.replace(/\D/g, '').slice(-9);
+  const navigateToProviderFlow = useCallback(() => {
+    try {
+      localStorage.setItem('desiredRole', 'provider');
+      localStorage.setItem('providerCameFromWelcome', 'true');
+    } catch {
+      /* ignore */
+    }
+    navigate(resolveProviderNextPath(location), { replace: true });
+  }, [location, navigate]);
 
-  /**
-   * Sesión existente: cliente puede continuar directo a datos de proveedor.
-   * Sin sesión: el flujo parte como cliente (login-sms/start|verify) y luego correo+contraseña.
-   */
   useLayoutEffect(() => {
     const state = getUserAuthState();
     if (!state.hasSession) {
@@ -172,24 +145,10 @@ function ProviderRegisterScreen() {
       navigate(getProviderLandingPath(), { replace: true });
       return;
     }
-    const last9 = state.phone;
-    if (last9) {
-      setPhoneDigits(last9);
-      setPhonePreverified(true);
-      setStep('details');
-      try {
-        localStorage.setItem('desiredRole', 'provider');
-        localStorage.setItem('providerCameFromWelcome', 'true');
-      } catch {
-        /* ignore */
-      }
-      logProviderFlowState(getUserAuthState(), 'details');
-    } else {
-      setStep('phone');
-      setPhonePreverified(false);
-      logProviderFlowState(state, 'mount');
-    }
-  }, [navigate]);
+    if (state.phone) setPhoneDigits(state.phone);
+    logProviderFlowState(state, 'redirect-onboarding');
+    navigateToProviderFlow();
+  }, [navigate, navigateToProviderFlow]);
 
   useEffect(() => {
     try {
@@ -198,37 +157,9 @@ function ProviderRegisterScreen() {
       const draft = JSON.parse(raw);
       if (!draft || typeof draft !== 'object') return;
       const state = getUserAuthState();
-
-      if (state.hasSession && !isProviderAccountInStorage() && !isOperatorAccountInStorage()) {
-        setTimeout(() => {
-          if (draft.form) {
-            setForm((p) => ({
-              ...p,
-              ...draft.form,
-              nombreMostrar:
-                draft.form.nombreMostrar ?? draft.form.nombreCompleto ?? p.nombreMostrar ?? '',
-            }));
-          }
-          if (typeof draft.accepted === 'boolean') setAccepted(draft.accepted);
-        }, 0);
-        return;
-      }
-
       if (!state.hasSession) {
-        setTimeout(() => {
-          if (draft.phoneDigits) setPhoneDigits(draft.phoneDigits);
-          if (draft.form) {
-            setForm((p) => ({
-              ...p,
-              ...draft.form,
-              nombreMostrar:
-                draft.form.nombreMostrar ?? draft.form.nombreCompleto ?? p.nombreMostrar ?? '',
-            }));
-          }
-          if (typeof draft.accepted === 'boolean') setAccepted(draft.accepted);
-          if (draft.step === 'otp' || draft.step === 'details') setStep(draft.step);
-          if (typeof draft.phonePreverified === 'boolean') setPhonePreverified(draft.phonePreverified);
-        }, 0);
+        if (draft.phoneDigits) setPhoneDigits(draft.phoneDigits);
+        if (draft.step === 'otp') setStep('otp');
       }
     } catch {
       /* ignore */
@@ -242,15 +173,12 @@ function ProviderRegisterScreen() {
         JSON.stringify({
           step,
           phoneDigits,
-          form,
-          accepted,
-          phonePreverified,
         })
       );
     } catch {
       /* ignore */
     }
-  }, [step, phoneDigits, form, accepted, phonePreverified]);
+  }, [step, phoneDigits]);
 
   useEffect(() => {
     return () => {
@@ -258,26 +186,17 @@ function ProviderRegisterScreen() {
     };
   }, []);
 
-  const update = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
-    setSubmitError('');
-    setSubmitErrorDebug('');
-  };
-
-  /** Paso 1 proveedor como cliente: /auth/login-sms/start. */
   const handlePhoneSubmit = useCallback(
     async (phone) => {
       const nine = String(phone ?? phoneDigits ?? '')
         .replace(/\D/g, '')
         .slice(-9);
       if (!/^9\d{8}$/.test(nine)) {
-        setErrors((e) => ({ ...e, celular: 'Ingresa un celular válido (9XXXXXXXX)' }));
+        setErrors({ celular: 'Ingresa un celular válido (9XXXXXXXX)' });
         return;
       }
       setLoading(true);
-      setErrors((e) => ({ ...e, celular: '' }));
-      setSubmitError('');
+      setErrors({ celular: '' });
       try {
         const res = await postWithTransportRetry(
           (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/login-sms/start`,
@@ -289,30 +208,18 @@ function ProviderRegisterScreen() {
         if (data.token && data.requires_otp === false) {
           if (!establishSession(data)) {
             const msg = 'No se pudo guardar la sesión. Intenta de nuevo.';
-            setErrors((e) => ({ ...e, celular: msg }));
+            setErrors({ celular: msg });
             toast.error(msg);
-            logProviderUnifiedFlow({ requiresOTP: false, roles, destination: 'error:no-session' });
             return;
           }
           afterSmsSessionEstablished(data);
           logProviderUnifiedFlow({
             requiresOTP: false,
             roles,
-            destination: 'step:details',
+            destination: 'redirect:/provider/add-machine',
             decision: 'details',
           });
-          try {
-            localStorage.setItem('desiredRole', 'provider');
-            localStorage.setItem('providerCameFromWelcome', 'true');
-          } catch {
-            /* ignore */
-          }
-          setPhonePreverified(true);
-          setStep('details');
-          setOtpCode('');
-          toast.success(
-            'Sesión lista. Completa tus datos y contraseña para crear tu perfil de proveedor.'
-          );
+          navigateToProviderFlow();
           return;
         }
         logProviderUnifiedFlow({
@@ -321,7 +228,6 @@ function ProviderRegisterScreen() {
           destination: 'step:otp',
           decision: 'sms',
         });
-        setPhonePreverified(false);
         setStep('otp');
         setOtpCode('');
         const hint = typeof data.message === 'string' ? data.message.trim() : '';
@@ -334,13 +240,13 @@ function ProviderRegisterScreen() {
             429: 'Demasiados intentos. Espera un minuto e intenta de nuevo.',
           },
         });
-        setErrors((e) => ({ ...e, celular: msg }));
+        setErrors({ celular: msg });
         toast.error(msg);
       } finally {
         setLoading(false);
       }
     },
-    [phoneDigits, toast, afterSmsSessionEstablished]
+    [afterSmsSessionEstablished, navigateToProviderFlow, phoneDigits, toast]
   );
 
   const resendProviderOtp = useCallback(async () => {
@@ -350,33 +256,23 @@ function ProviderRegisterScreen() {
     try {
       const res = await postWithTransportRetry(
         (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/login-sms/start`,
-        {
-          celular: `+56${nine}`,
-          device_id: getDeviceId(),
-        }
+        { celular: `+56${nine}`, device_id: getDeviceId() }
       );
       const data = res.data || {};
       const roles = Array.isArray(data.roles) ? data.roles : [];
       if (data.token && data.requires_otp === false) {
         if (!establishSession(data)) {
           toast.error('No se pudo guardar la sesión.');
-          logProviderUnifiedFlow({
-            requiresOTP: false,
-            roles,
-            destination: 'error:no-session',
-          });
           return;
         }
         afterSmsSessionEstablished(data);
         logProviderUnifiedFlow({
           requiresOTP: false,
           roles,
-          destination: 'step:details',
+          destination: 'redirect:/provider/add-machine',
           decision: 'details',
         });
-        setPhonePreverified(true);
-        setStep('details');
-        toast.success('Sesión lista. Completa tus datos y contraseña para crear tu perfil de proveedor.');
+        navigateToProviderFlow();
         return;
       }
       const hint =
@@ -407,7 +303,7 @@ function ProviderRegisterScreen() {
     } finally {
       setLoading(false);
     }
-  }, [phoneDigits, toast, afterSmsSessionEstablished]);
+  }, [afterSmsSessionEstablished, navigateToProviderFlow, phoneDigits, toast]);
 
   const verifyOtpAndContinue = useCallback(
     async (digitsOverride) => {
@@ -420,22 +316,13 @@ function ProviderRegisterScreen() {
       try {
         const vres = await postWithTransportRetry(
           (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/login-sms/verify`,
-          {
-            celular: `+56${nine}`,
-            code,
-            device_id: getDeviceId(),
-          },
+          { celular: `+56${nine}`, code, device_id: getDeviceId() },
           {}
         );
         const data = vres.data || {};
         if (!establishSession(data)) {
           toast.error('No se pudo validar el código. Intenta de nuevo o solicita otro SMS.');
           setOtpCode('');
-          logProviderUnifiedFlow({
-            requiresOTP: true,
-            roles: [],
-            destination: 'error:no-session',
-          });
           return;
         }
         afterSmsSessionEstablished(data);
@@ -443,13 +330,11 @@ function ProviderRegisterScreen() {
         logProviderUnifiedFlow({
           requiresOTP: false,
           roles,
-          destination: 'step:details',
+          destination: 'redirect:/provider/add-machine',
           decision: 'details',
         });
-        setPhonePreverified(true);
-        setStep('details');
-        setOtpCode(code);
-        toast.success('Código verificado. Completa tus datos y contraseña para tu perfil de proveedor.');
+        toast.success('Código verificado. Continúa con la publicación de tu maquinaria.');
+        navigateToProviderFlow();
       } catch (err) {
         toast.error(
           getHttpErrorMessage(err, {
@@ -462,308 +347,12 @@ function ProviderRegisterScreen() {
         setLoading(false);
       }
     },
-    [otpCode, phoneDigits, toast, afterSmsSessionEstablished]
+    [afterSmsSessionEstablished, navigateToProviderFlow, otpCode, phoneDigits, toast]
   );
-
-  const handleSubmitRegister = async () => {
-    if (!accepted) return;
-    if (!phonePreverified) {
-      const msg = 'Debes verificar tu celular por SMS antes de crear la cuenta de proveedor.';
-      setErrors((prev) => ({ ...prev, celular: msg }));
-      toast.error(msg);
-      return;
-    }
-    const emailTrim = String(form.email || '').trim();
-    const nm = String(form.nombreMostrar || '').trim();
-    const emailErr = validateEmail(emailTrim);
-    const celularErr = validateCelularChile(celularStorage);
-    const passwordErr = validatePassword(form.password, passwordHint);
-    let nombreErr = '';
-    if (nm.length > 120) {
-      nombreErr = 'Usa un texto más corto (máx. 120 caracteres).';
-    }
-    if (emailErr || celularErr || passwordErr || nombreErr) {
-      setErrors({
-        nombreMostrar: nombreErr,
-        email: emailErr,
-        celular: celularErr,
-        password: passwordErr
-      });
-      return;
-    }
-    setErrors({ nombreMostrar: '', email: '', celular: '', password: '' });
-    setSubmitError('');
-    setSubmitErrorDebug('');
-    setLoading(true);
-
-    const profilePayload = {
-      email: emailTrim,
-      celular: celularStorage,
-      password: form.password,
-      nombreMostrar: nm,
-    };
-    const endpointUsed = getBecomeProviderUrlForLogs();
-    console.log('PROVIDER_SUBMIT_PAYLOAD', profilePayload);
-    console.log('PROVIDER_SUBMIT_ENDPOINT', endpointUsed);
-
-    try {
-      const res = await submitBecomeProviderMinimal(profilePayload);
-      console.log('PROVIDER_RESPONSE', { status: res.status, data: res.data });
-      if (res.data?.id) {
-        localStorage.setItem('userId', res.data.id);
-      }
-      if (Array.isArray(res.data?.roles) && res.data.roles.length) {
-        try {
-          localStorage.setItem('userRoles', JSON.stringify(res.data.roles));
-          if (res.data.roles.includes('provider')) {
-            localStorage.setItem('userRole', 'provider');
-          }
-        } catch {
-          /* ignore */
-        }
-      }
-
-      localStorage.setItem(
-        'registerData',
-        JSON.stringify({
-          nombreMostrar: nm,
-          email: emailTrim,
-          celular: celularStorage,
-          password: form.password,
-          role: 'provider'
-        })
-      );
-
-      try {
-        localStorage.removeItem(DRAFT_KEY);
-      } catch {
-        /* ignore */
-      }
-
-      try {
-        localStorage.setItem('phoneVerified', 'true');
-      } catch {
-        /* ignore */
-      }
-      const uidOut = String(res.data?.id || localStorage.getItem('userId') || '');
-      if (uidOut && res.data?.roles?.includes('provider')) {
-        login(uidOut, 'provider', 'super_master', null);
-      }
-
-      const redirectTarget =
-        typeof location.state?.redirect === 'string' ? location.state.redirect.trim() : '';
-      if (redirectTarget.startsWith('/provider/')) {
-        if (!res.data?.already_provider && redirectTarget.includes('add-machine')) {
-          try {
-            sessionStorage.setItem('machineFirstFlow', '1');
-          } catch {
-            /* ignore */
-          }
-        }
-        navigate(redirectTarget, { replace: true });
-        return;
-      }
-
-      if (res.data?.already_provider) {
-        toast.success('Tu cuenta ya tenía rol de proveedor. ¡Bienvenido de nuevo!');
-        navigate(getProviderLandingPath(), { replace: true });
-      } else {
-        toast.success('Cuenta lista. Completa los datos de tu empresa en los siguientes pasos.');
-        navigate(getProviderLandingPath(), { replace: true });
-      }
-    } catch (e) {
-      console.error('PROVIDER_ERROR_RAW', {
-        status: e.response?.status,
-        data: e.response?.data,
-        message: e.message,
-        code: e.code,
-      });
-      console.error('PROVIDER_REGISTER_ERROR:', {
-        status: e.response?.status,
-        data: e.response?.data,
-        message: e.message,
-        code: e.code,
-        requestUrl: e.config?.url,
-        baseURL: e.config?.baseURL,
-      });
-      if (e.code === 'NO_SESSION') {
-        const msg = e.message || 'Sesión requerida.';
-        setSubmitError(msg);
-        setSubmitErrorDebug(msg);
-        toast.error(msg);
-        return;
-      }
-      const rawDbg =
-        (typeof e.response?.data?.detail === 'string' && e.response.data.detail) ||
-        (e.response?.data && JSON.stringify(e.response.data)) ||
-        e.message ||
-        'error desconocido';
-      setSubmitErrorDebug(rawDbg);
-      const status = e.response?.status;
-      const data = e.response?.data;
-      const detail = data?.detail;
-
-      const mapValidationRowsToErrors = (rows) => {
-        const next = { nombreMostrar: '', email: '', celular: '', password: '' };
-        if (!Array.isArray(rows)) return null;
-        for (const row of rows) {
-          const last = row.loc && row.loc[row.loc.length - 1];
-          const text = typeof row.msg === 'string' ? row.msg : '';
-          if (last === 'password') next.password = text;
-          else if (last === 'email') next.email = text;
-          else if (last === 'celular') next.celular = text;
-          else if (last === 'nombre' || last === 'apellido') next.nombreMostrar = text || next.nombreMostrar;
-        }
-        if (next.password || next.email || next.celular || next.nombreMostrar) return next;
-        return null;
-      };
-
-      if ((status === 422 || status === 400) && Array.isArray(detail)) {
-        const mapped = mapValidationRowsToErrors(detail);
-        if (mapped) {
-          setErrors((prev) => ({ ...prev, ...mapped }));
-          setSubmitError('');
-          setSubmitErrorDebug('');
-          return;
-        }
-        const firstFlat = detail
-          .map((row) => (row && typeof row.msg === 'string' ? row.msg.trim() : ''))
-          .find((m) => m);
-        if (firstFlat) {
-          setSubmitError(firstFlat);
-          setSubmitErrorDebug('');
-          toast.error(firstFlat);
-          return;
-        }
-      }
-
-      if (status === 409) {
-        const msg =
-          typeof detail === 'string' && detail.trim()
-            ? detail.trim()
-            : 'Este correo o cuenta ya está registrado. Inicia sesión o usa otro correo.';
-        setSubmitError(msg);
-        toast.error(msg);
-        return;
-      }
-
-      if (typeof detail === 'string' && detail.trim()) {
-        const d = detail.trim();
-        if (/contraseña|cuenta maqgo|password/i.test(d)) {
-          setErrors((prev) => ({ ...prev, password: d }));
-          setSubmitError('');
-          setSubmitErrorDebug('');
-          return;
-        }
-        if (/correo|email|registrad/i.test(d)) {
-          setErrors((prev) => ({ ...prev, email: d }));
-          setSubmitError('');
-          setSubmitErrorDebug('');
-          return;
-        }
-        if (/celular|teléfono|número/i.test(d)) {
-          setErrors((prev) => ({ ...prev, celular: d }));
-          setSubmitError('');
-          setSubmitErrorDebug('');
-          return;
-        }
-        if (status === 404 || /^not found$/i.test(d)) {
-          const msg = getHttpErrorMessage(e, {
-            preferDetail: false,
-            fallback: 'El registro no está disponible (404). Actualiza la página o vuelve a intentar en unos minutos.',
-            statusMessages: {
-              404:
-                'El registro no está disponible (404). Actualiza la página o vuelve a intentar en unos minutos.',
-              429: 'Demasiados intentos. Espera un minuto e intenta de nuevo.',
-            },
-          });
-          setSubmitError(msg);
-          toast.error(msg);
-          return;
-        }
-        setSubmitError(d);
-        toast.error(d);
-        return;
-      }
-
-      if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
-        const nested =
-          typeof detail.msg === 'string'
-            ? detail.msg
-            : typeof detail.message === 'string'
-              ? detail.message
-              : '';
-        if (nested.trim()) {
-          setSubmitError(nested.trim());
-          toast.error(nested.trim());
-          return;
-        }
-      }
-
-      if (Array.isArray(detail)) {
-        const pwdErr = detail.find((m) => m.loc && m.loc[m.loc.length - 1] === 'password');
-        if (pwdErr?.msg) {
-          setErrors((prev) => ({ ...prev, password: pwdErr.msg || passwordHint }));
-          setSubmitError('');
-          setSubmitErrorDebug('');
-          return;
-        }
-      }
-
-      const fallbackMsg = !e.response
-        ? `Sin respuesta HTTP (${e.code || 'red'}). ${e.message || ''}${
-            e.PROVIDER_REGISTER_ALSO_FAILED
-              ? ' (Se probó api.maqgo.cl y mismo origen /api; revisa consola.)'
-              : ''
-          }`.trim()
-        : formatHttpErrorWithStatus(e) ||
-          getHttpErrorMessage(e, {
-            fallback:
-              status === 400
-                ? 'Revisa los datos ingresados.'
-                : status === 422
-                  ? 'Revisa el formato de los datos.'
-                  : 'Error desconocido',
-            preferDetail: true,
-            statusMessages: {
-              404:
-                'No pudimos completar el registro (servicio no encontrado). Actualiza la página o intenta en unos minutos.',
-              429: 'Demasiados intentos. Espera un minuto e intenta de nuevo.',
-            },
-          });
-      setSubmitError(fallbackMsg);
-      toast.error(fallbackMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const isPhoneValid = /^9\d{8}$/.test(String(phoneDigits || '').replace(/\D/g, ''));
   const otpDigits = String(otpCode || '').replace(/\D/g, '').slice(0, 6);
   const isOtpValid = otpDigits.length === 6;
-  const emailTrimLive = String(form.email || '').trim();
-  const emailErrLive = validateEmail(emailTrimLive);
-  const pwdErrLive = validatePassword(form.password, passwordHint);
-  const isDetailsValid =
-    !emailErrLive &&
-    !pwdErrLive &&
-    celularStorage.length === 9 &&
-    phonePreverified &&
-    accepted;
-
-  const detailsBlockers = [];
-  if (step === 'details') {
-    if (emailErrLive) detailsBlockers.push('Correo electrónico válido');
-    if (pwdErrLive) detailsBlockers.push('Contraseña (8–12 caracteres, letras y números)');
-    if (!phonePreverified || celularStorage.length !== 9) detailsBlockers.push('Celular verificado');
-    if (!accepted) detailsBlockers.push('Aceptar términos y política de privacidad');
-  }
-
-  const goBackToPhone = () => {
-    setStep('phone');
-    setOtpCode('');
-    setPhonePreverified(false);
-  };
 
   const handleBackToWelcome = () => {
     try {
@@ -790,7 +379,7 @@ function ProviderRegisterScreen() {
                 fontSize: 22,
                 fontWeight: 600,
                 marginBottom: 6,
-                textAlign: 'center'
+                textAlign: 'center',
               }}
             >
               Ofrecer mi maquinaria
@@ -801,7 +390,7 @@ function ProviderRegisterScreen() {
                 fontSize: 14,
                 textAlign: 'center',
                 margin: '0 0 28px',
-                lineHeight: 1.45
+                lineHeight: 1.45,
               }}
             >
               Recibe solicitudes de reserva. Tú eliges cuándo aceptar.
@@ -812,7 +401,7 @@ function ProviderRegisterScreen() {
                 color: 'rgba(255,255,255,0.95)',
                 fontSize: 13,
                 marginBottom: 6,
-                display: 'block'
+                display: 'block',
               }}
             >
               Tu celular
@@ -823,7 +412,7 @@ function ProviderRegisterScreen() {
               value={phoneDigits}
               onDigitsChange={(d) => {
                 setPhoneDigits(d);
-                if (errors.celular) setErrors((e) => ({ ...e, celular: '' }));
+                if (errors.celular) setErrors({ celular: '' });
               }}
               ariaLabel="Nueve dígitos del celular, empezando con 9"
             />
@@ -831,8 +420,8 @@ function ProviderRegisterScreen() {
               <p style={{ color: '#f44336', fontSize: 12, marginTop: 8 }}>{errors.celular}</p>
             ) : null}
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 12, lineHeight: 1.4 }}>
-              Primero validaremos tu identidad por celular (igual que cliente). Luego eliges correo
-              y contraseña de proveedor; empresa, máquina y banco los completas después en el panel.
+              El enrolamiento inicial es por OTP SMS, igual que cliente. Luego continúas al registro
+              de maquinaria; el correo y contraseña de proveedor se completan al final.
             </p>
           </>
         )}
@@ -845,7 +434,7 @@ function ProviderRegisterScreen() {
                 fontSize: 22,
                 fontWeight: 600,
                 textAlign: 'center',
-                marginBottom: 10
+                marginBottom: 10,
               }}
             >
               Código de verificación
@@ -856,29 +445,10 @@ function ProviderRegisterScreen() {
                 fontSize: 14,
                 textAlign: 'center',
                 marginBottom: 10,
-                lineHeight: 1.45
+                lineHeight: 1.45,
               }}
             >
               Ingresa el código enviado a {maskPhone9(phoneDigits)}
-            </p>
-            <p style={{ textAlign: 'center', marginBottom: 12 }}>
-              <button
-                type="button"
-                className="maqgo-link"
-                onClick={goBackToPhone}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  font: 'inherit',
-                  color: 'rgba(255,255,255,0.65)',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  textDecoration: 'underline'
-                }}
-              >
-                ¿Número incorrecto?
-              </button>
             </p>
             <label
               htmlFor="provider-reg-otp"
@@ -886,7 +456,7 @@ function ProviderRegisterScreen() {
                 color: 'rgba(255,255,255,0.95)',
                 fontSize: 13,
                 marginBottom: 6,
-                display: 'block'
+                display: 'block',
               }}
             >
               Código SMS
@@ -896,9 +466,7 @@ function ProviderRegisterScreen() {
               id="provider-reg-otp"
               name="code"
               value={otpDigits}
-              onChange={(d) => {
-                setOtpCode(d);
-              }}
+              onChange={(d) => setOtpCode(d)}
               onComplete={verifyOtpAndContinue}
               aria-label="Código SMS de 6 dígitos"
               data-testid="provider-register-otp"
@@ -917,7 +485,7 @@ function ProviderRegisterScreen() {
                   color: resendCooldown > 0 ? 'rgba(255,255,255,0.35)' : 'rgba(144, 189, 211, 0.95)',
                   fontSize: 13,
                   cursor: resendCooldown > 0 ? 'default' : 'pointer',
-                  textDecoration: 'underline'
+                  textDecoration: 'underline',
                 }}
               >
                 {resendCooldown > 0 ? `Reenviar en ${resendCooldown}s` : 'Reenviar código'}
@@ -926,244 +494,22 @@ function ProviderRegisterScreen() {
           </>
         )}
 
-        {step === 'details' && (
-          <>
-            <h2
-              style={{
-                color: '#fff',
-                fontSize: 22,
-                fontWeight: 600,
-                textAlign: 'center',
-                marginBottom: 8
-              }}
-            >
-              Tu cuenta de proveedor
-            </h2>
-            <p
-              style={{
-                color: 'rgba(255,255,255,0.65)',
-                fontSize: 13,
-                textAlign: 'center',
-                marginBottom: 22,
-                lineHeight: 1.45
-              }}
-            >
-              {`Celular verificado: ${maskPhone9(phoneDigits)}. Correo y contraseña para tu perfil proveedor; el resto es progresivo.`}
-            </p>
-
-            {submitError || submitErrorDebug ? (
-              <>
-                <p
-                  role="alert"
-                  style={{
-                    color: '#f44336',
-                    fontSize: 13,
-                    textAlign: 'center',
-                    marginBottom: 10,
-                    lineHeight: 1.45,
-                    padding: '12px 14px',
-                    borderRadius: 10,
-                    background: 'rgba(244, 67, 54, 0.12)',
-                    border: '1px solid rgba(244, 67, 54, 0.35)',
-                  }}
-                >
-                  {submitError ||
-                    submitErrorDebug ||
-                    'error desconocido'}
-                </p>
-                {/Sin respuesta HTTP|ECONNABORTED|timeout|failed to fetch|Network Error/i.test(
-                  submitError || submitErrorDebug || ''
-                ) ? (
-                  <p
-                    style={{
-                      fontSize: 12,
-                      color: 'rgba(255,255,255,0.55)',
-                      textAlign: 'center',
-                      marginBottom: 14,
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    Abre la consola del navegador y busca <code style={{ color: 'rgba(255,255,255,0.75)' }}>PROVIDER_REGISTER_ERROR</code> para ver el status y el cuerpo del API. Prueba otra red (WiFi o datos) o desactiva VPN.
-                  </p>
-                ) : null}
-                <button
-                  type="button"
-                  className="maqgo-btn-secondary"
-                  style={{ width: '100%', marginBottom: 16 }}
-                  disabled={loading || !isDetailsValid}
-                  onClick={() => handleSubmitRegister()}
-                >
-                  Reintentar envío
-                </button>
-              </>
-            ) : null}
-
-            <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-              Nombre para mostrar <span style={{ color: 'rgba(255,255,255,0.45)' }}>(opcional)</span>
-            </label>
-            <input
-              className="maqgo-input"
-              placeholder="Ej: Juan o tu marca"
-              value={form.nombreMostrar}
-              onChange={(e) => update('nombreMostrar', e.target.value)}
-              style={{ marginBottom: 6 }}
-              name="name"
-              autoComplete="name"
-            />
-            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '0 0 12px', lineHeight: 1.35 }}>
-              Puedes dejarlo vacío y definir razón social más adelante.
-            </p>
-            {errors.nombreMostrar ? (
-              <p style={{ color: '#f44336', fontSize: 12, marginTop: -6, marginBottom: 8 }}>{errors.nombreMostrar}</p>
-            ) : null}
-
-            <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-              Correo electrónico <span style={{ color: '#EC6819' }}>*</span>
-            </label>
-            <input
-              className="maqgo-input"
-              placeholder="tu@correo.cl"
-              type="email"
-              value={form.email}
-              onChange={(e) => update('email', e.target.value)}
-              style={{ marginBottom: 12 }}
-              name="email"
-              autoComplete="email"
-            />
-            {errors.email ? <p style={{ color: '#f44336', fontSize: 12, marginTop: -8, marginBottom: 8 }}>{errors.email}</p> : null}
-
-            <label
-              htmlFor="provider-register-password"
-              style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
-            >
-              Contraseña <span style={{ color: '#EC6819' }}>*</span>
-            </label>
-            <PasswordField
-              id="provider-register-password"
-              name="new-password"
-              placeholder="Letras y números, 8–12 caracteres"
-              value={form.password}
-              onChange={(e) => update('password', e.target.value)}
-              style={{ marginBottom: errors.password ? 8 : 12 }}
-              error={Boolean(errors.password)}
-              autoComplete="new-password"
-              minLength={PASSWORD_RULES.minLength}
-              maxLength={PASSWORD_RULES.maxLength}
-            />
-            {errors.password ? <p style={{ color: '#f44336', fontSize: 12, marginTop: -8, marginBottom: 8 }}>{errors.password}</p> : null}
-
-            <div className="maqgo-checkbox-row">
-              <div
-                className={`maqgo-checkbox ${accepted ? 'checked' : ''}`}
-                onClick={() => {
-                  setAccepted(!accepted);
-                  setSubmitError('');
-                }}
-                role="checkbox"
-                aria-checked={accepted}
-              >
-                {accepted && (
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-                    <path
-                      d="M2 6L4.5 8.5L10 3"
-                      stroke="#fff"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-              </div>
-              <span className="maqgo-checkbox-label">
-                Acepto los{' '}
-                <button
-                  type="button"
-                  className="maqgo-link"
-                  onClick={() => navigate('/terms')}
-                  style={{ padding: 0, border: 'none', background: 'none', font: 'inherit', cursor: 'pointer' }}
-                >
-                  Términos y condiciones
-                </button>
-                <br />
-                y la{' '}
-                <button
-                  type="button"
-                  className="maqgo-link"
-                  onClick={() => navigate('/privacy')}
-                  style={{ padding: 0, border: 'none', background: 'none', font: 'inherit', cursor: 'pointer' }}
-                >
-                  Política de privacidad
-                </button>
-              </span>
-            </div>
-          </>
-        )}
-
         <button
           type="button"
           className="maqgo-btn-primary"
           onClick={() => {
             if (step === 'phone') handlePhoneSubmit(phoneDigits);
-            else if (step === 'otp') verifyOtpAndContinue();
-            else handleSubmitRegister();
+            else verifyOtpAndContinue();
           }}
-          disabled={
-            loading ||
-            (step === 'phone' && !isPhoneValid) ||
-            (step === 'otp' && !isOtpValid) ||
-            (step === 'details' && !isDetailsValid)
-          }
+          disabled={loading || (step === 'phone' ? !isPhoneValid : !isOtpValid)}
           style={{
-            opacity:
-              step === 'phone'
-                ? isPhoneValid
-                  ? 1
-                  : 0.5
-                : step === 'otp'
-                  ? isOtpValid
-                    ? 1
-                    : 0.5
-                  : isDetailsValid
-                    ? 1
-                    : 0.5,
-            marginTop: 8
+            opacity: loading || (step === 'phone' ? !isPhoneValid : !isOtpValid) ? 0.5 : 1,
+            marginTop: 8,
           }}
-          aria-label={
-            loading
-              ? 'Cargando'
-              : step === 'phone'
-                ? 'Continuar'
-                : step === 'otp'
-                  ? 'Verificar código'
-                  : 'Crear cuenta de proveedor'
-          }
+          aria-label={loading ? 'Cargando' : step === 'phone' ? 'Continuar' : 'Verificar y continuar'}
         >
-          {loading
-            ? 'Cargando...'
-            : step === 'phone'
-              ? 'Continuar'
-              : step === 'otp'
-                ? 'Verificar código'
-                : 'Crear cuenta'}
+          {loading ? 'Cargando...' : step === 'phone' ? 'Continuar' : 'Verificar y continuar'}
         </button>
-
-        {step === 'details' && !loading && !isDetailsValid && detailsBlockers.length > 0 ? (
-          <p
-            id="provider-reg-details-hint"
-            role="status"
-            style={{
-              color: 'rgba(255,200,160,0.95)',
-              fontSize: 12,
-              marginTop: 14,
-              lineHeight: 1.45,
-              textAlign: 'center',
-              maxWidth: 320,
-              alignSelf: 'center',
-            }}
-          >
-            Para activar el botón: {detailsBlockers.join(' · ')}.
-          </p>
-        ) : null}
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ import { updateMachine, getMachineById, upsertOnboardingMachine } from '../../ut
 import { getMachineryCapacityOptions, getProviderSpecLabel } from '../../utils/machineryNames';
 import { getArray, getObject } from '../../utils/safeStorage';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
-import { validateEmail, validateCelularChile } from '../../utils/chileanValidation';
+import { validateEmail } from '../../utils/chileanValidation';
 import { getPasswordHint, validatePassword, PASSWORD_RULES } from '../../utils/passwordValidation';
 import { getUserAuthState } from '../../utils/userAuthState';
 import { submitBecomeProviderMinimal, hasProviderRoleInStorage } from '../../utils/providerBecomeApi';
@@ -708,10 +708,13 @@ function MachineDataScreen() {
     setInlineError('');
     const emailErr = validateEmail(inlineEmail);
     const pwdErr = validatePassword(inlinePassword, passwordHintInline);
+    if (emailErr || pwdErr) {
+      setInlineError(emailErr || pwdErr);
+      return;
+    }
     const cel9 = getUserAuthState().phone;
-    const celErr = cel9 ? validateCelularChile(cel9) : 'Primero valida tu celular con código SMS.';
-    if (emailErr || pwdErr || celErr) {
-      setInlineError(emailErr || pwdErr || celErr);
+    if (!cel9) {
+      setInlineError('No hay sesión activa. Vuelve al inicio y valida tu celular.');
       return;
     }
     setInlineLoading(true);
@@ -756,9 +759,12 @@ function MachineDataScreen() {
       const emailErr = validateEmail(inlineEmail);
       const pwdErr = validatePassword(inlinePassword, passwordHintInline);
       const cel9 = getUserAuthState().phone;
-      const celErr = cel9 ? validateCelularChile(cel9) : 'Primero valida tu celular con código SMS.';
-      if (emailErr || pwdErr || celErr) {
-        setPublishError(emailErr || pwdErr || celErr);
+      if (!cel9) {
+        setPublishError('No hay sesión activa. Vuelve al inicio y valida tu celular.');
+        return false;
+      }
+      if (emailErr || pwdErr) {
+        setPublishError(emailErr || pwdErr);
         return false;
       }
       setInlineLoading(true);
