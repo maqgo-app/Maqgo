@@ -670,6 +670,7 @@ function MachineDataScreen() {
   const [inlineLoading, setInlineLoading] = useState(false);
   const [inlineError, setInlineError] = useState('');
   const [inlineReady, setInlineReady] = useState(() => hasProviderRoleInStorage());
+  const [previewReady, setPreviewReady] = useState(false);
 
   useLayoutEffect(() => {
     const editMode = Boolean(id && location.pathname.includes('edit-machine'));
@@ -682,6 +683,16 @@ function MachineDataScreen() {
   useEffect(() => {
     if (!isAddMachineEntry || isEditMode) return;
     if (mfStep === 3) setStepHint('');
+  }, [isAddMachineEntry, isEditMode, mfStep]);
+
+  useEffect(() => {
+    if (!isAddMachineEntry || isEditMode) return undefined;
+    if (mfStep !== 3) {
+      setPreviewReady(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setPreviewReady(true), 180);
+    return () => window.clearTimeout(timer);
   }, [isAddMachineEntry, isEditMode, mfStep]);
 
   useLayoutEffect(() => {
@@ -1358,7 +1369,55 @@ function MachineDataScreen() {
           )}
 
           {mfStep === 3 && (
-            <div>
+            <div style={{ animation: previewReady ? 'mqFadeUp 220ms ease-out' : 'none' }}>
+              {!previewReady ? (
+                <div
+                  aria-label="Cargando vista previa de publicación"
+                  style={{
+                    borderRadius: 14,
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    background: 'rgba(255,255,255,0.04)',
+                    padding: 14,
+                    marginBottom: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      height: 14,
+                      width: '40%',
+                      borderRadius: 8,
+                      marginBottom: 10,
+                      background:
+                        'linear-gradient(90deg, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.08) 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'mqSkeletonPulse 1.2s ease-in-out infinite',
+                    }}
+                  />
+                  <div
+                    style={{
+                      height: 12,
+                      width: '72%',
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      background:
+                        'linear-gradient(90deg, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.08) 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'mqSkeletonPulse 1.2s ease-in-out infinite',
+                    }}
+                  />
+                  <div
+                    style={{
+                      height: 12,
+                      width: '54%',
+                      borderRadius: 8,
+                      background:
+                        'linear-gradient(90deg, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.08) 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'mqSkeletonPulse 1.2s ease-in-out infinite',
+                    }}
+                  />
+                </div>
+              ) : null}
               <div
                 style={{
                   background: 'linear-gradient(180deg, rgba(236, 104, 25, 0.16) 0%, rgba(236, 104, 25, 0.08) 100%)',
@@ -1597,6 +1656,26 @@ function MachineDataScreen() {
             </button>
           )}
         </div>
+        <style>{`
+          @keyframes mqFadeUp {
+            from {
+              opacity: 0;
+              transform: translateY(8px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          @keyframes mqSkeletonPulse {
+            0% {
+              background-position: 200% 0;
+            }
+            100% {
+              background-position: -200% 0;
+            }
+          }
+        `}</style>
       </div>
     );
   }
