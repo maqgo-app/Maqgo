@@ -14,6 +14,11 @@ import {
   subscribeProviderAvailability,
   isDemoProviderUserId,
 } from '../../utils/providerAvailability';
+import {
+  readProviderHomeCtaVariant,
+  trackProviderHomeCtaImpression,
+  trackProviderHomeCtaClick,
+} from '../../utils/providerHomeCtaExperiment';
 
 function ProviderHomeScreen() {
   const navigate = useNavigate();
@@ -30,6 +35,8 @@ function ProviderHomeScreen() {
   const isBlockedByBank = onboardingCompleted && !bankDataComplete && !available;
   const providerData = getObject('providerData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
+  const ctaVariant = readProviderHomeCtaVariant();
+  const ctaPrimaryLabel = ctaVariant === 'publish' ? 'Completa y publica' : 'Completar ahora';
 
   const nextActivationStep = (() => {
     if (!companyComplete) {
@@ -148,6 +155,14 @@ function ProviderHomeScreen() {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [available, onboardingCompleted, navigate]);
+
+  useEffect(() => {
+    if (!nextActivationStep) return;
+    trackProviderHomeCtaImpression({
+      variant: ctaVariant,
+      stepLabel: nextActivationStep.label,
+    });
+  }, [ctaVariant, nextActivationStep]);
 
   const toggleAvailability = async () => {
     if (!onboardingCompleted || isToggling) return;
@@ -324,7 +339,13 @@ function ProviderHomeScreen() {
               Siguiente paso: {nextActivationStep.label}
             </p>
             <button
-              onClick={nextActivationStep.onClick}
+              onClick={() => {
+                trackProviderHomeCtaClick({
+                  variant: ctaVariant,
+                  stepLabel: nextActivationStep.label,
+                });
+                nextActivationStep.onClick();
+              }}
               style={{
                 width: '100%',
                 padding: 12,
@@ -337,7 +358,7 @@ function ProviderHomeScreen() {
                 cursor: 'pointer',
               }}
             >
-              Completar ahora
+              {ctaPrimaryLabel}
             </button>
           </div>
         ) : null}
