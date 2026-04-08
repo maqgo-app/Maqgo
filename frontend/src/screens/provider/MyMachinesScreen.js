@@ -605,6 +605,7 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
   const [teamOperators, setTeamOperators] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
+  const [inviteSummary, setInviteSummary] = useState(null);
   const [inviting, setInviting] = useState(false);
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
@@ -653,6 +654,11 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
         operator_rut: rut.trim()
       });
       setInviteCode(r.data.code);
+      setInviteSummary({
+        name: fullName,
+        rut: rut.trim(),
+        phone: p ? `+56${p}` : 'Sin celular',
+      });
       setMode('inviteNew');
     } catch (e) {
       setError(e.response?.data?.detail || 'Error al generar código');
@@ -819,6 +825,22 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
               <p style={{ color: '#90BDD3', fontSize: 28, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 6, margin: '0 0 8px' }}>{inviteCode}</p>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>Válido 7 días</p>
             </div>
+            {inviteSummary && (
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>
+                  Datos del operador
+                </p>
+                <p style={{ color: '#fff', fontSize: 13, margin: '0 0 4px' }}>
+                  {inviteSummary.name}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '0 0 2px' }}>
+                  RUT: {inviteSummary.rut}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
+                  Celular: {inviteSummary.phone}
+                </p>
+              </div>
+            )}
             <div style={{ background: 'rgba(236, 104, 25, 0.1)', borderRadius: 10, padding: 12, marginBottom: 16 }}>
               <p style={{ color: '#EC6819', fontSize: 13, margin: 0 }}>
                 Envía este código al operador. Solo debe abrir Maqgo → <strong>Soy operador</strong> → ingresar el código.
