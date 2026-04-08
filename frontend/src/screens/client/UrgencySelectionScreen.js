@@ -263,7 +263,7 @@ function UrgencySelectionScreen() {
           <div style={{ flex: 1 }}>
             <MaqgoLogo size="small" />
           </div>
-          
+        </div>
 
         <BookingProgress />
 

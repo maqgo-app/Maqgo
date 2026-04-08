@@ -9,11 +9,6 @@ import BookingProgress from '../../components/BookingProgress';
 import { MaqgoButton } from '../../components/base';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 
-/**
- * Pantalla de Datos de Facturación (Cliente)
- * Solo cuando el cliente eligió factura con RUT empresa en confirmación.
- * Se piden: RUT, Razón social, Giro y Dirección tributaria.
- */
 function BillingDataScreen() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -30,7 +25,7 @@ function BillingDataScreen() {
   useEffect(() => {
     const savedBilling = getObject('billingData', {});
     if (savedBilling.rut || savedBilling.razonSocial || savedBilling.giro || savedBilling.direccion) {
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
         rut: savedBilling.rut || prev.rut,
         razonSocial: savedBilling.razonSocial || prev.razonSocial,
@@ -47,7 +42,7 @@ function BillingDataScreen() {
   }, []);
 
   const update = (field, value) => {
-    setForm(prev => ({ ...prev, [field]: value }));
+    setForm((prev) => ({ ...prev, [field]: value }));
     if (field === 'rut' && rutError) setRutError('');
   };
 
@@ -71,21 +66,20 @@ function BillingDataScreen() {
     navigate('/client/card');
   };
 
-  const isValid = form.razonSocial?.trim() && form.rut && validateRut(form.rut) && form.giro?.trim() && form.direccion?.trim();
+  const isValid = Boolean(
+    form.razonSocial?.trim() &&
+      form.rut &&
+      validateRut(form.rut) &&
+      form.giro?.trim() &&
+      form.direccion?.trim()
+  );
 
   return (
     <div className="maqgo-app maqgo-client-funnel maqgo-funnel-split-layout">
-      <div
-        className="maqgo-screen maqgo-screen--scroll maqgo-funnel-split-scroll"
-      >
+      <div className="maqgo-screen maqgo-screen--scroll maqgo-funnel-split-scroll">
         <BookingProgress />
-        {/* Header */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center',
-          marginBottom: 8
-        }}>
-          <button 
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+          <button
             onClick={() => navigate(backRoute || '/client/home')}
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
             aria-label="Volver"
@@ -93,31 +87,50 @@ function BillingDataScreen() {
             <BackArrowIcon style={{ color: '#fff' }} />
           </button>
           <div style={{ flex: 1 }} />
-          
+        </div>
+
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 4 }}>
           Datos de Facturación
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>
           Datos de tu empresa para emitir la factura
         </p>
-        <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 12, textAlign: 'center', marginBottom: 22, lineHeight: 1.45, padding: '0 8px' }}>
+        <p
+          style={{
+            color: 'rgba(255,255,255,0.62)',
+            fontSize: 12,
+            textAlign: 'center',
+            marginBottom: 22,
+            lineHeight: 1.45,
+            padding: '0 8px'
+          }}
+        >
           Solo para facturación; deben coincidir con los datos de tu empresa ante el SII.
         </p>
 
-        {/* Trust signal */}
-        <div style={{
-          background: 'rgba(76, 175, 80, 0.12)',
-          border: '1px solid rgba(76, 175, 80, 0.3)',
-          borderRadius: 10,
-          padding: 12,
-          marginBottom: 20,
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: 10
-        }}>
+        <div
+          style={{
+            background: 'rgba(76, 175, 80, 0.12)',
+            border: '1px solid rgba(76, 175, 80, 0.3)',
+            borderRadius: 10,
+            padding: 12,
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10
+          }}
+        >
           <span style={{ fontSize: 18, flexShrink: 0 }}>🔒</span>
           <div>
-            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>
+            <p
+              style={{
+                color: 'rgba(255,255,255,0.95)',
+                fontSize: 13,
+                margin: 0,
+                fontWeight: 600,
+                fontFamily: "'Inter', sans-serif"
+              }}
+            >
               Pago seguro con Transbank
             </p>
             <p
@@ -134,9 +147,11 @@ function BillingDataScreen() {
           </div>
         </div>
 
-        {/* Formulario: RUT empresa + Razón social */}
         <div>
-          <label htmlFor="billing-razon-social" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+          <label
+            htmlFor="billing-razon-social"
+            style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
+          >
             Razón Social <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
           </label>
           <input
@@ -144,12 +159,15 @@ function BillingDataScreen() {
             className="maqgo-input"
             placeholder="Nombre de la empresa"
             value={form.razonSocial}
-            onChange={e => update('razonSocial', e.target.value)}
+            onChange={(e) => update('razonSocial', e.target.value)}
             style={{ marginBottom: 12 }}
             data-testid="billing-razon-social"
           />
-          
-          <label htmlFor="billing-rut-empresa" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+
+          <label
+            htmlFor="billing-rut-empresa"
+            style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
+          >
             RUT Empresa <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
           </label>
           <input
@@ -157,15 +175,22 @@ function BillingDataScreen() {
             className="maqgo-input"
             placeholder="76.123.456-7"
             value={formatRut(form.rut)}
-            onChange={e => update('rut', sanitizeRutInput(e.target.value))}
+            onChange={(e) => update('rut', sanitizeRutInput(e.target.value))}
             maxLength={12}
             style={{ marginBottom: rutError ? 4 : 12, borderColor: rutError ? 'var(--maqgo-orange)' : undefined }}
             data-testid="billing-rut-empresa"
             aria-describedby={rutError ? 'billing-rut-error' : undefined}
           />
-          {rutError && <p id="billing-rut-error" style={{ color: 'var(--maqgo-orange)', fontSize: 12, margin: '0 0 12px' }}>{rutError}</p>}
+          {rutError && (
+            <p id="billing-rut-error" style={{ color: 'var(--maqgo-orange)', fontSize: 12, margin: '0 0 12px' }}>
+              {rutError}
+            </p>
+          )}
 
-          <label htmlFor="billing-giro" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block', marginTop: 16 }}>
+          <label
+            htmlFor="billing-giro"
+            style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block', marginTop: 16 }}
+          >
             Giro <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
           </label>
           <input
@@ -173,12 +198,15 @@ function BillingDataScreen() {
             className="maqgo-input"
             placeholder="Ej: Arriendo de maquinaria"
             value={form.giro}
-            onChange={e => update('giro', e.target.value)}
+            onChange={(e) => update('giro', e.target.value)}
             style={{ marginBottom: 12 }}
             data-testid="billing-giro"
           />
 
-          <label htmlFor="billing-direccion" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+          <label
+            htmlFor="billing-direccion"
+            style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
+          >
             Dirección tributaria <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
           </label>
           <input
@@ -186,23 +214,26 @@ function BillingDataScreen() {
             className="maqgo-input"
             placeholder="Calle, número, comuna"
             value={form.direccion}
-            onChange={e => update('direccion', e.target.value)}
+            onChange={(e) => update('direccion', e.target.value)}
             style={{ marginBottom: 12 }}
             data-testid="billing-direccion"
           />
         </div>
 
-        {/* Info */}
-        <p style={{ 
-          color: 'rgba(255,255,255,0.7)', 
-          fontSize: 12, 
-          textAlign: 'center',
-          marginBottom: 24,
-          lineHeight: 1.4
-        }}>
+        <p
+          style={{
+            color: 'rgba(255,255,255,0.7)',
+            fontSize: 12,
+            textAlign: 'center',
+            marginBottom: 24,
+            lineHeight: 1.4
+          }}
+        >
           MAQGO usará estos datos para emitir tu factura por la reserva.
           <br />
-          <span style={{ color: 'rgba(255,255,255,0.5)' }}>El cargo a tu tarjeta será cuando un operador acepte tu solicitud.</span>
+          <span style={{ color: 'rgba(255,255,255,0.5)' }}>
+            El cargo a tu tarjeta será cuando un operador acepte tu solicitud.
+          </span>
         </p>
       </div>
 
