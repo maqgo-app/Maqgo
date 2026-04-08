@@ -416,7 +416,7 @@ function ProviderRegisterScreen() {
                 textAlign: 'center',
               }}
             >
-              Ofrecer mi maquinaria
+              Crea tu cuenta de proveedor
             </h1>
             <p
               style={{
@@ -427,7 +427,7 @@ function ProviderRegisterScreen() {
                 lineHeight: 1.45,
               }}
             >
-              Recibe solicitudes de reserva. Tú eliges cuándo aceptar.
+              Valida tu celular y publica tu máquina en minutos.
             </p>
             <label
               htmlFor="provider-reg-phone"

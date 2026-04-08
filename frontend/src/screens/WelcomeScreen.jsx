@@ -334,15 +334,18 @@ function WelcomeScreen() {
               } catch {
                 /* ignore */
               }
-              const fromWelcome = true;
-              const finalRoute = '/provider/add-machine';
               try {
                 localStorage.setItem('providerCameFromWelcome', 'true');
               } catch {
                 /* ignore */
               }
-              console.log('PROVIDER FLOW ENTRY', { fromWelcome, finalRoute });
-              navigate(finalRoute);
+              if (!hasSession) {
+                navigate('/provider/register', {
+                  state: { redirect: '/provider/add-machine' },
+                });
+                return;
+              }
+              navigate('/provider/add-machine');
             }}
             className="welcome-cta-secondary welcome-reveal"
             style={{ ['--welcome-d']: '270ms' }}
@@ -354,7 +357,7 @@ function WelcomeScreen() {
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
               <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Ofrecer mi maquinaria</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Regístrate y recibe solicitudes de clientes</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Publica tu máquina y recibe solicitudes</div>
             </div>
           </button>
 

@@ -103,7 +103,10 @@ function LoginScreen({ setUserRole, setUserId }) {
   /** Mensaje informativo (no error) tras enviar código: p. ej. canal email si SMS falló en backend */
   const [otpHint, setOtpHint] = useState('');
   /** 'sms' = cliente u otro vía celular; 'email' = proveedor (u cuenta con clave) → POST /api/auth/login */
-  const [loginMode, setLoginMode] = useState('sms');
+  const [loginMode, setLoginMode] = useState(() => {
+    if (entry === 'provider' || (redirectTo && redirectTo.startsWith('/provider'))) return 'email';
+    return 'sms';
+  });
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
