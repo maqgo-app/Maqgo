@@ -292,10 +292,10 @@ function ProviderProfileScreen() {
                 </button>
               </div>
             )}
-            <SectionTitle title="Mi perfil" />
+            <SectionTitle title="Perfil" />
             <MenuItem
-              label="Datos de usuario"
-              sublabel="Nombre, correo y teléfono"
+              label="Correo y contraseña"
+              sublabel="Administra tu acceso"
               onClick={() => navigate('/profile')}
             />
             <MenuItem 
@@ -328,24 +328,6 @@ function ProviderProfileScreen() {
             />
           </>
         )}
-
-        {/* AYUDA - ambos */}
-        <SectionTitle title="Ayuda" />
-        <MenuItem 
-          label="Preguntas frecuentes" 
-          onClick={() => navigate('/faq')}
-        />
-
-        {/* LEGAL */}
-        <SectionTitle title="Legal" />
-        <MenuItem 
-          label="Términos y condiciones" 
-          onClick={() => navigate('/terms')}
-        />
-        <MenuItem 
-          label="Política de privacidad" 
-          onClick={() => navigate('/privacy')}
-        />
 
         {/* Cerrar sesión */}
         <button
