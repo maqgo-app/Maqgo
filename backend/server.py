@@ -201,7 +201,8 @@ async def lifespan(app: FastAPI):
         from db_config import get_db_name, get_mongo_url
         from services.idempotency import ensure_indexes as ensure_idempotency_indexes
 
-        _ic = AsyncIOMotorClient(get_mongo_url())
+        _ic = AsyncIOMotorClient(get_mongo_url(), serverSelectionTimeoutMS=3000)
+        await _ic.admin.command("ping")
         await ensure_idempotency_indexes(_ic[get_db_name()])
         logger.info("Índices de MongoDB creados")
     except Exception as e:
