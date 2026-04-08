@@ -1825,6 +1825,7 @@ async def _register_impl(request: Request, body: RegisterRequest):
 async def login(request: Request, body: LoginRequest):
     """Iniciar sesión"""
     identifier_raw = str(body.identifier or body.email or "").strip()
+    owner_admin_email = str(os.environ.get("MAQGO_OWNER_ADMIN_EMAIL", "")).strip().lower()
     if not identifier_raw:
         raise HTTPException(status_code=422, detail="identifier o email requerido")
     identifier_low = identifier_raw.lower()
@@ -1848,6 +1849,12 @@ async def login(request: Request, body: LoginRequest):
     if not verify_password(body.password, user.get("password", "")):
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
+    roles = _user_roles(user)
+    # Regla de ingreso admin (single owner): solo el correo configurado puede usar rol admin.
+    if user.get("role") == "admin" or ("admin" in roles if isinstance(roles, list) else False):
+        if owner_admin_email and str(user.get("email") or "").strip().lower() != owner_admin_email:
+            raise HTTPException(status_code=403, detail="Acceso admin restringido al owner")
+
     # Migración: si el hash es SHA256 legacy, actualizar a bcrypt
     stored = user.get("password", "")
     if not stored.startswith('$2'):
@@ -1857,8 +1864,7 @@ async def login(request: Request, body: LoginRequest):
         )
 
     token = await _create_session_with_token(user["id"])
-    
-    roles = _user_roles(user)
+
     legacy_role = user.get("role") or "client"
     effective_role = _effective_session_role(roles, legacy_role)
     pr = _provider_role_for_api(user, roles)
