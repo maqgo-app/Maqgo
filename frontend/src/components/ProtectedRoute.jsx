@@ -25,6 +25,7 @@ const PUBLIC_PATHS = [
   /** Machine-first: entrada sin JWT; OTP/alta inline en pantalla (ProviderOnboardingGate alinea perfil). */
   '/provider/add-machine',
   '/operator/join',
+  '/admin/login',
   '/faq',
   '/terms',
   '/privacy',

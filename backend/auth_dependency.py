@@ -18,6 +18,7 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
 
 DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 180  # 180 días (MVP suave)
+MAQGO_OWNER_ADMIN_EMAIL = str(os.environ.get("MAQGO_OWNER_ADMIN_EMAIL", "")).strip().lower()
 
 
 def _session_ttl_seconds() -> int:
@@ -170,7 +171,7 @@ async def get_current_user_optional(
 async def get_current_admin(
     user: dict = Depends(get_current_user)
 ) -> dict:
-    """Requiere que el usuario autenticado sea admin."""
+    """Requiere que el usuario autenticado sea admin y (si está configurado) el email dueño."""
     roles = user.get("roles") or []
     is_admin = user.get("role") == "admin" or ("admin" in roles if isinstance(roles, list) else False)
     if not is_admin:
@@ -178,6 +179,13 @@ async def get_current_admin(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acceso restringido a administradores",
         )
+    if MAQGO_OWNER_ADMIN_EMAIL:
+        user_email = str(user.get("email") or "").strip().lower()
+        if user_email != MAQGO_OWNER_ADMIN_EMAIL:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acceso restringido al administrador propietario",
+            )
     return user
 
 
