@@ -148,8 +148,8 @@ function ProviderRegisterScreen() {
   const celularStorage = phoneDigits.replace(/\D/g, '').slice(-9);
 
   /**
-   * Sesión existente: cliente → step:details sin SMS; proveedor/onboarding → ruta correcta (no /login).
-   * Sin sesión: no tocar (draft + teléfono/OTP normales).
+   * Sesión existente: cliente puede continuar directo a datos de proveedor.
+   * Sin sesión: el flujo parte como cliente (login-sms/start|verify) y luego correo+contraseña.
    */
   useLayoutEffect(() => {
     const state = getUserAuthState();
@@ -172,11 +172,23 @@ function ProviderRegisterScreen() {
       navigate(getProviderLandingPath(), { replace: true });
       return;
     }
-    // Enrolamiento proveedor independiente: siempre iniciar con paso SMS.
-    if (state.phone) setPhoneDigits(state.phone);
-    setStep('phone');
-    setPhonePreverified(false);
-    logProviderFlowState(getUserAuthState(), 'mount');
+    const last9 = state.phone;
+    if (last9) {
+      setPhoneDigits(last9);
+      setPhonePreverified(true);
+      setStep('details');
+      try {
+        localStorage.setItem('desiredRole', 'provider');
+        localStorage.setItem('providerCameFromWelcome', 'true');
+      } catch {
+        /* ignore */
+      }
+      logProviderFlowState(getUserAuthState(), 'details');
+    } else {
+      setStep('phone');
+      setPhonePreverified(false);
+      logProviderFlowState(state, 'mount');
+    }
   }, [navigate]);
 
   useEffect(() => {
@@ -253,7 +265,7 @@ function ProviderRegisterScreen() {
     setSubmitErrorDebug('');
   };
 
-  /** Paso 1 proveedor: siempre enviar OTP por /auth/send-otp (flujo independiente). */
+  /** Paso 1 proveedor como cliente: /auth/login-sms/start. */
   const handlePhoneSubmit = useCallback(
     async (phone) => {
       const nine = String(phone ?? phoneDigits ?? '')
@@ -268,14 +280,44 @@ function ProviderRegisterScreen() {
       setSubmitError('');
       try {
         const res = await postWithTransportRetry(
-          (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/send-otp`,
-          { phone: `+56${nine}` },
+          (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/login-sms/start`,
+          { celular: `+56${nine}`, device_id: getDeviceId() },
           {}
         );
         const data = res.data || {};
+        const roles = Array.isArray(data.roles) ? data.roles : [];
+        if (data.token && data.requires_otp === false) {
+          if (!establishSession(data)) {
+            const msg = 'No se pudo guardar la sesión. Intenta de nuevo.';
+            setErrors((e) => ({ ...e, celular: msg }));
+            toast.error(msg);
+            logProviderUnifiedFlow({ requiresOTP: false, roles, destination: 'error:no-session' });
+            return;
+          }
+          afterSmsSessionEstablished(data);
+          logProviderUnifiedFlow({
+            requiresOTP: false,
+            roles,
+            destination: 'step:details',
+            decision: 'details',
+          });
+          try {
+            localStorage.setItem('desiredRole', 'provider');
+            localStorage.setItem('providerCameFromWelcome', 'true');
+          } catch {
+            /* ignore */
+          }
+          setPhonePreverified(true);
+          setStep('details');
+          setOtpCode('');
+          toast.success(
+            'Sesión lista. Completa tus datos y contraseña para crear tu perfil de proveedor.'
+          );
+          return;
+        }
         logProviderUnifiedFlow({
           requiresOTP: true,
-          roles: [],
+          roles,
           destination: 'step:otp',
           decision: 'sms',
         });
@@ -298,7 +340,7 @@ function ProviderRegisterScreen() {
         setLoading(false);
       }
     },
-    [phoneDigits, toast]
+    [phoneDigits, toast, afterSmsSessionEstablished]
   );
 
   const resendProviderOtp = useCallback(async () => {
@@ -306,10 +348,37 @@ function ProviderRegisterScreen() {
     if (!/^9\d{8}$/.test(nine)) return;
     setLoading(true);
     try {
-      const res = await postWithTransportRetry((base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/send-otp`, {
-        phone: `+56${nine}`,
-      });
+      const res = await postWithTransportRetry(
+        (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/login-sms/start`,
+        {
+          celular: `+56${nine}`,
+          device_id: getDeviceId(),
+        }
+      );
       const data = res.data || {};
+      const roles = Array.isArray(data.roles) ? data.roles : [];
+      if (data.token && data.requires_otp === false) {
+        if (!establishSession(data)) {
+          toast.error('No se pudo guardar la sesión.');
+          logProviderUnifiedFlow({
+            requiresOTP: false,
+            roles,
+            destination: 'error:no-session',
+          });
+          return;
+        }
+        afterSmsSessionEstablished(data);
+        logProviderUnifiedFlow({
+          requiresOTP: false,
+          roles,
+          destination: 'step:details',
+          decision: 'details',
+        });
+        setPhonePreverified(true);
+        setStep('details');
+        toast.success('Sesión lista. Completa tus datos y contraseña para crear tu perfil de proveedor.');
+        return;
+      }
       const hint =
         typeof data.message === 'string' && data.message.trim()
           ? data.message.trim()
@@ -338,7 +407,7 @@ function ProviderRegisterScreen() {
     } finally {
       setLoading(false);
     }
-  }, [phoneDigits, toast]);
+  }, [phoneDigits, toast, afterSmsSessionEstablished]);
 
   const verifyOtpAndContinue = useCallback(
     async (digitsOverride) => {
@@ -350,12 +419,11 @@ function ProviderRegisterScreen() {
       setLoading(true);
       try {
         const vres = await postWithTransportRetry(
-          (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/verify-otp`,
+          (base) => `${String(base ?? '').replace(/\/+$/, '')}/api/auth/login-sms/verify`,
           {
-            phone: `+56${nine}`,
+            celular: `+56${nine}`,
             code,
             device_id: getDeviceId(),
-            intent: 'provider_register',
           },
           {}
         );
@@ -370,23 +438,17 @@ function ProviderRegisterScreen() {
           });
           return;
         }
-        const enriched = {
-          ...data,
-          role: 'client',
-          roles: Array.isArray(data.roles) && data.roles.length ? data.roles : ['client'],
-          phone: `+56${nine}`,
-        };
-        persistLoginSessionMetadata(enriched);
-        afterSmsSessionEstablished(enriched);
+        afterSmsSessionEstablished(data);
+        const roles = Array.isArray(data.roles) ? data.roles : [];
         logProviderUnifiedFlow({
           requiresOTP: false,
-          roles: enriched.roles,
+          roles,
           destination: 'step:details',
           decision: 'details',
         });
         setPhonePreverified(true);
         setStep('details');
-        setOtpCode('');
+        setOtpCode(code);
         toast.success('Código verificado. Completa tus datos y contraseña para tu perfil de proveedor.');
       } catch (err) {
         toast.error(
@@ -769,8 +831,8 @@ function ProviderRegisterScreen() {
               <p style={{ color: '#f44336', fontSize: 12, marginTop: 8 }}>{errors.celular}</p>
             ) : null}
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 12, lineHeight: 1.4 }}>
-              Primero validaremos tu celular con código SMS. Luego eliges correo y contraseña de
-              proveedor; empresa, máquina y banco los completas después en el panel.
+              Primero validaremos tu identidad por celular (igual que cliente). Luego eliges correo
+              y contraseña de proveedor; empresa, máquina y banco los completas después en el panel.
             </p>
           </>
         )}
