@@ -39,7 +39,11 @@ class TestOTPServiceSend:
         mock_pipe.setex.assert_called()
         mock_send_sms.assert_called_once()
         msg = mock_send_sms.call_args[0][1]
-        assert 'Tu código MAQGO es:' in msg
+        assert 'MAQGO - Código de verificación. Expira en 5 minutos.' in msg
+        lines = msg.splitlines()
+        assert len(lines) >= 3
+        assert lines[0].isdigit() and len(lines[0]) == 6
+        assert lines[1] == ""
         # El OTP debe existir como grupo de 6 dígitos en el SMS
         import re
         assert re.search(r'\b\d{6}\b', msg), f"SMS no contiene OTP 6 dígitos. msg={msg!r}"

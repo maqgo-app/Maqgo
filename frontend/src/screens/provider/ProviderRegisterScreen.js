@@ -6,7 +6,7 @@ import BackToPortadaButton from '../../components/BackToPortadaButton';
 import LoginPhoneChileInput from '../../components/LoginPhoneChileInput';
 import OtpSixDigitsInput from '../../components/OtpSixDigitsInput';
 import { useToast } from '../../components/Toast';
-import BACKEND_URL from '../../utils/api';
+import BACKEND_URL, { clearLocalSession } from '../../utils/api';
 import { establishSession, persistLoginSessionMetadata } from '../../utils/sessionPersistence';
 import { useAuth } from '../../context/authHooks';
 import { getDeviceId } from '../../utils/deviceId';
@@ -124,31 +124,65 @@ function ProviderRegisterScreen() {
     navigate(resolveProviderNextPath(location), { replace: true });
   }, [location, navigate]);
 
+  const routeUsingActiveSession = useCallback(
+    (state) => {
+      if (isAdminRoleStored()) {
+        logProviderFlowState(state, 'redirect-home');
+        navigate('/admin', { replace: true });
+        return;
+      }
+      if (isOperatorAccountInStorage()) {
+        logProviderFlowState(state, 'redirect-home');
+        navigate(ROUTES.OPERATOR_HOME, { replace: true });
+        return;
+      }
+      if (isProviderAccountInStorage()) {
+        logProviderFlowState(state, 'redirect-provider-landing');
+        navigate(getProviderLandingPath(), { replace: true });
+        return;
+      }
+      if (state.phone) setPhoneDigits(state.phone);
+      logProviderFlowState(state, 'redirect-onboarding');
+      navigateToProviderFlow();
+    },
+    [navigate, navigateToProviderFlow]
+  );
+
   useLayoutEffect(() => {
     const state = getUserAuthState();
     if (!state.hasSession) {
       logProviderFlowState(state, 'mount');
       return;
     }
-    if (isAdminRoleStored()) {
-      logProviderFlowState(state, 'redirect-home');
-      navigate('/admin', { replace: true });
+    const token =
+      String(localStorage.getItem('authToken') || '').trim() ||
+      String(localStorage.getItem('token') || '').trim();
+    if (!token) {
+      clearLocalSession();
+      logProviderFlowState(getUserAuthState(), 'mount');
       return;
     }
-    if (isOperatorAccountInStorage()) {
-      logProviderFlowState(state, 'redirect-home');
-      navigate(ROUTES.OPERATOR_HOME, { replace: true });
-      return;
-    }
-    if (isProviderAccountInStorage()) {
-      logProviderFlowState(state, 'redirect-provider-landing');
-      navigate(getProviderLandingPath(), { replace: true });
-      return;
-    }
-    if (state.phone) setPhoneDigits(state.phone);
-    logProviderFlowState(state, 'redirect-onboarding');
-    navigateToProviderFlow();
-  }, [navigate, navigateToProviderFlow]);
+    let cancelled = false;
+    (async () => {
+      try {
+        await axios.get(`${String(BACKEND_URL || '').replace(/\/+$/, '')}/api/auth/me`, {
+          timeout: AUTH_FLOW_TIMEOUT_MS,
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch (err) {
+        const status = Number(err?.response?.status || 0);
+        if (status === 401 || status === 403) {
+          clearLocalSession();
+          if (!cancelled) logProviderFlowState(getUserAuthState(), 'mount');
+          return;
+        }
+      }
+      if (!cancelled) routeUsingActiveSession(state);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [routeUsingActiveSession]);
 
   useEffect(() => {
     try {
