@@ -318,7 +318,7 @@ function WelcomeScreen() {
             data-testid="start-client-btn"
             aria-label="Arrendar maquinaria. Para hoy o en la fecha que indiques."
           >
-            <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.22)' }}>
+            <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.6)' }}>
               <IconExcavator />
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
@@ -354,7 +354,7 @@ function WelcomeScreen() {
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
               <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Ofrecer mi maquinaria</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Regístrate y recibe solicitudes de clientes</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Regístrate y recibe solicitudes de clientes</div>
             </div>
           </button>
 
@@ -365,12 +365,12 @@ function WelcomeScreen() {
             data-testid="operator-join-btn"
             aria-label="Soy operador. Unirme con código de equipo."
           >
-            <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.08)', color: '#C8C8C8' }}>
+            <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.6)', color: '#C8C8C8' }}>
               <IconUser />
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
               <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Soy operador</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Unirme con código de equipo</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Unirme con código de equipo</div>
             </div>
           </button>
             </>
@@ -385,7 +385,7 @@ function WelcomeScreen() {
                 padding: '16px 14px',
                 borderRadius: 14,
                 background: 'rgba(22, 22, 28, 0.72)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.6)',
                 textAlign: 'center',
               }}
             >
@@ -393,7 +393,7 @@ function WelcomeScreen() {
                 style={{
                   fontFamily: "'Inter', sans-serif",
                   fontSize: 12,
-                  color: 'rgba(255,255,255,0.82)',
+                  color: 'rgba(255,255,255,0.6)',
                   lineHeight: 1.45,
                   margin: '0 0 14px',
                 }}
@@ -427,7 +427,7 @@ function WelcomeScreen() {
             paddingTop: isDesktop ? 40 : (isShortViewport ? 22 : (isNarrowMobile ? 28 : 32)),
             paddingBottom: isShortViewport ? 8 : 12,
             marginTop: 'auto',
-            borderTop: '1px solid rgba(255,255,255,0.045)'
+            borderTop: '1px solid rgba(255,255,255,0.6)'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: isNarrowMobile ? '6px 10px' : '8px 14px', fontSize: isNarrowMobile ? 14 : 15 }}>
@@ -442,7 +442,7 @@ function WelcomeScreen() {
             </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: isNarrowMobile ? '6px 10px' : '8px 14px', fontSize: isNarrowMobile ? 13 : 14 }}>
-            <button type="button" onClick={() => navigate('/faq')} className="welcome-footer-btn" aria-label="Preguntas frecuentes"><div style={{ marginTop: 16, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: "20px" }}>
+            <button type="button" onClick={() => navigate('/faq')} className="welcome-footer-btn" aria-label="Preguntas frecuentes"><div style={{ marginTop: 12, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: "20px" }}>
   FAQ · Términos y Condiciones · Política de Privacidad
 </div></button>
           </div>
@@ -512,7 +512,7 @@ function WelcomeScreen() {
           display: flex;
           align-items: center;
           gap: 14px;
-          box-shadow: 0 4px 22px rgba(236, 104, 25, 0.28), 0 1px 0 rgba(255,255,255,0.12) inset;
+          box-shadow: 0 4px 22px rgba(236, 104, 25, 0.28), 0 1px 0 rgba(255,255,255,0.6) inset;
           transition:
             transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
             box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1);
@@ -530,7 +530,7 @@ function WelcomeScreen() {
           padding: 15px 18px;
           flex-shrink: 0;
           background: rgba(22, 22, 28, 0.72);
-          border: 1px solid rgba(255,255,255,0.07);
+          border: 1px solid rgba(255,255,255,0.6);
           border-radius: 14px;
           color: #FAFAFA;
           font-family: 'Inter', sans-serif;
@@ -543,7 +543,7 @@ function WelcomeScreen() {
         }
         .welcome-cta-secondary:hover {
           background: rgba(30, 30, 38, 0.88);
-          border-color: rgba(255,255,255,0.11);
+          border-color: rgba(255,255,255,0.6);
         }
         .welcome-cta-primary:focus-visible,
         .welcome-cta-secondary:focus-visible,
