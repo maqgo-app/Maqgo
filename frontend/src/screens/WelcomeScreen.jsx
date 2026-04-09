@@ -442,11 +442,7 @@ function WelcomeScreen() {
             </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: isNarrowMobile ? '6px 10px' : '8px 14px', fontSize: isNarrowMobile ? 13 : 14 }}>
-            <button type="button" onClick={() => navigate('/faq')} className="welcome-footer-btn" aria-label="Preguntas frecuentes">FAQ</button>
-            <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }} aria-hidden="true">·</span>
-            <button type="button" onClick={() => navigate('/terms')} className="welcome-footer-btn" aria-label="Términos y condiciones">Términos y Condiciones</button>
-            <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }} aria-hidden="true">·</span>
-            <button type="button" onClick={() => navigate('/privacy')} className="welcome-footer-btn" aria-label="Política de privacidad">Política de Privacidad</button>
+            <button type="button" onClick={() => navigate('/faq')} className="welcome-footer-btn" aria-label="Preguntas frecuentes"><div style={{ marginTop: 12, textAlign: "center", fontSize: 13, color: "rgba(255,255,255,0.6)" }}>FAQ · Términos y Condiciones · Política de Privacidad</div></button>
           </div>
         </footer>
       </div>
