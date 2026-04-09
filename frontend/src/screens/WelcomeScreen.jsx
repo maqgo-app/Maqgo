@@ -392,7 +392,7 @@ function WelcomeScreen() {
               <p
                 style={{
                   fontFamily: "'Inter', sans-serif",
-                  fontSize: 13,
+                  fontSize: 12,
                   color: 'rgba(255,255,255,0.82)',
                   lineHeight: 1.45,
                   margin: '0 0 14px',
@@ -442,7 +442,7 @@ function WelcomeScreen() {
             </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: isNarrowMobile ? '6px 10px' : '8px 14px', fontSize: isNarrowMobile ? 13 : 14 }}>
-            <button type="button" onClick={() => navigate('/faq')} className="welcome-footer-btn" aria-label="Preguntas frecuentes"><div style={{ marginTop: 24, textAlign: "center", fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: "20px" }}>
+            <button type="button" onClick={() => navigate('/faq')} className="welcome-footer-btn" aria-label="Preguntas frecuentes"><div style={{ marginTop: 16, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: "20px" }}>
   FAQ · Términos y Condiciones · Política de Privacidad
 </div></button>
           </div>
