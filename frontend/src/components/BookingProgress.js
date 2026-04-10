@@ -55,7 +55,18 @@ function BookingProgress({ compact = false }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const path = pathname.replace(/\/$/, '') || '/';
-  const currentStep = resolveBookingStep(path);
+  const currentStep = (() => {
+  const pathMap = {
+    "/client/machinery": 1,
+    "/client/service-location": 2,
+    "/client/urgency": 2,
+    "/client/calendar": 3,
+    "/client/providers": 4,
+    "/client/confirm": 5,
+    "/client/card": 6
+  };
+  return pathMap[path] || 1;
+})();
 
   if (currentStep === 0) return null;
 
