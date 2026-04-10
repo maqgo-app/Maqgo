@@ -193,7 +193,7 @@ function CancelServiceScreen() {
                 </p>
               </div>
             </div>
-            <button type="button" className="maqgo-btn-secondary" onClick={() => navigate(-1)} style={{ marginTop: 16 }}>
+            <button type="button" className="maqgo-btn-secondary" onClick={() => navigate("/client/home")} style={{ marginTop: 16 }}>
               Volver
             </button>
           </div>
@@ -315,7 +315,7 @@ function CancelServiceScreen() {
 
         {/* Primero: incentivo a continuar (acción principal) */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate("/client/home")}
           data-testid="back-btn"
           className="maqgo-btn-primary"
           style={{

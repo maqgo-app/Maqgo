@@ -25,7 +25,7 @@ function ServiceChatScreen() {
   }
 
   if (!serviceId) {
-    navigate(-1);
+    navigate("/client/home");
     return null;
   }
 
@@ -35,7 +35,7 @@ function ServiceChatScreen() {
         serviceId={serviceId}
         userType={userType}
         otherName={otherName}
-        onClose={() => navigate(-1)}
+        onClose={() => navigate("/client/home")}
       />
     </div>
   );

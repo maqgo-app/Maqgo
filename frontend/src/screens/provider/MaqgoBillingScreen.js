@@ -17,7 +17,7 @@ function MaqgoBillingScreen() {
       <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 120px' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/client/home")}
             style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}
             aria-label="Volver"
           >

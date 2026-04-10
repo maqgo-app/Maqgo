@@ -23,7 +23,7 @@ function OperatorScreen() {
       <div style={styles.screen}>
       {/* Header */}
       <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => navigate(-1)} aria-label="Volver">
+        <button style={styles.backBtn} onClick={() => navigate("/client/home")} aria-label="Volver">
           <BackArrowIcon style={{ color: '#fff' }} />
         </button>
         <div style={styles.headerCenter}>

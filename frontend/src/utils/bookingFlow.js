@@ -224,7 +224,7 @@ export const PROVIDER_ONBOARDING_BACK_ROUTES = {
 /**
  * Obtiene la ruta de "volver" para el flujo de reserva cliente.
  * reservation-data usa back dinámico según flujo (scheduled/calendar, immediate/hour→machinery, immediate/trip/urgency).
- * Nunca devuelve null para rutas /client/*: usa /client/home como fallback para evitar navigate(-1) que falla sin historial.
+ * Nunca devuelve null para rutas /client/*: usa /client/home como fallback para evitar navigate("/client/home") que falla sin historial.
  */
 export function getBookingBackRoute(pathname) {
   const path = (pathname || '').replace(/\/$/, '') || '/';
@@ -240,7 +240,7 @@ export function getBookingBackRoute(pathname) {
   }
   const route = BOOKING_BACK_ROUTES[path];
   if (route) return route;
-  // Fallback seguro: evita navigate(-1) que falla si el usuario llegó por URL directa o refrescó
+  // Fallback seguro: evita navigate("/client/home") que falla si el usuario llegó por URL directa o refrescó
   if (path.startsWith('/client/')) return '/client/home';
   return null;
 }

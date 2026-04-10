@@ -29,7 +29,7 @@ function TermsScreen() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/client/home")}
             style={{
               background: 'none',
               border: 'none',

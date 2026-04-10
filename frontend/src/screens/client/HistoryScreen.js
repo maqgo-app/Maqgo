@@ -173,7 +173,7 @@ function HistoryScreen() {
           marginBottom: 25
         }}>
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/client/home")}
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
             aria-label="Volver"
           >

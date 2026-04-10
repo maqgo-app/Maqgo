@@ -145,7 +145,7 @@ function TeamManagementScreen() {
           marginTop: 10
         }}>
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/client/home")}
             style={{
               background: 'none',
               border: 'none',

@@ -222,7 +222,7 @@ function UploadInvoiceScreen() {
       <div style={{ maxWidth: isDesktop ? 600 : 500, margin: '0 auto', padding: isDesktop ? '24px 40px' : '20px', paddingBottom: 120, overflowY: 'auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
-          <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}>
+          <button onClick={() => navigate("/client/home")} style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}>
             <BackArrowIcon style={{ color: '#fff' }} />
           </button>
           <h1 style={{ flex: 1, color: '#fff', fontSize: 18, fontWeight: 700, textAlign: 'center', fontFamily: "'Space Grotesk', sans-serif" }}>

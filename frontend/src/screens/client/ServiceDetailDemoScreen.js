@@ -30,7 +30,7 @@ function ServiceDetailDemoScreen() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/client/home")}
             style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}
           >
             <BackArrowIcon style={{ color: '#fff' }} />
