@@ -199,7 +199,7 @@ function WelcomeScreen() {
           width: '100%'
         }}>
           <div
-            className="welcome-reveal"
+            className="welcome-reveal border border-white/10 hover:border-white/20"
             style={{
               width: '100%',
               display: 'flex',
@@ -210,7 +210,7 @@ function WelcomeScreen() {
             <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 12) : heroLogoBottom }} />
           </div>
           <div
-            className="welcome-hero-caluga welcome-reveal"
+            className="welcome-hero-caluga welcome-reveal border border-white/10 hover:border-white/20"
             style={{
               ['--welcome-d']: '35ms',
               marginTop: isDesktop ? -4 : -6,
@@ -246,7 +246,7 @@ function WelcomeScreen() {
             </span>
           </div>
           <div
-            className="welcome-reveal"
+            className="welcome-reveal border border-white/10 hover:border-white/20"
             style={{
               ['--welcome-d']: '130ms',
               width: '100%',
@@ -313,12 +313,12 @@ function WelcomeScreen() {
               }
               navigate(target);
             }}
-            className="welcome-cta-primary welcome-reveal"
+            className="welcome-cta-primary welcome-reveal border border-white/10 hover:border-white/20"
             style={{ ['--welcome-d']: '200ms' }}
             data-testid="start-client-btn"
             aria-label="Arrendar maquinaria. Para hoy o en la fecha que indiques."
           >
-            <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.6)' }}>
+            <div className="welcome-cta-icon border border-white/10 hover:border-white/20" style={{ background: 'rgba(255,255,255,0.6)' }}>
               <IconExcavator />
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
@@ -344,12 +344,12 @@ function WelcomeScreen() {
               console.log('PROVIDER FLOW ENTRY', { fromWelcome, finalRoute });
               navigate(finalRoute);
             }}
-            className="welcome-cta-secondary welcome-reveal"
+            className="welcome-cta-secondary welcome-reveal border border-white/10 hover:border-white/20"
             style={{ ['--welcome-d']: '270ms' }}
             data-testid="start-provider-btn"
             aria-label="Ofrecer mi maquinaria. Regístrate y recibe solicitudes de clientes."
           >
-            <div className="welcome-cta-icon" style={{ background: 'rgba(144, 189, 211, 0.18)', color: '#90BDD3' }}>
+            <div className="welcome-cta-icon border border-white/10 hover:border-white/20" style={{ background: 'rgba(144, 189, 211, 0.18)', color: '#90BDD3' }}>
               <IconBuilding />
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
@@ -360,12 +360,12 @@ function WelcomeScreen() {
 
           <button
             onClick={() => navigate(getWelcomeOperatorDestination())}
-            className="welcome-cta-secondary welcome-reveal"
+            className="welcome-cta-secondary welcome-reveal border border-white/10 hover:border-white/20"
             style={{ ['--welcome-d']: '340ms' }}
             data-testid="operator-join-btn"
             aria-label="Soy operador. Unirme con código de equipo."
           >
-            <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.6)', color: '#C8C8C8' }}>
+            <div className="welcome-cta-icon border border-white/10 hover:border-white/20" style={{ background: 'rgba(255,255,255,0.6)', color: '#C8C8C8' }}>
               <IconUser />
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
@@ -376,7 +376,7 @@ function WelcomeScreen() {
             </>
           ) : (
             <div
-              className="welcome-reveal"
+              className="welcome-reveal border border-white/10 hover:border-white/20"
               style={{
                 ['--welcome-d']: '200ms',
                 maxWidth: 420,
@@ -402,7 +402,7 @@ function WelcomeScreen() {
               </p>
               <button
                 type="button"
-                className="maqgo-btn-primary"
+                className="maqgo-btn-primary border border-white/10 hover:border-white/20"
                 onClick={() => navigate('/admin', { replace: true })}
                 style={{ width: '100%', padding: '12px 16px', fontSize: 14, fontWeight: 600 }}
               >
@@ -414,7 +414,7 @@ function WelcomeScreen() {
 
         {/* Footer - compacto en viewports cortos */}
         <footer
-          className="welcome-reveal"
+          className="welcome-reveal border border-white/10 hover:border-white/20"
           style={{
             ['--welcome-d']: '410ms',
             flexShrink: 0,
@@ -434,7 +434,7 @@ function WelcomeScreen() {
             <button
               type="button"
               onClick={handleAccount}
-              className="welcome-footer-btn welcome-footer-btn-primary"
+              className="welcome-footer-btn welcome-footer-btn-primary border border-white/10 hover:border-white/20"
               data-testid={hasSession ? 'welcome-mi-cuenta-btn' : 'login-btn'}
               aria-label={hasSession ? 'Ir a mi cuenta o panel' : 'Iniciar sesión'}
             >
@@ -442,7 +442,7 @@ function WelcomeScreen() {
             </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: isNarrowMobile ? '6px 10px' : '8px 14px', fontSize: isNarrowMobile ? 13 : 14 }}>
-            <button type="button" onClick={() => navigate('/faq')} className="welcome-footer-btn" aria-label="Preguntas frecuentes"><div style={{ marginTop: 12, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: "20px" }}>
+            <button type="button" onClick={() => navigate('/faq')} className="welcome-footer-btn border border-white/10 hover:border-white/20" aria-label="Preguntas frecuentes"><div style={{ marginTop: 12, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: "20px" }}>
   <div style={{ marginTop: 16, fontSize: 11.5, color: "rgba(255,255,255,0.6)", textAlign: "center" }}>FAQ · Términos y Condiciones · Política de Privacidad</div>
 </div></button>
           </div>
