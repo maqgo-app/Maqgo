@@ -242,7 +242,7 @@ function WelcomeScreen() {
                 textShadow: 'none',
               }}
             >
-              Arrienda maquinaria en minutos con disponibilidad en tiempo real.
+              <div style={{ marginTop: 12 }}>Arrienda maquinaria en minutos con disponibilidad en tiempo real</div>.
             </span>
           </div>
           <div
@@ -443,7 +443,7 @@ function WelcomeScreen() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: isNarrowMobile ? '6px 10px' : '8px 14px', fontSize: isNarrowMobile ? 13 : 14 }}>
             <button type="button" onClick={() => navigate('/faq')} className="welcome-footer-btn" aria-label="Preguntas frecuentes"><div style={{ marginTop: 12, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: "20px" }}>
-  FAQ · Términos y Condiciones · Política de Privacidad
+  <div style={{ marginTop: 16, fontSize: 11.5, color: "rgba(255,255,255,0.6)", textAlign: "center" }}>FAQ · Términos y Condiciones · Política de Privacidad</div>
 </div></button>
           </div>
         </footer>
