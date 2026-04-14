@@ -149,7 +149,7 @@ function MyMachinesScreen() {
             Mis Máquinas
           </h1>
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '4px 0 0' }}>
-            Gestiona tus equipos, precios y operadores
+            Gestiona tus equipos y asigna operadores desde aquí
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -437,7 +437,7 @@ function MyMachinesScreen() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
                 }}
               >
-                + Agregar operador
+                + Agregar operador (con código)
               </button>
             </div>
 
@@ -605,6 +605,7 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
   const [teamOperators, setTeamOperators] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
+  const [inviteSummary, setInviteSummary] = useState(null);
   const [inviting, setInviting] = useState(false);
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
@@ -640,18 +641,24 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
     const p = String(phone || '').replace(/\D/g, '').slice(0, 9);
     if (!nom) { setError('Ingresa el nombre del operador'); return; }
     if (!ape) { setError('Ingresa el apellido del operador'); return; }
-    if (!/^9\d{8}$/.test(p)) { setError('Ingresa el celular completo: 9 dígitos empezando en 9'); return; }
-    if (rut.trim() && !validateRut(rut)) { setError('RUT inválido'); return; }
+    if (!rut.trim()) { setError('Ingresa el RUT del operador'); return; }
+    if (!validateRut(rut)) { setError('RUT inválido'); return; }
+    if (p && !/^9\d{8}$/.test(p)) { setError('Si ingresas celular, debe tener 9 dígitos empezando en 9'); return; }
     setInviting(true);
     try {
       const ownerId = localStorage.getItem('ownerId') || localStorage.getItem('userId');
       const r = await axios.post(`${BACKEND_URL}/api/operators/invite`, {
         owner_id: ownerId,
         operator_name: fullName,
-        operator_phone: `+56${p}`,
-        operator_rut: rut.trim() || null
+        operator_phone: p ? `+56${p}` : null,
+        operator_rut: rut.trim()
       });
       setInviteCode(r.data.code);
+      setInviteSummary({
+        name: fullName,
+        rut: rut.trim(),
+        phone: p ? `+56${p}` : 'Sin celular',
+      });
       setMode('inviteNew');
     } catch (e) {
       setError(e.response?.data?.detail || 'Error al generar código');
@@ -692,7 +699,7 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
                 <span style={{ fontSize: 20 }}>📱</span>
                 <div>
                   <div>Invitar nuevo operador</div>
-                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 400 }}>Inscríbelo y genera código · Solo necesitará el código</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 400 }}>Inscríbelo y genera código · No depende de Inicio</div>
                 </div>
               </button>
               <button
@@ -736,7 +743,7 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
               <input type="text" placeholder="Ej: Pérez" value={apellido} onChange={e => setApellido(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label htmlFor="invite-op-phone" style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>Celular *</label>
+              <label htmlFor="invite-op-phone" style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>Celular (opcional)</label>
               <LoginPhoneChileInput
                 id="invite-op-phone"
                 name="operatorPhone"
@@ -746,10 +753,10 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
               />
             </div>
             <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>RUT (opcional)</label>
+              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>RUT *</label>
               <input type="text" placeholder="12.345.678-9" value={rut} onChange={e => setRut(formatRut(e.target.value))} maxLength={12} className="maqgo-input" style={{ width: '100%', fontFamily: "'JetBrains Mono', monospace" }} />
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '6px 0 0', lineHeight: 1.35 }}>
-                Si no lo tienes a mano, déjalo vacío: el operador puede completar su identidad al aceptar la invitación.
+                El RUT es necesario para generar el código de enrolamiento.
               </p>
             </div>
             {error && <p style={{ color: '#F44336', fontSize: 12, marginBottom: 12 }}>{error}</p>}
@@ -812,12 +819,31 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
         {mode === 'inviteNew' && inviteCode && (
           <>
             <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 24, marginBottom: 16, textAlign: 'center' }}>
+              <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '0 0 8px', textTransform: 'uppercase' }}>
+                Código de enrolamiento
+              </p>
               <p style={{ color: '#90BDD3', fontSize: 28, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 6, margin: '0 0 8px' }}>{inviteCode}</p>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>Válido 7 días</p>
             </div>
+            {inviteSummary && (
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>
+                  Datos del operador
+                </p>
+                <p style={{ color: '#fff', fontSize: 13, margin: '0 0 4px' }}>
+                  {inviteSummary.name}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '0 0 2px' }}>
+                  RUT: {inviteSummary.rut}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
+                  Celular: {inviteSummary.phone}
+                </p>
+              </div>
+            )}
             <div style={{ background: 'rgba(236, 104, 25, 0.1)', borderRadius: 10, padding: 12, marginBottom: 16 }}>
               <p style={{ color: '#EC6819', fontSize: 13, margin: 0 }}>
-                Envía este código al operador. Solo debe abrir Maqgo → <strong>Soy operador</strong> → ingresar el código.
+                Comparte este código con el operador para que se registre.
               </p>
             </div>
             <a
