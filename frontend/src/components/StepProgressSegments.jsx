@@ -2,6 +2,13 @@ import React from 'react';
 
 /**
  * Segmentos conectados — misma línea visual continua en flujo cliente y onboarding proveedor.
+ *
+ * Layout:
+ *   ┌──────────────────────────────────────┐
+ *   │ ● ● ● ● ● ●  (izquierda)   P1/6 →  │
+ *   │ sublabel opcional (ancho completo)   │
+ *   └──────────────────────────────────────┘
+ *
  * Paso activo = segmento ancho; completados = color marca; pendientes = tenue.
  */
 function StepProgressSegments({
@@ -34,53 +41,65 @@ function StepProgressSegments({
       className={`maqgo-step-progress ${compact ? 'maqgo-step-progress--compact' : ''} ${className}`.trim()}
       aria-label={ariaLabel}
     >
-      <p className="maqgo-step-progress__title" aria-live="polite">
-        Paso {cs} de {total}
-      </p>
+      {/* Fila principal: círculos izquierda · contador derecha */}
+      <div className="maqgo-step-progress__header">
+        <div className="maqgo-step-progress__segments-row" aria-hidden>
+          {items.map((stepNum, index) => {
+            const isActive = stepNum === cs;
+            const isPast = stepNum < cs;
+            const clickable = typeof stepClickable === 'function' && stepClickable(stepNum);
+            const title = labels[stepNum - 1] || `Paso ${stepNum}`;
+
+            return (
+              <div key={stepNum} className="maqgo-step-progress__seg-group">
+                <div
+                  className={`maqgo-step-progress__seg ${
+                    isActive
+                      ? 'maqgo-step-progress__seg--active'
+                      : isPast
+                        ? 'maqgo-step-progress__seg--past'
+                        : 'maqgo-step-progress__seg--todo'
+                  }`}
+                  style={{
+                    width: isActive ? activeW : inactiveW,
+                    height: segH,
+                    cursor: clickable ? 'pointer' : 'default',
+                  }}
+                  title={title}
+                  role={clickable ? 'button' : undefined}
+                  tabIndex={clickable ? 0 : -1}
+                  onClick={() => {
+                    if (clickable && typeof onStepClick === 'function') onStepClick(stepNum);
+                  }}
+                  onKeyDown={(e) => {
+                    if (!clickable || typeof onStepClick !== 'function') return;
+                    if (e.key === 'Enter' || e.key === ' ') onStepClick(stepNum);
+                  }}
+                />
+                {index < total - 1 && (
+                  <div
+                    className={`maqgo-step-progress__connector ${stepNum < cs ? 'maqgo-step-progress__connector--past' : ''}`}
+                    style={{ width: connectorW }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Contador P1/6 — esquina derecha */}
+        <p className="maqgo-step-progress__counter" aria-live="polite">
+          P{cs}/{total}
+        </p>
+      </div>
+
+      {/* Sublabel (nombre del paso actual) — debajo, ancho completo */}
       {resolvedSublabel ? (
         <p className="maqgo-step-progress__sublabel">{resolvedSublabel}</p>
       ) : null}
-      <div className="maqgo-step-progress__segments-row" aria-hidden>
-        {items.map((stepNum, index) => {
-          const isActive = stepNum === cs;
-          const isPast = stepNum < cs;
-          const clickable = typeof stepClickable === 'function' && stepClickable(stepNum);
-          const title = labels[stepNum - 1] || `Paso ${stepNum}`;
-
-          return (
-            <div key={stepNum} className="maqgo-step-progress__seg-group">
-              <div
-                className={`maqgo-step-progress__seg ${
-                  isActive ? 'maqgo-step-progress__seg--active' : isPast ? 'maqgo-step-progress__seg--past' : 'maqgo-step-progress__seg--todo'
-                }`}
-                style={{
-                  width: isActive ? activeW : inactiveW,
-                  height: segH,
-                  cursor: clickable ? 'pointer' : 'default',
-                }}
-                title={title}
-                role={clickable ? 'button' : undefined}
-                tabIndex={clickable ? 0 : -1}
-                onClick={() => {
-                  if (clickable && typeof onStepClick === 'function') onStepClick(stepNum);
-                }}
-                onKeyDown={(e) => {
-                  if (!clickable || typeof onStepClick !== 'function') return;
-                  if (e.key === 'Enter' || e.key === ' ') onStepClick(stepNum);
-                }}
-              />
-              {index < total - 1 && (
-                <div
-                  className={`maqgo-step-progress__connector ${stepNum < cs ? 'maqgo-step-progress__connector--past' : ''}`}
-                  style={{ width: connectorW }}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
 
 export default StepProgressSegments;
+

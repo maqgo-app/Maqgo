@@ -809,8 +809,7 @@ a:focus-visible,
 .maqgo-step-progress {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 20px;
   padding: 0 8px;
   width: 100%;
@@ -825,21 +824,30 @@ a:focus-visible,
   margin-bottom: 8px;
 }
 
-.maqgo-step-progress__title {
-  font-family: 'Space Grotesk', 'Inter', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.85);
-  margin: 0;
+/* Fila superior: círculos izquierda, contador P1/6 derecha */
+.maqgo-step-progress__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 
-.maqgo-step-progress--compact .maqgo-step-progress__title {
-  font-family: 'Inter', sans-serif;
+/* Contador "P1/6" en esquina derecha */
+.maqgo-step-progress__counter {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
   font-size: 13px;
-  font-weight: 500;
-  letter-spacing: normal;
-  color: rgba(255, 255, 255, 0.72);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+  flex-shrink: 0;
+  padding-left: 8px;
+}
+
+.maqgo-step-progress--compact .maqgo-step-progress__counter {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .maqgo-step-progress__sublabel {
@@ -847,23 +855,18 @@ a:focus-visible,
   font-size: 13px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.55);
-  margin: -4px 0 0;
-  text-align: center;
+  margin: 0;
   line-height: 1.4;
-  max-width: 320px;
 }
 
 .maqgo-step-progress--compact .maqgo-step-progress__sublabel {
   font-size: 12px;
-  margin-top: -2px;
 }
 
 .maqgo-step-progress__segments-row {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  margin-top: 2px;
 }
 
 .maqgo-step-progress--compact .maqgo-step-progress__segments-row {
