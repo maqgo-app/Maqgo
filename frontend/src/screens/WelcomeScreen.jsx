@@ -306,7 +306,17 @@ function WelcomeScreen() {
               navigate(target);
             }}
             className="welcome-cta-primary welcome-reveal"
-            style={{ ['--welcome-d']: '200ms' }}
+            style={{ ['--welcome-d']: '200ms', transition: "all 0.2s ease" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow = "0 10px 20px rgba(0,0,0,0.15)";
+              e.currentTarget.style.filter = "brightness(0.95)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "translateY(0px)";
+              e.currentTarget.style.boxShadow = "none";
+              e.currentTarget.style.filter = "brightness(1)";
+            }}
             data-testid="start-client-btn"
             aria-label="Arrendar maquinaria. Para hoy o en la fecha que indiques."
           >
@@ -418,18 +428,17 @@ function WelcomeScreen() {
   </div>
 
   <div style={{
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: "8px",
-    fontSize: "12px"
-  }}>
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: "6px",
+  fontSize: "12px",
+  color: "#999"
+}}>
 
-    <a href="/faq" style={{ color: "#999", textDecoration: "none", marginRight: "4px" }}>FAQ</a>
-    <span style={{ margin: "0 2px" }}>·</span>
-    <a href="/terminos" style={{ color: "#999", textDecoration: "none", margin: "0 4px" }}>Términos y Condiciones</a>
-    <span style={{ margin: "0 2px" }}>·</span>
-    <a href="/privacidad" style={{ color: "#999", textDecoration: "none", marginLeft: "4px" }}>Política de Privacidad</a>
+    <a href="/faq" style={{ color: "#999", textDecoration: "none" }}>FAQ</a>
+    <a href="/terminos" style={{ color: "#999", textDecoration: "none" }}>Términos y Condiciones</a>
+    <a href="/privacidad" style={{ color: "#999", textDecoration: "none" }}>Política de Privacidad</a>
 
   </div>
 
