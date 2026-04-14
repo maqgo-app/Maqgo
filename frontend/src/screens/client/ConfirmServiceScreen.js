@@ -309,14 +309,6 @@ function ConfirmServiceScreen() {
       dispatchCheckout({ type: 'CONFIRM_SERVICE' });
       saveBookingProgress('payment');
 
-      if (needsInvoice) {
-        const billing = getObject('billingData', {});
-        if (!isEmpresaBillingComplete(billing)) {
-          navigate('/client/billing');
-          return;
-        }
-      }
-
       navigate('/client/card');
     } catch (e) {
       console.error('BOOKING ERROR:', e);

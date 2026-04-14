@@ -176,7 +176,7 @@ export const BOOKING_BACK_ROUTES = {
   '/client/confirm': '/client/providers',
   '/client/workday-confirmation': '/client/confirm',
   '/client/billing': '/client/confirm',
-  '/client/card': '/client/billing',
+  '/client/card': '/client/confirm',
   '/client/card-input': '/client/card',
   '/client/searching': '/client/card',
   '/client/payment-result': '/client/home',

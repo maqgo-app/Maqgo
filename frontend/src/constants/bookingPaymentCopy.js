@@ -23,7 +23,8 @@ export const PAYMENT_COPY = {
     invoiceSameTotalNote: 'El precio final es el mismo.',
     /** Una sola opción explícita; si no marcas, no se pide otro comprobante en esta pantalla. */
     invoiceCheckboxLabel: 'Sí, necesito factura con RUT de empresa',
-    invoiceYesHint: 'Ingresarás RUT y razón social al pagar.',
+    invoiceYesHint:
+      'Si necesitas factura, podrás ingresar tus datos después de confirmar el servicio.',
     breakdownMultiProviderHint:
       'Estimación según el tope del rango; el total final puede ser menor.',
     /** Dentro del desglose expandido: evita leer dos montos distintos */
