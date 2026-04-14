@@ -435,11 +435,11 @@ function WelcomeScreen() {
     color: "#999"
   }}>
 
-    <a href="/faq" style={{ color: "#999", textDecoration: "none" }}>FAQ</a>
+    <a href="/faq" target="_blank" rel="noopener noreferrer" style={{ color: "#999", textDecoration: "none" }}>FAQ</a>
     <span>·</span>
-    <a href="/terminos" style={{ color: "#999", textDecoration: "none" }}>Términos y Condiciones</a>
+    <a href="/terminos" target="_blank" rel="noopener noreferrer" style={{ color: "#999", textDecoration: "none" }}>Términos y Condiciones</a>
     <span>·</span>
-    <a href="/privacidad" style={{ color: "#999", textDecoration: "none" }}>Política de Privacidad</a>
+    <a href="/privacidad" target="_blank" rel="noopener noreferrer" style={{ color: "#999", textDecoration: "none" }}>Política de Privacidad</a>
 
   </div>
 
