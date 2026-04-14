@@ -34,12 +34,42 @@ export function snapshotIndicatesPostConfirmPaymentStep(s) {
 }
 
 /**
+ * Valida si el snapshot tiene suficiente contexto de reserva para justificar acceso
+ * a rutas de pago sin que checkoutState esté activo.
+ *
+ * El snapshot solo es válido si existe un proveedor seleccionado Y un bookingId
+ * activo — dos datos que solo pueden existir si el usuario pasó por confirm (P5).
+ * Esto previene que una reserva completada en el pasado desbloquee /client/card en
+ * una sesión nueva donde el usuario no ha llegado aún a ese paso.
+ *
+ * @param {BookingNavSnapshot} s
+ * @returns {boolean}
+ */
+function snapshotHasRequiredBookingContext(s) {
+  if (!snapshotIndicatesPostConfirmPaymentStep(s)) return false;
+  try {
+    const ls = typeof localStorage !== 'undefined' ? localStorage : null;
+    if (!ls) return false;
+    // selectedProvider o selectedProviderIds deben existir (usuario eligió proveedor en P4)
+    const hasProvider = !!(ls.getItem('selectedProvider') || ls.getItem('selectedProviderIds'));
+    // bookingId debe existir (se genera/guarda al confirmar servicio en P5)
+    const hasBookingId = !!(
+      ls.getItem('maqgo_booking_id') || ls.getItem('maqgo_booking_id_v2')
+    );
+    return hasProvider && hasBookingId;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * @param {string} checkoutState
  * @param {BookingNavSnapshot} s
  * @returns {boolean}
  */
 export function canAccessCardRoute(checkoutState, s) {
   if (isCheckoutPastIdle(checkoutState)) return true;
-  if (snapshotIndicatesPostConfirmPaymentStep(s)) return true;
+  if (snapshotHasRequiredBookingContext(s)) return true;
   return false;
 }
 
@@ -51,8 +81,7 @@ export function canAccessCardRoute(checkoutState, s) {
 export function canAccessBillingRoute(checkoutState, s) {
   if (!s.needsInvoice) return false;
   if (isCheckoutPastIdle(checkoutState)) return true;
-  if (s.clientBookingStep === 'confirm' || s.clientBookingStep === 'payment') return true;
-  if (s.bookingProgressStep === 'confirm' || s.bookingProgressStep === 'payment') return true;
+  if (snapshotHasRequiredBookingContext(s)) return true;
   return false;
 }
 

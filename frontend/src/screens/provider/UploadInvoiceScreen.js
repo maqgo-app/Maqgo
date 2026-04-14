@@ -5,6 +5,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
 import { MAQGO_BILLING } from '../../utils/commissions';
 import { fetchWithAuth } from '../../utils/api';
+import { useBackRoute } from '../../hooks/useBackRoute';
 
 import BACKEND_URL from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
@@ -23,6 +24,7 @@ function UploadInvoiceScreen() {
   const location = useLocation();
   const toast = useToast();
   const { serviceId } = useParams();
+  const { back } = useBackRoute('provider', '/provider/cobros');
   const fileInputRef = useRef(null);
   const serviceFromState = location.state?.service;
 
@@ -222,7 +224,7 @@ function UploadInvoiceScreen() {
       <div style={{ maxWidth: isDesktop ? 600 : 500, margin: '0 auto', padding: isDesktop ? '24px 40px' : '20px', paddingBottom: 120, overflowY: 'auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
-          <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}>
+          <button onClick={back} style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }} aria-label="Volver">
             <BackArrowIcon style={{ color: '#fff' }} />
           </button>
           <h1 style={{ flex: 1, color: '#fff', fontSize: 18, fontWeight: 700, textAlign: 'center', fontFamily: "'Space Grotesk', sans-serif" }}>

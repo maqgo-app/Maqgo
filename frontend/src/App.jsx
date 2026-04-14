@@ -210,49 +210,52 @@ function AppContent() {
         {/* Chat por servicio (canal obligatorio cliente ↔ proveedor) */}
         <Route path="/chat/:serviceId" element={<ServiceChatScreen />} />
 
-        {/* Cliente */}
-        <Route path="/client/booking" element={<BookingFlowEntry />} />
-        <Route path="/client/home" element={<ClientHome />} />
-        <Route path="/client/machinery" element={<MachinerySelection />} />
-        <Route path="/client/hours" element={<Navigate to="/client/service-location" replace />} />
-        <Route path="/client/hours-selection" element={<Navigate to="/client/service-location" replace />} />
-        <Route path="/client/urgency" element={<UrgencySelectionScreen />} />
-        <Route path="/client/calendar" element={<CalendarMultiDayScreen />} />
-        <Route path="/client/calendar-multi" element={<CalendarMultiDayScreen />} />
-        <Route path="/client/reservation-data" element={<Navigate to="/client/service-location" replace />} />
-        <Route path="/client/service-location" element={<ServiceLocationScreen />} />
-        <Route path="/client/providers" element={<ProviderOptionsScreen />} />
-        <Route path="/client/confirm" element={<ConfirmServiceScreen />} />
-        <Route path="/client/billing" element={<BillingDataScreen />} />
-        <Route path="/client/workday-confirmation" element={<WorkdayConfirmation />} />
-        <Route path="/client/card" element={<CardPaymentScreen />} />
-        <Route path="/oneclick/complete" element={<OneClickCompleteScreen />} />
-        {/* Demo legado: en producción el flujo real es Oneclick (/client/card). */}
-        <Route
-          path="/client/card-input"
-          element={
-            import.meta.env.DEV ? <CardInput /> : <Navigate to="/client/card" replace />
-          }
-        />
-        <Route path="/client/payment-result" element={<PaymentResultScreen />} />
-        <Route path="/client/searching" element={<SearchingProviderScreen />} />
-        <Route path="/client/waiting-confirmation" element={<WaitingConfirmationScreen />} />
-        <Route path="/client/assigned" element={<MachineryAssignedScreen />} />
-        <Route path="/client/service-confirmed" element={<ServiceConfirmed />} />
-        <Route path="/client/in-progress" element={<ServiceInProgress />} />
-        <Route path="/client/last-30" element={<Last30Minutes />} />
-        <Route path="/client/finished" element={<ServiceFinishedScreen />} />
-        <Route path="/client/service-active" element={<ServiceActiveScreen />} />
-        <Route path="/client/service-finished" element={<ServiceFinishedScreen />} />
-        <Route path="/client/summary" element={<ServiceSummary />} />
-        <Route path="/client/rate" element={<RateService />} />
-        <Route path="/client/provider-arrived" element={<ProviderArrivedScreen />} />
-        <Route path="/client/notification" element={<ServiceNotificationScreen />} />
-        <Route path="/client/cancel" element={<CancelServiceScreen />} />
-        <Route path="/client/history" element={<HistoryScreen />} />
-        <Route path="/client/detalle-servicio" element={<ServiceDetailDemoScreen />} />
+        {/* ── Rutas cliente (requieren rol 'client') ─────────────────────── */}
+        <Route element={<ClientRoute />}>
+          <Route path="/client/booking" element={<BookingFlowEntry />} />
+          <Route path="/client/home" element={<ClientHome />} />
+          <Route path="/client/machinery" element={<MachinerySelection />} />
+          <Route path="/client/hours" element={<Navigate to="/client/service-location" replace />} />
+          <Route path="/client/hours-selection" element={<Navigate to="/client/service-location" replace />} />
+          <Route path="/client/urgency" element={<UrgencySelectionScreen />} />
+          <Route path="/client/calendar" element={<CalendarMultiDayScreen />} />
+          <Route path="/client/calendar-multi" element={<CalendarMultiDayScreen />} />
+          <Route path="/client/reservation-data" element={<Navigate to="/client/service-location" replace />} />
+          <Route path="/client/service-location" element={<ServiceLocationScreen />} />
+          <Route path="/client/providers" element={<ProviderOptionsScreen />} />
+          <Route path="/client/confirm" element={<ConfirmServiceScreen />} />
+          <Route path="/client/billing" element={<BillingDataScreen />} />
+          <Route path="/client/workday-confirmation" element={<WorkdayConfirmation />} />
+          <Route path="/client/card" element={<CardPaymentScreen />} />
+          <Route path="/oneclick/complete" element={<OneClickCompleteScreen />} />
+          {/* Demo legado: en producción el flujo real es Oneclick (/client/card). */}
+          <Route
+            path="/client/card-input"
+            element={
+              import.meta.env.DEV ? <CardInput /> : <Navigate to="/client/card" replace />
+            }
+          />
+          <Route path="/client/payment-result" element={<PaymentResultScreen />} />
+          <Route path="/client/searching" element={<SearchingProviderScreen />} />
+          <Route path="/client/waiting-confirmation" element={<WaitingConfirmationScreen />} />
+          <Route path="/client/assigned" element={<MachineryAssignedScreen />} />
+          <Route path="/client/service-confirmed" element={<ServiceConfirmed />} />
+          <Route path="/client/in-progress" element={<ServiceInProgress />} />
+          <Route path="/client/last-30" element={<Last30Minutes />} />
+          <Route path="/client/finished" element={<ServiceFinishedScreen />} />
+          <Route path="/client/service-active" element={<ServiceActiveScreen />} />
+          <Route path="/client/service-finished" element={<ServiceFinishedScreen />} />
+          <Route path="/client/summary" element={<ServiceSummary />} />
+          <Route path="/client/rate" element={<RateService />} />
+          <Route path="/client/provider-arrived" element={<ProviderArrivedScreen />} />
+          <Route path="/client/notification" element={<ServiceNotificationScreen />} />
+          <Route path="/client/cancel" element={<CancelServiceScreen />} />
+          <Route path="/client/history" element={<HistoryScreen />} />
+          <Route path="/client/detalle-servicio" element={<ServiceDetailDemoScreen />} />
+        </Route>
 
-        {/* Proveedor */}
+        {/* ── Rutas proveedor (requieren rol 'provider') ─────────────────── */}
+        {/* Registro y verificación: públicas (sin sesión o pre-sesión) */}
         <Route path="/provider/register" element={<ProviderRegisterScreen />} />
         <Route
           path="/provider/verify-sms"
@@ -261,113 +264,119 @@ function AppContent() {
           }
         />
         <Route path="/provider/verified" element={<ProviderVerifiedScreen setUserRole={setUserRole} setUserId={setUserId} />} />
-        <Route
-          path="/provider/data"
-          element={
-            <ProviderOnboardingGate>
-              <ProviderDataScreen />
-            </ProviderOnboardingGate>
-          }
-        />
-        <Route
-          path="/provider/machine-data"
-          element={
-            <ProviderOnboardingGate>
-              <MachineDataScreen />
-            </ProviderOnboardingGate>
-          }
-        />
-        <Route
-          path="/provider/machine-photos-pricing"
-          element={
-            <ProviderOnboardingGate>
-              <MachinePhotosPricingScreen />
-            </ProviderOnboardingGate>
-          }
-        />
-        <Route
-          path="/provider/machine-photos"
-          element={
-            <ProviderOnboardingGate>
-              <MachinePhotosScreen />
-            </ProviderOnboardingGate>
-          }
-        />
-        <Route
-          path="/provider/pricing"
-          element={
-            <ProviderOnboardingGate>
-              <PricingScreen />
-            </ProviderOnboardingGate>
-          }
-        />
-        <Route
-          path="/provider/operator-data"
-          element={
-            <ProviderOnboardingGate>
-              <OperatorDataScreen />
-            </ProviderOnboardingGate>
-          }
-        />
-        <Route
-          path="/provider/review"
-          element={
-            <ProviderOnboardingGate>
-              <ReviewScreen />
-            </ProviderOnboardingGate>
-          }
-        />
-        <Route path={ROUTES.PROVIDER_HOME} element={<ProviderHomeScreen />} />
-        <Route path="/provider/availability" element={<ProviderAvailability />} />
-        <Route path="/provider/request" element={<RequestReceivedScreen />} />
-        <Route path="/provider/request-received" element={<RequestReceivedScreen />} />
-        <Route path="/provider/accepted" element={<ServiceAccepted />} />
-        <Route path="/provider/select-operator" element={<SelectOperatorScreen />} />
-        <Route path="/provider/en-route" element={<EnRouteScreen />} />
-        <Route path="/provider/arrival" element={<ArrivalScreen />} />
-        <Route path="/provider/service-active" element={<ProviderServiceActiveScreen />} />
-        <Route path="/provider/in-progress" element={<ServiceInProgressProvider />} />
-        <Route path="/provider/last-30" element={<Last30MinutesProvider />} />
-        <Route path="/provider/service-finished" element={<ProviderServiceFinishedScreen />} />
-        <Route path="/provider/finished" element={<ProviderServiceFinishedScreen />} />
-        <Route path="/provider/rate" element={<RateClient />} />
-        <Route path="/provider/rate-client" element={<Navigate to="/provider/rate" replace />} />
-        <Route path="/provider/machines" element={<MyMachinesScreen />} />
-        <Route
-          path="/provider/add-machine"
-          element={
-            <ProviderOnboardingGate>
-              <MachineDataScreen />
-            </ProviderOnboardingGate>
-          }
-        />
-        <Route
-          path="/provider/edit-machine/:id"
-          element={
-            <ProviderOnboardingGate>
-              <MachineDataScreen />
-            </ProviderOnboardingGate>
-          }
-        />
-        <Route path="/provider/cobros" element={<ProviderDashboardSimple />} />
-        <Route path="/provider/my-services" element={<ProviderDashboardSimple />} />
-        <Route path="/provider/dashboard" element={<ProviderDashboardSimple />} />
-        <Route path="/provider/history" element={<ProviderHistoryScreen />} />
-        <Route path="/provider/profile" element={<ProviderProfileScreen />} />
-        <Route path="/provider/upload-invoice/:serviceId" element={<UploadInvoiceScreen />} />
-        <Route path="/provider/upload-invoice" element={<UploadInvoiceScreen />} />
-        <Route path="/provider/tariffs" element={<TariffsScreen />} />
-        <Route path="/provider/operator" element={<OperatorScreen />} />
-        <Route path="/provider/team" element={<TeamManagementScreen />} />
-        <Route path="/provider/profile/empresa" element={<EmpresaScreen />} />
-        <Route path="/provider/profile/banco" element={<BancoScreen />} />
-        <Route path="/provider/profile/maqgo-billing" element={<MaqgoBillingScreen />} />
 
-        {/* Operador */}
+        {/* Rutas protegidas de proveedor */}
+        <Route element={<ProviderRoute />}>
+          <Route
+            path="/provider/data"
+            element={
+              <ProviderOnboardingGate>
+                <ProviderDataScreen />
+              </ProviderOnboardingGate>
+            }
+          />
+          <Route
+            path="/provider/machine-data"
+            element={
+              <ProviderOnboardingGate>
+                <MachineDataScreen />
+              </ProviderOnboardingGate>
+            }
+          />
+          <Route
+            path="/provider/machine-photos-pricing"
+            element={
+              <ProviderOnboardingGate>
+                <MachinePhotosPricingScreen />
+              </ProviderOnboardingGate>
+            }
+          />
+          <Route
+            path="/provider/machine-photos"
+            element={
+              <ProviderOnboardingGate>
+                <MachinePhotosScreen />
+              </ProviderOnboardingGate>
+            }
+          />
+          <Route
+            path="/provider/pricing"
+            element={
+              <ProviderOnboardingGate>
+                <PricingScreen />
+              </ProviderOnboardingGate>
+            }
+          />
+          <Route
+            path="/provider/operator-data"
+            element={
+              <ProviderOnboardingGate>
+                <OperatorDataScreen />
+              </ProviderOnboardingGate>
+            }
+          />
+          <Route
+            path="/provider/review"
+            element={
+              <ProviderOnboardingGate>
+                <ReviewScreen />
+              </ProviderOnboardingGate>
+            }
+          />
+          <Route path={ROUTES.PROVIDER_HOME} element={<ProviderHomeScreen />} />
+          <Route path="/provider/availability" element={<ProviderAvailability />} />
+          <Route path="/provider/request" element={<RequestReceivedScreen />} />
+          <Route path="/provider/request-received" element={<RequestReceivedScreen />} />
+          <Route path="/provider/accepted" element={<ServiceAccepted />} />
+          <Route path="/provider/select-operator" element={<SelectOperatorScreen />} />
+          <Route path="/provider/en-route" element={<EnRouteScreen />} />
+          <Route path="/provider/arrival" element={<ArrivalScreen />} />
+          <Route path="/provider/service-active" element={<ProviderServiceActiveScreen />} />
+          <Route path="/provider/in-progress" element={<ServiceInProgressProvider />} />
+          <Route path="/provider/last-30" element={<Last30MinutesProvider />} />
+          <Route path="/provider/service-finished" element={<ProviderServiceFinishedScreen />} />
+          <Route path="/provider/finished" element={<ProviderServiceFinishedScreen />} />
+          <Route path="/provider/rate" element={<RateClient />} />
+          <Route path="/provider/rate-client" element={<Navigate to="/provider/rate" replace />} />
+          <Route path="/provider/machines" element={<MyMachinesScreen />} />
+          <Route
+            path="/provider/add-machine"
+            element={
+              <ProviderOnboardingGate>
+                <MachineDataScreen />
+              </ProviderOnboardingGate>
+            }
+          />
+          <Route
+            path="/provider/edit-machine/:id"
+            element={
+              <ProviderOnboardingGate>
+                <MachineDataScreen />
+              </ProviderOnboardingGate>
+            }
+          />
+          <Route path="/provider/cobros" element={<ProviderDashboardSimple />} />
+          <Route path="/provider/my-services" element={<ProviderDashboardSimple />} />
+          <Route path="/provider/dashboard" element={<ProviderDashboardSimple />} />
+          <Route path="/provider/history" element={<ProviderHistoryScreen />} />
+          <Route path="/provider/profile" element={<ProviderProfileScreen />} />
+          <Route path="/provider/upload-invoice/:serviceId" element={<UploadInvoiceScreen />} />
+          <Route path="/provider/upload-invoice" element={<UploadInvoiceScreen />} />
+          <Route path="/provider/tariffs" element={<TariffsScreen />} />
+          <Route path="/provider/operator" element={<OperatorScreen />} />
+          <Route path="/provider/team" element={<TeamManagementScreen />} />
+          <Route path="/provider/profile/empresa" element={<EmpresaScreen />} />
+          <Route path="/provider/profile/banco" element={<BancoScreen />} />
+          <Route path="/provider/profile/maqgo-billing" element={<MaqgoBillingScreen />} />
+        </Route>
+
+        {/* ── Rutas operador (requieren providerRole 'operator') ─────────── */}
         <Route path="/operator/join" element={<OperatorJoinScreen />} />
-        <Route path="/operator/home" element={<OperatorHomeScreen />} />
-        <Route path="/operator/history" element={<OperatorHistoryScreen />} />
-        <Route path="/operator/completed" element={<OperatorServiceCompletedScreen />} />
+        <Route element={<OperatorRoute />}>
+          <Route path="/operator/home" element={<OperatorHomeScreen />} />
+          <Route path="/operator/history" element={<OperatorHistoryScreen />} />
+          <Route path="/operator/completed" element={<OperatorServiceCompletedScreen />} />
+        </Route>
 
         {/* Admin: un solo AdminRoute (layout) evita re-fetch /api/admin/stats y "Verificando..." en cada sub-ruta */}
         <Route path="/admin" element={<AdminRoute />}>

@@ -1,34 +1,40 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { hasPersistedSessionCredentials } from '../utils/api';
+import { useAuth } from '../context/authHooks';
 import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
 
 /**
  * Protege rutas exclusivas del rol cliente.
- * - Sin sesión: redirige a login con state.redirect.
- * - Sesión de proveedor/operador: redirige al home del rol real.
+ *
+ * Usa AuthContext (fuente única de verdad) en lugar de leer localStorage
+ * directamente, para que el rol se actualice cuando hydrateFromMe completa.
+ *
+ * - Sin usuario: redirige a /login con state.redirect.
+ * - Admin: redirige a /admin.
+ * - Proveedor/operador: redirige al home de su rol.
+ * - Mientras carga (hidratación API): no bloquea navegación (user viene de
+ *   localStorage sync y ya tiene rol; loading solo indica re-validación).
  */
 function ClientRoute() {
   const location = useLocation();
-  const pathname = location.pathname;
+  const { user, providerRole } = useAuth();
 
-  if (!hasPersistedSessionCredentials()) {
+  if (!user) {
     traceRedirectToLogin('src/components/ClientRoute.jsx');
     return (
       <Navigate
         to="/login"
-        state={{ from: pathname, redirect: pathname }}
+        state={{ from: location.pathname, redirect: location.pathname }}
         replace
       />
     );
   }
 
-  const userRole = localStorage.getItem('userRole') || 'client';
-  if (userRole === 'admin') {
+  const role = user.role || '';
+  if (role === 'admin') {
     return <Navigate to="/admin" replace />;
   }
-  if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager') {
-    const providerRole = localStorage.getItem('providerRole');
+  if (role === 'provider' || role === 'owner' || role === 'manager') {
     return (
       <Navigate
         to={providerRole === 'operator' ? '/operator/home' : '/provider/home'}
@@ -41,3 +47,4 @@ function ClientRoute() {
 }
 
 export default ClientRoute;
+

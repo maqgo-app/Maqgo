@@ -5,6 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/authHooks';
 import { useToast } from '../../components/Toast';
+import { useBackRoute } from '../../hooks/useBackRoute';
 
 import BACKEND_URL from '../../utils/api';
 
@@ -18,6 +19,7 @@ import BACKEND_URL from '../../utils/api';
 function TeamManagementScreen() {
   const navigate = useNavigate();
   const { isSuperMaster } = useAuth();
+  const { back } = useBackRoute('provider', '/provider/home');
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('team'); // 'team' | 'invite'
   const [inviteType, setInviteType] = useState('operator'); // 'operator' | 'master'
@@ -145,7 +147,7 @@ function TeamManagementScreen() {
           marginTop: 10
         }}>
           <button 
-            onClick={() => navigate(-1)}
+            onClick={back}
             style={{
               background: 'none',
               border: 'none',

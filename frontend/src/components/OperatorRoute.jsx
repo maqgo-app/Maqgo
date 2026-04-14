@@ -1,41 +1,43 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { hasPersistedSessionCredentials } from '../utils/api';
+import { useAuth } from '../context/authHooks';
 import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
 
 /**
  * Protege rutas exclusivas de operador.
- * - Sin sesión: redirige a login.
- * - Sesión de cliente puro: redirige a /client/home.
- * - Sesión de admin: redirige a /admin.
+ *
+ * Usa AuthContext (fuente única de verdad). `providerRole` proviene de la API
+ * tras hydratación, por lo que es más fiable que leer 'providerRole' de LS.
+ *
+ * - Sin usuario: redirige a /login.
+ * - Cliente puro: redirige a /client/home.
+ * - Admin: redirige a /admin.
  * - Proveedor titular (no operator): redirige a /provider/home.
  */
 function OperatorRoute() {
   const location = useLocation();
-  const pathname = location.pathname;
+  const { user, providerRole } = useAuth();
 
-  if (!hasPersistedSessionCredentials()) {
+  if (!user) {
     traceRedirectToLogin('src/components/OperatorRoute.jsx');
     return (
       <Navigate
         to="/login"
-        state={{ from: pathname, redirect: pathname }}
+        state={{ from: location.pathname, redirect: location.pathname }}
         replace
       />
     );
   }
 
-  const userRole = localStorage.getItem('userRole') || '';
-  const providerRole = localStorage.getItem('providerRole') || '';
-
-  if (userRole === 'admin') {
+  const role = user.role || '';
+  if (role === 'admin') {
     return <Navigate to="/admin" replace />;
   }
-  if (userRole === 'client') {
+  if (role === 'client') {
     return <Navigate to="/client/home" replace />;
   }
   if (
-    (userRole === 'provider' || userRole === 'owner' || userRole === 'manager') &&
+    (role === 'provider' || role === 'owner' || role === 'manager') &&
     providerRole !== 'operator'
   ) {
     return <Navigate to="/provider/home" replace />;
@@ -45,3 +47,4 @@ function OperatorRoute() {
 }
 
 export default OperatorRoute;
+

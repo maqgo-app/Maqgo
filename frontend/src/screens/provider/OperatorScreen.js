@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { MAQGO } from '../../styles/theme';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
+import { useBackRoute } from '../../hooks/useBackRoute';
 
 /**
  * Pantalla de Agregar Operador
  */
 function OperatorScreen() {
   const navigate = useNavigate();
+  const { back } = useBackRoute('provider', '/provider/home');
   const [isOperator, setIsOperator] = useState(false);
   const [form, setForm] = useState({ nombre: '', apellido: '', telefono: '', licencia: '' });
 
@@ -23,7 +25,7 @@ function OperatorScreen() {
       <div style={styles.screen}>
       {/* Header */}
       <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => navigate(-1)} aria-label="Volver">
+        <button style={styles.backBtn} onClick={back} aria-label="Volver">
           <BackArrowIcon style={{ color: '#fff' }} />
         </button>
         <div style={styles.headerCenter}>

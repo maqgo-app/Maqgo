@@ -376,7 +376,7 @@ function ProviderOptionsScreen() {
     localStorage.setItem('reservationType', 'scheduled');
     localStorage.setItem('selectedDate', dateStr);
     localStorage.setItem('selectedDates', JSON.stringify([dateStr]));
-    navigate('/client/reservation-data');
+    navigate('/client/calendar-multi');
   };
 
   const toggleProvider = (providerId) => {

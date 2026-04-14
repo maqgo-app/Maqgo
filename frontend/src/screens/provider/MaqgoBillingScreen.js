@@ -3,6 +3,7 @@ import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { MAQGO_BILLING } from '../../utils/commissions';
+import { useBackRoute } from '../../hooks/useBackRoute';
 
 /**
  * Pantalla: Datos de MAQGO para facturar
@@ -11,13 +12,14 @@ import { MAQGO_BILLING } from '../../utils/commissions';
  */
 function MaqgoBillingScreen() {
   const navigate = useNavigate();
+  const { back } = useBackRoute('provider', '/provider/profile');
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
       <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 120px' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
           <button
-            onClick={() => navigate(-1)}
+            onClick={back}
             style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}
             aria-label="Volver"
           >

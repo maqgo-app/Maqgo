@@ -42,6 +42,7 @@ describe('clearAuthSessionPreservingDraft', () => {
   it('invalida sesión backend y limpia flags auth extra', async () => {
     const store = installLocalStorageMock({
       desiredRole: 'provider',
+      providerCameFromWelcome: 'true',
       adminMode: '1',
       isAuthenticated: 'true',
       refreshToken: 'rt',
@@ -52,6 +53,7 @@ describe('clearAuthSessionPreservingDraft', () => {
 
     expect(logoutAndClearSession).toHaveBeenCalledTimes(1);
     expect(store.desiredRole).toBeUndefined();
+    expect(store.providerCameFromWelcome).toBeUndefined();
     expect(store.adminMode).toBeUndefined();
     expect(store.isAuthenticated).toBeUndefined();
     expect(store.refreshToken).toBeUndefined();

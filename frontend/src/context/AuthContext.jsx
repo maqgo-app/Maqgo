@@ -160,6 +160,10 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('userRole');
     localStorage.removeItem('providerRole');
     localStorage.removeItem('ownerId');
+    // Flags de intención de sesión: limpiar junto con la sesión para evitar
+    // contaminación entre sesiones/roles consecutivos.
+    localStorage.removeItem('desiredRole');
+    localStorage.removeItem('providerCameFromWelcome');
     setUser(null);
     setProviderRole('super_master');
     setPermissions(DEFAULT_PERMISSIONS.super_master);

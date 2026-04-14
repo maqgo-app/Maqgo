@@ -51,7 +51,7 @@ function isPublicAuthRequestUrl(url) {
   );
 }
 
-/** Limpia sesión local (token + roles). Usar al cerrar sesión o tras 401. */
+/** Limpia sesión local (token + roles + flags de intención efímeros). Usar al cerrar sesión o tras 401. */
 export function clearLocalSession() {
   localStorage.removeItem('token');
   localStorage.removeItem('authToken');
@@ -61,6 +61,10 @@ export function clearLocalSession() {
   localStorage.removeItem('userRoles');
   localStorage.removeItem('providerRole');
   localStorage.removeItem('ownerId');
+  // Flags de intención de sesión: deben morir junto con la sesión para evitar
+  // que una sesión nueva herede la intención de la anterior (contaminación de roles).
+  localStorage.removeItem('desiredRole');
+  localStorage.removeItem('providerCameFromWelcome');
 }
 
 /**

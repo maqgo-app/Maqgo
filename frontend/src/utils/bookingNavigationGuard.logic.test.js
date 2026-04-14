@@ -48,14 +48,14 @@ describe('getBookingNavigationRedirect', () => {
     ).toBeNull();
   });
 
-  it('/client/card con paso payment en snapshot (refresh) → ok', () => {
+  it('/client/card con paso payment en snapshot pero sin proveedor/bookingId → redirect a confirm', () => {
     expect(
       getBookingNavigationRedirect({
         pathname: '/client/card',
         checkoutState: 'IDLE',
         snapshot: { ...emptySnap, clientBookingStep: 'payment' },
       })
-    ).toBeNull();
+    ).toBe('/client/confirm');
   });
 
   it('/client/billing sin needsInvoice → redirect a card o confirm', () => {
@@ -115,7 +115,8 @@ describe('canAccess helpers', () => {
   it('canAccessCardRoute refleja checkout y snapshot', () => {
     expect(canAccessCardRoute('IDLE', emptySnap)).toBe(false);
     expect(canAccessCardRoute('SERVICE_CONFIRMED', emptySnap)).toBe(true);
-    expect(canAccessCardRoute('IDLE', { ...emptySnap, clientBookingStep: 'payment' })).toBe(true);
+    // Snapshot con paso 'payment' pero sin proveedor/bookingId en localStorage → denegado
+    expect(canAccessCardRoute('IDLE', { ...emptySnap, clientBookingStep: 'payment' })).toBe(false);
   });
 
   it('canAccessBillingRoute exige needsInvoice', () => {
