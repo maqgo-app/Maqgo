@@ -407,7 +407,12 @@ function WelcomeScreen() {
         <div style={{ textAlign: "center", marginTop: "20px" }}>
 
   <div style={{ marginBottom: "18px" }}>
-    <a href="/login" style={{ color: "#ff6b00", fontSize: "14px", textDecoration: "none" }}>
+    <a href="/login" style={{
+      color: "#EC6819",
+      fontSize: "14px",
+      textDecoration: "none",
+      fontWeight: "500"
+    }}>
       Iniciar sesión
     </a>
   </div>
@@ -416,16 +421,15 @@ function WelcomeScreen() {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    gap: "6px",
-    fontSize: "12px",
-    color: "#999"
+    gap: "8px",
+    fontSize: "12px"
   }}>
 
-    <a href="/faq" style={{ color: "#999", textDecoration: "none" }}>FAQ</a>
-    <span>·</span>
-    <a href="/terminos" style={{ color: "#999", textDecoration: "none" }}>Términos y Condiciones</a>
-    <span>·</span>
-    <a href="/privacidad" style={{ color: "#999", textDecoration: "none" }}>Política de Privacidad</a>
+    <a href="/faq" style={{ color: "#999", textDecoration: "none", marginRight: "4px" }}>FAQ</a>
+    <span style={{ margin: "0 2px" }}>·</span>
+    <a href="/terminos" style={{ color: "#999", textDecoration: "none", margin: "0 4px" }}>Términos y Condiciones</a>
+    <span style={{ margin: "0 2px" }}>·</span>
+    <a href="/privacidad" style={{ color: "#999", textDecoration: "none", marginLeft: "4px" }}>Política de Privacidad</a>
 
   </div>
 
