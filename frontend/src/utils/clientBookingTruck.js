@@ -106,7 +106,10 @@ export function logBookingModelCheck() {
  * @returns {{ ok: true } | { ok: false, code: string }}
  */
 export function validateBookingModelBeforeOneClick() {
-  sessionStorage.setItem("maqgo_last_step", "P6_ONECLICK_START");  const token =
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem('maqgo_last_step', 'P6_ONECLICK_START');
+  }
+  const token =
     typeof localStorage !== 'undefined'
       ? localStorage.getItem('token') || localStorage.getItem('authToken')
       : null;

@@ -26,9 +26,28 @@ function mockLocalStorage() {
   };
 }
 
+function mockSessionStorage() {
+  const store = Object.create(null);
+  globalThis.sessionStorage = {
+    getItem: (k) => (k in store ? store[k] : null),
+    setItem: (k, v) => {
+      store[k] = String(v);
+    },
+    removeItem: (k) => {
+      delete store[k];
+    },
+    clear: () => {
+      Object.keys(store).forEach((k) => {
+        delete store[k];
+      });
+    },
+  };
+}
+
 describe('clientBookingTruck', () => {
   beforeEach(() => {
     mockLocalStorage();
+    mockSessionStorage();
   });
 
   it('isTruckService reconoce ids canónicos', () => {

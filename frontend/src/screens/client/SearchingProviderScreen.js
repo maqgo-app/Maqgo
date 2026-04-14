@@ -407,7 +407,7 @@ function SearchingProviderScreen() {
         ))}
       </div>
 
-      <div style={{ position: 'relative', width: 140, height: 140, marginBottom: 30 }}>
+      <div className="maqgo-spin-searching" style={{ position: 'relative', width: 140, height: 140, marginBottom: 30 }}>
         <svg width="140" height="140" style={{ transform: 'rotate(-90deg)' }}>
           <circle cx="70" cy="70" r="60" fill="none" stroke="#363636" strokeWidth="8" />
           <circle

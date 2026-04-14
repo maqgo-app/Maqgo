@@ -1,4 +1,19 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+
+// api.js evalúa resolveBackendBaseUrl() en el nivel del módulo; en Node sin VITE_BACKEND_URL lanza.
+// El mock de hasPersistedSessionCredentials replica la lógica real (userId + token en localStorage).
+vi.mock('./api', () => ({
+  default: '',
+  hasPersistedSessionCredentials: vi.fn(() => {
+    const ls = globalThis.localStorage;
+    if (!ls) return false;
+    const userId = ls.getItem('userId');
+    const token = ls.getItem('token') || ls.getItem('authToken');
+    return Boolean(userId && token);
+  }),
+  fetchWithAuth: vi.fn(),
+}));
+
 import { getUserAuthState, isProviderAccountInStorage, isOperatorAccountInStorage } from './userAuthState.js';
 
 function installLocalStorageMock(seed = {}) {
