@@ -9,6 +9,7 @@ import logging
 import asyncio
 from pathlib import Path
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -166,6 +167,76 @@ async def timer_scheduler():
             logger.error(f"Error en timer scheduler: {e}")
         await asyncio.sleep(interval)
 
+
+def _daily_report_scheduler_interval_sec() -> float:
+    """Intervalo para intentar envío diario. Default 1h."""
+    raw = os.environ.get("MAQGO_DAILY_REPORT_SCHEDULER_INTERVAL_SECONDS", "3600").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 3600.0
+    # evitar loops agresivos por mala config
+    return max(300.0, value)
+
+
+def _daily_report_send_hour_chile() -> int:
+    raw = os.environ.get("MAQGO_DAILY_REPORT_CHILE_HOUR", "8").strip()
+    try:
+        hour = int(raw)
+    except ValueError:
+        hour = 8
+    if hour < 0:
+        return 0
+    if hour > 23:
+        return 23
+    return hour
+
+
+def _daily_report_enabled() -> bool:
+    return parse_bool_env("MAQGO_DAILY_REPORT_ENABLED", True)
+
+
+async def daily_report_scheduler():
+    """
+    Scheduler best-effort para reporte diario por email.
+    Envía una vez por día UTC usando routes.admin_reports.send_daily_report_email_auto.
+    """
+    if not _daily_report_enabled():
+        logger.info("📧 Daily report scheduler deshabilitado por configuración")
+        return
+
+    interval = _daily_report_scheduler_interval_sec()
+    target_hour = _daily_report_send_hour_chile()
+    chile_tz = ZoneInfo("America/Santiago")
+    logger.info(
+        "📧 Daily report scheduler iniciado (intervalo=%ss, hora_chile=%s)",
+        interval,
+        target_hour,
+    )
+    last_sent_day_key = None
+
+    while True:
+        try:
+            now = datetime.now(chile_tz)
+            day_key = now.strftime("%Y-%m-%d")
+            if now.hour >= target_hour and day_key != last_sent_day_key:
+                try:
+                    from routes.admin_reports import send_daily_report_email_auto
+
+                    result = await send_daily_report_email_auto(days_ago=0)
+                    status = result.get("status")
+                    if status == "sent":
+                        last_sent_day_key = day_key
+                        logger.info("📧 Daily report enviado (%s)", day_key)
+                    else:
+                        logger.warning("📧 Daily report no enviado (%s): %s", day_key, result)
+                except Exception as e:
+                    logger.warning("📧 Daily report scheduler error: %s", e)
+        except Exception as e:
+            logger.warning("📧 Daily report scheduler loop error: %s", e)
+
+        await asyncio.sleep(interval)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager para la aplicación"""
@@ -195,13 +266,22 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Timer scheduler no iniciado (continuando): {e}")
         scheduler_task = None
 
+    # Iniciar scheduler diario de reporte email (best-effort)
+    try:
+        daily_report_task = asyncio.create_task(daily_report_scheduler())
+        logger.info("Daily report scheduler iniciado")
+    except Exception as e:
+        logger.warning(f"Daily report scheduler no iniciado (continuando): {e}")
+        daily_report_task = None
+
     # Índices idempotencia + ledger + métricas persistentes (best-effort)
     try:
         from motor.motor_asyncio import AsyncIOMotorClient
         from db_config import get_db_name, get_mongo_url
         from services.idempotency import ensure_indexes as ensure_idempotency_indexes
 
-        _ic = AsyncIOMotorClient(get_mongo_url())
+        _ic = AsyncIOMotorClient(get_mongo_url(), serverSelectionTimeoutMS=3000)
+        await _ic.admin.command("ping")
         await ensure_idempotency_indexes(_ic[get_db_name()])
         logger.info("Índices de MongoDB creados")
     except Exception as e:
@@ -213,6 +293,9 @@ async def lifespan(app: FastAPI):
     if scheduler_task:
         scheduler_task.cancel()
         logger.info("Timer scheduler detenido")
+    if daily_report_task:
+        daily_report_task.cancel()
+        logger.info("Daily report scheduler detenido")
     logger.info("👋 MAQGO API detenida")
 
 # Create FastAPI app with lifespan

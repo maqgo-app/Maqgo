@@ -211,6 +211,22 @@ html, body, #root {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.13);
 }
 
+/*
+ * Frame visual para desktop (simulación dispositivo):
+ * - solo desde tablet/desktop
+ * - no afecta mobile real
+ */
+@media (min-width: var(--maqgo-breakpoint-mobile)) {
+  .maqgo-device-frame {
+    border-radius: 28px;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    box-shadow:
+      0 10px 26px rgba(0, 0, 0, 0.18),
+      0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+  }
+}
+
 /* Desktop: columna sobre --maqgo-bg-outer (#000); sumamos aro exterior para marcar el “teléfono” */
 @media (min-width: var(--maqgo-breakpoint-mobile)) {
   .maqgo-app:not(.welcome-desktop) {
@@ -1297,6 +1313,7 @@ a:focus-visible,
 @media (min-width: var(--maqgo-breakpoint-mobile)) {
   .maqgo-app-shell {
     min-height: 100vh;
+    background: #f5f5f5;
   }
   .maqgo-app-shell-inner {
     min-height: 100dvh;

@@ -22,7 +22,6 @@ from services.timer_service import TimerService
 from services.refund_request_service import RefundRequestService
 from services.idempotency import run_idempotent, get_tenant_id
 from services.payment_intent_service import PaymentIntentService, PI_PAYMENT_PENDING, PI_PROVIDER_ACCEPTED
-from services.payment_metrics_store import ensure_indexes as ensure_payment_metrics_indexes
 from services.payment_rollout import (
     idempotency_mode_header_value,
     persist_idempotency_key_resolution,
@@ -60,14 +59,6 @@ router = APIRouter(prefix="/service-requests", tags=["service_requests"])
 mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
-
-# Índices para rutas consultadas por polling:
-# - /pending filtra por status y currentOfferId
-# - /{request_id} usa find_one por id
-try:
-    ensure_payment_metrics_indexes(db)
-except Exception:
-    pass
 
 try:
     db.service_requests.create_index([("id", 1)])

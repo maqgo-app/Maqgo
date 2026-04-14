@@ -75,6 +75,16 @@ function getHydratedPhoneDigitsFromStorage() {
   }
 }
 
+function getOwnerAdminEmail() {
+  const envValue =
+    import.meta.env.VITE_OWNER_ADMIN_EMAIL ||
+    import.meta.env.REACT_APP_OWNER_ADMIN_EMAIL ||
+    '';
+  return String(envValue || '')
+    .trim()
+    .toLowerCase();
+}
+
 /**
  * Pantalla C8 - Login
  *
@@ -108,6 +118,7 @@ function LoginScreen({ setUserRole, setUserId }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [hasPersistedSession, setHasPersistedSession] = useState(false);
+  const ownerAdminEmail = getOwnerAdminEmail();
 
   useEffect(() => {
     if (!showEmailPasswordToggle && loginMode === 'email') {
@@ -345,9 +356,15 @@ function LoginScreen({ setUserRole, setUserId }) {
     setLoading(true);
     setError('');
     try {
+      const loginIdentifier = String(em || '').trim().toLowerCase();
+      if (redirectTo === '/admin' && ownerAdminEmail && loginIdentifier !== ownerAdminEmail) {
+        setError('Este correo no está habilitado para el panel admin.');
+        setLoading(false);
+        return;
+      }
       const res = await axios.post(
         `${BACKEND_URL}/api/auth/login`,
-        { identifier: em, password },
+        { identifier: loginIdentifier, password },
         { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
       );
       applySessionAndNavigate(res.data);

@@ -10,7 +10,7 @@ const DEFAULT_PROVIDER_STEPS = [
   { label: 'Datos empresa' },
   { label: 'Datos máquina' },
   { label: 'Fotos y tarifas' },
-  { label: 'Operador' },
+  { label: 'Operador (opcional)' },
   { label: 'Revisión' },
 ];
 
