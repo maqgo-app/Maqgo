@@ -405,25 +405,30 @@ function WelcomeScreen() {
         </main>
 
         <div style={{ textAlign: "center", marginTop: "20px" }}>
-  <div style={{
-  marginBottom: "18px",
-  fontSize: "14px"
-}}>
-  Iniciar sesión
-</div>
+
+  <div style={{ marginBottom: "18px" }}>
+    <a href="/login" style={{ color: "#ff6b00", fontSize: "14px", textDecoration: "none" }}>
+      Iniciar sesión
+    </a>
+  </div>
+
   <div style={{
     display: "flex",
     justifyContent: "center",
+    alignItems: "center",
     gap: "6px",
     fontSize: "12px",
     color: "#999"
   }}>
-    <span>FAQ</span>
+
+    <a href="/faq" style={{ color: "#999", textDecoration: "none" }}>FAQ</a>
     <span>·</span>
-    <span>Términos y Condiciones</span>
+    <a href="/terminos" style={{ color: "#999", textDecoration: "none" }}>Términos y Condiciones</a>
     <span>·</span>
-    <span>Política de Privacidad</span>
+    <a href="/privacidad" style={{ color: "#999", textDecoration: "none" }}>Política de Privacidad</a>
+
   </div>
+
 </div>
       </div>
 
