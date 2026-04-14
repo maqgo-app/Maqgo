@@ -167,25 +167,16 @@ function WelcomeScreen() {
       <div
         className={`maqgo-screen welcome-screen ${mounted ? 'welcome-mounted' : ''}`}
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          width: '100%',
-          maxWidth: '100%',
-          height: isDesktop ? '100vh' : '100dvh',
-          minHeight: isDesktop ? undefined : '100dvh',
-          maxHeight: isDesktop ? undefined : '100dvh',
-          boxSizing: 'border-box',
-          /* Fondo: gradiente móvil / sólido desktop en maqgo.css (.maqgo-screen.welcome-screen) */
-          padding: isDesktop
-            ? `max(72px, env(safe-area-inset-top)) ${pad}px max(16px, env(safe-area-inset-bottom))`
-            : `max(${isShortViewport ? 6 : 12}px, env(safe-area-inset-top, 12px)) ${pad}px max(${isShortViewport ? 6 : 10}px, env(safe-area-inset-bottom, 10px))`,
-          /* Sin scroll: vista fija en viewport; isShortViewport ya compacta hero/CTAs */
-          overflowX: 'hidden',
-          overflowY: 'hidden',
-          overscrollBehavior: 'none',
-          /* Fondo/opacidad del contenedor siempre 1: el stagger va en .welcome-reveal (evita parpadeo “pantalla vacía”) */
-          opacity: 1,
-          transition: 'none'
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "space-between",
+          minHeight: "100vh",
+          padding: "24px",
+          margin: "0 auto",
+          maxWidth: "420px",
+          border: "1px solid rgba(0,0,0,0.06)",
+          borderRadius: "24px"
         }}
       >
         {/* Hero - compacto en viewports cortos */}
@@ -207,14 +198,14 @@ function WelcomeScreen() {
               ['--welcome-d']: '0ms',
             }}
           >
-            <MaqgoLogo customSize={logoSize} style={{ marginBottom: isShortViewport ? Math.min(heroLogoBottom, 12) : heroLogoBottom }} />
+            <MaqgoLogo customSize={logoSize} style={{ marginTop: "32px", marginBottom: "16px" }} />
           </div>
           <div
             className="welcome-hero-caluga welcome-reveal"
             style={{
               ['--welcome-d']: '35ms',
               marginTop: isDesktop ? -4 : -6,
-              marginBottom: isDesktop ? 22 : (isShortViewport ? 14 : (isNarrowMobile ? 18 : 20)),
+              marginBottom: "24px",
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -262,6 +253,7 @@ function WelcomeScreen() {
             fontWeight: 600,
             color: '#FAFAFA',
             margin: 0,
+            marginBottom: "16px",
             lineHeight: 1.18,
             letterSpacing: '-0.028em',
             maxWidth: '100%',
@@ -412,43 +404,24 @@ function WelcomeScreen() {
           )}
         </main>
 
-        {/* Footer - compacto en viewports cortos */}
-        <footer
-          className="welcome-reveal"
-          style={{
-            ['--welcome-d']: '410ms',
-            flexShrink: 0,
-            display: 'flex',
-            flexDirection: isDesktop ? 'row' : 'column',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: isShortViewport ? 4 : (isDesktop ? (isNarrowMobile ? '8px 12px' : '12px 20px') : 8),
-            paddingTop: isDesktop ? 40 : (isShortViewport ? 22 : (isNarrowMobile ? 28 : 32)),
-            paddingBottom: isShortViewport ? 8 : 12,
-            marginTop: 'auto',
-            borderTop: '1px solid rgba(255,255,255,0.045)'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: isNarrowMobile ? '6px 10px' : '8px 14px', fontSize: isNarrowMobile ? 14 : 15 }}>
-            <button
-              type="button"
-              onClick={handleAccount}
-              className="welcome-footer-btn welcome-footer-btn-primary"
-              data-testid={hasSession ? 'welcome-mi-cuenta-btn' : 'login-btn'}
-              aria-label={hasSession ? 'Ir a mi cuenta o panel' : 'Iniciar sesión'}
-            >
-              {hasSession ? 'Mi cuenta' : 'Iniciar sesión'}
-            </button>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: isNarrowMobile ? '6px 10px' : '8px 14px', fontSize: isNarrowMobile ? 13 : 14 }}>
-            <button type="button" onClick={() => navigate('/faq')} className="welcome-footer-btn" aria-label="Preguntas frecuentes">FAQ</button>
-            <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }} aria-hidden="true">·</span>
-            <button type="button" onClick={() => navigate('/terms')} className="welcome-footer-btn" aria-label="Términos y condiciones">Términos y Condiciones</button>
-            <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }} aria-hidden="true">·</span>
-            <button type="button" onClick={() => navigate('/privacy')} className="welcome-footer-btn" aria-label="Política de privacidad">Política de Privacidad</button>
-          </div>
-        </footer>
+        <div style={{ textAlign: "center", marginTop: "20px" }}>
+  <div style={{ marginBottom: "10px", fontSize: "14px" }}>
+    Iniciar sesión
+  </div>
+  <div style={{
+    display: "flex",
+    justifyContent: "center",
+    gap: "6px",
+    fontSize: "12px",
+    color: "#999"
+  }}>
+    <span>FAQ</span>
+    <span>·</span>
+    <span>Términos y Condiciones</span>
+    <span>·</span>
+    <span>Política de Privacidad</span>
+  </div>
+</div>
       </div>
 
       <style>{`

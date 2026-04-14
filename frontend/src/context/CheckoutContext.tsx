@@ -82,3 +82,11 @@ export function useCheckoutState(): CheckoutContextValue {
   }
   return ctx;
 }
+
+export function useCheckout(): CheckoutContextValue {
+  const ctx = useContext(CheckoutContext);
+  if (!ctx) {
+    throw new Error('useCheckout debe usarse dentro de CheckoutProvider');
+  }
+  return ctx;
+}
