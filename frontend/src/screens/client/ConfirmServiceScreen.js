@@ -441,7 +441,7 @@ function ConfirmServiceScreen() {
           >
             <BackArrowIcon style={{ color: '#fff' }} />
           </button>
-          <div style={{ flex: 1 }}><MaqgoLogo size="small" /></div>
+          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}><MaqgoLogo size="small" /></div>
           
         </div>
 
