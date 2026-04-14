@@ -670,6 +670,7 @@ function MachineDataScreen() {
   const [inlineLoading, setInlineLoading] = useState(false);
   const [inlineError, setInlineError] = useState('');
   const [inlineReady, setInlineReady] = useState(() => hasProviderRoleInStorage());
+  const [previewReady, setPreviewReady] = useState(false);
 
   useLayoutEffect(() => {
     const editMode = Boolean(id && location.pathname.includes('edit-machine'));
@@ -682,6 +683,16 @@ function MachineDataScreen() {
   useEffect(() => {
     if (!isAddMachineEntry || isEditMode) return;
     if (mfStep === 3) setStepHint('');
+  }, [isAddMachineEntry, isEditMode, mfStep]);
+
+  useEffect(() => {
+    if (!isAddMachineEntry || isEditMode) return undefined;
+    if (mfStep !== 3) {
+      setPreviewReady(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setPreviewReady(true), 180);
+    return () => window.clearTimeout(timer);
   }, [isAddMachineEntry, isEditMode, mfStep]);
 
   useLayoutEffect(() => {
@@ -1358,57 +1369,213 @@ function MachineDataScreen() {
           )}
 
           {mfStep === 3 && (
-            <div>
+            <div style={{ animation: previewReady ? 'mqFadeUp 220ms ease-out' : 'none' }}>
+              {!previewReady ? (
+                <div
+                  aria-label="Cargando vista previa de publicación"
+                  style={{
+                    borderRadius: 14,
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    background: 'rgba(255,255,255,0.04)',
+                    padding: 14,
+                    marginBottom: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      height: 14,
+                      width: '40%',
+                      borderRadius: 8,
+                      marginBottom: 10,
+                      background:
+                        'linear-gradient(90deg, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.08) 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'mqSkeletonPulse 1.2s ease-in-out infinite',
+                    }}
+                  />
+                  <div
+                    style={{
+                      height: 12,
+                      width: '72%',
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      background:
+                        'linear-gradient(90deg, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.08) 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'mqSkeletonPulse 1.2s ease-in-out infinite',
+                    }}
+                  />
+                  <div
+                    style={{
+                      height: 12,
+                      width: '54%',
+                      borderRadius: 8,
+                      background:
+                        'linear-gradient(90deg, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.08) 75%)',
+                      backgroundSize: '200% 100%',
+                      animation: 'mqSkeletonPulse 1.2s ease-in-out infinite',
+                    }}
+                  />
+                </div>
+              ) : null}
+              <div
+                style={{
+                  background: 'linear-gradient(180deg, rgba(236, 104, 25, 0.16) 0%, rgba(236, 104, 25, 0.08) 100%)',
+                  border: '1px solid rgba(236, 104, 25, 0.35)',
+                  borderRadius: 14,
+                  padding: '14px 16px',
+                  marginBottom: 12,
+                }}
+              >
+                <p style={{ color: '#EC6819', fontSize: 12, fontWeight: 700, margin: '0 0 6px', letterSpacing: 0.3 }}>
+                  VISTA PREVIA
+                </p>
+                <p
+                  style={{
+                    color: '#fff',
+                    fontSize: 17,
+                    fontWeight: 700,
+                    margin: '0 0 4px',
+                    fontFamily: "'Space Grotesk', sans-serif",
+                  }}
+                >
+                  Tu publicación está lista
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: 0, lineHeight: 1.4 }}>
+                  Revisa los datos clave antes de publicar.
+                </p>
+              </div>
+
               <div
                 className="maqgo-machine-review-card"
                 style={{
                   background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.08)',
                   borderRadius: 14,
                   padding: 16,
-                  marginBottom: 16,
+                  marginBottom: 12,
                   fontSize: 14,
                   color: 'rgba(255,255,255,0.92)',
                   lineHeight: 1.5,
                 }}
               >
-                <div>
-                  <strong>Tipo:</strong> {typeLabel}
-                </div>
-                <div>
-                  <strong>Marca / modelo:</strong>{' '}
-                  {[form.brand, form.model].filter(Boolean).join(' ') || '—'}
-                </div>
-                {form.year ? (
-                  <div>
-                    <strong>Año:</strong> {form.year}
+                <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 10px' }}>
+                  Ficha de máquina
+                </p>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Tipo</span>
+                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{typeLabel}</span>
                   </div>
-                ) : null}
-                {capacitySummaryLine ? (
-                  <div>
-                    <strong>{getProviderSpecLabel(form.machineryType)}:</strong> {capacitySummaryLine}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Marca / modelo</span>
+                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 600, textAlign: 'right' }}>
+                      {[form.brand, form.model].filter(Boolean).join(' ') || '—'}
+                    </span>
                   </div>
-                ) : null}
-                <div>
-                  <strong>Patente:</strong> {form.licensePlate || '—'}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Patente</span>
+                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, textAlign: 'right' }}>{form.licensePlate || '—'}</span>
+                  </div>
+                  {form.year ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                      <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Año</span>
+                      <span style={{ color: '#fff', fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{form.year}</span>
+                    </div>
+                  ) : null}
+                  {capacitySummaryLine ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                      <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
+                        {getProviderSpecLabel(form.machineryType)}
+                      </span>
+                      <span style={{ color: '#fff', fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{capacitySummaryLine}</span>
+                    </div>
+                  ) : null}
                 </div>
-                <div>
-                  <strong>Fotos:</strong>{' '}
-                  {mfPhotos.length > 0 ? `${mfPhotos.length} cargada(s)` : 'ninguna (opcional)'}
+
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '0 0 8px' }}>
+                    Fotos ({mfPhotos.length > 0 ? `${mfPhotos.length} cargada${mfPhotos.length > 1 ? 's' : ''}` : 'ninguna'})
+                  </p>
+                  {mfPhotos.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                      {mfPhotos.slice(0, 3).map((photo, idx) => {
+                        const src = typeof photo === 'string' ? photo : photo?.url;
+                        const label =
+                          typeof photo === 'object' && photo?.label ? photo.label : `Foto ${idx + 1}`;
+                        if (!src) return null;
+                        return (
+                          <div
+                            key={`${label}-${idx}`}
+                            style={{
+                              borderRadius: 8,
+                              overflow: 'hidden',
+                              border: '1px solid rgba(255,255,255,0.12)',
+                              background: '#2A2A2A',
+                            }}
+                          >
+                            <img
+                              src={src}
+                              alt={label}
+                              style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, margin: 0 }}>
+                      Puedes publicar sin fotos. Luego podrás agregarlas desde Mis máquinas.
+                    </p>
+                  )}
                 </div>
-                <div>
-                  <strong>Precio:</strong>{' '}
-                  {priceBaseNumWizard
-                    ? `${priceBaseNumWizard.toLocaleString('es-CL')} CLP${isPerHourW ? '/h' : ''}`
-                    : '—'}
+              </div>
+
+              <div
+                style={{
+                  background: 'rgba(144, 189, 211, 0.09)',
+                  border: '1px solid rgba(144, 189, 211, 0.28)',
+                  borderRadius: 14,
+                  padding: 16,
+                  marginBottom: 16,
+                }}
+              >
+                <p style={{ color: '#90BDD3', fontSize: 12, fontWeight: 700, margin: '0 0 8px', letterSpacing: 0.3 }}>
+                  TARIFAS PUBLICADAS
+                </p>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 8,
+                  }}
+                >
+                  <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13 }}>
+                    {isPerHourW ? 'Precio por hora' : 'Precio por servicio'}
+                  </span>
+                  <span style={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>
+                    {priceBaseNumWizard
+                      ? `${priceBaseNumWizard.toLocaleString('es-CL')} CLP${isPerHourW ? '/h' : ''}`
+                      : '—'}
+                  </span>
                 </div>
                 {needsTransportW ? (
-                  <div>
-                    <strong>Traslado:</strong>{' '}
-                    {transportNumW
-                      ? `${transportNumW.toLocaleString('es-CL')} CLP`
-                      : '—'}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                    <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13 }}>Traslado</span>
+                    <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
+                      {transportNumW ? `${transportNumW.toLocaleString('es-CL')} CLP` : '—'}
+                    </span>
                   </div>
-                ) : null}
+                ) : (
+                  <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 12, margin: 0 }}>
+                    Esta máquina no utiliza costo de traslado.
+                  </p>
+                )}
+                <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.35 }}>
+                  Podrás editar precios, fotos y disponibilidad después de publicar.
+                </p>
               </div>
 
               {!hasProviderRoleInStorage() ? (
@@ -1489,6 +1656,26 @@ function MachineDataScreen() {
             </button>
           )}
         </div>
+        <style>{`
+          @keyframes mqFadeUp {
+            from {
+              opacity: 0;
+              transform: translateY(8px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          @keyframes mqSkeletonPulse {
+            0% {
+              background-position: 200% 0;
+            }
+            100% {
+              background-position: -200% 0;
+            }
+          }
+        `}</style>
       </div>
     );
   }
