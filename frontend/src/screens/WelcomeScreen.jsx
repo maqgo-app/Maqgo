@@ -198,7 +198,7 @@ function WelcomeScreen() {
               ['--welcome-d']: '0ms',
             }}
           >
-            <MaqgoLogo customSize={logoSize} style={{ marginTop: "32px", marginBottom: "16px" }} />
+            <MaqgoLogo customSize={logoSize} style={{ marginTop: window.innerWidth < 768 ? "12px" : "32px", marginBottom: "16px" }} />
           </div>
           <div
             className="welcome-hero-caluga welcome-reveal"
@@ -418,26 +418,27 @@ function WelcomeScreen() {
 
   <div style={{ marginBottom: "18px" }}>
     <a href="/login" style={{
-      color: "#EC6819",
+      color: "#FF6B00",
       fontSize: "14px",
-      textDecoration: "none",
-      fontWeight: "500"
+      textDecoration: "none"
     }}>
       Iniciar sesión
     </a>
   </div>
 
   <div style={{
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: "6px",
-  fontSize: "12px",
-  color: "#999"
-}}>
+    display: "flex",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: "6px",
+    fontSize: "12px",
+    color: "#999"
+  }}>
 
     <a href="/faq" style={{ color: "#999", textDecoration: "none" }}>FAQ</a>
+    <span>·</span>
     <a href="/terminos" style={{ color: "#999", textDecoration: "none" }}>Términos y Condiciones</a>
+    <span>·</span>
     <a href="/privacidad" style={{ color: "#999", textDecoration: "none" }}>Política de Privacidad</a>
 
   </div>
