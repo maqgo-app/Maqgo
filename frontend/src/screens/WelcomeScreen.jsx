@@ -204,7 +204,7 @@ function WelcomeScreen() {
             className="welcome-hero-caluga welcome-reveal"
             style={{
               ['--welcome-d']: '35ms',
-              marginTop: isDesktop ? -4 : -6,
+              marginTop: "16px",
               marginBottom: "24px",
               display: 'inline-flex',
               alignItems: 'center',
@@ -405,9 +405,12 @@ function WelcomeScreen() {
         </main>
 
         <div style={{ textAlign: "center", marginTop: "20px" }}>
-  <div style={{ marginBottom: "10px", fontSize: "14px" }}>
-    Iniciar sesión
-  </div>
+  <div style={{
+  marginBottom: "18px",
+  fontSize: "14px"
+}}>
+  Iniciar sesión
+</div>
   <div style={{
     display: "flex",
     justifyContent: "center",
