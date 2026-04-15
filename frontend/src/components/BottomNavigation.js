@@ -289,18 +289,39 @@ export function ProviderNavigation() {
  * Componente que detecta el rol y muestra la navegación correcta
  */
 function BottomNavigation() {
-  const userRole = localStorage.getItem('userRole') || 'client';
+  const role = localStorage.getItem('role');
 
-  // Admin no usa la barra de cliente/proveedor (evita “Inicio” → /client/home por error).
-  if (userRole === 'admin') {
+  if (!role) return null;
+
+  const menus = {
+    client: [
+      { label: "Inicio", path: "/client/home" },
+      { label: "Reservas", path: "/client/bookings" },
+      { label: "Perfil", path: "/client/profile" }
+    ],
+    provider: [
+      { label: "Inicio", path: "/provider/home" },
+      { label: "Máquinas", path: "/provider/machines" },
+      { label: "Perfil", path: "/provider/profile" }
+    ]
+  };
+
+  const menu = menus[role] || [];
+
+  // Admin no usa la barra de cliente/proveedor
+  if (role === 'admin') {
     return null;
   }
 
-  if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager') {
+  if (role === 'provider') {
     return <ProviderNavigation />;
   }
 
-  return <ClientNavigation />;
+  if (role === 'client') {
+    return <ClientNavigation />;
+  }
+
+  return null;
 }
 
 export default BottomNavigation;

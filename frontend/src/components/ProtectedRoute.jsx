@@ -42,6 +42,7 @@ function isPublicPath(pathname) {
 function ProtectedRoute() {
   const location = useLocation();
   const pathname = location.pathname;
+  const role = localStorage.getItem('role');
 
   if (isPublicPath(pathname)) {
     return <Outlet />;
@@ -52,6 +53,20 @@ function ProtectedRoute() {
     // enviar a /login y al loguearse redirigir al destino original.
     traceRedirectToLogin('src/components/ProtectedRoute.jsx');
     return <Navigate to="/login" state={{ from: pathname, redirect: pathname }} replace />;
+  }
+
+  // Validación estricta de rol - evitar rutas cruzadas
+  if (role) {
+    const isClientPath = pathname.startsWith('/client/');
+    const isProviderPath = pathname.startsWith('/provider/');
+    
+    if (role === 'client' && isProviderPath) {
+      return <Navigate to="/client/home" replace />;
+    }
+    
+    if (role === 'provider' && isClientPath) {
+      return <Navigate to="/provider/home" replace />;
+    }
   }
 
   return <Outlet />;
