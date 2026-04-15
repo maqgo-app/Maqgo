@@ -437,20 +437,20 @@ function WelcomeScreen() {
 
     <a href="/faq" target="_blank" rel="noopener noreferrer" style={{ color: "#999", textDecoration: "none" }}>FAQ</a>
     <span>·</span>
-    <a href="https://www.maqgo.cl/terminos.html" target="_blank" rel="noopener noreferrer" style={{ color: "#999", textDecoration: "none" }}>Términos y Condiciones</a>
+    <a href="/terminos.html" target="_blank" rel="noopener noreferrer" style={{ color: "#999", textDecoration: "none" }}>Términos y Condiciones</a>
     <span>·</span>
-    <a href="https://www.maqgo.cl/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ color: "#999", textDecoration: "none" }}>Política de Privacidad</a>
+    <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ color: "#999", textDecoration: "none" }}>Política de Privacidad</a>
 
   </div>
 
   <div style={{ marginTop: "40px", textAlign: "center" }}>
     <p style={{ fontSize: "12px", color: "#888" }}>
       Al continuar aceptas nuestros{" "}
-      <a href="https://www.maqgo.cl/terminos.html" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>
+      <a href="/terminos.html" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>
         Términos y Condiciones
       </a>{" "}
       y{" "}
-      <a href="https://www.maqgo.cl/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>
+      <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>
         Política de Privacidad
       </a>
     </p>
