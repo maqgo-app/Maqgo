@@ -443,6 +443,19 @@ function WelcomeScreen() {
 
   </div>
 
+  <div style={{ marginTop: "40px", textAlign: "center" }}>
+    <p style={{ fontSize: "12px", color: "#888" }}>
+      Al continuar aceptas nuestros{" "}
+      <a href="/terminos" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>
+        Términos y Condiciones
+      </a>{" "}
+      y{" "}
+      <a href="/privacidad" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>
+        Política de Privacidad
+      </a>
+    </p>
+  </div>
+
 </div>
       </div>
 
