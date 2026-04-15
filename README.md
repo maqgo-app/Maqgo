@@ -1,12 +1,8 @@
 # MAQGO - Marketplace de Maquinaria Pesada :tractor:
 
-**ADVERTENCIA CRÍTICA - CONFIGURACIÓN VERCEL:**
 IMPORTANTE:
-Este proyecto usa Vercel con configuración fija en el dashboard.
-NO modificar vercel.json bajo ninguna circunstancia.
-NO mover la carpeta /frontend.
-NO crear index.html en la raíz del proyecto.
-Todo el frontend vive en /frontend y el build genera /frontend/dist.
+Este proyecto usa Vercel con configuración fija en vercel.json.
+No modificar estructura ni rutas de build.
 Cualquier cambio debe respetar que el deploy se construye desde /frontend.
 
 **Trabajo local:** esta carpeta **`Maqgo/`** es la que debés conservar; el remoto es **`maqgo-app/Maqgo`**. Carpetas duplicadas (`Maqgo1-main`, etc.) son opcionales — si borrás una copia extra, no perdés el proyecto mientras tengas el repo en GitHub y clones de nuevo cuando quieras.
