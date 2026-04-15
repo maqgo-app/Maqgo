@@ -443,8 +443,22 @@ function WelcomeScreen() {
 
   </div>
 
-  <div style={{ marginTop: "40px", textAlign: "center" }}>
-    <p style={{ fontSize: "12px", color: "#888" }}>
+  <div style={{
+    marginTop: "50px",
+    textAlign: "center",
+    fontSize: "12px",
+    color: "#666",
+    lineHeight: "1.6"
+  }}>
+    <p style={{ marginBottom: "8px" }}>
+      Arriendo de maquinaria pesada con operadores verificados.
+    </p>
+
+    <p style={{ marginBottom: "8px" }}>
+      Plataforma segura con validación de disponibilidad en tiempo real.
+    </p>
+
+    <p style={{ marginBottom: "12px" }}>
       Al continuar aceptas nuestros{" "}
       <a href="/terminos.html" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>
         Términos y Condiciones
@@ -453,6 +467,10 @@ function WelcomeScreen() {
       <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>
         Política de Privacidad
       </a>
+    </p>
+
+    <p style={{ fontSize: "11px", color: "#999" }}>
+      © MAQGO {new Date().getFullYear()}
     </p>
   </div>
 
