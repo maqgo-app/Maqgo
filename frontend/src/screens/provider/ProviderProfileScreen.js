@@ -85,7 +85,19 @@ function ProviderProfileScreen() {
 
   const handleLogout = () => {
     clearAuthSessionPreservingDraft();
-    navigate('/');
+    const role = localStorage.getItem('userRole');
+    console.log("LOGOUT - CURRENT ROLE:", role);
+    
+    if (role === 'client') {
+      navigate('/client/service-location');
+    } else if (role === 'provider' || role === 'owner' || role === 'manager') {
+      const providerRole = localStorage.getItem('providerRole');
+      navigate(providerRole === 'operator' ? '/operator/home' : '/provider/home');
+    } else if (role === 'admin') {
+      navigate('/admin');
+    } else {
+      navigate('/login');
+    }
   };
 
   return (

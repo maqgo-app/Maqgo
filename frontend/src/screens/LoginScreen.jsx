@@ -231,10 +231,16 @@ function LoginScreen({ setUserRole, setUserId }) {
       );
       return false;
     }
+    console.log("LOGIN SUCCESS - SETTING ROLE:", effectiveRole);
+    console.log("LOGIN SUCCESS - USER ID:", uid);
+    console.log("LOGIN SUCCESS - ROLES FROM BACKEND:", roles);
+    
     setUserRole(effectiveRole);
     setUserId(uid);
     localStorage.setItem('userRole', effectiveRole);
     localStorage.setItem('userRoles', JSON.stringify(roles));
+    
+    console.log("LOGIN SUCCESS - ROLE STORED IN LOCALSTORAGE:", localStorage.getItem('userRole'));
     if (roles.includes('provider')) {
       localStorage.setItem('providerRole', data.provider_role || 'super_master');
     } else {

@@ -43,12 +43,11 @@ function LegacyVerifiedToSelectRole() {
   } catch {
     /* ignore */
   }
-  return <Navigate to="/select-role" replace state={state} />;
+  return <Navigate to="/login" replace state={state} />;
 }
 
 // Code-splitting: pantallas se cargan bajo demanda (menor bundle inicial, carga más rápida)
 // Públicas
-const RoleSelection = lazy(() => import('./screens/RoleSelection'));
 const ServiceChatScreen = lazy(() => import('./screens/ServiceChatScreen.jsx'));
 
 // Cliente
@@ -193,8 +192,7 @@ function AppContent() {
           path="/verify-sms"
           element={<AppNavigateToLogin trace="src/App.jsx (Route path=/verify-sms)" />}
         />
-        <Route path="/verified" element={<LegacyVerifiedToSelectRole />} />
-        <Route path="/select-role" element={<RoleSelection setUserRole={setUserRole} setUserId={setUserId} />} />
+        <Route path="/verified" element={<AppNavigateToLogin trace="src/App.jsx (Route path=/verified)" />} />
         <Route
           path="/code-expired"
           element={<AppNavigateToLogin trace="src/App.jsx (legacy /code-expired)" />}

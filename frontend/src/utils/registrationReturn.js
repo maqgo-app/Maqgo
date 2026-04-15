@@ -16,7 +16,7 @@ export function saveReturnUrl(currentPath) {
   // Don't save registration flow paths
   const excludedPaths = [
     '/register', '/login',
-    '/verified', '/select-role', '/code-expired', '/code-incorrect',
+    '/verified', '/code-expired', '/code-incorrect',
     '/provider/data', '/provider/machine-data', '/provider/machine-photos',
     '/provider/machine-photos-pricing', '/provider/pricing', '/provider/operator-data', '/provider/review',
     '/'

@@ -16,7 +16,6 @@ const PUBLIC_PATHS = [
   '/forgot-password',
   '/verify-sms',
   '/verified',
-  '/select-role',
   '/code-expired',
   '/code-incorrect',
   '/provider/register',

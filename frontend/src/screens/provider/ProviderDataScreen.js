@@ -102,7 +102,7 @@ function ProviderDataScreen() {
 
   const handleBack = () => {
     const cameFromWelcome = localStorage.getItem('providerCameFromWelcome');
-    navigate(cameFromWelcome ? '/' : '/select-role');
+    navigate(cameFromWelcome ? '/' : '/login');
   };
 
   const isValid = form.businessName && form.rut && validateRut(form.rut) && form.giro && form.comuna && form.address;

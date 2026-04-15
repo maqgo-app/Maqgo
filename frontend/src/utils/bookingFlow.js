@@ -212,7 +212,7 @@ function getServiceLocationBackRoute() {
  * Rutas de retroceso para onboarding proveedor.
  */
 export const PROVIDER_ONBOARDING_BACK_ROUTES = {
-  '/provider/data': '/select-role',
+  '/provider/data': '/login',
   '/provider/machine-data': '/provider/data',
   '/provider/machine-photos-pricing': '/provider/machine-data',
   '/provider/machine-photos': '/provider/machine-data',

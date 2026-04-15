@@ -98,17 +98,25 @@ function goToHome(navigate) {
   const userRole = localStorage.getItem('userRole');
   const userId = localStorage.getItem('userId');
   const providerRole = localStorage.getItem('providerRole');
+  
+  console.log("CURRENT ROLE (goToHome):", userRole);
+  console.log("CURRENT USER ID:", userId);
+  
   if (!userId || !userRole) {
+    console.log("NO USER ID OR ROLE - redirecting to welcome");
     navigate('/welcome');
     return;
   }
   if (userRole === 'admin') {
+    console.log("ADMIN ROLE - redirecting to /admin");
     navigate('/admin');
     return;
   }
   if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager') {
+    console.log("PROVIDER ROLE - redirecting to provider home");
     navigate(providerRole === 'operator' ? '/operator/home' : getProviderLandingPath());
   } else {
+    console.log("CLIENT ROLE - redirecting to /client/home");
     navigate('/client/home');
   }
 }
