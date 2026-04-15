@@ -437,13 +437,13 @@ function WelcomeScreen() {
     fontSize: "12px",
     color: "#666"
   }}>
-    <a href="/faq" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1 }}>FAQ</a>
+    <a href="/faq" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>FAQ</a>
 
-    <a href="/terminos.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1 }}>
+    <a href="/terminos.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>
       Términos y Condiciones
     </a>
 
-    <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1 }}>
+    <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>
       Políticas de Privacidad
     </a>
   </div>
@@ -473,14 +473,7 @@ function WelcomeScreen() {
     </p>
 
     <p style={{ marginBottom: "12px" }}>
-      Al continuar aceptas nuestros{" "}
-      <a href="/terminos.html" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>
-        Términos y Condiciones
-      </a>{" "}
-      y{" "}
-      <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>
-        Política de Privacidad
-      </a>
+      Al continuar aceptas nuestros Términos y Condiciones y Política de Privacidad
     </p>
 
     <p style={{
