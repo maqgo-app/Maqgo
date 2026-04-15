@@ -121,6 +121,10 @@ export function getMachineryId(displayOrId) {
 /** true si la maquinaria corresponde a cobro por viaje (id o nombre visible). Lista: machineryConstants.MACHINERY_PER_SERVICE. */
 export function isPerTripMachineryType(displayOrId) {
   const id = getMachineryId(displayOrId);
+  console.log("Machinery:", displayOrId);
+  console.log("ID resolved:", id);
+  console.log("MACHINERY_PER_SERVICE:", MACHINERY_PER_SERVICE);
+  console.log("isPerTrip:", Boolean(id && MACHINERY_PER_SERVICE.includes(id)));
   return Boolean(id && MACHINERY_PER_SERVICE.includes(id));
 }
 

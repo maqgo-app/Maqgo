@@ -426,27 +426,36 @@ function WelcomeScreen() {
     </a>
   </div>
 
-  <div style={{
+  <div className="footer-links-responsive" style={{
     width: "100%",
-    maxWidth: "900px",
+    maxWidth: "1000px",
     margin: "40px auto 0",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    flexWrap: "wrap",
+    gap: "24px",
     fontSize: "12px",
     color: "#666"
   }}>
-    <a href="/faq" style={{ whiteSpace: "nowrap", textDecoration: "none" }}>FAQ</a>
+    <a href="/faq" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1 }}>FAQ</a>
 
-    <a href="/terminos.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none" }}>
+    <a href="/terminos.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1 }}>
       Términos y Condiciones
     </a>
 
-    <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none" }}>
+    <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1 }}>
       Políticas de Privacidad
     </a>
   </div>
+
+  <style>{`
+    @media (max-width: 768px) {
+      .footer-links-responsive {
+        flex-direction: column !important;
+        gap: 12px !important;
+      }
+    }
+  `}</style>
 
   <div style={{
     marginTop: "50px",
@@ -474,8 +483,14 @@ function WelcomeScreen() {
       </a>
     </p>
 
-    <p style={{ fontSize: "11px", color: "#999" }}>
-      © MAQGO {new Date().getFullYear()}
+    <p style={{
+      marginTop: "24px",
+      textAlign: "center",
+      color: "rgba(255,255,255,0.5)",
+      fontSize: "12px",
+      fontWeight: "400"
+    }}>
+      © {new Date().getFullYear()} MAQGO · Todos los derechos reservados
     </p>
   </div>
 
