@@ -427,20 +427,25 @@ function WelcomeScreen() {
   </div>
 
   <div style={{
+    width: "100%",
+    maxWidth: "900px",
+    margin: "40px auto 0",
     display: "flex",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    alignItems: "center",
     flexWrap: "wrap",
-    gap: "6px",
     fontSize: "12px",
-    color: "#999"
+    color: "#666"
   }}>
+    <a href="/faq" style={{ whiteSpace: "nowrap", textDecoration: "none" }}>FAQ</a>
 
-    <a href="/faq" target="_blank" rel="noopener noreferrer" style={{ color: "#999", textDecoration: "none" }}>FAQ</a>
-    <span>·</span>
-    <a href="/terminos.html" target="_blank" rel="noopener noreferrer" style={{ color: "#999", textDecoration: "none" }}>Términos y Condiciones</a>
-    <span>·</span>
-    <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ color: "#999", textDecoration: "none" }}>Política de Privacidad</a>
+    <a href="/terminos.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none" }}>
+      Términos y Condiciones
+    </a>
 
+    <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none" }}>
+      Políticas de Privacidad
+    </a>
   </div>
 
   <div style={{
