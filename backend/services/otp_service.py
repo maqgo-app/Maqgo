@@ -132,7 +132,7 @@ def send_sms(phone: str, message: str) -> Tuple[bool, Optional[str]]:
             return False, "LabsMobile respuesta inválida"
 
         api_code = str(data.get("code", "")).strip()
-        api_message = str(data.get("message", "")).strip().lower()
+        api_message = f"{code}\n\nMAQGO - Código de verificación. Expira en 5 minutos."
         
         # Detectar errores aunque HTTP sea 200
         if api_code != "0" or "error" in api_message:
