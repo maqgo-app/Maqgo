@@ -75,6 +75,21 @@ function getHydratedPhoneDigitsFromStorage() {
   }
 }
 
+/** Correo+contraseña solo para proveedor ya enrolado por SMS OTP (o admin). */
+function canShowProviderEmailLogin() {
+  try {
+    const phoneVerified = localStorage.getItem('phoneVerified') === 'true';
+    const desiredRole = localStorage.getItem('desiredRole');
+    const userRole = localStorage.getItem('userRole');
+    const providerRole = localStorage.getItem('providerRole');
+    const isProviderRole =
+      desiredRole === 'provider' || userRole === 'provider' || !!providerRole;
+    return isProviderRole && phoneVerified;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Pantalla C8 - Login
  *
@@ -90,10 +105,9 @@ function LoginScreen({ setUserRole, setUserId }) {
   /** Quién abrió login: cliente desde welcome vs proveedor/admin (muestra acceso correo+clave). */
   const entry = location.state?.entry;
   /**
-   * Siempre visible: desde Welcome, "Iniciar sesión" entra como cliente (SMS). Quien se enroló como proveedor
-   * usa "Entrar con correo y contraseña". Deep links (admin, /provider/…) siguen siendo válidos.
+   * Correo+contraseña solo aparece para admin o proveedor ya enrolado por SMS OTP.
    */
-  const showEmailPasswordToggle = true;
+  const showEmailPasswordToggle = redirectTo === '/admin' || canShowProviderEmailLogin();
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
