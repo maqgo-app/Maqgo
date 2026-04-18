@@ -15,3 +15,11 @@ git ls-files | grep -E '\.env$|\.pem$' || true
 ```
 
 Si alguna vez se subió un secreto por error: rotar credencial, **y** considerar `git filter-repo` o soporte de GitHub para secret scanning; no es suficiente “borrar en el siguiente commit”.
+
+## Automatización recomendada en GitHub
+
+- Activar **Dependabot** para actualizaciones automáticas de dependencias (`npm`, `pip`, `github-actions`).
+- Mantener un workflow de **Security** con:
+  - `dependency-review-action` en Pull Requests.
+  - `CodeQL` para análisis estático de Python y JavaScript/TypeScript.
+- Revisar y resolver alertas de la pestaña **Security** de GitHub antes de mergear.
