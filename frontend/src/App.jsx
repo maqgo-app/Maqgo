@@ -179,15 +179,16 @@ function AppContent() {
       <div className="maqgo-app-shell-routes">
       <Suspense fallback={<BookingFlowFallback />}>
       <Routes>
-        <Route element={<ProtectedRoute />}>
         <Route path="/" element={<WelcomeScreen />} />
         <Route path="/welcome" element={<WelcomeScreen />} />
+        <Route path="/login" element={<LoginScreen setUserRole={setUserRole} setUserId={setUserId} />} />
+        <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
+        
+        <Route element={<ProtectedRoute />}>
         <Route
           path="/register"
           element={<AppNavigateToLogin trace="src/App.jsx (Route path=/register)" />}
         />
-        <Route path="/login" element={<LoginScreen setUserRole={setUserRole} setUserId={setUserId} />} />
-        <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
         <Route
           path="/verify-sms"
           element={<AppNavigateToLogin trace="src/App.jsx (Route path=/verify-sms)" />}

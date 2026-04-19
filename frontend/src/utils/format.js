@@ -9,11 +9,12 @@
  * @returns {string}
  */
 export function formatPrice(price) {
+  if (price === 0) return '$0';
   return new Intl.NumberFormat('es-CL', {
     style: 'currency',
     currency: 'CLP',
     maximumFractionDigits: 0
-  }).format(price || 0);
+  }).format(price || 0).replace('CLP', '$').trim();
 }
 
 /**

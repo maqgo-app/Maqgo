@@ -136,12 +136,16 @@ export function formatRut(rut) {
     formatted = '.' + body.slice(-3) + formatted;
     body = body.slice(0, -3);
   }
-  formatted = body + formatted;
+  
+  if (body.length > 0) {
+    formatted = body + formatted;
+  }
   
   // Add verifier if present
   if (clean.length > 1) {
     formatted += '-' + verifier;
   } else {
+    // Si solo hay un dígito, es el cuerpo inicial
     formatted = clean;
   }
   

@@ -261,13 +261,14 @@ function ConfirmServiceScreen() {
   // Mostrar fallback desde el primer render para evitar flash (layout estable)
   const displayPricing = pricing ?? fallbackPricing;
 
-  const formatPrice = (price) => {
+  const formatPriceLocal = (price) => {
     const n = price != null && !Number.isNaN(Number(price)) ? Number(price) : 0;
+    if (n === 0) return '$0';
     return new Intl.NumberFormat('es-CL', { 
       style: 'currency', 
       currency: 'CLP', 
       maximumFractionDigits: 0 
-    }).format(n);
+    }).format(n).replace('CLP', '$').trim();
   };
 
   // Best practice: si falla el backend de pricing, no bloqueamos el flujo.
@@ -620,7 +621,7 @@ function ConfirmServiceScreen() {
                 <>
                   <div
                     role="status"
-                    aria-label={`Rango estimado desde ${formatPrice(priceRange.min)} hasta ${formatPrice(priceRange.max)}`}
+                    aria-label={`Rango estimado desde ${formatPriceLocal(priceRange.min)} hasta ${formatPriceLocal(priceRange.max)}`}
                     style={{
                       display: 'flex',
                       flexWrap: 'wrap',
@@ -636,9 +637,9 @@ function ConfirmServiceScreen() {
                       textAlign: 'center'
                     }}
                   >
-                    <span style={{ flex: '0 1 auto' }}>{formatPrice(priceRange.min)}</span>
-                    <span style={{ opacity: 0.88, fontWeight: 600, fontSize: '0.55em', letterSpacing: 0.5 }}>–</span>
-                    <span style={{ flex: '0 1 auto' }}>{formatPrice(priceRange.max)}</span>
+                    <span style={{ flex: '0 1 auto' }}>{formatPriceLocal(priceRange.min)}</span>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 6px' }}>—</span>
+                    <span style={{ flex: '0 1 auto' }}>{formatPriceLocal(priceRange.max)}</span>
                   </div>
                   <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, margin: '0 0 8px', textAlign: 'center', lineHeight: 1.35 }}>
                     {PAYMENT_COPY.P5_INIT.priceCapNote}
@@ -657,7 +658,7 @@ function ConfirmServiceScreen() {
                       wordBreak: 'break-word'
                     }}
                   >
-                    {formatPrice(priceRange ? priceRange.min : totalFinal)}
+                    {formatPriceLocal(priceRange ? priceRange.min : totalFinal)}
                   </p>
                   <p
                     style={{
@@ -806,12 +807,12 @@ function ConfirmServiceScreen() {
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                     <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>{serviceModel === 'truck' ? getTruckUrgencySummaryLine(bookingUrgencyType) : isPerTrip ? 'Valor viaje' : `Servicio (${hoursToday}h)`}</span>
-                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.service_amount ?? displayPricing?.breakdown?.base_service ?? (isPerTrip ? (effectiveProvider?.price_per_hour ?? refTrip) : (effectiveProvider?.price_per_hour ?? refTrip) * hoursToday))}</span>
+                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(displayPricing?.service_amount ?? displayPricing?.breakdown?.base_service ?? (isPerTrip ? (effectiveProvider?.price_per_hour ?? refTrip) : (effectiveProvider?.price_per_hour ?? refTrip) * hoursToday))}</span>
                   </div>
                   {((displayPricing?.breakdown?.immediate_bonus || displayPricing?.immediate_bonus || 0) > 0) && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                       <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, minWidth: 0 }}>Alta demanda</span>
-                      <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.breakdown?.immediate_bonus || displayPricing?.immediate_bonus || 0)}</span>
+                      <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(displayPricing?.breakdown?.immediate_bonus || displayPricing?.immediate_bonus || 0)}</span>
                     </div>
                   )}
                 </>
@@ -822,18 +823,18 @@ function ConfirmServiceScreen() {
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                     <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>{serviceModel === 'truck' ? getTruckUrgencySummaryLine(bookingUrgencyType) : isPerTrip ? 'Hoy (viaje)' : `Hoy (${displayPricing.today.hours}h)`}</span>
-                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing.today.base_cost ?? (isPerTrip ? (effectiveProvider?.price_per_hour ?? refTrip) : (effectiveProvider?.price_per_hour ?? refTrip) * displayPricing.today.hours))}</span>
+                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(displayPricing.today.base_cost ?? (isPerTrip ? (effectiveProvider?.price_per_hour ?? refTrip) : (effectiveProvider?.price_per_hour ?? refTrip) * displayPricing.today.hours))}</span>
                   </div>
                   {((displayPricing.today.surcharge_amount || 0) > 0) && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                       <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, minWidth: 0 }}>Alta demanda</span>
-                      <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing.today.surcharge_amount || 0)}</span>
+                      <span style={{ color: 'var(--maqgo-orange)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(displayPricing.today.surcharge_amount || 0)}</span>
                     </div>
                   )}
                   {(displayPricing?.additional_days?.days > 0) && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                       <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>{isPerTrip ? `${displayPricing?.additional_days?.days} viaje${(displayPricing?.additional_days?.days || 0) > 1 ? 's' : ''} (1 por día) adicional${(displayPricing?.additional_days?.days || 0) > 1 ? 'es' : ''}` : `${displayPricing?.additional_days?.days} día${(displayPricing?.additional_days?.days || 0) > 1 ? 's' : ''} adicional${(displayPricing?.additional_days?.days || 0) > 1 ? 'es' : ''} (8h/día)`}</span>
-                      <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.additional_days?.total_cost || 0)}</span>
+                      <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(displayPricing?.additional_days?.total_cost || 0)}</span>
                     </div>
                   )}
                 </>
