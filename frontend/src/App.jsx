@@ -25,12 +25,7 @@ import BookingPaymentRouteStateBinding from './components/BookingPaymentRouteSta
 import BookingNavigationGuard from './components/BookingNavigationGuard';
 import { traceRedirectToLogin } from './utils/traceLoginRedirect';
 import { peekReturnUrl } from './utils/registrationReturn';
-
-/** Rutas legacy: traza y redirige al flujo actual (login SMS / mismo origen). */
-function AppNavigateToLogin({ trace, state }) {
-  traceRedirectToLogin(trace);
-  return <Navigate to="/login" replace state={state} />;
-}
+import { AppNavigateToLogin } from './components/AppNavigateToLogin';
 
 /** /verified (SMS ok) → selección de rol; sin pantalla intermedia. */
 function LegacyVerifiedToSelectRole() {
