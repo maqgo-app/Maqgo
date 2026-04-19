@@ -126,7 +126,7 @@ function ClientHome() {
               Inicio HOY
             </div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: 500, fontFamily: "'Inter', sans-serif", lineHeight: 1.3 }}>
-              Solicita maquinaria para que llegue a tu obra el mismo día.
+              Disponibilidad inmediata. Solo se cobra cuando un operador acepta tu solicitud.
             </div>
           </div>
 
@@ -197,7 +197,7 @@ function ClientHome() {
               Programar arriendo
             </div>
             <div style={{ fontSize: 13, color: 'rgba(250,250,250,0.7)', fontWeight: 500, fontFamily: "'Inter', sans-serif", lineHeight: 1.3 }}>
-              Reserva para mañana o fechas futuras.
+              Elige fecha y planifica con anticipación.
             </div>
           </div>
 

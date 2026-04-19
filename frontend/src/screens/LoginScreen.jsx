@@ -713,7 +713,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                   lineHeight: 1.5,
                 }}
               >
-                <strong>¡Identidad confirmada!</strong>
+                <strong>¡Celular verificado!</strong>
                 <br />
                 {stepUpEmailMasked && (
                   <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>

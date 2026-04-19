@@ -400,7 +400,7 @@ function ProviderHomeScreen() {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0 }}>
-              Pasos de activación
+              Estado de activación
             </p>
             <span style={{ 
               background: activationCompletedCount === activationItems.length ? 'rgba(76, 175, 80, 0.2)' : 'rgba(236, 104, 25, 0.2)',
@@ -461,10 +461,15 @@ function ProviderHomeScreen() {
                     {item.label}
                   </p>
                   {!item.ok && (
-                    <p style={{ color: '#EC6819', fontSize: 12, fontWeight: 500, margin: '2px 0 0' }}>
-                      Completar ahora →
+                    <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '2px 0 0' }}>
+                      {item.missingHint}
                     </p>
                   )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{ color: item.ok ? '#4CAF50' : '#F44336', fontSize: 12, fontWeight: 700 }}>
+                    {item.ok ? '✓' : '✕ Pendiente'}
+                  </span>
                 </div>
               </div>
             ))}
