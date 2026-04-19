@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState } from 'react';
-import { useNavigate, Navigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useNavigate, Navigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import MaqgoLogo from '../components/MaqgoLogo';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 import { useWelcomeLayout } from '../hooks/useWelcomeLayout';
