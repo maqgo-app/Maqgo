@@ -54,7 +54,7 @@ def _user_roles_list(doc: dict) -> list:
 
 class BecomeProviderBody(BaseModel):
     """Upgrade cliente → proveedor sobre el mismo user_id (sesión OTP/JWT)."""
-    email: EmailStr
+    email: Optional[EmailStr] = None
     password: str = Field(..., min_length=8, max_length=12)
     provider_data: Optional[Dict[str, Any]] = None
     celular: Optional[str] = None
@@ -263,13 +263,14 @@ async def become_provider(
             "providerData": fresh.get("providerData") if fresh else None,
         }
 
-    email_low = str(body.email).strip().lower()
-    other = await db.users.find_one({"email": email_low})
-    if other and other.get("id") != user_id:
-        raise HTTPException(
-            status_code=409,
-            detail="Este correo ya está registrado en otra cuenta. Usa otro correo o inicia sesión.",
-        )
+    email_low = str(body.email).strip().lower() if body.email else None
+    if email_low:
+        other = await db.users.find_one({"email": email_low})
+        if other and other.get("id") != user_id:
+            raise HTTPException(
+                status_code=409,
+                detail="Este correo ya está registrado en otra cuenta. Usa otro correo o inicia sesión.",
+            )
 
     p9_doc = _phone9_digits(doc.get("phone") or "")
     if len(p9_doc) != 9:
@@ -287,13 +288,14 @@ async def become_provider(
 
     new_roles = list(dict.fromkeys(roles + ["provider"]))
     set_fields: dict = {
-        "email": email_low,
         "password": _hash_password(body.password),
         "roles": new_roles,
         "role": "provider",
         "isAvailable": True,
         "phoneVerified": True,
     }
+    if email_low:
+        set_fields["email"] = email_low
     if not doc.get("provider_role"):
         set_fields["provider_role"] = "super_master"
 

@@ -64,25 +64,7 @@ db = client[get_db_name()]
 # Índices para rutas consultadas por polling:
 # - /pending filtra por status y currentOfferId
 # - /{request_id} usa find_one por id
-try:
-    ensure_payment_metrics_indexes(db)
-except Exception:
-    pass
-
-try:
-    db.service_requests.create_index([("id", 1)])
-    db.service_requests.create_index([("bookingId", 1)], sparse=True, name="idx_booking_id")
-    db.service_requests.create_index([("status", 1), ("currentOfferId", 1)])
-    db.service_requests.create_index([("offerExpiresAt", 1)])
-    # Un solo cobro "charged" por solicitud (idempotencia ante requests concurrentes)
-    db.payments.create_index(
-        [("serviceRequestId", 1)],
-        unique=True,
-        partialFilterExpression={"status": "charged"},
-        name="uniq_charged_per_service_request",
-    )
-except Exception:
-    pass
+# Nota: La creación de índices se movió a la tarea de inicio (lifespan) para evitar advertencias de corrutinas no esperadas.
 
 # Servicios
 payment_service = PaymentService(db)

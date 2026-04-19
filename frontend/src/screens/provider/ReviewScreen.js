@@ -81,7 +81,8 @@ function ReviewScreen() {
         providerData,
         machineData: machinePayload,
         operators: operatorsPayload,
-        onboarding_completed: true
+        onboarding_completed: true,
+        email: providerData.email // Sincronizar email del paso 1 de onboarding al perfil raíz
       };
       if (machineData?.machineryType) payload.machineryType = machineData.machineryType;
 
@@ -261,6 +262,10 @@ function ReviewScreen() {
           <div style={styles.row}>
             <span style={styles.label}>Empresa:</span>
             <span style={styles.value}>{providerData.businessName || '-'}</span>
+          </div>
+          <div style={styles.row}>
+            <span style={styles.label}>Correo:</span>
+            <span style={styles.value}>{providerData.email || '-'}</span>
           </div>
           <div style={styles.row}>
             <span style={styles.label}>RUT:</span>

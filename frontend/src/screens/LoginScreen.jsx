@@ -89,11 +89,13 @@ function LoginScreen({ setUserRole, setUserId }) {
   const redirectTo = location.state?.redirect || null;
   /** Quién abrió login: cliente desde welcome vs proveedor/admin (muestra acceso correo+clave). */
   const entry = location.state?.entry;
+  const isClientEntry = entry === 'client';
+  const isAdminFlow = redirectTo === '/admin';
   /**
-   * Siempre visible: desde Welcome, "Iniciar sesión" entra como cliente (SMS). Quien se enroló como proveedor
-   * usa "Entrar con correo y contraseña". Deep links (admin, /provider/…) siguen siendo válidos.
+   * El toggle solo se muestra si no es cliente y estamos en el paso OTP o ya en modo email (o es admin).
+   * Esto cumple con: "en primer sms opt en cliente nunca debe decir contraseña y correo".
    */
-  const showEmailPasswordToggle = true;
+  const showEmailPasswordToggle = !isClientEntry && (loginMode === 'email' || step !== 'phone' || isAdminFlow);
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -102,6 +104,12 @@ function LoginScreen({ setUserRole, setUserId }) {
   const [error, setError] = useState('');
   /** Mensaje informativo (no error) tras enviar código: p. ej. canal email si SMS falló en backend */
   const [otpHint, setOtpHint] = useState('');
+  /** userId temporal para el paso de Step-Up (contraseña tras OTP) */
+  const [stepUpUserId, setStepUpUserId] = useState('');
+  /** Teléfono normalizado para el paso de Step-Up */
+  const [stepUpPhone, setStepUpPhone] = useState('');
+  /** Email enmascarado del proveedor para mostrar en Step-Up */
+  const [stepUpEmailMasked, setStepUpEmailMasked] = useState('');
   /** 'sms' = cliente u otro vía celular; 'email' = proveedor (u cuenta con clave) → POST /api/auth/login */
   const [loginMode, setLoginMode] = useState('sms');
 
@@ -398,6 +406,15 @@ function LoginScreen({ setUserRole, setUserId }) {
         timeout: LOGIN_SMS_VERIFY_TIMEOUT_MS,
         headers: { 'Content-Type': 'application/json' }
       });
+
+      if (res.data?.requires_password) {
+        setStepUpUserId(res.data.user_id);
+        setStepUpPhone(res.data.phone);
+        setStepUpEmailMasked(res.data.email_masked || '');
+        setStep('password_verify');
+        return;
+      }
+
       applySessionAndNavigate(res.data);
     } catch (e) {
       setError(
@@ -407,6 +424,42 @@ function LoginScreen({ setUserRole, setUserId }) {
             400: 'El código no es correcto. Intenta nuevamente.',
             404:
               'No pudimos validar el código (404). Revisa conexión o que la API esté actualizada.',
+          },
+        })
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyPassword = async () => {
+    if (loading || !password) return;
+    setLoading(true);
+    setError('');
+    try {
+      const deviceId = getDeviceId();
+      const payload = {
+        user_id: stepUpUserId,
+        phone: stepUpPhone,
+        password: password,
+        device_id: deviceId,
+      };
+      const res = await axios.post(
+        `${BACKEND_URL}/api/auth/login-sms/verify-password`,
+        payload,
+        {
+          timeout: 15000,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+      applySessionAndNavigate(res.data);
+    } catch (e) {
+      setError(
+        getHttpErrorMessage(e, {
+          fallback: 'Contraseña incorrecta. Intenta nuevamente.',
+          statusMessages: {
+            401: 'Contraseña incorrecta.',
+            429: 'Demasiados intentos. Espera un momento.',
           },
         })
       );
@@ -649,6 +702,89 @@ function LoginScreen({ setUserRole, setUserId }) {
             </>
           )}
 
+          {loginMode === 'sms' && step === 'password_verify' && (
+            <>
+              <p
+                style={{
+                  color: 'rgba(255,255,255,0.7)',
+                  fontSize: 14,
+                  textAlign: 'center',
+                  marginBottom: 20,
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>¡Identidad confirmada!</strong>
+                <br />
+                {stepUpEmailMasked && (
+                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+                    Cuenta: {stepUpEmailMasked}
+                    <br />
+                  </span>
+                )}
+                Ingresa tu contraseña de proveedor para acceder.
+              </p>
+
+              <label
+                htmlFor="stepup-password"
+                style={{
+                  color: 'rgba(255,255,255,0.95)',
+                  fontSize: 13,
+                  marginBottom: 6,
+                  display: 'block',
+                }}
+              >
+                Contraseña
+              </label>
+              <PasswordField
+                id="stepup-password"
+                name="password"
+                value={password}
+                onChange={(ev) => {
+                  setError('');
+                  setPassword(ev.target.value);
+                }}
+                autoComplete="current-password"
+                placeholder="Ingresa tu clave"
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  marginBottom: 10,
+                  padding: '14px 12px',
+                  fontSize: 15,
+                }}
+              />
+
+              <p style={{ textAlign: 'right', marginBottom: 20 }}>
+                <Link
+                  to="/forgot-password"
+                  style={{ color: 'rgba(144, 189, 211, 0.95)', fontSize: 13 }}
+                >
+                  ¿No recuerdas tu contraseña?
+                </Link>
+              </p>
+
+              <p style={{ textAlign: 'center', marginBottom: 12 }}>
+                <button
+                  type="button"
+                  className="maqgo-link"
+                  onClick={goBackToPhone}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    font: 'inherit',
+                    color: 'rgba(255,255,255,0.65)',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Usar otro número
+                </button>
+              </p>
+            </>
+          )}
+
           {error && (
             <p style={{ color: '#ff6b6b', fontSize: 14, textAlign: 'center', marginTop: 10 }}>
               {error}
@@ -695,7 +831,9 @@ function LoginScreen({ setUserRole, setUserId }) {
               ? handleEmailPasswordLogin
               : step === 'phone'
                 ? handleStartLogin
-                : handleVerifyCode
+                : step === 'otp'
+                  ? handleVerifyCode
+                  : handleVerifyPassword
           }
           disabled={
             loading ||
@@ -703,7 +841,9 @@ function LoginScreen({ setUserRole, setUserId }) {
               ? !isEmailFormValid
               : step === 'phone'
                 ? !isPhoneValid
-                : !isCodeValid)
+                : step === 'otp'
+                  ? !isCodeValid
+                  : password.length < 1)
           }
           style={{
             opacity:
@@ -712,7 +852,9 @@ function LoginScreen({ setUserRole, setUserId }) {
                 ? !isEmailFormValid
                 : step === 'phone'
                   ? !isPhoneValid
-                  : !isCodeValid)
+                  : step === 'otp'
+                    ? !isCodeValid
+                    : password.length < 1)
                 ? 0.5
                 : 1,
             marginBottom: 15,
@@ -728,7 +870,9 @@ function LoginScreen({ setUserRole, setUserId }) {
                 ? 'Iniciar sesión proveedor con correo'
                 : step === 'phone'
                   ? 'Continuar con tu celular'
-                  : 'Confirmar código e ingresar'
+                  : step === 'otp'
+                    ? 'Confirmar código e ingresar'
+                    : 'Verificar contraseña e ingresar'
           }
         >
           {loading
@@ -741,7 +885,9 @@ function LoginScreen({ setUserRole, setUserId }) {
               ? 'Entrar'
               : step === 'phone'
                 ? 'Continuar'
-                : 'Confirmar código'}
+                : step === 'otp'
+                  ? 'Confirmar código'
+                  : 'Entrar al panel'}
         </button>
 
       </div>

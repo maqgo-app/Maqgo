@@ -200,12 +200,28 @@ async def lifespan(app: FastAPI):
         from motor.motor_asyncio import AsyncIOMotorClient
         from db_config import get_db_name, get_mongo_url
         from services.idempotency import ensure_indexes as ensure_idempotency_indexes
+        from services.payment_metrics_store import ensure_indexes as ensure_payment_metrics_indexes
 
         _ic = AsyncIOMotorClient(get_mongo_url())
-        await ensure_idempotency_indexes(_ic[get_db_name()])
-        logger.info("Índices de MongoDB creados")
+        _db = _ic[get_db_name()]
+        await ensure_idempotency_indexes(_db)
+        await ensure_payment_metrics_indexes(_db)
+
+        # Índices service_requests
+        await _db.service_requests.create_index([("id", 1)])
+        await _db.service_requests.create_index([("bookingId", 1)], sparse=True, name="idx_booking_id")
+        await _db.service_requests.create_index([("status", 1), ("currentOfferId", 1)])
+        await _db.service_requests.create_index([("offerExpiresAt", 1)])
+        await _db.payments.create_index(
+            [("serviceRequestId", 1)],
+            unique=True,
+            partialFilterExpression={"status": "charged"},
+            name="uniq_charged_per_service_request"
+        )
+
+        logger.info("Índices de MongoDB creados (idempotencia, métricas, service_requests)")
     except Exception as e:
-        logger.warning("ensure_indexes idempotency/ledger/metrics: %s", e)
+        logger.warning("Error creando índices MongoDB: %s", e)
 
     yield
     

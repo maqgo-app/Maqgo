@@ -55,7 +55,7 @@ def _get_webotp_domains() -> list[str]:
 
 
 WEBOTP_DOMAINS = _get_webotp_domains()
-SMS_MESSAGE = "Tu código MAQGO es: {otp}. Válido por 5 minutos."
+SMS_MESSAGE = "{otp}\n\nMAQGO - Código de verificación. Expira en 5 minutos."
 
 REDIS_URL = os.environ.get("REDIS_URL", "")
 LABSMOBILE_USERNAME = os.environ.get("LABSMOBILE_USERNAME", "")
@@ -132,7 +132,7 @@ def send_sms(phone: str, message: str) -> Tuple[bool, Optional[str]]:
             return False, "LabsMobile respuesta inválida"
 
         api_code = str(data.get("code", "")).strip()
-        api_message = f"{code}\n\nMAQGO - Código de verificación. Expira en 5 minutos."
+        api_message = str(data.get("message", "")).lower()
         
         # Detectar errores aunque HTTP sea 200
         if api_code != "0" or "error" in api_message:

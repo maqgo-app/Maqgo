@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 LOGIN_VERIFY_FAIL_THRESHOLD = 5
 LOGIN_VERIFY_FAIL_WINDOW_SEC = 900  # 15 min
 
+# Bloqueo duro (lockout) tras M fallos seguidos (Password o SMS Verify).
+HARD_LOCKOUT_THRESHOLD = 10
+HARD_LOCKOUT_DURATION_SEC = 900  # 15 min
+
 _TRUST_INDEX_ENSURED = False
 
 DEVICE_ID_MIN_LEN = 8
@@ -151,6 +155,51 @@ def clear_login_verify_failures(user_id: str, device_id: str) -> None:
 
 def too_many_recent_login_failures(user_id: str, device_id: str) -> bool:
     return get_login_verify_fail_count(user_id, device_id) >= LOGIN_VERIFY_FAIL_THRESHOLD
+
+
+def _lockout_key(identifier: str) -> str:
+    """Key para bloqueo duro por identificador (email, rut o phone)."""
+    return f"login_lockout:{identifier.strip().lower()}"
+
+
+def record_hard_lockout_failure(identifier: str) -> int:
+    """Registra un fallo de login (password o OTP) para el bloqueo duro."""
+    r = _get_redis()
+    if not r or not identifier:
+        return 0
+    key = _lockout_key(identifier)
+    try:
+        n = r.incr(key)
+        if n == 1:
+            r.expire(key, HARD_LOCKOUT_DURATION_SEC)
+        return n
+    except Exception as e:
+        logger.warning("record_hard_lockout_failure: %s", e)
+        return 0
+
+
+def is_hard_locked(identifier: str) -> bool:
+    """True si el identificador está en periodo de bloqueo duro."""
+    r = _get_redis()
+    if not r or not identifier:
+        return False
+    try:
+        v = r.get(_lockout_key(identifier))
+        return int(v or "0") >= HARD_LOCKOUT_THRESHOLD
+    except Exception as e:
+        logger.warning("is_hard_locked: %s", e)
+        return False
+
+
+def clear_hard_lockout(identifier: str) -> None:
+    """Limpia el bloqueo duro tras un login exitoso."""
+    r = _get_redis()
+    if not r or not identifier:
+        return
+    try:
+        r.delete(_lockout_key(identifier))
+    except Exception as e:
+        logger.warning("clear_hard_lockout: %s", e)
 
 
 def _phone_last9_digits(phone: str) -> str:

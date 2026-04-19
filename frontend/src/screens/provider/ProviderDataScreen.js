@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useNavigate } from 'react-router-dom';
-import { validateRut, formatRut } from '../../utils/chileanValidation';
+import { validateRut, formatRut, validateEmail } from '../../utils/chileanValidation';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import ComunaAutocomplete from '../../components/ComunaAutocomplete';
@@ -25,6 +25,7 @@ function ProviderDataScreen() {
   
   const [form, setForm] = useState({
     businessName: '',
+    email: '',
     rut: '',
     giro: '',
     comuna: '',
@@ -93,8 +94,7 @@ function ProviderDataScreen() {
     localStorage.setItem('providerData', JSON.stringify({ 
       ...form, 
       // Datos del registro inicial
-      phone: registerData.celular,
-      email: registerData.email 
+      phone: registerData.celular || form.phone
     }));
     localStorage.setItem('providerOnboardingStep', '2');
     navigate('/provider/machine-data');
@@ -105,9 +105,10 @@ function ProviderDataScreen() {
     navigate(cameFromWelcome ? '/' : '/login');
   };
 
-  const isValid = form.businessName && form.rut && validateRut(form.rut) && form.giro && form.comuna && form.address;
+  const isValid = form.businessName && form.email && validateEmail(form.email) && form.rut && validateRut(form.rut) && form.giro && form.comuna && form.address;
   const missingFields = [];
   if (!form.businessName) missingFields.push('Nombre propietario o empresa');
+  if (!form.email || !validateEmail(form.email)) missingFields.push('Correo electrónico válido');
   if (!form.rut || !validateRut(form.rut)) missingFields.push('RUT válido');
   if (!form.comuna) missingFields.push('Comuna');
   if (!form.giro) missingFields.push('Giro comercial');
@@ -166,6 +167,22 @@ function ProviderDataScreen() {
               borderColor: didSubmit && !form.businessName ? '#f44336' : undefined
             }}
             data-testid="provider-business-name"
+          />
+
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
+            Correo electrónico <span style={{ color: '#EC6819' }}>*</span>
+          </label>
+          <input
+            className="maqgo-input"
+            placeholder="tu@correo.cl"
+            type="email"
+            value={form.email}
+            onChange={e => update('email', e.target.value)}
+            onBlur={() => setDidSubmit(true)}
+            style={{
+              borderColor: didSubmit && (!form.email || !validateEmail(form.email)) ? '#f44336' : undefined
+            }}
+            data-testid="provider-email"
           />
           
           {/* RUT con validación */}

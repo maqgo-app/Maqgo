@@ -32,14 +32,17 @@ from communications import (
 from models.trusted_device import build_trusted_session_touch
 from ops_structured_log import log_ops_event
 from services.risk_auth_service import (
+    clear_hard_lockout,
     clear_login_verify_failures,
     ensure_trusted_device_indexes,
     find_trusted_device,
     get_client_country,
     get_client_ip,
     get_client_user_agent,
+    is_hard_locked,
     is_risky_login,
     normalize_device_id,
+    record_hard_lockout_failure,
     record_login_verify_failure,
     too_many_recent_login_failures,
     upsert_trusted_device,
@@ -50,6 +53,19 @@ logger = logging.getLogger(__name__)
 
 # Reintento seguro tras DuplicateKeyError (carrera / índice único): segunda pasada ve al usuario en Mongo.
 _register_dup_pass: ContextVar[int] = ContextVar("_register_dup_pass", default=0)
+
+
+def _mask_email_for_display(email: str) -> str:
+    """Enmascara un correo: to***@gmail.com"""
+    if not email or "@" not in email:
+        return ""
+    try:
+        user_part, domain_part = email.split("@")
+        if len(user_part) <= 2:
+            return f"{user_part}***@{domain_part}"
+        return f"{user_part[:2]}***@{domain_part}"
+    except Exception:
+        return ""
 
 
 def _phone_tail_log(phone: str) -> str:
@@ -664,6 +680,13 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
     await ensure_trusted_device_indexes(db)
     device_norm = normalize_device_id(body.device_id)
 
+    if is_hard_locked(raw_phone):
+        logger.warning("LOGIN_SMS_START hard_locked phone=%s", _phone_tail_log(raw_phone))
+        raise HTTPException(
+            status_code=429,
+            detail="Tu cuenta está temporalmente bloqueada por seguridad. Intenta en 15 minutos.",
+        )
+
     # Identidad base: teléfono único (últimos 9 dígitos) — evita duplicados por email.
     existing = await db.users.find_one({"phone": {"$regex": f"{phone9}$"}}, {"_id": 0})
     now = datetime.now(timezone.utc).isoformat()
@@ -846,6 +869,12 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
             )
             raise HTTPException(status_code=404, detail="No encontramos tu cuenta. Vuelve a intentar.")
 
+        if is_hard_locked(raw_phone):
+            raise HTTPException(
+                status_code=429,
+                detail="Tu cuenta está temporalmente bloqueada por seguridad. Intenta en 15 minutos.",
+            )
+
         result = verify_sms_otp(raw_phone, body.code)
         if not result.get("success"):
             logger.info("LOGIN_SMS_VERIFY fail phone9=%s reason=%s", phone9, result.get("error"))
@@ -859,6 +888,7 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
             )
             if device_norm:
                 record_login_verify_failure(user["id"], device_norm)
+            record_hard_lockout_failure(raw_phone)
             raise HTTPException(status_code=400, detail="El código no es correcto. Intenta nuevamente.")
         if not result.get("valid"):
             logger.info("LOGIN_SMS_VERIFY invalid_code phone9=%s", phone9)
@@ -872,7 +902,27 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
             )
             if device_norm:
                 record_login_verify_failure(user["id"], device_norm)
+            record_hard_lockout_failure(raw_phone)
             raise HTTPException(status_code=400, detail="El código no es correcto. Intenta nuevamente.")
+
+        # --- STEP-UP AUTH: Solo para Proveedores en dispositivos nuevos ---
+        roles = _user_roles(user)
+        is_provider = "provider" in roles or user.get("role") == "provider"
+        
+        if is_provider:
+            trusted = await find_trusted_device(
+                db, user_id=user["id"], phone_e164=raw_phone, device_id=device_norm
+            )
+            # Si el dispositivo NO es de confianza o hay riesgo, exigir clave.
+            if not trusted or is_risky_login(trusted, True, country, False, ip, ua_hdr):
+                logger.info("LOGIN_SMS_VERIFY step_up_required userId=%s", user["id"])
+                return {
+                     "requires_password": True,
+                     "user_id": user["id"],
+                     "phone": raw_phone,
+                     "email_masked": _mask_email_for_display(user.get("email", "")),
+                     "message": "Por seguridad, ingresa tu contraseña de proveedor."
+                 }
 
         token = generate_token()
         await db.sessions.insert_one(
@@ -891,9 +941,10 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 device_id=device_norm,
                 last_ip=ip,
                 last_country=country,
-                user_agent=ua_hdr,
-            )
-            clear_login_verify_failures(user["id"], device_norm)
+                        user_agent=ua_hdr,
+                    )
+                    clear_login_verify_failures(user["id"], device_norm)
+                clear_hard_lockout(raw_phone)
 
         logger.info("LOGIN_SMS_VERIFY success userId=%s roles=%s", user["id"], _user_roles(user))
         log_ops_event(
@@ -919,6 +970,69 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
             status_code=500,
             detail="No se pudo completar el inicio de sesión. Intenta nuevamente.",
         ) from None
+
+
+class StepUpVerifyRequest(BaseModel):
+    user_id: str
+    phone: str
+    password: str
+    device_id: Optional[str] = None
+
+
+@router.post("/login-sms/verify-password")
+@limiter.limit("5/minute")
+async def verify_sms_password(request: Request, body: StepUpVerifyRequest):
+    """
+    Paso 3 del login SMS (Step-Up): Verifica la contraseña del proveedor tras un OTP exitoso.
+    """
+    user = await db.users.find_one({"id": body.user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if not verify_password(body.password, user.get("password", "")):
+        log_ops_event(
+            logger,
+            event="login_stepup_failed",
+            user_id=body.user_id,
+            success=False,
+            reason="invalid_password",
+        )
+        raise HTTPException(status_code=401, detail="Contraseña incorrecta")
+
+    device_norm = normalize_device_id(body.device_id)
+    ip = get_client_ip(request)
+    country = get_client_country(request)
+    ua_hdr = get_client_user_agent(request)
+
+    token = generate_token()
+    await db.sessions.insert_one(
+        {
+            "userId": user["id"],
+            "token": token,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+    if device_norm:
+        await upsert_trusted_device(
+            db,
+            user_id=user["id"],
+            phone_e164=body.phone,
+            device_id=device_norm,
+            last_ip=ip,
+            last_country=country,
+            user_agent=ua_hdr,
+        )
+
+    logger.info("LOGIN_STEPUP success userId=%s", user["id"])
+    log_ops_event(
+        logger,
+        event="login_stepup_verified",
+        user_id=user["id"],
+        success=True,
+    )
+
+    return _build_login_sms_session_payload(user, token, requires_otp=False)
 
 
 @router.post("/check-device")

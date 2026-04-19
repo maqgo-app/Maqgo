@@ -82,14 +82,15 @@ function WelcomeScreen() {
     setMounted(true);
   }, []);
 
-  /** Vista fija sin scroll de página (iOS/Android suelen seguir moviendo el body si solo ocultamos overflow en el panel). */
+  /** Permitir scroll natural pero mantener limpieza visual. */
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
     const prevHtml = html.style.overflow;
     const prevBody = body.style.overflow;
-    html.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
+    // Quitamos 'hidden' para evitar que se rompa la UX en móviles con barras dinámicas
+    html.style.overflow = 'auto';
+    body.style.overflow = 'auto';
     return () => {
       html.style.overflow = prevHtml;
       body.style.overflow = prevBody;

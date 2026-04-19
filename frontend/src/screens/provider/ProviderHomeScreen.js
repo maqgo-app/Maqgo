@@ -390,70 +390,85 @@ function ProviderHomeScreen() {
         {!(onboardingCompleted && bankOnlyMissing) ? (
         <div
           style={{
-            background: '#2A2A2A',
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 16,
-            border: '1px solid rgba(255,255,255,0.08)'
+            background: '#1E1E24',
+            borderRadius: 20,
+            padding: 20,
+            marginBottom: 20,
+            border: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
           }}
         >
-          <p style={{ color: '#fff', fontSize: 13, fontWeight: 700, margin: '0 0 10px' }}>
-            Estado de activación
-          </p>
-          <div style={{ marginBottom: 10 }}>
-            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, margin: '0 0 6px' }}>
-              {activationCompletedCount}/{activationItems.length} completados
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0 }}>
+              Pasos de activación
             </p>
-            <div style={{ width: '100%', height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}>
-              <div
-                style={{
-                  width: `${activationProgressPct}%`,
-                  height: '100%',
-                  background: activationCompletedCount === activationItems.length ? '#4CAF50' : '#EC6819',
-                  transition: 'width 0.2s ease'
-                }}
-              />
-            </div>
+            <span style={{ 
+              background: activationCompletedCount === activationItems.length ? 'rgba(76, 175, 80, 0.2)' : 'rgba(236, 104, 25, 0.2)',
+              color: activationCompletedCount === activationItems.length ? '#4CAF50' : '#EC6819',
+              padding: '4px 10px',
+              borderRadius: 20,
+              fontSize: 12,
+              fontWeight: 700
+            }}>
+              {activationCompletedCount}/{activationItems.length}
+            </span>
           </div>
-          {activationItems.map((item) => (
+
+          <div style={{ width: '100%', height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.1)', overflow: 'hidden', marginBottom: 20 }}>
             <div
-              key={item.label}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}
-            >
-              <div>
-                <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{item.label}</span>
-                {!item.ok && (
-                  <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: '2px 0 0' }}>
-                    {item.missingHint}
-                  </p>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <span style={{ color: item.ok ? '#4CAF50' : '#F44336', fontSize: 12, fontWeight: 700 }}>
-                  {item.ok ? '✓' : '✕ Pendiente'}
-                </span>
-              </div>
-            </div>
-          ))}
-          {nextActivationStep && (
-            <button
-              onClick={nextActivationStep.onClick}
               style={{
-                width: '100%',
-                marginTop: 8,
-                padding: 10,
-                borderRadius: 10,
-                border: 'none',
-                background: '#EC6819',
-                color: '#fff',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer'
+                width: `${activationProgressPct}%`,
+                height: '100%',
+                background: activationCompletedCount === activationItems.length ? '#4CAF50' : 'linear-gradient(90deg, #EC6819, #FF8A48)',
+                transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
-            >
-              {nextActivationStep.actionLabel}
-            </button>
-          )}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {activationItems.map((item) => (
+              <div
+                key={item.label}
+                onClick={!item.ok ? item.onClick : undefined}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 12,
+                  cursor: !item.ok ? 'pointer' : 'default',
+                  opacity: item.ok ? 0.6 : 1
+                }}
+              >
+                <div style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: item.ok ? '#4CAF50' : 'rgba(255,255,255,0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  {item.ok ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <path d="M20 6L9 17L4 12" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ) : (
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.3)' }} />
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ color: '#fff', fontSize: 14, fontWeight: item.ok ? 500 : 600, margin: 0 }}>
+                    {item.label}
+                  </p>
+                  {!item.ok && (
+                    <p style={{ color: '#EC6819', fontSize: 12, fontWeight: 500, margin: '2px 0 0' }}>
+                      Completar ahora →
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
         ) : null}
 
@@ -597,10 +612,9 @@ function ProviderHomeScreen() {
               ? 'Primero completa tu registro para poder recibir solicitudes.'
               : isBlockedByBank
                 ? 'Siguiente paso: completa tus datos bancarios para conectarte y recibir solicitudes.'
-              : (available
-                  ? 'Estás visible para solicitudes compatibles según zona, tipo de maquinaria y disponibilidad.'
-                  : 'Tu máquina no está visible para nuevas solicitudes.')
-            }
+                : available
+                  ? 'Estás en línea. Recibirás una alerta cuando haya una solicitud cerca.'
+                  : 'Estás desconectado. Conéctate para empezar a recibir solicitudes de arriendo.'}
           </p>
           {onboardingCompleted && bankDataComplete && available ? (
             <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '0 0 12px', lineHeight: 1.45 }}>
@@ -648,6 +662,59 @@ function ProviderHomeScreen() {
             "Inicio" en la barra inferior solo navega a esta pantalla. Tu estado conectado se controla aquí.
           </p>
         </div>
+
+        {/* Accesos Rápidos (Solo si onboarding completo) */}
+        {onboardingCompleted && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 12,
+            marginBottom: 24
+          }}>
+            <div 
+              onClick={() => navigate('/provider/machines')}
+              style={{
+                background: '#1E1E24',
+                borderRadius: 16,
+                padding: 16,
+                border: '1px solid rgba(255,255,255,0.06)',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ color: '#EC6819', marginBottom: 8 }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <rect x="2" y="14" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="2"/>
+                  <rect x="16" y="14" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M8 17H16" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M12 14V8" stroke="currentColor" strokeWidth="2"/>
+                  <circle cx="12" cy="6" r="2" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+              </div>
+              <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, margin: 0 }}>Mis Máquinas</p>
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '2px 0 0' }}>Gestionar flota</p>
+            </div>
+
+            <div 
+              onClick={() => navigate('/provider/cobros')}
+              style={{
+                background: '#1E1E24',
+                borderRadius: 16,
+                padding: 16,
+                border: '1px solid rgba(255,255,255,0.06)',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ color: '#4CAF50', marginBottom: 8 }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M12 8V16M9 12H15" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+              </div>
+              <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, margin: 0 }}>Mis Cobros</p>
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '2px 0 0' }}>Pagos y facturas</p>
+            </div>
+          </div>
+        )}
 
         {available && onboardingCompleted && (
           <div style={{

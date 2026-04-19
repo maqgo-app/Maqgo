@@ -2,7 +2,7 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 
 const ProtectedRoute = ({ children }) => {
-  const role = localStorage.getItem("role");
+  const role = localStorage.getItem("userRole");
 
   // Si no hay sesión → login
   if (!role) return <Navigate to="/login" replace />;

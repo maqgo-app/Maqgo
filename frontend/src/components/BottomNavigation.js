@@ -289,7 +289,7 @@ export function ProviderNavigation() {
  * Componente que detecta el rol y muestra la navegación correcta
  */
 function BottomNavigation() {
-  const role = localStorage.getItem('role');
+  const role = localStorage.getItem('userRole');
 
   if (!role) return null;
 

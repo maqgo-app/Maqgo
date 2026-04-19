@@ -18,10 +18,11 @@ function StepProgressSegments({
 }) {
   const total = Math.max(1, totalSteps);
   const cs = Math.min(total, Math.max(1, currentStep || 1));
-  const activeW = compact ? 20 : 24;
-  const inactiveW = compact ? 8 : 10;
-  const segH = compact ? 8 : 10;
-  const connectorW = compact ? 10 : 12;
+  
+  // Diseño de círculos pequeños y uniformes
+  const circleSize = compact ? 6 : 8;
+  const connectorW = compact ? 4 : 6;
+
   const resolvedSublabel =
     sublabel != null && sublabel !== ''
       ? sublabel
@@ -33,52 +34,64 @@ function StepProgressSegments({
     <div
       className={`maqgo-step-progress ${compact ? 'maqgo-step-progress--compact' : ''} ${className}`.trim()}
       aria-label={ariaLabel}
+      style={{ alignItems: 'center' }}
     >
-      <p className="maqgo-step-progress__title" aria-live="polite">
-        Paso {cs} de {total}
-      </p>
-      {resolvedSublabel ? (
-        <p className="maqgo-step-progress__sublabel">{resolvedSublabel}</p>
-      ) : null}
-      <div className="maqgo-step-progress__segments-row" aria-hidden>
-        {items.map((stepNum, index) => {
-          const isActive = stepNum === cs;
-          const isPast = stepNum < cs;
-          const clickable = typeof stepClickable === 'function' && stepClickable(stepNum);
-          const title = labels[stepNum - 1] || `Paso ${stepNum}`;
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
+        {/* Fila de círculos */}
+        <div className="maqgo-step-progress__segments-row" aria-hidden style={{ margin: 0, gap: '4px' }}>
+          {items.map((stepNum, index) => {
+            const isActive = stepNum === cs;
+            const isPast = stepNum < cs;
+            const clickable = typeof stepClickable === 'function' && stepClickable(stepNum);
+            const title = labels[stepNum - 1] || `Paso ${stepNum}`;
 
-          return (
-            <div key={stepNum} className="maqgo-step-progress__seg-group">
-              <div
-                className={`maqgo-step-progress__seg ${
-                  isActive ? 'maqgo-step-progress__seg--active' : isPast ? 'maqgo-step-progress__seg--past' : 'maqgo-step-progress__seg--todo'
-                }`}
-                style={{
-                  width: isActive ? activeW : inactiveW,
-                  height: segH,
-                  cursor: clickable ? 'pointer' : 'default',
-                }}
-                title={title}
-                role={clickable ? 'button' : undefined}
-                tabIndex={clickable ? 0 : -1}
-                onClick={() => {
-                  if (clickable && typeof onStepClick === 'function') onStepClick(stepNum);
-                }}
-                onKeyDown={(e) => {
-                  if (!clickable || typeof onStepClick !== 'function') return;
-                  if (e.key === 'Enter' || e.key === ' ') onStepClick(stepNum);
-                }}
-              />
-              {index < total - 1 && (
+            return (
+              <div key={stepNum} className="maqgo-step-progress__seg-group">
                 <div
-                  className={`maqgo-step-progress__connector ${stepNum < cs ? 'maqgo-step-progress__connector--past' : ''}`}
-                  style={{ width: connectorW }}
+                  className={`maqgo-step-progress__seg ${
+                    isActive ? 'maqgo-step-progress__seg--active' : isPast ? 'maqgo-step-progress__seg--past' : 'maqgo-step-progress__seg--todo'
+                  }`}
+                  style={{
+                    width: circleSize,
+                    height: circleSize,
+                    borderRadius: '50%',
+                    cursor: clickable ? 'pointer' : 'default',
+                    // El activo tiene un brillo sutil
+                    boxShadow: isActive ? '0 0 8px rgba(236, 104, 25, 0.4)' : 'none',
+                    opacity: isActive || isPast ? 1 : 0.3
+                  }}
+                  title={title}
+                  role={clickable ? 'button' : undefined}
+                  tabIndex={clickable ? 0 : -1}
+                  onClick={() => {
+                    if (clickable && typeof onStepClick === 'function') onStepClick(stepNum);
+                  }}
                 />
-              )}
-            </div>
-          );
-        })}
+                {index < total - 1 && (
+                  <div
+                    className={`maqgo-step-progress__connector ${stepNum < cs ? 'maqgo-step-progress__connector--past' : ''}`}
+                    style={{ 
+                      width: connectorW, 
+                      height: '1px', 
+                      margin: '0 2px',
+                      opacity: 0.3
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Texto Paso X de Y al lado derecho */}
+        <p className="maqgo-step-progress__title" aria-live="polite" style={{ whiteSpace: 'nowrap' }}>
+          Paso {cs}/{total}
+        </p>
       </div>
+
+      {resolvedSublabel ? (
+        <p className="maqgo-step-progress__sublabel" style={{ marginTop: '4px' }}>{resolvedSublabel}</p>
+      ) : null}
     </div>
   );
 }

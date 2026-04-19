@@ -79,59 +79,69 @@ function ClientHome() {
           onClick={() => handleSelect('immediate')}
           style={{
             background: 'linear-gradient(135deg, #EC6819 0%, #D45A10 100%)',
-            borderRadius: 16,
-            padding: '20px',
-            marginBottom: 12,
+            borderRadius: 20,
+            padding: '24px 20px',
+            marginBottom: 16,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: 16,
-            boxShadow: '0 4px 20px rgba(236, 104, 25, 0.25)',
-            transition: 'transform 0.2s, box-shadow 0.2s'
+            boxShadow: '0 8px 32px rgba(236, 104, 25, 0.25)',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            border: '1px solid rgba(255,255,255,0.1)'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 12px 40px rgba(236, 104, 25, 0.35)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 8px 32px rgba(236, 104, 25, 0.25)';
           }}
           data-testid="immediate-reservation-btn"
           aria-label="Inicio HOY - Servicio prioritario"
         >
           {/* Ícono Reloj Urgente */}
           <div style={{
-            width: 52,
-            height: 52,
-            borderRadius: 14,
-            background: 'rgba(255,255,255,0.15)',
+            width: 56,
+            height: 56,
+            borderRadius: 16,
+            background: 'rgba(255,255,255,0.2)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            flexShrink: 0
+            flexShrink: 0,
+            backdropFilter: 'blur(4px)'
           }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="9" stroke="#fff" strokeWidth="2"/>
-              <path d="M12 7V12L15 14" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="#fff" strokeWidth="2.5"/>
+              <path d="M12 7V12L15 14" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
               <path d="M3 12H1M23 12H21M12 3V1M12 23V21" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
             </svg>
           </div>
           
           {/* Texto */}
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#fff', marginBottom: 4, letterSpacing: '-0.01em', fontFamily: "'Inter', sans-serif" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', marginBottom: 4, letterSpacing: '-0.02em', fontFamily: "'Inter', sans-serif" }}>
               Inicio HOY
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>
-              Disponibilidad inmediata. Solo se cobra cuando un operador acepta tu solicitud de reserva.
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: 500, fontFamily: "'Inter', sans-serif", lineHeight: 1.3 }}>
+              Solicita maquinaria para que llegue a tu obra el mismo día.
             </div>
           </div>
 
           {/* Flecha */}
           <div style={{
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             borderRadius: '50%',
-            background: 'rgba(255,255,255,0.2)',
+            background: 'rgba(255,255,255,0.15)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M9 6L15 12L9 18" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M9 5L15 12L9 19" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
         </div>
@@ -140,61 +150,98 @@ function ClientHome() {
         <div 
           onClick={() => handleSelect('scheduled')}
           style={{
-            background: '#1A1A1F',
-            borderRadius: 16,
-            padding: '20px',
+            background: '#1E1E24',
+            borderRadius: 20,
+            padding: '24px 20px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: 16,
             border: '1px solid #2E2E35',
-            transition: 'border-color 0.2s, background 0.2s'
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(144, 189, 211, 0.4)'; e.currentTarget.style.background = '#1E1E24'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#2E2E35'; e.currentTarget.style.background = '#1A1A1F'; }}
+          onMouseEnter={(e) => { 
+            e.currentTarget.style.borderColor = 'rgba(144, 189, 211, 0.5)'; 
+            e.currentTarget.style.background = '#25252D';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={(e) => { 
+            e.currentTarget.style.borderColor = '#2E2E35'; 
+            e.currentTarget.style.background = '#1E1E24'; 
+            e.currentTarget.style.transform = 'translateY(0)';
+          }}
           data-testid="scheduled-reservation-btn"
           aria-label="Programar arriendo - Elige fecha"
         >
           <div style={{
-            width: 52,
-            height: 52,
-            borderRadius: 14,
-            background: '#242429',
+            width: 56,
+            height: 56,
+            borderRadius: 16,
+            background: '#2A2A32',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0
           }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="4" width="18" height="18" rx="2" stroke="#90BDD3" strokeWidth="2"/>
-              <path d="M3 10H21" stroke="#90BDD3" strokeWidth="2"/>
-              <path d="M8 2V6M16 2V6" stroke="#90BDD3" strokeWidth="2" strokeLinecap="round"/>
-              <path d="M8 14H10M14 14H16M8 17H10" stroke="#90BDD3" strokeWidth="2" strokeLinecap="round"/>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="4" width="18" height="18" rx="3" stroke="#90BDD3" strokeWidth="2.5"/>
+              <path d="M3 10H21" stroke="#90BDD3" strokeWidth="2.5"/>
+              <path d="M8 2V6M16 2V6" stroke="#90BDD3" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M8 14H10M14 14H16M8 17H10" stroke="#90BDD3" strokeWidth="2.5" strokeLinecap="round"/>
             </svg>
           </div>
           
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#FAFAFA', marginBottom: 4, letterSpacing: '-0.01em', fontFamily: "'Inter', sans-serif" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#FAFAFA', marginBottom: 4, letterSpacing: '-0.02em', fontFamily: "'Inter', sans-serif" }}>
               Programar arriendo
             </div>
-            <div style={{ fontSize: 13, color: 'rgba(250,250,250,0.85)', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>
-              Elige fecha y planifica con anticipación
+            <div style={{ fontSize: 13, color: 'rgba(250,250,250,0.7)', fontWeight: 500, fontFamily: "'Inter', sans-serif", lineHeight: 1.3 }}>
+              Reserva para mañana o fechas futuras.
             </div>
           </div>
 
           <div style={{
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             borderRadius: '50%',
-            background: '#242429',
+            background: '#2A2A32',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M9 6L15 12L9 18" stroke="rgba(250,250,250,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M9 5L15 12L9 19" stroke="rgba(250,250,250,0.6)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
+        </div>
+
+        {/* Atajo a Historial */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 32 }}>
+          <button
+            onClick={() => navigate('/client/history')}
+            style={{
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 12,
+              padding: '10px 18px',
+              color: 'rgba(255,255,255,0.8)',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 8V12L15 15M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Mis arriendos
+          </button>
         </div>
 
         {/* Microcopy: propuesta de valor + cobro */}

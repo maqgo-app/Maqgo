@@ -665,7 +665,6 @@ function MachineDataScreen() {
   const [publishError, setPublishError] = useState('');
   const [stepHint, setStepHint] = useState('');
 
-  const [inlineEmail, setInlineEmail] = useState('');
   const [inlinePassword, setInlinePassword] = useState('');
   const [inlineLoading, setInlineLoading] = useState(false);
   const [inlineError, setInlineError] = useState('');
@@ -706,20 +705,18 @@ function MachineDataScreen() {
 
   const handleInlineProviderSubmit = useCallback(async () => {
     setInlineError('');
-    const emailErr = validateEmail(inlineEmail);
     const pwdErr = validatePassword(inlinePassword, passwordHintInline);
     const cel9 = getUserAuthState().phone;
     const celErr = cel9
       ? validateCelularChile(cel9)
       : 'No detectamos tu celular en este dispositivo. Recarga la página (actualiza la sesión) o inicia sesión una vez con celular y código SMS.';
-    if (emailErr || pwdErr || celErr) {
-      setInlineError(emailErr || pwdErr || celErr);
+    if (pwdErr || celErr) {
+      setInlineError(pwdErr || celErr);
       return;
     }
     setInlineLoading(true);
     try {
       const res = await submitBecomeProviderMinimal({
-        email: inlineEmail.trim(),
         password: inlinePassword,
         celular: cel9,
       });
@@ -755,20 +752,18 @@ function MachineDataScreen() {
     setPublishError('');
     setInlineError('');
     if (!hasProviderRoleInStorage()) {
-      const emailErr = validateEmail(inlineEmail);
       const pwdErr = validatePassword(inlinePassword, passwordHintInline);
       const cel9 = getUserAuthState().phone;
       const celErr = cel9
         ? validateCelularChile(cel9)
         : 'No detectamos tu celular en este dispositivo. Recarga la página (actualiza la sesión) o inicia sesión una vez con celular y código SMS.';
-      if (emailErr || pwdErr || celErr) {
-        setPublishError(emailErr || pwdErr || celErr);
+      if (pwdErr || celErr) {
+        setPublishError(pwdErr || celErr);
         return false;
       }
       setInlineLoading(true);
       try {
         const res = await submitBecomeProviderMinimal({
-          email: inlineEmail.trim(),
           password: inlinePassword,
           celular: cel9,
         });
@@ -1427,17 +1422,6 @@ function MachineDataScreen() {
                     Crea tu cuenta aquí. Empresa y banco, después en el perfil.
                   </p>
                   <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, display: 'block', marginBottom: 6 }}>
-                    Correo electrónico
-                  </label>
-                  <input
-                    className="maqgo-input"
-                    type="email"
-                    autoComplete="email"
-                    value={inlineEmail}
-                    onChange={(e) => setInlineEmail(e.target.value)}
-                    style={{ marginBottom: 10 }}
-                  />
-                  <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, display: 'block', marginBottom: 6 }}>
                     Contraseña
                   </label>
                   <PasswordField
@@ -1532,19 +1516,8 @@ function MachineDataScreen() {
               Cuenta proveedor (obligatorio para publicar)
             </p>
             <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '0 0 12px', lineHeight: 1.4 }}>
-              Correo y contraseña de acceso. Los datos de empresa y banco los completas después.
+              Contraseña de acceso. Los datos de empresa y banco los completas después.
             </p>
-            <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, display: 'block', marginBottom: 6 }}>
-              Correo electrónico
-            </label>
-            <input
-              className="maqgo-input"
-              type="email"
-              autoComplete="email"
-              value={inlineEmail}
-              onChange={(e) => setInlineEmail(e.target.value)}
-              style={{ marginBottom: 10 }}
-            />
             <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, display: 'block', marginBottom: 6 }}>
               Contraseña
             </label>

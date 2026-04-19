@@ -137,7 +137,6 @@ function ProviderRegisterScreen() {
   const [form, setForm] = useState({
     /** Opcional; nombre para mostrar. Empresa/RUT van después en /provider/data. */
     nombreMostrar: '',
-    email: '',
     password: ''
   });
   const [accepted, setAccepted] = useState(false);
@@ -649,31 +648,27 @@ function ProviderRegisterScreen() {
 
   const handleSubmitRegister = async () => {
     if (!accepted) return;
-    const emailTrim = String(form.email || '').trim();
     const nm = String(form.nombreMostrar || '').trim();
-    const emailErr = validateEmail(emailTrim);
     const celularErr = validateCelularChile(celularStorage);
     const passwordErr = validatePassword(form.password, passwordHint);
     let nombreErr = '';
     if (nm.length > 120) {
       nombreErr = 'Usa un texto más corto (máx. 120 caracteres).';
     }
-    if (emailErr || celularErr || passwordErr || nombreErr) {
+    if (celularErr || passwordErr || nombreErr) {
       setErrors({
         nombreMostrar: nombreErr,
-        email: emailErr,
         celular: celularErr,
         password: passwordErr
       });
       return;
     }
-    setErrors({ nombreMostrar: '', email: '', celular: '', password: '' });
+    setErrors({ nombreMostrar: '', celular: '', password: '' });
     setSubmitError('');
     setSubmitErrorDebug('');
     setLoading(true);
 
     const profilePayload = {
-      email: emailTrim,
       celular: celularStorage,
       password: form.password,
       nombreMostrar: nm,
@@ -917,18 +912,14 @@ function ProviderRegisterScreen() {
   const isPhoneValid = /^9\d{8}$/.test(String(phoneDigits || '').replace(/\D/g, ''));
   const otpDigits = String(otpCode || '').replace(/\D/g, '').slice(0, 6);
   const isOtpValid = otpDigits.length === 6;
-  const emailTrimLive = String(form.email || '').trim();
-  const emailErrLive = validateEmail(emailTrimLive);
   const pwdErrLive = validatePassword(form.password, passwordHint);
   const isDetailsValid =
-    !emailErrLive &&
     !pwdErrLive &&
     celularStorage.length === 9 &&
     accepted;
 
   const detailsBlockers = [];
   if (step === 'details') {
-    if (emailErrLive) detailsBlockers.push('Correo electrónico válido');
     if (pwdErrLive) detailsBlockers.push('Contraseña (8–12 caracteres, letras y números)');
     if (celularStorage.length !== 9) detailsBlockers.push('Celular verificado');
     if (!accepted) detailsBlockers.push('Aceptar términos y política de privacidad');
@@ -1194,21 +1185,6 @@ function ProviderRegisterScreen() {
             {errors.nombreMostrar ? (
               <p style={{ color: '#f44336', fontSize: 12, marginTop: -6, marginBottom: 8 }}>{errors.nombreMostrar}</p>
             ) : null}
-
-            <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-              Correo electrónico <span style={{ color: '#EC6819' }}>*</span>
-            </label>
-            <input
-              className="maqgo-input"
-              placeholder="tu@correo.cl"
-              type="email"
-              value={form.email}
-              onChange={(e) => update('email', e.target.value)}
-              style={{ marginBottom: 12 }}
-              name="email"
-              autoComplete="email"
-            />
-            {errors.email ? <p style={{ color: '#f44336', fontSize: 12, marginTop: -8, marginBottom: 8 }}>{errors.email}</p> : null}
 
             <label
               htmlFor="provider-register-password"
