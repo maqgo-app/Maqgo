@@ -1,5 +1,5 @@
 import React from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 
 const ProtectedRoute = ({ children }) => {
   const role = localStorage.getItem("userRole");
@@ -18,7 +18,7 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/provider/home" replace />;
   }
 
-  return children;
+  return children ? children : <Outlet />;
 };
 
 export default ProtectedRoute;

@@ -184,7 +184,7 @@ function AppContent() {
         <Route path="/login" element={<LoginScreen setUserRole={setUserRole} setUserId={setUserId} />} />
         <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
         
-        <Route element={<ProtectedRoute />}>
+        {/* Rutas Públicas de Registro y Ayuda */}
         <Route
           path="/register"
           element={<AppNavigateToLogin trace="src/App.jsx (Route path=/register)" />}
@@ -202,7 +202,11 @@ function AppContent() {
           path="/code-incorrect"
           element={<AppNavigateToLogin trace="src/App.jsx (legacy /code-incorrect)" />}
         />
+        <Route path="/faq" element={<FAQScreen />} />
+        <Route path="/terms" element={<TermsScreen />} />
+        <Route path="/privacy" element={<PrivacyScreen />} />
 
+        <Route element={<ProtectedRoute />}>
         {/* Chat por servicio (canal obligatorio cliente ↔ proveedor) */}
         <Route path="/chat/:serviceId" element={<ServiceChatScreen />} />
 
@@ -373,14 +377,11 @@ function AppContent() {
           <Route path="marketing" element={<AdminMarketingScreen />} />
         </Route>
 
-        {/* Perfil y legales */}
         <Route path="/profile" element={<ProfileScreen />} />
-        <Route path="/faq" element={<FAQScreen />} />
-        <Route path="/terms" element={<TermsScreen />} />
-        <Route path="/privacy" element={<PrivacyScreen />} />
+        </Route>
+
         {/* Catch-all: cualquier ruta no definida redirige a Welcome */}
         <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
       </Routes>
       </Suspense>
       </div>

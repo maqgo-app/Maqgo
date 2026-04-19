@@ -196,7 +196,7 @@ function WelcomeScreen() {
               width: '100%',
               display: 'flex',
               justifyContent: 'center',
-              ['--welcome-d']: '0ms',
+              '--welcome-d': '0ms',
             }}
           >
             <MaqgoLogo customSize={logoSize} style={{ marginTop: window.innerWidth < 768 ? "12px" : "32px", marginBottom: "16px" }} />
@@ -204,7 +204,7 @@ function WelcomeScreen() {
           <div
             className="welcome-hero-caluga welcome-reveal"
             style={{
-              ['--welcome-d']: '35ms',
+              '--welcome-d': '35ms',
               marginTop: "16px",
               marginBottom: "24px",
               display: 'inline-flex',
@@ -240,7 +240,7 @@ function WelcomeScreen() {
           <div
             className="welcome-reveal"
             style={{
-              ['--welcome-d']: '130ms',
+              '--welcome-d': '130ms',
               width: '100%',
               display: 'flex',
               flexDirection: 'column',
@@ -307,7 +307,7 @@ function WelcomeScreen() {
               navigate(target);
             }}
             className="welcome-cta-primary welcome-reveal"
-            style={{ ['--welcome-d']: '200ms', transition: "all 0.2s ease" }}
+            style={{ '--welcome-d': '200ms', transition: "all 0.2s ease" }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translateY(-2px)";
               e.currentTarget.style.boxShadow = "0 10px 20px rgba(0,0,0,0.15)";
@@ -348,7 +348,7 @@ function WelcomeScreen() {
               navigate(finalRoute);
             }}
             className="welcome-cta-secondary welcome-reveal"
-            style={{ ['--welcome-d']: '270ms' }}
+            style={{ '--welcome-d': '270ms' }}
             data-testid="start-provider-btn"
             aria-label="Ofrecer mi maquinaria. Regístrate y recibe solicitudes de clientes."
           >
@@ -364,7 +364,7 @@ function WelcomeScreen() {
           <button
             onClick={() => navigate(getWelcomeOperatorDestination())}
             className="welcome-cta-secondary welcome-reveal"
-            style={{ ['--welcome-d']: '340ms' }}
+            style={{ '--welcome-d': '340ms' }}
             data-testid="operator-join-btn"
             aria-label="Soy operador. Unirme con código de equipo."
           >
@@ -381,7 +381,7 @@ function WelcomeScreen() {
             <div
               className="welcome-reveal"
               style={{
-                ['--welcome-d']: '200ms',
+                '--welcome-d': '200ms',
                 maxWidth: 420,
                 margin: '0 auto',
                 width: '100%',
@@ -418,13 +418,13 @@ function WelcomeScreen() {
         <div style={{ textAlign: "center", marginTop: "20px" }}>
 
   <div style={{ marginBottom: "18px" }}>
-    <a href="/login" style={{
+    <Link to="/login" style={{
       color: "#FF6B00",
       fontSize: "14px",
       textDecoration: "none"
     }}>
       Iniciar sesión
-    </a>
+    </Link>
   </div>
 
   <div className="footer-links-responsive" style={{
@@ -438,15 +438,15 @@ function WelcomeScreen() {
     fontSize: "12px",
     color: "#666"
   }}>
-    <a href="/faq" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>FAQ</a>
+    <Link to="/faq" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>FAQ</Link>
 
-    <a href="/terminos.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>
+    <Link to="/terms" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>
       Términos y Condiciones
-    </a>
+    </Link>
 
-    <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>
+    <Link to="/privacy" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>
       Políticas de Privacidad
-    </a>
+    </Link>
   </div>
 
   <style>{`
