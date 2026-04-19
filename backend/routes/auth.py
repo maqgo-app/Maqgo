@@ -941,10 +941,11 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 device_id=device_norm,
                 last_ip=ip,
                 last_country=country,
-                        user_agent=ua_hdr,
-                    )
-                    clear_login_verify_failures(user["id"], device_norm)
-                clear_hard_lockout(raw_phone)
+                user_agent=ua_hdr,
+            )
+            clear_login_verify_failures(user["id"], device_norm)
+
+        clear_hard_lockout(raw_phone)
 
         logger.info("LOGIN_SMS_VERIFY success userId=%s roles=%s", user["id"], _user_roles(user))
         log_ops_event(
