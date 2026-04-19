@@ -301,6 +301,8 @@ function WelcomeScreen() {
               // "Arrendar maquinaria" siempre debe iniciar el funnel cliente.
               try {
                 localStorage.setItem('desiredRole', 'client');
+                // Si ya tiene sesión, actualizamos el rol activo para evitar redirecciones cruzadas
+                localStorage.setItem('userRole', 'client');
               } catch {
                 /* ignore */
               }
@@ -334,6 +336,10 @@ function WelcomeScreen() {
             onClick={() => {
               try {
                 localStorage.setItem('desiredRole', 'provider');
+                // Si ya tiene sesión, actualizamos el rol activo
+                if (hasSession) {
+                  localStorage.setItem('userRole', 'provider');
+                }
               } catch {
                 /* ignore */
               }

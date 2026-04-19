@@ -200,31 +200,38 @@ function LoginScreen({ setUserRole, setUserId }) {
     }
     const uid = data.id ?? data.user_id ?? data.userId ?? localStorage.getItem('userId');
     const roles = Array.isArray(data.roles) ? data.roles : [];
+    // Si el usuario tiene múltiples roles (ej: client + provider), decidir cuál usar:
+    const desiredRole = localStorage.getItem('desiredRole');
     const previouslySelectedRole = localStorage.getItem('userRole');
     const isAdmin = data.role === 'admin' || roles.includes('admin');
-    let effectiveRole = isAdmin ? 'admin' : data.role;
-
-    const dualClientProvider = roles.includes('provider') && roles.includes('client');
-    if (!isAdmin && dualClientProvider) {
-      if (redirectTo && redirectTo.startsWith('/provider')) {
-        effectiveRole = 'provider';
-      } else if (redirectTo && redirectTo.startsWith('/client')) {
-        effectiveRole = 'client';
-      } else {
-        const dr = localStorage.getItem('desiredRole');
-        if (dr === 'provider') {
-          effectiveRole = 'provider';
-          localStorage.removeItem('desiredRole');
-        } else if (dr === 'client') {
-          effectiveRole = 'client';
-          localStorage.removeItem('desiredRole');
-        } else {
-          effectiveRole = data.role;
-        }
-      }
-    } else if (!isAdmin && previouslySelectedRole && roles.includes(previouslySelectedRole)) {
+    let effectiveRole = null;
+    
+    // PRIORIDAD 1: El rol que el usuario acaba de elegir en Welcome (Arrendar vs Ofrecer)
+    if (desiredRole && roles.includes(desiredRole)) {
+      console.log("LOGIN: Using desiredRole from Welcome:", desiredRole);
+      effectiveRole = desiredRole;
+    } 
+    // PRIORIDAD 2: El rol que ya tenía en su sesión anterior (si sigue siendo válido)
+    else if (previouslySelectedRole && roles.includes(previouslySelectedRole)) {
+      console.log("LOGIN: Using previouslySelectedRole:", previouslySelectedRole);
       effectiveRole = previouslySelectedRole;
     }
+    // PRIORIDAD 3: Redirección forzada por ruta protegida
+    else if (redirectTo) {
+      if (redirectTo.startsWith('/admin') && isAdmin) effectiveRole = 'admin';
+      else if (redirectTo.startsWith('/provider') && roles.includes('provider')) effectiveRole = 'provider';
+      else if (redirectTo.startsWith('/client') && roles.includes('client')) effectiveRole = 'client';
+    }
+
+    // Limpiamos el rol deseado una vez usado para no afectar futuros logins
+    localStorage.removeItem('desiredRole');
+    
+    // Si nada de lo anterior aplica, usamos el rol por defecto del backend
+    if (!effectiveRole) {
+      effectiveRole = isAdmin ? 'admin' : data.role;
+    }
+
+    // Fallback final si no hay rol definido
     if (!effectiveRole && roles.length > 0) {
       effectiveRole = roles.includes('provider') ? 'provider' : roles[0];
     }
@@ -502,16 +509,21 @@ function LoginScreen({ setUserRole, setUserId }) {
         <div className="maqgo-back-portada-wrap">
           <BackToPortadaButton onClick={handleBackToWelcome} />
         </div>
-        <MaqgoLogo size="medium" style={{ marginBottom: 36 }} />
+        
+        {/* Logo: solo visible en el primer paso o modo email para mantener limpieza en OTP */}
+        {(step === 'phone' || loginMode === 'email') && (
+          <MaqgoLogo size="medium" style={{ marginBottom: 36 }} />
+        )}
 
         <h2 style={{
           color: '#fff',
           fontSize: 24,
           fontWeight: 600,
           textAlign: 'center',
-          marginBottom: redirectTo === '/admin' ? 8 : 35
+          marginBottom: redirectTo === '/admin' ? 8 : (step === 'phone' || loginMode === 'email' ? 35 : 20),
+          marginTop: (step !== 'phone' && loginMode === 'sms') ? 20 : 0
         }}>
-          Iniciar sesión
+          {loginMode === 'sms' && step === 'otp' ? 'Verificar código' : 'Iniciar sesión'}
         </h2>
         {redirectTo === '/admin' && (
           <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textAlign: 'center', marginBottom: 27 }}>
@@ -650,28 +662,17 @@ function LoginScreen({ setUserRole, setUserId }) {
                 className="otp-phone-text"
                 style={{
                   color: 'rgba(255,255,255,0.92)',
-                  fontSize: 14,
+                  fontSize: 16,
+                  fontWeight: 500,
                   textAlign: 'center',
-                  marginBottom: 10,
-                  lineHeight: 1.45,
+                  marginBottom: 8,
+                  lineHeight: 1.4,
                 }}
               >
-                Ingresa el código enviado a {maskPhone(phone)}
+                Código enviado al {maskPhone(phone)}
               </p>
-              {otpHint ? (
-                <p
-                  style={{
-                    color: 'rgba(144, 189, 211, 0.95)',
-                    fontSize: 13,
-                    textAlign: 'center',
-                    marginBottom: 12,
-                    lineHeight: 1.45,
-                  }}
-                >
-                  {otpHint}
-                </p>
-              ) : null}
-              <p style={{ textAlign: 'center', marginBottom: 12 }}>
+              
+              <p style={{ textAlign: 'center', marginBottom: 24 }}>
                 <button
                   type="button"
                   className="maqgo-link"
@@ -690,11 +691,35 @@ function LoginScreen({ setUserRole, setUserId }) {
                   ¿Número incorrecto?
                 </button>
               </p>
+
+              {/* otpHint solo si es un mensaje especial (ej: canal email alternativo) */}
+              {otpHint && !otpHint.toLowerCase().includes('sms') && (
+                <p
+                  style={{
+                    color: 'rgba(144, 189, 211, 0.95)',
+                    fontSize: 13,
+                    textAlign: 'center',
+                    marginBottom: 12,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {otpHint}
+                </p>
+              )}
+
               <label
                 htmlFor="login-code"
-                style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
+                style={{ 
+                  color: 'rgba(255,255,255,0.5)', 
+                  fontSize: 12, 
+                  marginBottom: 12, 
+                  display: 'block',
+                  textAlign: 'center',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}
               >
-                Código SMS
+                Ingresa los 6 dígitos
               </label>
               <OtpSixDigitsInput
                 key="login-sms-otp"

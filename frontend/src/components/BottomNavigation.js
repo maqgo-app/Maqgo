@@ -3,6 +3,7 @@ import { Z_INDEX } from '../constants/zIndex';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { clearAuthSessionPreservingDraft } from '../utils/sessionCleanup';
 import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
+import { getSessionRole, isProviderSession } from '../utils/userAuthState';
 
 /**
  * Ítem de navegación
@@ -95,10 +96,10 @@ function logoutAndGoWelcome(navigate) {
  * - Operador → OperatorHome
  */
 function goToHome(navigate) {
-  const userRole = localStorage.getItem('userRole');
+  const userRole = getSessionRole();
   const userId = localStorage.getItem('userId');
-  const providerRole = localStorage.getItem('providerRole');
-  
+  const providerRole = localStorage.getItem('providerRole') || 'owner';
+
   console.log("CURRENT ROLE (goToHome):", userRole);
   console.log("CURRENT USER ID:", userId);
   
@@ -107,12 +108,14 @@ function goToHome(navigate) {
     navigate('/welcome');
     return;
   }
+
   if (userRole === 'admin') {
     console.log("ADMIN ROLE - redirecting to /admin");
     navigate('/admin');
     return;
   }
-  if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager') {
+
+  if (isProviderSession()) {
     console.log("PROVIDER ROLE - redirecting to provider home");
     navigate(providerRole === 'operator' ? '/operator/home' : getProviderLandingPath());
   } else {

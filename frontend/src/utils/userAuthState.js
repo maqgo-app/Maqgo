@@ -76,7 +76,41 @@ export function getUserAuthState() {
     userId: userId || null,
     phone,
     deviceTrusted,
+    userRole: ls?.getItem('userRole') || null,
   };
+}
+
+/**
+ * Retorna el rol actual de la sesión.
+ * @returns {'client' | 'provider' | 'admin' | null}
+ */
+export function getSessionRole() {
+  const ls = safeLs();
+  const role = ls?.getItem('userRole');
+  if (!role) return null;
+  
+  // Normalización: owner/manager/operator -> provider
+  if (['owner', 'manager', 'operator', 'provider'].includes(role)) {
+    return 'provider';
+  }
+  if (role === 'admin') return 'admin';
+  return 'client';
+}
+
+/**
+ * Verifica si el rol actual es de tipo proveedor (incluye sub-roles).
+ */
+export function isProviderSession() {
+  const role = getSessionRole();
+  return role === 'provider';
+}
+
+/**
+ * Verifica si el rol actual es cliente.
+ */
+export function isClientSession() {
+  const role = getSessionRole();
+  return role === 'client';
 }
 
 /**
