@@ -465,18 +465,6 @@ function WelcomeScreen() {
     color: "#666",
     lineHeight: "1.6"
   }}>
-    <p style={{ marginBottom: "8px" }}>
-      Arriendo de maquinaria pesada con operadores verificados.
-    </p>
-
-    <p style={{ marginBottom: "8px" }}>
-      Plataforma segura con validación de disponibilidad en tiempo real.
-    </p>
-
-    <p style={{ marginBottom: "12px" }}>
-      Al continuar aceptas nuestros Términos y Condiciones y Política de Privacidad
-    </p>
-
     <p style={{
       marginTop: "24px",
       textAlign: "center",
