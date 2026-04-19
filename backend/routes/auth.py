@@ -914,15 +914,22 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 db, user_id=user["id"], phone_e164=raw_phone, device_id=device_norm
             )
             # Si el dispositivo NO es de confianza o hay riesgo, exigir clave.
-            if not trusted or is_risky_login(trusted, True, country, False, ip, ua_hdr):
+            if not trusted or is_risky_login(
+                trusted_row=trusted,
+                device_id_valid=True,
+                current_country=country,
+                too_many_failed=False,
+                current_ip=ip,
+                current_user_agent=ua_hdr,
+            ):
                 logger.info("LOGIN_SMS_VERIFY step_up_required userId=%s", user["id"])
                 return {
-                     "requires_password": True,
-                     "user_id": user["id"],
-                     "phone": raw_phone,
-                     "email_masked": _mask_email_for_display(user.get("email", "")),
-                     "message": "Por seguridad, ingresa tu contraseña de proveedor."
-                 }
+                    "requires_password": True,
+                    "user_id": user["id"],
+                    "phone": raw_phone,
+                    "email_masked": _mask_email_for_display(user.get("email", "")),
+                    "message": "Por seguridad, ingresa tu contraseña de proveedor.",
+                }
 
         token = generate_token()
         await db.sessions.insert_one(
@@ -1168,17 +1175,6 @@ def _normalize_rut_for_lookup(raw: str) -> Optional[str]:
 
 def _looks_like_email(value: str) -> bool:
     return "@" in str(value or "")
-
-
-def _mask_email_for_display(email: str) -> str:
-    local, _, domain = str(email or "").partition("@")
-    if not local or not domain:
-        return "••••@••••"
-    if len(local) <= 2:
-        masked_local = local[0] + "•"
-    else:
-        masked_local = local[:2] + "•" * max(2, len(local) - 2)
-    return f"{masked_local}@{domain}"
 
 
 def _normalize_email_for_lookup(value: str) -> Optional[str]:

@@ -11,41 +11,15 @@ import {
 } from '../utils/welcomeHome';
 import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
 
-// Íconos auxiliares (diseño Apple/Uber Style)
-const IconExcavator = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M2 17h20v2H2z" />
-    <path d="M5 17l1-5h12l1 5" />
-    <path d="M9 12V7h6v5" />
-    <path d="M11 7V4h2v3" />
-  </svg>
-);
-
-const IconBuilding = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
-    <path d="M9 22v-4h6v4" />
-    <path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01" />
-  </svg>
-);
-
-const IconUser = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
-  </svg>
-);
-
 const ICON_SIZE = 24;
 
 function IconExcavator() {
   return (
     <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }} aria-hidden="true">
-      <path d="M4 19h16" />
-      <path d="M8 19V10l4-5 4 5v9" />
-      <path d="M8 10h8" />
-      <path d="M16 10l3 4" />
-      <path d="M19 14l-2 3" />
+      <path d="M2 17h20v2H2z" />
+      <path d="M5 17l1-5h12l1 5" />
+      <path d="M9 12V7h6v5" />
+      <path d="M11 7V4h2v3" />
     </svg>
   );
 }
@@ -53,8 +27,9 @@ function IconExcavator() {
 function IconBuilding() {
   return (
     <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }} aria-hidden="true">
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
+      <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+      <path d="M9 22v-4h6v4" />
+      <path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01" />
     </svg>
   );
 }
@@ -62,8 +37,8 @@ function IconBuilding() {
 function IconUser() {
   return (
     <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, display: 'block' }} aria-hidden="true">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 20c0-3 3-6 8-6s8 3 8 6" />
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
     </svg>
   );
 }
