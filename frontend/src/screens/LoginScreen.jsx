@@ -397,10 +397,13 @@ function LoginScreen({ setUserRole, setUserId }) {
         return;
       }
       const deviceId = getDeviceId();
+      const requestedRole = localStorage.getItem('desiredRole') || (location.state?.entry) || 'client';
+      
       const payload = {
         celular: `+56${nine}`,
         code: digits,
         device_id: deviceId,
+        requested_role: requestedRole,
       };
       const res = await axios.post(`${BACKEND_URL}/api/auth/login-sms/verify`, payload, {
         timeout: LOGIN_SMS_VERIFY_TIMEOUT_MS,

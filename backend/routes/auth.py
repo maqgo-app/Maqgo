@@ -232,6 +232,10 @@ class LoginSmsVerifyRequest(BaseModel):
         None,
         description="Mismo device_id enviado en login-sms/start",
     )
+    requested_role: Optional[str] = Field(
+        None,
+        description="Rol con el que se inició el flujo (client/provider)",
+    )
 
 
 class CheckDeviceRequest(BaseModel):
@@ -269,15 +273,20 @@ def _user_roles(existing: dict) -> list:
     return [r] if r else []
 
 
-def _effective_session_role(roles: list, legacy_role: Optional[str]) -> str:
+def _effective_session_role(roles: list, legacy_role: Optional[str], requested_role: Optional[str] = None) -> str:
     """
     Rol efectivo para login y /me cuando existe roles[].
     - admin gana.
-    - Si tiene provider en roles[], exponer provider (misma cuenta cliente+proveedor).
-    - Si no, campo legacy `role` (típico solo cliente).
+    - Si requested_role está presente y es válido en roles[], se respeta el origen.
+    - Si no, cae en lógica por defecto (provider > client).
     """
     if "admin" in roles:
         return "admin"
+    
+    # Respetar el rol solicitado si el usuario lo tiene asignado
+    if requested_role and requested_role in roles:
+        return requested_role
+        
     if "provider" in roles:
         return "provider"
     return (legacy_role or "client") or "client"
@@ -296,11 +305,11 @@ def _provider_role_for_api(user: dict, roles: list) -> Optional[str]:
     return pr
 
 
-def _build_login_sms_session_payload(user: dict, token: str, *, requires_otp: bool) -> dict:
+def _build_login_sms_session_payload(user: dict, token: str, *, requires_otp: bool, requested_role: Optional[str] = None) -> dict:
     """Respuesta unificada login SMS (OTP o confianza por dispositivo)."""
     roles = _user_roles(user)
     legacy_role = user.get("role") or "client"
-    effective_role = _effective_session_role(roles, legacy_role)
+    effective_role = _effective_session_role(roles, legacy_role, requested_role)
     pr = _provider_role_for_api(user, roles)
     oid = user.get("owner_id")
     uid = user["id"]
@@ -905,11 +914,24 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
             record_hard_lockout_failure(raw_phone)
             raise HTTPException(status_code=400, detail="El código no es correcto. Intenta nuevamente.")
 
-        # --- STEP-UP AUTH: Solo para Cuentas con Clave (Proveedor/Admin) en dispositivos nuevos ---
+        # --- RESOLUCIÓN DE FLUJO POSTERIOR A OTP ---
+        # Si el usuario inició el login desde flujo CLIENTE y el OTP fue válido,
+        # debe crear sesión y entrar directo, aunque tenga otros roles (provider/admin).
         roles = _user_roles(user)
+        req_role = (body.requested_role or "").lower()
+        
+        # Log claro de resolución de flujo
+        logger.info(
+            "LOGIN_SMS_VERIFY resolution phone9=%s requested_role=%s user_roles=%s",
+            phone9, req_role, roles
+        )
+
+        # La exigencia de contraseña (Step-Up Auth) aplica solo si el flujo es PROVIDER o ADMIN.
+        # Si req_role es 'client' (o no viene), saltamos el Step-Up.
+        is_step_up_flow = req_role in ["provider", "admin"]
         has_password_protected_role = any(r in ["provider", "admin"] for r in roles)
         
-        if has_password_protected_role:
+        if is_step_up_flow and has_password_protected_role:
             trusted = await find_trusted_device(
                 db, user_id=user["id"], phone_e164=raw_phone, device_id=device_norm
             )
@@ -954,16 +976,18 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
 
         clear_hard_lockout(raw_phone)
 
-        logger.info("LOGIN_SMS_VERIFY success userId=%s roles=%s", user["id"], _user_roles(user))
+        logger.info("LOGIN_SMS_VERIFY success userId=%s roles=%s requested_role=%s", user["id"], roles, req_role)
         log_ops_event(
             logger,
             event="login_otp_verified",
             user_id=user["id"],
             phone=_phone_tail_log(raw_phone),
             success=True,
+            requested_role=req_role,
+            user_roles=roles
         )
 
-        return _build_login_sms_session_payload(user, token, requires_otp=False)
+        return _build_login_sms_session_payload(user, token, requires_otp=False, requested_role=req_role)
     except HTTPException:
         raise
     except Exception as e:
