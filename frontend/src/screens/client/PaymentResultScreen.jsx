@@ -142,6 +142,20 @@ const MachineryIcon = ({ type, size = 18 }) => {
  * WORLD-CLASS: Esta es la pantalla donde se revela el proveedor
  * porque el pago ya fue procesado exitosamente.
  */
+const TBK_ERROR_MAP = {
+  '-1': 'Rechazo de la transacción por parte del emisor.',
+  '-2': 'Rechazo de la transacción por parte de Transbank.',
+  '-3': 'Error en el ingreso de los datos de la tarjeta.',
+  '-4': 'Transacción abortada por el usuario.',
+  '-5': 'Fallo de autenticación del titular.',
+  '101': 'Tarjeta vencida.',
+  '102': 'Tarjeta bloqueada temporalmente.',
+  '104': 'Fondos insuficientes.',
+  '106': 'Excede el límite de intentos de PIN.',
+  '107': 'Contacte a su banco emisor.',
+  '108': 'Error del sistema. Intente más tarde.',
+};
+
 function PaymentResultScreen() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -358,8 +372,18 @@ function PaymentResultScreen() {
         emitPaymentCheckoutOutcome('rejected');
         setStatus('rejected');
       } else if (simulateToUse === 'payment_failed') {
-        emitPaymentCheckoutOutcome('payment_failed');
+        const code = searchParams.get('response_code');
+        const detail = searchParams.get('response_detail');
+        
+        let errorMsg = 'No pudimos procesar el pago. Por favor intenta con otra tarjeta.';
+        if (code && TBK_ERROR_MAP[code]) {
+          errorMsg = TBK_ERROR_MAP[code];
+        } else if (detail) {
+          errorMsg = detail;
+        }
+
         setStatus('payment_failed');
+        emitPaymentCheckoutOutcome('payment_failed');
       } else if (simulateToUse === 'expired') {
         emitPaymentCheckoutOutcome('expired');
         setStatus('expired');

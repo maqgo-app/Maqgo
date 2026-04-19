@@ -18,6 +18,7 @@ import { useCheckoutState } from '../../context/CheckoutContext';
 import { getOrCreateBookingId } from '../../utils/bookingPaymentKeys';
 import { touchCheckoutStateForExhaustiveUi } from '../../domain/checkout/checkoutStateMachine';
 import { useToast } from '../../components/Toast';
+import { vibrate } from '../../utils/uberUX';
 import { isEmpresaBillingComplete } from '../../utils/clientBillingInvoice';
 import { getTruckUrgencySummaryLine } from '../../utils/clientBookingTruck';
 
@@ -276,6 +277,7 @@ function ConfirmServiceScreen() {
 
   const handleConfirm = async () => {
     if (!hasValidPrice) return;
+    vibrate('tap');
     setIsConfirming(true);
     try {
       if (!hasBookingLocation()) {

@@ -8,6 +8,7 @@ import { useToast } from '../../components/Toast';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
 import { getMachines, resetMachines, updateMachine, addMachine, removeMachine, needsTransport, MACHINERY_TYPES } from '../../utils/providerMachines';
 import { REFERENCE_PRICES, REFERENCE_TRANSPORT, MAX_PRICE_ABOVE_MARKET_PCT, getPriceAlert, getTransportAlert } from '../../utils/pricing';
+import { vibrate } from '../../utils/uberUX';
 import BACKEND_URL from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
 
@@ -297,30 +298,47 @@ function MyMachinesScreen() {
                 const machineNeedsTransport = needsTransport(machine.machineryType || machine.type);
                 const hasMainPrice = Number(machineMainPrice) > 0;
                 const hasTransport = Number(machine.transportCost) > 0;
+                const isPerHour = !!machine.pricePerHour;
+                const handleEditPricing = () => {
+                   vibrate('tap');
+                   setEditPricingModal({
+                     machine,
+                     priceVal: (machine.pricePerHour || machine.pricePerService || 0).toString(),
+                     transportVal: (machine.transportCost || 0).toString(),
+                     isPerHour: !!machine.pricePerHour
+                   });
+                 };
                 return (
-                  <>
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Valores netos (hora/servicio y traslado)
-              </p>
-              <div style={{ background: '#2A2A2A', borderRadius: 8, padding: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>
-                    {machine.pricePerHour != null ? 'Precio/hora neto' : 'Precio/servicio neto'}
-                  </span>
-                  <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>
-                    {hasMainPrice ? formatPrice(machineMainPrice) : 'Sin definir'}
-                  </span>
-                </div>
-                {(machineNeedsTransport || hasTransport) && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Traslado</span>
-                    <span style={{ color: '#fff', fontSize: 13 }}>
-                      {hasTransport ? formatPrice(machine.transportCost) : 'Sin definir'}
-                    </span>
+                  <div style={{ display: 'flex', gap: 20 }}>
+                    <div 
+                      onClick={handleEditPricing}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '0 0 4px', textTransform: 'uppercase' }}>
+                        {isPerHour ? 'Precio p/hora' : 'Precio p/viaje'}
+                      </p>
+                      <p style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {hasMainPrice ? formatPrice(machineMainPrice) : 'Sin definir'}
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2">
+                          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                      </p>
+                    </div>
+                    {machineNeedsTransport && (
+                      <div 
+                        onClick={handleEditPricing}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '0 0 4px', textTransform: 'uppercase' }}>Traslado</p>
+                        <p style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {hasTransport ? formatPrice(machine.transportCost) : 'Sin definir'}
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2">
+                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-                  </>
                 );
               })()}
             </div>
