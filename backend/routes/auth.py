@@ -905,11 +905,11 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
             record_hard_lockout_failure(raw_phone)
             raise HTTPException(status_code=400, detail="El código no es correcto. Intenta nuevamente.")
 
-        # --- STEP-UP AUTH: Solo para Proveedores en dispositivos nuevos ---
+        # --- STEP-UP AUTH: Solo para Cuentas con Clave (Proveedor/Admin) en dispositivos nuevos ---
         roles = _user_roles(user)
-        is_provider = "provider" in roles or user.get("role") == "provider"
+        has_password_protected_role = any(r in ["provider", "admin"] for r in roles)
         
-        if is_provider:
+        if has_password_protected_role:
             trusted = await find_trusted_device(
                 db, user_id=user["id"], phone_e164=raw_phone, device_id=device_norm
             )
@@ -928,7 +928,7 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                     "user_id": user["id"],
                     "phone": raw_phone,
                     "email_masked": _mask_email_for_display(user.get("email", "")),
-                    "message": "Por seguridad, ingresa tu contraseña de proveedor.",
+                    "message": "Cuenta Maqgo detectada. Por seguridad en este nuevo dispositivo, ingresa tu contraseña para acceder.",
                 }
 
         token = generate_token()

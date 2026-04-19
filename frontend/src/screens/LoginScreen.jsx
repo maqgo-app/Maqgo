@@ -477,8 +477,15 @@ function LoginScreen({ setUserRole, setUserId }) {
   const goBackToPhone = () => {
     setError('');
     setOtpHint('');
-    setCode('');
     setStep('phone');
+    setCode('');
+  };
+
+  const maskPhone = (p) => {
+    const digits = String(p || '').replace(/\D/g, '');
+    if (digits.length < 4) return digits;
+    // Formato Chile: +56 9 XXXX XXXX -> Enmascaramos los últimos 4
+    return `+56 9 ${digits.slice(1, 5)} ****`;
   };
 
   /** Vuelve a Welcome para cambiar arrendar vs ofrecer sin depender del botón atrás del navegador. */
@@ -704,25 +711,42 @@ function LoginScreen({ setUserRole, setUserId }) {
 
           {loginMode === 'sms' && step === 'password_verify' && (
             <>
-              <p
+              <div
                 style={{
-                  color: 'rgba(255,255,255,0.7)',
-                  fontSize: 14,
-                  textAlign: 'center',
+                  background: 'rgba(255,255,255,0.05)',
+                  borderRadius: 12,
+                  padding: '16px 12px',
                   marginBottom: 20,
-                  lineHeight: 1.5,
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  textAlign: 'center'
                 }}
               >
-                <strong>¡Celular verificado!</strong>
-                <br />
-                {stepUpEmailMasked && (
-                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
-                    Cuenta: {stepUpEmailMasked}
-                    <br />
-                  </span>
-                )}
-                Ingresa tu contraseña de proveedor para acceder.
-              </p>
+                <div style={{ color: '#4CAF50', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+                  ✓ Celular verificado
+                </div>
+                <p
+                  style={{
+                    color: 'rgba(255,255,255,0.85)',
+                    fontSize: 14,
+                    lineHeight: 1.5,
+                    margin: 0
+                  }}
+                >
+                  {stepUpEmailMasked ? (
+                    <>
+                      Hemos detectado tu cuenta vinculada a:
+                      <br />
+                      <strong style={{ color: '#fff' }}>{stepUpEmailMasked}</strong>
+                      <br />
+                      <span style={{ fontSize: 12, opacity: 0.7, display: 'block', marginTop: 8 }}>
+                        Por seguridad en este nuevo dispositivo, ingresa tu clave para acceder.
+                      </span>
+                    </>
+                  ) : (
+                    'Por seguridad en este nuevo dispositivo, ingresa tu clave para acceder.'
+                  )}
+                </p>
+              </div>
 
               <label
                 htmlFor="stepup-password"
@@ -733,7 +757,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                   display: 'block',
                 }}
               >
-                Contraseña
+                Tu contraseña
               </label>
               <PasswordField
                 id="stepup-password"

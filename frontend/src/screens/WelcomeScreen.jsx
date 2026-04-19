@@ -127,7 +127,7 @@ function WelcomeScreen() {
     // No arrastrar intención vieja de "Ofrecer" / embudo machine-first (tras login no debe forzar /provider/add-machine).
     try {
       localStorage.removeItem('providerCameFromWelcome');
-      localStorage.removeItem('desiredRole');
+      localStorage.setItem('desiredRole', 'client');
     } catch {
       /* ignore */
     }
@@ -418,13 +418,21 @@ function WelcomeScreen() {
         <div style={{ textAlign: "center", marginTop: "20px" }}>
 
   <div style={{ marginBottom: "18px" }}>
-    <Link to="/login" style={{
-      color: "#FF6B00",
-      fontSize: "14px",
-      textDecoration: "none"
-    }}>
+    <button
+      onClick={handleAccount}
+      style={{
+        background: 'none',
+        border: 'none',
+        padding: 0,
+        fontFamily: 'inherit',
+        color: "#FF6B00",
+        fontSize: "14px",
+        textDecoration: "none",
+        cursor: 'pointer'
+      }}
+    >
       Iniciar sesión
-    </Link>
+    </button>
   </div>
 
   <div className="footer-links-responsive" style={{
