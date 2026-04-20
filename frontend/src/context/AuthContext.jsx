@@ -203,8 +203,17 @@ export function AuthProvider({ children }) {
         if (!data || !data.id) return;
 
         const userId = String(data.id);
-        const userRole = data.role || localStorage.getItem('userRole') || 'client';
         const apiRoles = Array.isArray(data.roles) ? data.roles : [];
+        const storedRole = localStorage.getItem('userRole');
+        const isAdmin = data.role === 'admin' || apiRoles.includes('admin');
+        let userRole = 'client';
+        if (isAdmin) {
+          userRole = 'admin';
+        } else if (storedRole && (storedRole === 'client' || apiRoles.includes(storedRole))) {
+          userRole = storedRole;
+        } else {
+          userRole = 'client';
+        }
         const rawProviderRole = apiRoles.includes('provider')
           ? (data.provider_role || localStorage.getItem('providerRole') || 'super_master')
           : 'super_master';

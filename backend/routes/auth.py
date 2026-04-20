@@ -1178,7 +1178,9 @@ async def auth_me(current_user: dict = Depends(get_current_user)):
     """Valida Bearer y devuelve perfil mínimo (hidratación de sesión en el cliente)."""
     roles = _user_roles(current_user)
     legacy_role = current_user.get("role") or "client"
-    effective_role = _effective_session_role(roles, legacy_role)
+    # /me no debe forzar contexto de uso (cliente vs proveedor).
+    # El rol activo lo decide el cliente (Welcome / elección de modo) dentro de una sesión válida.
+    effective_role = "admin" if "admin" in roles else "client"
     pr = _provider_role_for_api(current_user, roles)
     return {
         "id": current_user["id"],
