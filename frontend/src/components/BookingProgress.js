@@ -26,8 +26,11 @@ function BookingProgress({ compact = false }) {
   const path = pathname.replace(/\/$/, '') || '/';
 
   // Determinar qué pasos están activos según el tipo de reserva actual
+  const machinery = localStorage.getItem('selectedMachinery');
   const priceType = localStorage.getItem('priceType') || 'hour';
-  const showUrgency = priceType === 'trip';
+  
+  // Solo mostramos 6 pasos si ya hay una maquinaria seleccionada y es de tipo "trip"
+  const showUrgency = machinery && priceType === 'trip';
 
   const activeSteps = [
     { 
@@ -68,22 +71,6 @@ function BookingProgress({ compact = false }) {
   if (currentStep === 0) return null;
 
   const totalSteps = activeSteps.length;
-
-  const persisted = localStorage.getItem('bookingProgress');
-  let persistedStepNumber = 0;
-  if (persisted) {
-    try {
-      const parsed = JSON.parse(persisted);
-      const ageMs = Date.now() - Number(parsed?.timestamp || 0);
-      const within24h = ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000;
-      if (within24h) persistedStepNumber = Number(parsed?.stepNumber || 0);
-    } catch {
-      // Ignore malformed storage.
-    }
-  }
-
-  const maxVisitedStep = Math.max(currentStep, persistedStepNumber);
-  const reservationType = localStorage.getItem('reservationType') || 'immediate';
 
   const sublabel = getBookingSublabel(path, activeSteps[currentStepIndex]?.label);
   const labels = activeSteps.map((s) => s.label);

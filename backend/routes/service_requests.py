@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from auth_dependency import get_current_user, get_current_admin
+from auth_dependency import get_current_user, get_current_admin_strict
 from models.service_request import ServiceRequest, ServiceRequestCreate, Location, calculate_commissions
 from pricing.business_rules import LATE_CANCELLATION_FEE_PERCENT
 from services.utils import haversine_meters
@@ -839,7 +839,7 @@ async def finish_service(
     }
 
 @router.post("/timers/check", response_model=dict)
-async def run_timer_check(_: dict = Depends(get_current_admin)):
+async def run_timer_check(_: dict = Depends(get_current_admin_strict)):
     """
     Ejecuta verificación de timers manualmente (solo admin).
     En producción, esto se ejecuta automáticamente cada minuto.

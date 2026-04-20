@@ -846,7 +846,7 @@ function ConfirmServiceScreen() {
               {reservationType === 'scheduled' && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                   <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>{isPerTrip ? (totalDays > 1 ? `${totalDays} viajes (1 por día)` : 'Valor viaje') : (totalDays > 1 ? `${totalDays} días (8h/día)` : 'Jornada (8h)')}</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.breakdown?.service_cost ?? displayPricing?.service_amount ?? 0)}</span>
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(displayPricing?.breakdown?.service_cost ?? displayPricing?.service_amount ?? 0)}</span>
                 </div>
               )}
 
@@ -854,13 +854,13 @@ function ConfirmServiceScreen() {
               {!reservationType && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                   <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>Servicio</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.service_amount ?? displayPricing?.breakdown?.service_cost ?? subtotalNeto)}</span>
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(displayPricing?.service_amount ?? displayPricing?.breakdown?.service_cost ?? subtotalNeto)}</span>
                 </div>
               )}
               {reservationType === 'immediate' && isHybrid && !displayPricing?.today && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                   <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>Servicio</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.service_amount ?? displayPricing?.breakdown?.service_cost ?? subtotalNeto)}</span>
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(displayPricing?.service_amount ?? displayPricing?.breakdown?.service_cost ?? subtotalNeto)}</span>
                 </div>
               )}
 
@@ -868,7 +868,7 @@ function ConfirmServiceScreen() {
               {!isPerTrip && (displayPricing?.transport_cost || displayPricing?.breakdown?.transport_cost || 0) > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                   <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>Traslado</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(displayPricing?.transport_cost || displayPricing?.breakdown?.transport_cost || 0)}</span>
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(displayPricing?.transport_cost || displayPricing?.breakdown?.transport_cost || 0)}</span>
                 </div>
               )}
 
@@ -883,19 +883,19 @@ function ConfirmServiceScreen() {
                 gap: 8
               }}>
                 <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, minWidth: 0 }}>Subtotal del servicio (sin IVA)</span>
-                <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(subtotalNeto)}</span>
+                <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(subtotalNeto)}</span>
               </div>
 
               {/* Tarifa por Servicio */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                 <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, minWidth: 0 }}>Tarifa por Servicio</span>
-                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(maqgoFeeNeto)}</span>
+                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(maqgoFeeNeto)}</span>
               </div>
 
               {/* IVA sobre subtotal + tarifa (mismo criterio de total que arriba) */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
                 <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, minWidth: 0 }}>IVA 19% (Subtotal + Tarifa por Servicio)</span>
-                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(ivaTotal)}</span>
+                <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(ivaTotal)}</span>
               </div>
 
               {/* Total a pagar */}
@@ -908,7 +908,7 @@ function ConfirmServiceScreen() {
                 gap: 8
               }}>
                 <span style={{ color: '#fff', fontSize: 15, fontWeight: 600, minWidth: 0 }}>{PAYMENT_COPY.P5_INIT.totalRowLabel}</span>
-                <span style={{ color: 'var(--maqgo-orange)', fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPrice(totalFinal)}</span>
+                <span style={{ color: 'var(--maqgo-orange)', fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(totalFinal)}</span>
               </div>
             </div>
           )}

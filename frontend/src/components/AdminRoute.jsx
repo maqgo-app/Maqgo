@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import BACKEND_URL, { fetchWithAuth } from '../utils/api';
+import BACKEND_URL, { clearLocalSession, fetchWithAuth } from '../utils/api';
 import {
   maskBackendHost,
   getAdminDemoBypass,
   setAdminDemoBypass,
   clearAdminDemoBypass,
 } from '../utils/apiHealth';
-import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
+import { establishSession, persistLoginSessionMetadata } from '../utils/sessionPersistence';
 
 const VERIFY_TIMEOUT_MS = 3500;
 const ADMIN_VERIFY_CACHE_KEY = 'maqgo_admin_verified_at';
@@ -53,6 +53,7 @@ function AdminRoute() {
   const token = localStorage.getItem('token');
   const userRolesRaw = localStorage.getItem('userRoles');
   const [verifiedAdmin, setVerifiedAdmin] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
   /** Tras primer intento de verificación: true si falló la red y el usuario creía ser admin. */
   const [statsNetworkFailure, setStatsNetworkFailure] = useState(false);
@@ -98,19 +99,35 @@ function AdminRoute() {
     (async () => {
       try {
         const res = await fetchWithAuth(
-          `${BACKEND_URL}/api/admin/stats`,
+          `${BACKEND_URL}/api/admin/access`,
           { method: 'GET', redirectOn401: false },
           VERIFY_TIMEOUT_MS
         );
         if (!mounted) return;
 
         if (res.ok) {
+          let payload = null;
+          try {
+            payload = await res.json();
+          } catch {
+            payload = null;
+          }
           localStorage.setItem('userRole', 'admin');
           setVerifiedAdmin(true);
           setAdminVerifiedNow();
           setStatsNetworkFailure(false);
           clearAdminDemoBypass();
           setDemoBypassState(false);
+          const must = Boolean(payload?.must_change_password);
+          setMustChangePassword(must);
+          if (must) {
+            localStorage.setItem('adminMustChangePassword', '1');
+          } else {
+            localStorage.removeItem('adminMustChangePassword');
+          }
+          if (payload?.email) {
+            localStorage.setItem('userEmail', payload.email);
+          }
         } else if (res.status === 401 || res.status === 403) {
           try {
             const raw = localStorage.getItem('userRoles');
@@ -128,18 +145,21 @@ function AdminRoute() {
             localStorage.removeItem('userRoles');
           }
           setVerifiedAdmin(false);
+          setMustChangePassword(false);
           clearAdminVerifiedCache();
           setStatsNetworkFailure(false);
           clearAdminDemoBypass();
           setDemoBypassState(false);
         } else {
           setVerifiedAdmin(isAdminByStorage);
+          setMustChangePassword(localStorage.getItem('adminMustChangePassword') === '1');
           if (!isAdminByStorage) clearAdminVerifiedCache();
           setStatsNetworkFailure(false);
         }
       } catch {
         if (!mounted) return;
         setVerifiedAdmin(isAdminByStorage);
+        setMustChangePassword(localStorage.getItem('adminMustChangePassword') === '1');
         if (!isAdminByStorage) clearAdminVerifiedCache();
         setStatsNetworkFailure(Boolean(isAdminByStorage));
       } finally {
@@ -153,6 +173,7 @@ function AdminRoute() {
   }, [token, shouldVerifyAdmin, isAdminByStorage, retryNonce]);
 
   const isAdmin = verifiedAdmin || isAdminByStorage;
+  const isChangePasswordPath = location.pathname === '/admin/change-password';
 
   const enableDemoBypass = () => {
     setAdminDemoBypass(true);
@@ -168,9 +189,136 @@ function AdminRoute() {
     setRetryNonce((n) => n + 1);
   };
 
-  if (!userId) {
-    traceRedirectToLogin('src/components/AdminRoute.jsx');
-    return <Navigate to="/login" state={{ from: location.pathname, redirect: '/admin' }} replace />;
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminLoginError, setAdminLoginError] = useState('');
+  const [adminLoginLoading, setAdminLoginLoading] = useState(false);
+
+  const submitAdminLogin = async (e) => {
+    e.preventDefault();
+    if (adminLoginLoading) return;
+    setAdminLoginError('');
+    const em = String(adminEmail || '').trim().toLowerCase();
+    const pw = String(adminPassword || '');
+    if (!em || !pw) {
+      setAdminLoginError('Ingresa tu correo y contraseña.');
+      return;
+    }
+    setAdminLoginLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: em, password: pw }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAdminLoginError(typeof data?.detail === 'string' ? data.detail : 'Credenciales inválidas.');
+        return;
+      }
+      const roles = Array.isArray(data?.roles) ? data.roles : [];
+      const isAdmin = data?.role === 'admin' || roles.includes('admin');
+      if (!isAdmin) {
+        clearLocalSession();
+        setAdminLoginError('Acceso restringido a administradores.');
+        return;
+      }
+      if (!establishSession(data)) {
+        setAdminLoginError('No se pudo crear la sesión.');
+        return;
+      }
+      persistLoginSessionMetadata(data);
+      if (data?.email) localStorage.setItem('userEmail', data.email);
+      if (data?.must_change_password) localStorage.setItem('adminMustChangePassword', '1');
+      else localStorage.removeItem('adminMustChangePassword');
+      clearAdminVerifiedCache();
+      setRetryNonce((n) => n + 1);
+      navigate('/admin', { replace: true });
+    } catch {
+      setAdminLoginError('No hay conexión con el servidor MAQGO.');
+    } finally {
+      setAdminLoginLoading(false);
+    }
+  };
+
+  if (!token || !userId) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'var(--maqgo-bg)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          color: '#fff',
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        <div style={{ width: '100%', maxWidth: 420 }}>
+          <h1 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 800 }}>Panel Administrativo</h1>
+          <p style={{ margin: '0 0 18px', color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: 1.5 }}>
+            Acceso exclusivo para el equipo MAQGO.
+          </p>
+          <form onSubmit={submitAdminLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>
+              Correo
+              <input
+                type="email"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                disabled={adminLoginLoading}
+                autoComplete="email"
+                style={{
+                  marginTop: 6,
+                  width: '100%',
+                  padding: '12px 12px',
+                  borderRadius: 10,
+                  border: '1px solid rgba(255,255,255,0.16)',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: '#fff',
+                  outline: 'none',
+                }}
+              />
+            </label>
+            <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>
+              Contraseña
+              <input
+                type="password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                disabled={adminLoginLoading}
+                autoComplete="current-password"
+                style={{
+                  marginTop: 6,
+                  width: '100%',
+                  padding: '12px 12px',
+                  borderRadius: 10,
+                  border: '1px solid rgba(255,255,255,0.16)',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: '#fff',
+                  outline: 'none',
+                }}
+              />
+            </label>
+
+            {adminLoginError && (
+              <div style={{ color: '#E57373', fontSize: 13, lineHeight: 1.4 }}>{adminLoginError}</div>
+            )}
+
+            <button
+              type="submit"
+              className="maqgo-btn-primary"
+              disabled={adminLoginLoading}
+              style={{ marginTop: 4 }}
+            >
+              {adminLoginLoading ? 'Ingresando…' : 'Ingresar'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
   }
 
   if (checkingAdmin) {
@@ -287,6 +435,13 @@ function AdminRoute() {
         </button>
       </div>
     );
+  }
+
+  if (isAdmin && mustChangePassword && !isChangePasswordPath) {
+    return <Navigate to="/admin/change-password" replace />;
+  }
+  if (isAdmin && !mustChangePassword && isChangePasswordPath) {
+    return <Navigate to="/admin" replace />;
   }
 
   return <Outlet />;

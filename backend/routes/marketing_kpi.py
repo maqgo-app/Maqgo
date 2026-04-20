@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 import os
 import logging
 
-from auth_dependency import get_current_admin
+from auth_dependency import get_current_admin_strict
 from motor.motor_asyncio import AsyncIOMotorClient
 from db_config import get_db_name, get_mongo_url
 
@@ -284,7 +284,7 @@ async def build_marketing_report_for_week(week_start: datetime) -> Dict[str, Any
 
 
 @router.post("/spend")
-async def save_marketing_spend(body: SpendPayload, _: dict = Depends(get_current_admin)):
+async def save_marketing_spend(body: SpendPayload, _: dict = Depends(get_current_admin_strict)):
     """Reemplaza todas las líneas de inversión de esa semana."""
     ws = _parse_week_start(body.week_start)
     start, _ = _week_range(ws)
@@ -321,7 +321,7 @@ async def save_marketing_spend(body: SpendPayload, _: dict = Depends(get_current
 @router.get("/spend")
 async def get_marketing_spend(
     week_start: str = Query(..., description="YYYY-MM-DD (cualquier día de la semana; se usa el lunes ISO)"),
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
 ):
     ws = _parse_week_start(week_start)
     block = await _load_spend_for_week(ws)
@@ -338,7 +338,7 @@ async def get_marketing_spend(
 async def get_marketing_report(
     week_start: Optional[str] = Query(None, description="YYYY-MM-DD (cualquier día; se normaliza al lunes ISO). Omitir = semana según weeks_ago"),
     weeks_ago: int = Query(0, ge=0, le=52),
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
 ):
     if week_start:
         ws = _parse_week_start(week_start)
@@ -433,7 +433,7 @@ async def cron_marketing_weekly_report_alias(
 
 
 @router.get("/snapshots/latest")
-async def latest_snapshots(limit: int = Query(4, ge=1, le=52), _: dict = Depends(get_current_admin)):
+async def latest_snapshots(limit: int = Query(4, ge=1, le=52), _: dict = Depends(get_current_admin_strict)):
     cur = db.marketing_weekly_snapshots.find().sort("week_start", -1).limit(limit)
     rows = await cur.to_list(limit)
     for r in rows:

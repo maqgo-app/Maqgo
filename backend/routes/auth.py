@@ -223,6 +223,10 @@ class LoginSmsStartRequest(BaseModel):
         None,
         description="Identificador persistente del dispositivo (p. ej. UUID en localStorage)",
     )
+    requested_role: Optional[str] = Field(
+        None,
+        description="Rol con el que se inició el flujo (client/provider). Solo contexto, no cambia el enrolamiento del dispositivo.",
+    )
 
 
 class LoginSmsVerifyRequest(BaseModel):
@@ -688,6 +692,7 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
 
     await ensure_trusted_device_indexes(db)
     device_norm = normalize_device_id(body.device_id)
+    trusted = None
 
     if is_hard_locked(raw_phone):
         logger.warning("LOGIN_SMS_START hard_locked phone=%s", _phone_tail_log(raw_phone))
@@ -703,12 +708,20 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
     if existing:
         user_id = existing["id"]
         logger.info("LOGIN_SMS_START reuse userId=%s phone9=%s", user_id, phone9)
+        req_role = (body.requested_role or "").strip().lower()
+        roles = _user_roles(existing)
+        if req_role:
+            logger.info(
+                "LOGIN_SMS_START requested_role userId=%s requested_role=%s user_roles=%s",
+                user_id,
+                req_role,
+                roles,
+            )
 
         ip = get_client_ip(request)
         country = get_client_country(request)
         ua_hdr = get_client_user_agent(request)
 
-        trusted = None
         if device_norm:
             trusted = await find_trusted_device(
                 db, user_id=user_id, phone_e164=raw_phone, device_id=device_norm
@@ -746,7 +759,18 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
                 phone9,
                 country or "-",
             )
-            return _build_login_sms_session_payload(existing, token, requires_otp=False)
+            logger.info(
+                "LOGIN_SMS_START response_mode userId=%s new_device=%s response_mode=%s",
+                user_id,
+                "false" if trusted else "true",
+                "trusted_session",
+            )
+            return _build_login_sms_session_payload(
+                existing,
+                token,
+                requires_otp=False,
+                requested_role=req_role or None,
+            )
     else:
         user_id = f"user_{secrets.token_hex(8)}"
         user = {
@@ -826,6 +850,12 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
         channel="sms",
         phone=_phone_tail_log(raw_phone),
         success=True,
+    )
+    logger.info(
+        "LOGIN_SMS_START response_mode userId=%s new_device=%s response_mode=%s",
+        user_id,
+        "false" if (device_norm and trusted) else "true",
+        "otp_required",
     )
     return {
         "success": True,
@@ -2016,6 +2046,7 @@ async def login(request: Request, body: LoginRequest):
         "token": token,
         "provider_role": pr,
         "owner_id": user.get("owner_id"),
+        "must_change_password": bool(user.get("must_change_password")),
     }
 
 @router.post("/debug/test-sms")

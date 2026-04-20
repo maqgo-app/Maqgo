@@ -9,7 +9,7 @@ RBAC:
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Depends
 from pydantic import BaseModel
 
-from auth_dependency import get_current_admin, get_current_user
+from auth_dependency import get_current_admin_strict, get_current_user
 from security.policy import AccessPolicy
 from typing import Optional, List
 from datetime import datetime, timedelta
@@ -407,7 +407,7 @@ def _admin_week_over_week() -> dict:
 
 
 @router.get("/admin/investor-snapshot")
-async def get_investor_snapshot(_: dict = Depends(get_current_admin)):
+async def get_investor_snapshot(_: dict = Depends(get_current_admin_strict)):
     """
     Resumen único para pitch / data room interno: usuarios, volumen, economía unitaria y ritmo semanal.
     Misma base de datos y lógica de finanzas que el dashboard admin.
@@ -445,7 +445,7 @@ async def get_all_services(
         None,
         description="Filtro de listado: all | pending_review | approved | invoiced | paid | disputed | maqgo_to_invoice",
     ),
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
 ):
     """
     Dashboard MAQGO: stats y finanzas globales; listado paginado según `status`.
@@ -485,7 +485,7 @@ async def get_all_services(
     }
 
 @router.put("/admin/{service_id}")
-async def update_service_status(service_id: str, update: ServiceUpdate, _: dict = Depends(get_current_admin)):
+async def update_service_status(service_id: str, update: ServiceUpdate, _: dict = Depends(get_current_admin_strict)):
     """Admin: actualizar estado de servicio"""
     if update.status not in STATUSES:
         raise HTTPException(status_code=400, detail=f"Estado inválido. Usar: {STATUSES}")
@@ -581,7 +581,7 @@ async def update_service_status(service_id: str, update: ServiceUpdate, _: dict 
 
 
 @router.patch("/admin/{service_id}/pay-without-invoice")
-async def pay_without_invoice(service_id: str, _: dict = Depends(get_current_admin)):
+async def pay_without_invoice(service_id: str, _: dict = Depends(get_current_admin_strict)):
     """
     Admin: Pagar al proveedor sin factura (Opción B - Retención IVA).
     MAQGO retiene el IVA (19%) que el proveedor no facturó para cubrir la diferencia fiscal.
@@ -629,7 +629,7 @@ async def pay_without_invoice(service_id: str, _: dict = Depends(get_current_adm
 
 
 @router.patch("/admin/{service_id}/client-invoiced")
-async def mark_client_invoiced(service_id: str, _: dict = Depends(get_current_admin)):
+async def mark_client_invoiced(service_id: str, _: dict = Depends(get_current_admin_strict)):
     """
     Admin: Marcar que MAQGO ya facturó el total al cliente.
     Se usa cuando el servicio está pagado y MAQGO emitió la factura al cliente dentro del mes.
@@ -650,7 +650,7 @@ async def mark_client_invoiced(service_id: str, _: dict = Depends(get_current_ad
 
 
 @router.get("/admin/{service_id}/invoice-image")
-async def get_invoice_image(service_id: str, _: dict = Depends(get_current_admin)):
+async def get_invoice_image(service_id: str, _: dict = Depends(get_current_admin_strict)):
     """Admin: obtener imagen de factura"""
     service = services_collection.find_one(
         {"_id": ObjectId(service_id)},

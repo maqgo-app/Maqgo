@@ -11,7 +11,7 @@ import { updateMachine, getMachineById, upsertOnboardingMachine } from '../../ut
 import { getMachineryCapacityOptions, getProviderSpecLabel } from '../../utils/machineryNames';
 import { getArray, getObject } from '../../utils/safeStorage';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
-import { validateEmail, validateCelularChile } from '../../utils/chileanValidation';
+import { validateCelularChile } from '../../utils/chileanValidation';
 import { getPasswordHint, validatePassword, PASSWORD_RULES } from '../../utils/passwordValidation';
 import { getUserAuthState } from '../../utils/userAuthState';
 import { submitBecomeProviderMinimal, hasProviderRoleInStorage } from '../../utils/providerBecomeApi';
@@ -746,7 +746,7 @@ function MachineDataScreen() {
     } finally {
       setInlineLoading(false);
     }
-  }, [inlineEmail, inlinePassword, login, passwordHintInline, toast]);
+  }, [inlinePassword, login, passwordHintInline, toast]);
 
   const ensureProviderThenPublish = useCallback(async () => {
     setPublishError('');
@@ -791,7 +791,7 @@ function MachineDataScreen() {
       }
     }
     return true;
-  }, [inlineEmail, inlinePassword, login, passwordHintInline]);
+  }, [inlinePassword, login, passwordHintInline]);
 
   const handleMachineFirstPublish = useCallback(async () => {
     setPublishError('');

@@ -79,7 +79,6 @@ function ProviderHomeScreen() {
       onClick: () => navigate('/provider/profile/banco')
     },
   ];
-  const nextActivationStep = activationItems.find((item) => !item.ok);
   const activationCompletedCount = activationItems.filter((item) => item.ok).length;
   const activationProgressPct = Math.round((activationCompletedCount / activationItems.length) * 100);
   /** Solo falta banco: un único CTA principal (FASE 3). */

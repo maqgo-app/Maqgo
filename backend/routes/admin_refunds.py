@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from auth_dependency import get_current_admin
+from auth_dependency import get_current_admin_strict
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from db_config import get_db_name, get_mongo_url
@@ -32,7 +32,7 @@ class RejectBody(BaseModel):
 @router.get("")
 async def list_refund_requests(
     status: Optional[str] = None,
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
 ):
     svc = RefundRequestService(db)
     items = await svc.list_by_status(status=status, limit=200)
@@ -43,7 +43,7 @@ async def list_refund_requests(
 async def approve_refund_request(
     refund_request_id: str,
     body: ApproveBody = None,
-    admin: dict = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin_strict),
 ):
     svc = RefundRequestService(db)
     ps = PaymentService(db)
@@ -68,7 +68,7 @@ async def approve_refund_request(
 async def reject_refund_request(
     refund_request_id: str,
     body: RejectBody = None,
-    admin: dict = Depends(get_current_admin),
+    admin: dict = Depends(get_current_admin_strict),
 ):
     svc = RefundRequestService(db)
     result = await svc.reject(

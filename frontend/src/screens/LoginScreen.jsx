@@ -204,6 +204,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     const desiredRole = localStorage.getItem('desiredRole');
     const previouslySelectedRole = localStorage.getItem('userRole');
     const isAdmin = data.role === 'admin' || roles.includes('admin');
+    const mustChangePassword = isAdmin && Boolean(data.must_change_password);
     let effectiveRole = null;
     
     // PRIORIDAD 1: El rol que el usuario acaba de elegir en Welcome (Arrendar vs Ofrecer)
@@ -254,6 +255,14 @@ function LoginScreen({ setUserRole, setUserId }) {
     setUserId(uid);
     localStorage.setItem('userRole', effectiveRole);
     localStorage.setItem('userRoles', JSON.stringify(roles));
+    if (data.email) {
+      localStorage.setItem('userEmail', data.email);
+    }
+    if (mustChangePassword) {
+      localStorage.setItem('adminMustChangePassword', '1');
+    } else {
+      localStorage.removeItem('adminMustChangePassword');
+    }
     
     console.log("LOGIN SUCCESS - ROLE STORED IN LOCALSTORAGE:", localStorage.getItem('userRole'));
     if (roles.includes('provider')) {
@@ -277,6 +286,10 @@ function LoginScreen({ setUserRole, setUserId }) {
         destination: next.path,
       });
     }
+    if (mustChangePassword) {
+      navigate('/admin/change-password', { replace: true });
+      return true;
+    }
     navigate(next.path, { replace: true });
     return true;
   };
@@ -290,6 +303,10 @@ function LoginScreen({ setUserRole, setUserId }) {
       // Sesión persistente: reutilizar navegación sin pedir OTP.
       const isAdminStored = isAdminRoleStored();
       if (isAdminStored) {
+        if (localStorage.getItem('adminMustChangePassword') === '1') {
+          navigate('/admin/change-password', { replace: true });
+          return;
+        }
         navigate('/admin', { replace: true });
         return;
       }
@@ -316,10 +333,14 @@ function LoginScreen({ setUserRole, setUserId }) {
     try {
       const celular = `+56${nine}`;
       const deviceId = getDeviceId();
+      const requestedRole =
+        localStorage.getItem('desiredRole') ||
+        location.state?.entry ||
+        'client';
 
       const res = await axios.post(
         `${BACKEND_URL}/api/auth/login-sms/start`,
-        { celular, device_id: deviceId },
+        { celular, device_id: deviceId, requested_role: requestedRole },
         {
           timeout: LOGIN_SMS_START_TIMEOUT_MS,
           headers: { 'Content-Type': 'application/json' },
@@ -489,13 +510,6 @@ function LoginScreen({ setUserRole, setUserId }) {
     setOtpHint('');
     setStep('phone');
     setCode('');
-  };
-
-  const maskPhone = (p) => {
-    const digits = String(p || '').replace(/\D/g, '');
-    if (digits.length < 4) return digits;
-    // Formato Chile: +56 9 XXXX XXXX -> Enmascaramos los últimos 4
-    return `+56 9 ${digits.slice(1, 5)} ****`;
   };
 
   /** Vuelve a Welcome para cambiar arrendar vs ofrecer sin depender del botón atrás del navegador. */

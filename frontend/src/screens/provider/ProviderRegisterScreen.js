@@ -6,7 +6,7 @@ import BackToPortadaButton from '../../components/BackToPortadaButton';
 import LoginPhoneChileInput from '../../components/LoginPhoneChileInput';
 import OtpSixDigitsInput from '../../components/OtpSixDigitsInput';
 import PasswordField from '../../components/PasswordField';
-import { validateEmail, validateCelularChile } from '../../utils/chileanValidation';
+import { validateCelularChile } from '../../utils/chileanValidation';
 import { useToast } from '../../components/Toast';
 import { getPasswordHint, validatePassword, PASSWORD_RULES } from '../../utils/passwordValidation';
 import BACKEND_URL from '../../utils/api';
@@ -698,7 +698,7 @@ function ProviderRegisterScreen() {
         'registerData',
         JSON.stringify({
           nombreMostrar: nm,
-          email: emailTrim,
+          email: '',
           celular: celularStorage,
           password: form.password,
           role: 'provider'

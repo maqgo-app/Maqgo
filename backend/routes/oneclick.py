@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from urllib.parse import quote
 
 from rate_limit import limiter
-from auth_dependency import get_current_admin, get_current_user, get_current_user_optional
+from auth_dependency import get_current_admin_strict, get_current_user, get_current_user_optional
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from datetime import datetime, timezone
 import os
@@ -1014,7 +1014,7 @@ async def authorize_payment(
 @limiter.limit("60/minute")
 async def export_oneclick_evidence(
     request: Request,
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
     limit: int = Query(50000, ge=1, le=100000),
 ):
     """JSON formateado para documentación / certificación (solo admin)."""
@@ -1031,7 +1031,7 @@ async def export_oneclick_evidence(
 @limiter.limit("60/minute")
 async def list_oneclick_evidence(
     request: Request,
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
     limit: int = Query(10000, ge=1, le=50000),
 ):
     """Lista eventos de evidencia OneClick ordenados por timestamp (solo admin)."""
@@ -1046,7 +1046,7 @@ async def list_oneclick_evidence(
 @limiter.limit("20/minute")
 async def oneclick_debug_config(
     request: Request,
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
 ):
     """
     Verifica variables TBK configuradas en Railway. Solo admin.
@@ -1106,7 +1106,7 @@ async def oneclick_debug_config(
 @limiter.limit("30/minute")
 async def debug_last_oneclick_token(
     request: Request,
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
 ):
     """
     Certificación / soporte: último token de inscripción guardado en payments_oneclick
@@ -1260,7 +1260,7 @@ async def oneclick_test_flow(
 async def refund_payment(
     request: Request,
     data: RefundPaymentRequest,
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
 ):
     """Reembolsa un cobro (solo admin; operación financiera sensible)."""
     try:

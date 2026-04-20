@@ -138,7 +138,6 @@ function WelcomeScreen() {
     });
   };
 
-  const pad = isDesktop ? 40 : (isNarrowMobile ? 16 : 20);
   // Logo escala progresivamente según altura del viewport (p2→p6): más grande en pantallas altas
   const logoSize = isDesktop
     ? 180
@@ -160,7 +159,6 @@ function WelcomeScreen() {
     const scaled = Math.round(base * fineScale);
     return Math.max(min, Math.min(max, scaled));
   };
-  const heroLogoBottom = isDesktop ? 40 : (isShortViewport ? 16 : (isNarrowMobile ? 20 : 24));
   return (
     <div
       className={`maqgo-app ${isDesktop ? 'welcome-desktop' : ''} ${isShortViewport ? 'welcome-short' : ''}`}
@@ -441,54 +439,84 @@ function WelcomeScreen() {
     </button>
   </div>
 
-  <div className="footer-links-responsive" style={{
-    width: "100%",
-    maxWidth: "1000px",
-    margin: "40px auto 0",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "24px",
-    fontSize: "12px",
-    color: "#666"
-  }}>
-    <Link to="/faq" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>FAQ</Link>
-
-    <Link to="/terms" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>
-      Términos y Condiciones
-    </Link>
-
-    <Link to="/privacy" style={{ whiteSpace: "nowrap", textDecoration: "none", textAlign: "center", flex: 1, color: "#999" }}>
-      Políticas de Privacidad
-    </Link>
+  <div className="welcome-legal-footer">
+    <div className="welcome-legal-links" aria-label="Enlaces legales">
+      <Link className="welcome-legal-link" to="/faq">FAQ</Link>
+      <span className="welcome-legal-sep" aria-hidden>·</span>
+      <Link className="welcome-legal-link" to="/terms">Términos y Condiciones</Link>
+      <span className="welcome-legal-sep" aria-hidden>·</span>
+      <Link className="welcome-legal-link" to="/privacy">Políticas de Privacidad</Link>
+    </div>
+    <div className="welcome-legal-copy">© 2026 MAQGO. Todos los derechos reservados.</div>
   </div>
 
   <style>{`
-    @media (max-width: 768px) {
-      .footer-links-responsive {
-        flex-direction: column !important;
-        gap: 12px !important;
+    .welcome-legal-footer {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 0 22px;
+    }
+
+    .welcome-legal-links {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+      font-size: clamp(11px, 0.95vw, 12px);
+      line-height: 1.25;
+      letter-spacing: 0.01em;
+      color: rgba(255,255,255,0.62);
+      gap: clamp(8px, 1.2vw, 12px);
+      max-width: 100%;
+      padding: 0 12px;
+    }
+
+    .welcome-legal-link {
+      color: rgba(255,255,255,0.62);
+      text-decoration: none;
+      transition: color 160ms ease;
+    }
+
+    .welcome-legal-link:hover {
+      color: rgba(255,255,255,0.78);
+    }
+
+    .welcome-legal-sep {
+      color: rgba(255,255,255,0.38);
+      font-size: 12px;
+      line-height: 1;
+      padding: 0 2px;
+      user-select: none;
+    }
+
+    .welcome-legal-copy {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 11px;
+      line-height: 1.3;
+      color: rgba(255,255,255,0.42);
+      letter-spacing: 0.01em;
+    }
+
+    @media (max-width: 520px) {
+      .welcome-legal-footer {
+        padding: 30px 0 18px;
+      }
+      .welcome-legal-links {
+        flex-wrap: wrap;
+        white-space: normal;
+        gap: 8px;
+        font-size: 11px;
+      }
+      .welcome-legal-copy {
+        font-size: 10.5px;
       }
     }
   `}</style>
-
-  <div style={{
-    marginTop: "50px",
-    textAlign: "center",
-    fontSize: "12px",
-    color: "#666",
-    lineHeight: "1.6"
-  }}>
-    <p style={{
-      marginTop: "24px",
-      textAlign: "center",
-      color: "rgba(255,255,255,0.5)",
-      fontSize: "12px",
-      fontWeight: "400"
-    }}>
-      © {new Date().getFullYear()} MAQGO · Todos los derechos reservados
-    </p>
-  </div>
 
 </div>
       </div>

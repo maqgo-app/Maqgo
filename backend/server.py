@@ -223,6 +223,23 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Error creando índices MongoDB: %s", e)
 
+    try:
+        from services.admin_bootstrap import ensure_initial_admin
+
+        result = await ensure_initial_admin(_db)
+        if result.get("created"):
+            logger.warning(
+                "BOOTSTRAP admin created email=%s admin_id=%s must_change_password=true",
+                str(result.get("email") or ""),
+                str(result.get("admin_id") or ""),
+            )
+        elif result.get("reason") == "missing_env":
+            logger.info("BOOTSTRAP admin skipped (missing env MAQGO_BOOTSTRAP_ADMIN_EMAIL/PASSWORD)")
+        else:
+            logger.info("BOOTSTRAP admin skipped (%s)", str(result.get("reason") or "exists"))
+    except Exception as e:
+        logger.warning("BOOTSTRAP admin failed (continuando): %s", e)
+
     yield
     
     # Shutdown
@@ -316,6 +333,7 @@ invoices_router = None
 messages_router = None
 admin_reports_router = None
 admin_config_router = None
+admin_access_router = None
 marketing_kpi_router = None
 marketing_cron_router = None
 chatbot_router = None
@@ -397,6 +415,11 @@ try:
     logger.info("ROUTER LOADED: admin_config")
 except Exception as e:
     logger.error(f"ROUTER FAILED: admin_config - {e}")
+try:
+    from routes.admin_access import router as admin_access_router  # type: ignore
+    logger.info("ROUTER LOADED: admin_access")
+except Exception as e:
+    logger.error(f"ROUTER FAILED: admin_access - {e}")
 try:
     from routes.marketing_kpi import router as marketing_kpi_router, cron_router as marketing_cron_router  # type: ignore
     logger.info("ROUTER LOADED: marketing_kpi + cron")
@@ -504,6 +527,7 @@ _include_if_present(invoices_router, "invoices")
 _include_if_present(messages_router, "messages")
 _include_if_present(admin_reports_router, "admin_reports")
 _include_if_present(admin_config_router, "admin_config")
+_include_if_present(admin_access_router, "admin_access")
 _include_if_present(marketing_kpi_router, "marketing_kpi")
 _include_if_present(marketing_cron_router, "marketing_cron")
 _include_if_present(chatbot_router, "chatbot")

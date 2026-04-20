@@ -3,7 +3,7 @@ MAQGO Admin - Informe Operativo Semanal y Planilla de Pagos
 """
 from fastapi import APIRouter, HTTPException, Query, Depends
 
-from auth_dependency import get_current_admin
+from auth_dependency import get_current_admin_strict
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timedelta
@@ -26,7 +26,7 @@ db = client[get_db_name()]
 
 
 @router.get("/sms-balance")
-async def get_sms_balance(_: dict = Depends(get_current_admin)):
+async def get_sms_balance(_: dict = Depends(get_current_admin_strict)):
     """
     Saldo de créditos SMS (LabsMobile) para monitoreo operativo en Admin.
     """
@@ -155,7 +155,7 @@ async def _build_weekly_report(weeks_ago: int = 0):
 async def get_weekly_report(
     weeks_ago: int = 0,
     format: str = Query("json", pattern="^(json|pdf)$"),
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
 ):
     """
     Genera el Informe Operativo Semanal.
@@ -328,7 +328,7 @@ async def get_weekly_report(
 async def get_monthly_finance(
     year: Optional[int] = Query(None, ge=2020, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
 ):
     """
     Métricas mensuales de conciliación:
@@ -520,7 +520,7 @@ async def generate_alerts(db, start_date, end_date, umbral_revision_h=72):
 async def get_payments_planilla(
     format: str = Query("json", description="json o csv"),
     date: Optional[str] = Query(None, description="YYYY-MM-DD. Sin fecha = todos los pendientes"),
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
 ):
     """
     Planilla de pagos pendientes (status=invoiced) para conciliación financiera.
@@ -657,7 +657,7 @@ async def get_payments_planilla(
 
 
 @router.post("/weekly/send-email")
-async def send_weekly_report_email(email: str = None, _: dict = Depends(get_current_admin)):
+async def send_weekly_report_email(email: str = None, _: dict = Depends(get_current_admin_strict)):
     """Envía el informe semanal por email"""
     report = await _build_weekly_report(weeks_ago=0)
     

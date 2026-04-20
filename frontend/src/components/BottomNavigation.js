@@ -296,21 +296,6 @@ function BottomNavigation() {
 
   if (!role) return null;
 
-  const menus = {
-    client: [
-      { label: "Inicio", path: "/client/home" },
-      { label: "Reservas", path: "/client/bookings" },
-      { label: "Perfil", path: "/client/profile" }
-    ],
-    provider: [
-      { label: "Inicio", path: "/provider/home" },
-      { label: "Máquinas", path: "/provider/machines" },
-      { label: "Perfil", path: "/provider/profile" }
-    ]
-  };
-
-  const menu = menus[role] || [];
-
   // Admin no usa la barra de cliente/proveedor
   if (role === 'admin') {
     return null;

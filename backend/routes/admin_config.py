@@ -4,7 +4,7 @@ Permite editar precios sugeridos por maquinaria desde el admin.
 """
 from fastapi import APIRouter, HTTPException, Depends, Query
 
-from auth_dependency import get_current_admin
+from auth_dependency import get_current_admin_strict
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 from typing import Dict, Optional
@@ -33,7 +33,7 @@ CONFIG_KEY = "reference_prices"
 
 
 @router.get("/payment-hardening-metrics")
-async def payment_hardening_metrics(_: dict = Depends(get_current_admin)):
+async def payment_hardening_metrics(_: dict = Depends(get_current_admin_strict)):
     """
     Métricas de endurecimiento de pagos / idempotencia + agregados del ledger append-only
     (total_events_logged, event_counts_by_type, reconciliation_mismatches).
@@ -45,7 +45,7 @@ async def payment_hardening_metrics(_: dict = Depends(get_current_admin)):
 
 @router.post("/payment-consistency-run")
 async def payment_consistency_run(
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
     limit: int = Query(500, ge=1, le=5000),
 ):
     """Ejecuta detección + reparación segura (`run_consistency_check`)."""
@@ -54,7 +54,7 @@ async def payment_consistency_run(
 
 @router.post("/payment-auto-heal-run")
 async def payment_auto_heal_run(
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
     limit: int = Query(500, ge=1, le=5000),
 ):
     """Auto-healing: reparaciones seguras + dead letter en casos no seguros."""
@@ -64,7 +64,7 @@ async def payment_auto_heal_run(
 @router.post("/payment-saga-recover/{intent_id}")
 async def payment_saga_recover(
     intent_id: str,
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
 ):
     """Recuperación de saga para un payment_intent concreto."""
     return await recover_saga(db, intent_id)
@@ -72,7 +72,7 @@ async def payment_saga_recover(
 
 @router.post("/payment-reconciliation-run")
 async def payment_reconciliation_run(
-    _: dict = Depends(get_current_admin),
+    _: dict = Depends(get_current_admin_strict),
     limit: int = Query(500, ge=1, le=5000),
 ):
     """
@@ -83,7 +83,7 @@ async def payment_reconciliation_run(
 
 
 @router.get("/stats")
-async def get_admin_pending_stats(_: dict = Depends(get_current_admin)):
+async def get_admin_pending_stats(_: dict = Depends(get_current_admin_strict)):
     """
     Estadísticas ligeras para badge/alertas en admin.
     Usado por WelcomeScreen para mostrar iconografía de pendientes.
@@ -137,7 +137,7 @@ def _merge(defaults: dict, stored: dict) -> dict:
 
 
 @router.get("/reference-prices")
-async def get_reference_prices(_: dict = Depends(get_current_admin)):
+async def get_reference_prices(_: dict = Depends(get_current_admin_strict)):
     """
     Obtiene los precios de referencia (sugeridos para proveedores).
     Fusiona constantes con valores guardados en MongoDB.
@@ -155,7 +155,7 @@ class UpdateReferencePricesRequest(BaseModel):
 
 
 @router.get("/users")
-async def get_admin_users(_: dict = Depends(get_current_admin)):
+async def get_admin_users(_: dict = Depends(get_current_admin_strict)):
     """
     Lista todos los usuarios (clientes y proveedores) para el admin.
     Excluye password y datos sensibles.
@@ -180,7 +180,7 @@ async def get_admin_users(_: dict = Depends(get_current_admin)):
 
 
 @router.put("/reference-prices")
-async def update_reference_prices(request: UpdateReferencePricesRequest, _: dict = Depends(get_current_admin)):
+async def update_reference_prices(request: UpdateReferencePricesRequest, _: dict = Depends(get_current_admin_strict)):
     """
     Actualiza los precios de referencia en MongoDB.
     Solo se actualizan los campos enviados.

@@ -23,7 +23,6 @@ import BookingFlowFallback from './components/BookingFlowFallback';
 import { CheckoutProvider } from './context/CheckoutContext';
 import BookingPaymentRouteStateBinding from './components/BookingPaymentRouteStateBinding';
 import BookingNavigationGuard from './components/BookingNavigationGuard';
-import { traceRedirectToLogin } from './utils/traceLoginRedirect';
 import { peekReturnUrl } from './utils/registrationReturn';
 import { AppNavigateToLogin } from './components/AppNavigateToLogin';
 
@@ -119,6 +118,7 @@ const AdminDashboard = lazy(() => import('./screens/admin/AdminDashboard'));
 const AdminPricingScreen = lazy(() => import('./screens/admin/AdminPricingScreen'));
 const AdminUsersScreen = lazy(() => import('./screens/admin/AdminUsersScreen'));
 const AdminMarketingScreen = lazy(() => import('./screens/admin/AdminMarketingScreen'));
+const AdminChangePasswordScreen = lazy(() => import('./screens/admin/AdminChangePasswordScreen'));
 
 // Perfil y legales
 const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
@@ -367,6 +367,7 @@ function AppContent() {
         {/* Admin: un solo AdminRoute (layout) evita re-fetch /api/admin/stats y "Verificando..." en cada sub-ruta */}
         <Route path="/admin" element={<AdminRoute />}>
           <Route index element={<AdminDashboard />} />
+          <Route path="change-password" element={<AdminChangePasswordScreen />} />
           <Route path="pricing" element={<AdminPricingScreen />} />
           <Route path="users" element={<AdminUsersScreen />} />
           <Route path="marketing" element={<AdminMarketingScreen />} />

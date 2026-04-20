@@ -374,13 +374,8 @@ function PaymentResultScreen() {
       } else if (simulateToUse === 'payment_failed') {
         const code = searchParams.get('response_code');
         const detail = searchParams.get('response_detail');
-        
-        let errorMsg = 'No pudimos procesar el pago. Por favor intenta con otra tarjeta.';
-        if (code && TBK_ERROR_MAP[code]) {
-          errorMsg = TBK_ERROR_MAP[code];
-        } else if (detail) {
-          errorMsg = detail;
-        }
+        void (code && TBK_ERROR_MAP[code]);
+        void detail;
 
         setStatus('payment_failed');
         emitPaymentCheckoutOutcome('payment_failed');
@@ -468,7 +463,7 @@ function PaymentResultScreen() {
         setStatus('success'); // UX: evita ConnectionError bloqueante
       }
     }
-  }, [simulateSafe, emitPaymentCheckoutOutcome]);
+  }, [simulateSafe, emitPaymentCheckoutOutcome, searchParams]);
 
   useEffect(() => {
     processPayment();
