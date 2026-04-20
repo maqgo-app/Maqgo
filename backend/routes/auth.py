@@ -272,9 +272,15 @@ def _user_roles(existing: dict) -> list:
     """Lista de roles del usuario (compatibilidad: si no hay 'roles', usar 'role')."""
     roles = existing.get("roles")
     if roles:
-        return list(roles)
-    r = existing.get("role")
-    return [r] if r else []
+        out = list(roles)
+    else:
+        r = existing.get("role")
+        out = [r] if r else []
+    if "admin" in out:
+        return out
+    if "client" not in out:
+        out.append("client")
+    return out
 
 
 def _effective_session_role(roles: list, legacy_role: Optional[str], requested_role: Optional[str] = None) -> str:
