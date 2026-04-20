@@ -91,6 +91,10 @@ function LoginScreen({ setUserRole, setUserId }) {
   const entry = location.state?.entry;
   const isClientEntry = entry === 'client';
   const isAdminFlow = redirectTo === '/admin';
+
+  const [step, setStep] = useState('phone'); // 'phone' | 'otp'
+  /** 'sms' = cliente u otro vía celular; 'email' = proveedor (u cuenta con clave) → POST /api/auth/login */
+  const [loginMode, setLoginMode] = useState('sms');
   /**
    * El toggle solo se muestra si no es cliente y estamos en el paso OTP o ya en modo email (o es admin).
    * Esto cumple con: "en primer sms opt en cliente nunca debe decir contraseña y correo".
@@ -99,7 +103,6 @@ function LoginScreen({ setUserRole, setUserId }) {
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
-  const [step, setStep] = useState('phone'); // 'phone' | 'otp'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   /** Mensaje informativo (no error) tras enviar código: p. ej. canal email si SMS falló en backend */
@@ -110,8 +113,6 @@ function LoginScreen({ setUserRole, setUserId }) {
   const [stepUpPhone, setStepUpPhone] = useState('');
   /** Email enmascarado del proveedor para mostrar en Step-Up */
   const [stepUpEmailMasked, setStepUpEmailMasked] = useState('');
-  /** 'sms' = cliente u otro vía celular; 'email' = proveedor (u cuenta con clave) → POST /api/auth/login */
-  const [loginMode, setLoginMode] = useState('sms');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
