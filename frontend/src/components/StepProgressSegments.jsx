@@ -11,6 +11,7 @@ function StepProgressSegments({
   labels = [],
   compact = false,
   className = '',
+  showSublabel = false,
   /** (stepNum) => true si el segmento es clicable (p. ej. volver a un paso ya visitado) */
   stepClickable,
   onStepClick,
@@ -36,8 +37,15 @@ function StepProgressSegments({
       aria-label={ariaLabel}
       style={{ alignItems: 'center' }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
-        {/* Fila de círculos */}
+      <div
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
         <div className="maqgo-step-progress__segments-row" aria-hidden style={{ margin: 0, gap: '4px' }}>
           {items.map((stepNum, index) => {
             const isActive = stepNum === cs;
@@ -83,13 +91,12 @@ function StepProgressSegments({
           })}
         </div>
 
-        {/* Texto Paso X de Y al lado derecho */}
         <p className="maqgo-step-progress__title" aria-live="polite" style={{ whiteSpace: 'nowrap' }}>
-          Paso {cs}/{total}
+          P{cs}/{total}
         </p>
       </div>
 
-      {resolvedSublabel ? (
+      {showSublabel && resolvedSublabel ? (
         <p className="maqgo-step-progress__sublabel" style={{ marginTop: '4px' }}>{resolvedSublabel}</p>
       ) : null}
     </div>
