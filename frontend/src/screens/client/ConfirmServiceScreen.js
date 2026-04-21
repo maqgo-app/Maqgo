@@ -729,26 +729,34 @@ function ConfirmServiceScreen() {
             aria-controls="price-breakdown"
             aria-label={showBreakdown ? 'Ocultar desglose del precio' : 'Ver desglose del precio'}
             style={{
-              background: 'transparent',
-              border: 'none',
-              padding: '6px 0 0',
-              marginTop: 8,
+              background: showBreakdown ? 'rgba(236, 104, 25, 0.22)' : 'rgba(236, 104, 25, 0.16)',
+              border: showBreakdown ? '1px solid rgba(236, 104, 25, 0.65)' : '1px solid rgba(236, 104, 25, 0.45)',
+              padding: '10px 12px',
+              borderRadius: 10,
+              marginTop: 10,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               width: '100%',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              gap: 10,
             }}
             data-testid="toggle-breakdown"
           >
-            <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
-              {showBreakdown ? 'Ocultar desglose' : 'Ver desglose del precio'}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden style={{ flexShrink: 0 }}>
+                <path d="M8 6H20M8 12H20M8 18H20" stroke="rgba(255,255,255,0.95)" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M4 6H4.01M4 12H4.01M4 18H4.01" stroke="rgba(255,255,255,0.95)" strokeWidth="3" strokeLinecap="round"/>
+              </svg>
+              <span style={{ color: '#fff', fontSize: 13, fontWeight: 800, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {showBreakdown ? 'Ocultar desglose' : 'Ver desglose de precio'}
+              </span>
             </span>
             <svg 
               width="16" height="16" viewBox="0 0 24 24" fill="none"
-              style={{ transform: showBreakdown ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s' }}
+              style={{ transform: showBreakdown ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s', flexShrink: 0 }}
             >
-              <path d="M6 9L12 15L18 9" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M6 9L12 15L18 9" stroke="rgba(255,255,255,0.95)" strokeWidth="2" strokeLinecap="round"/>
             </svg>
           </button>
 
