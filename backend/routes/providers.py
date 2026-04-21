@@ -147,6 +147,32 @@ def _provider_response_id(provider: dict) -> str:
     oid = provider.get("_id")
     return str(oid) if oid is not None else ""
 
+def _get_provider_coords(provider: dict) -> tuple[float, float]:
+    loc = provider.get("location")
+    if isinstance(loc, dict):
+        lat = loc.get("lat")
+        lng = loc.get("lng")
+        try:
+            if lat is not None and lng is not None:
+                return float(lat), float(lng)
+        except (TypeError, ValueError):
+            pass
+    pdata = provider.get("providerData")
+    if isinstance(pdata, dict):
+        lat = pdata.get("addressLat")
+        lng = pdata.get("addressLng")
+        try:
+            if lat is not None and lng is not None:
+                return float(lat), float(lng)
+        except (TypeError, ValueError):
+            pass
+    lat = provider.get("latitude", -33.45)
+    lng = provider.get("longitude", -70.66)
+    try:
+        return float(lat), float(lng)
+    except (TypeError, ValueError):
+        return -33.45, -70.66
+
 @router.get("/match")
 async def match_providers(
     machinery_type: str = Query(..., description="Tipo de maquinaria requerida"),
@@ -191,6 +217,7 @@ async def match_providers(
             "machineData": 1,
             "latitude": 1,
             "longitude": 1,
+            "location": 1,
             "rating": 1,
             "acceptedServices": 1,
             "rejectedServices": 1,
@@ -231,8 +258,7 @@ async def match_providers(
                 continue
             
             # Calcular distancia
-            provider_lat = provider.get('latitude', -33.45)  # Default Santiago
-            provider_lng = provider.get('longitude', -70.66)
+            provider_lat, provider_lng = _get_provider_coords(provider)
             distance = haversine_distance(client_lat, client_lng, provider_lat, provider_lng)
             
             # Filtrar por radio máximo
@@ -297,11 +323,11 @@ async def match_providers(
             tomorrow_count = 0
             tomorrow_cursor = db.users.find(
                 {"role": "provider", "onboarding_completed": True},
-                {"machineData": 1, "latitude": 1, "longitude": 1}
+                {"machineData": 1, "latitude": 1, "longitude": 1, "providerData": 1, "location": 1}
             )
             async for p in tomorrow_cursor:
                 if p.get('machineData', {}).get('machineryType') == machinery_type:
-                    ploc = (p.get('latitude', -33.45), p.get('longitude', -70.66))
+                    ploc = _get_provider_coords(p)
                     if haversine_distance(client_lat, client_lng, ploc[0], ploc[1]) <= max_radius:
                         tomorrow_count += 1
             duration_ms = int((time.perf_counter() - t0) * 1000)

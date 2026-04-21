@@ -17,7 +17,7 @@ db = client[get_db_name()]
 
 class AdminChangePasswordRequest(BaseModel):
     current_password: str = Field(..., min_length=1, max_length=128)
-    new_password: str = Field(..., min_length=8, max_length=12)
+    new_password: str = Field(..., min_length=8, max_length=64)
 
 
 def _validate_new_password(v: str) -> None:
@@ -65,4 +65,3 @@ async def admin_change_password(request: Request, body: AdminChangePasswordReque
     )
 
     return {"ok": True, "must_change_password": False}
-

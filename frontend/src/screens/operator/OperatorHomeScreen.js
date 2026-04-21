@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
@@ -21,12 +21,19 @@ import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
  * - Fácil activación de disponibilidad
  * - Sonidos y vibración para feedback
  */
+const parseIsoOrNull = (value) => {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
 function OperatorHomeScreen() {
   const navigate = useNavigate();
   const toast = useToast();
   const inFlightRef = useRef(false);
   const errorStreakRef = useRef(0);
   const lastErrorLogAtRef = useRef(0);
+  const GPS_FRESH_MINUTES = 10;
   const [available, setAvailable] = useState(() => {
     return localStorage.getItem('providerAvailable') === 'true';
   });
@@ -37,6 +44,8 @@ function OperatorHomeScreen() {
   const [stats, setStats] = useState({ completed: 0, pending: 0, rating: 5.0, hoursWorked: 0 });
   const [loading, setLoading] = useState(true);
   const [nextJob, setNextJob] = useState(null);
+  const [gpsMeta, setGpsMeta] = useState(() => ({ hasCoords: false, updatedAt: null }));
+  const [gpsHelp, setGpsHelp] = useState('');
   const [operatorPhoto, setOperatorPhoto] = useState(() => {
     try {
       return localStorage.getItem('operatorPhoto') || '';
@@ -45,7 +54,62 @@ function OperatorHomeScreen() {
     }
   });
 
-  async function loadOperatorData() {
+  const buildGpsHelpMessage = (err) => {
+    if (!navigator.geolocation) {
+      return 'Tu dispositivo o navegador no soporta ubicación. Prueba desde Chrome o Safari y permite Ubicación.';
+    }
+    const code = err?.code;
+    if (code === 1) {
+      return 'Permiso de ubicación denegado. Activa Ubicación y permite el acceso en los ajustes del navegador para poder recibir servicios.';
+    }
+    if (code === 2) {
+      return 'Ubicación no disponible. Verifica que el GPS esté encendido y que tengas señal/datos.';
+    }
+    if (code === 3) {
+      return 'No se pudo obtener ubicación (timeout). Enciende el GPS y vuelve a intentar.';
+    }
+    return 'No se pudo obtener tu ubicación. Enciende el GPS y permite ubicación para MAQGO.';
+  };
+
+  const captureGpsSnapshot = useCallback(async () => {
+    if (!navigator.geolocation) {
+      setGpsHelp(buildGpsHelpMessage(null));
+      return null;
+    }
+    try {
+      const pos = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 7000 });
+      });
+      const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setGpsMeta({ hasCoords: true, updatedAt: new Date() });
+      setGpsHelp('');
+      return location;
+    } catch (err) {
+      setGpsMeta((prev) => ({ ...prev, hasCoords: false, updatedAt: null }));
+      setGpsHelp(buildGpsHelpMessage(err));
+      return null;
+    }
+  }, []);
+
+  const getGpsBadge = () => {
+    if (!available) {
+      return { color: '#666', label: 'Servicio inactivo' };
+    }
+    if (!gpsMeta?.hasCoords) {
+      return { color: '#F44336', label: 'GPS apagado' };
+    }
+    const updatedAt = gpsMeta?.updatedAt;
+    if (!updatedAt) {
+      return { color: '#F44336', label: 'GPS apagado' };
+    }
+    const diffMin = (Date.now() - updatedAt.getTime()) / 60000;
+    if (diffMin <= GPS_FRESH_MINUTES) {
+      return { color: '#4CAF50', label: 'GPS activo' };
+    }
+    return { color: '#FFA726', label: 'GPS activo (señal débil)' };
+  };
+
+  const loadOperatorData = useCallback(async () => {
     try {
       const userId = localStorage.getItem('userId');
       const ownerId = localStorage.getItem('ownerId');
@@ -74,6 +138,10 @@ function OperatorHomeScreen() {
           const avail = userRes.data?.isAvailable ?? userRes.data?.available ?? false;
           setAvailable(!!avail);
           localStorage.setItem('providerAvailable', (!!avail).toString());
+          const loc = userRes.data?.location;
+          const hasCoords = Boolean(loc && typeof loc === 'object' && loc.lat != null && loc.lng != null);
+          const updatedAt = parseIsoOrNull(userRes.data?.locationUpdatedAt);
+          setGpsMeta({ hasCoords, updatedAt });
         } catch {
           const saved = localStorage.getItem('providerAvailable') === 'true';
           setAvailable(saved);
@@ -114,7 +182,7 @@ function OperatorHomeScreen() {
       setStats({ completed: 12, pending: 1, rating: 4.8, hoursWorked: 48 });
     }
     setLoading(false);
-  }
+  }, []);
 
   useEffect(() => {
     // Polling para verificar solicitudes entrantes
@@ -181,7 +249,7 @@ function OperatorHomeScreen() {
 
   useEffect(() => {
     loadOperatorData();
-  }, []);
+  }, [loadOperatorData]);
 
   const toggleAvailability = async () => {
     const userId = localStorage.getItem('userId');
@@ -193,6 +261,10 @@ function OperatorHomeScreen() {
     const newStatus = !available;
     setAvailable(newStatus);
     localStorage.setItem('providerAvailable', newStatus.toString());
+    if (!newStatus) {
+      setGpsHelp('');
+      setGpsMeta({ hasCoords: false, updatedAt: null });
+    }
     
     // Sonido y vibración de feedback
     unlockAudio();
@@ -200,16 +272,21 @@ function OperatorHomeScreen() {
     vibrate(newStatus ? 'accepted' : 'tap');
     
     // Modo demo: IDs de fallback cuando el backend no responde
-    const isDemoId = userId.startsWith('provider-') || userId.startsWith('demo-');
+    const isDemoId = userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-');
     if (isDemoId) {
       toast.success(newStatus ? 'Te conectaste (modo demo)' : 'Te desconectaste');
       return;
     }
 
     try {
-      await axios.patch(`${BACKEND_URL}/api/users/${userId}`, {
-        available: newStatus
-      }, { timeout: 8000 });
+      let location = null;
+      if (newStatus) location = await captureGpsSnapshot();
+
+      await axios.put(
+        `${BACKEND_URL}/api/users/${userId}/availability`,
+        { isAvailable: newStatus, ...(location ? { location } : {}) },
+        { timeout: 8000 }
+      );
       toast.success(newStatus ? 'Te conectaste' : 'Te desconectaste');
     } catch (e) {
       console.error(e);
@@ -225,6 +302,24 @@ function OperatorHomeScreen() {
         localStorage.setItem('providerAvailable', (!newStatus).toString());
         toast.error('No se pudo conectar. Intenta de nuevo.');
       }
+    }
+  };
+
+  const handleRetryGps = async () => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) return;
+    if (!available) return;
+    const location = await captureGpsSnapshot();
+    if (!location) return;
+    try {
+      await axios.put(
+        `${BACKEND_URL}/api/users/${userId}/availability`,
+        { isAvailable: true, location },
+        { timeout: 8000 }
+      );
+      toast.success('GPS actualizado');
+    } catch {
+      toast.error('No se pudo actualizar el GPS. Intenta de nuevo.');
     }
   };
 
@@ -396,6 +491,68 @@ function OperatorHomeScreen() {
           }}>
             {available ? 'Recibirás solicitudes de trabajo' : 'Toca para activarte'}
           </p>
+          {(() => {
+            const badge = getGpsBadge();
+            return (
+              <div
+                style={{
+                  marginTop: 10,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    background: badge.color,
+                    boxShadow: `0 0 0 3px ${badge.color}22`,
+                  }}
+                />
+                <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, fontWeight: 600 }}>
+                  {badge.label}
+                </span>
+              </div>
+            );
+          })()}
+          {available && gpsHelp ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 12,
+                background: 'rgba(244, 67, 54, 0.12)',
+                border: '1px solid rgba(244, 67, 54, 0.35)',
+                textAlign: 'left',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: 0, lineHeight: 1.35 }}>
+                  {gpsHelp}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleRetryGps}
+                  style={{
+                    flexShrink: 0,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: '#EC6819',
+                    border: 'none',
+                    color: '#fff',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Reintentar GPS
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* Stats motivacionales */}

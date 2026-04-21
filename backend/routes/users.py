@@ -196,6 +196,7 @@ async def update_availability(
     
     if body.get('location'):
         update_data['location'] = body['location']
+        update_data['locationUpdatedAt'] = datetime.now(timezone.utc).isoformat()
     
     result = await db.users.update_one(
         {'id': user_id},

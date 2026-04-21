@@ -373,6 +373,14 @@ function ConfirmServiceScreen() {
     Number.isFinite(totalFinal) &&
     totalFinal > 0;
 
+  const isBillingStepRequired = useMemo(() => {
+    if (!needsInvoice) return false;
+    const billing = getObject('billingData', {});
+    return !isEmpresaBillingComplete(billing);
+  }, [needsInvoice]);
+
+  const ctaLabel = isBillingStepRequired ? 'Ingresar datos de factura' : 'Registrar tarjeta';
+
   const dateRangeWithYear = getDateRangeShortUtil(selectedDates, selectedDate, { includeYear: true });
 
   const getServiceDescription = useCallback(() => {
@@ -929,7 +937,11 @@ function ConfirmServiceScreen() {
       </div>
 
       {/* CTA al pie: flex + scroll medio (sin position:fixed; mismo patrón P1/P4) */}
-      <div className="maqgo-funnel-split-footer" role="region" aria-label="Confirmar solicitud de servicio">
+      <div
+        className="maqgo-funnel-split-footer"
+        role="region"
+        aria-label={isBillingStepRequired ? 'Continuar a datos de factura' : 'Continuar a registro de tarjeta'}
+      >
         {!hasValidPrice ? (
           <p
             style={{
@@ -940,7 +952,7 @@ function ConfirmServiceScreen() {
               lineHeight: 1.4,
             }}
           >
-            En un momento podrás confirmar tu solicitud.
+            En un momento podrás continuar.
           </p>
         ) : null}
         <MaqgoButton
@@ -949,9 +961,9 @@ function ConfirmServiceScreen() {
           loading={isConfirming}
           style={{ fontSize: 15, fontWeight: 600, borderRadius: 30, width: '100%' }}
           data-testid="confirm-btn"
-          aria-label={isConfirming ? 'Confirmando' : 'Confirmar solicitud'}
+          aria-label={isConfirming ? 'Continuando…' : ctaLabel}
         >
-          Confirmar solicitud
+          {ctaLabel}
         </MaqgoButton>
       </div>
     </div>

@@ -32,6 +32,38 @@ function TeamManagementScreen() {
   const [operatorRut, setOperatorRut] = useState('');
   const [operatorPhone, setOperatorPhone] = useState('');
   const [didAttemptInvite, setDidAttemptInvite] = useState(false);
+  const GPS_FRESH_MINUTES = 10;
+  const GPS_STALE_MINUTES = 120;
+
+  const parseIsoOrNull = (value) => {
+    if (!value) return null;
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  const getOperatorGpsBadge = (op) => {
+    const isActive = Boolean(op?.isAvailable);
+    if (!isActive) {
+      return { color: '#F44336', title: 'GPS apagado o servicio activo desactivado' };
+    }
+    const loc = op?.location;
+    const hasCoords = Boolean(loc && typeof loc === 'object' && loc.lat != null && loc.lng != null);
+    if (!hasCoords) {
+      return { color: '#F44336', title: 'GPS sin ubicación válida' };
+    }
+    const updatedAt = parseIsoOrNull(op?.locationUpdatedAt);
+    if (!updatedAt) {
+      return { color: '#FFA726', title: 'Ubicación sin señal reciente' };
+    }
+    const diffMin = (Date.now() - updatedAt.getTime()) / 60000;
+    if (diffMin <= GPS_FRESH_MINUTES) {
+      return { color: '#4CAF50', title: 'GPS activo' };
+    }
+    if (diffMin <= GPS_STALE_MINUTES) {
+      return { color: '#FFA726', title: 'GPS activo (señal débil)' };
+    }
+    return { color: '#F44336', title: 'GPS sin señal reciente' };
+  };
 
   useEffect(() => {
     const fetchTeam = async () => {
@@ -289,6 +321,9 @@ function TeamManagementScreen() {
                   </p>
                   {team.operators && team.operators.length > 0 ? (
                     team.operators.map((op, idx) => (
+                      (() => {
+                        const gpsBadge = getOperatorGpsBadge(op);
+                        return (
                       <div 
                         key={op.id || idx}
                         style={{
@@ -330,12 +365,15 @@ function TeamManagementScreen() {
                           </div>
                         </div>
                         <div style={{
-                          width: 10,
-                          height: 10,
+                          width: 12,
+                          height: 12,
                           borderRadius: '50%',
-                          background: op.isAvailable ? '#4CAF50' : '#666'
-                        }} title={op.isAvailable ? 'Disponible' : 'No disponible'}></div>
+                          background: gpsBadge.color,
+                          boxShadow: `0 0 0 3px ${gpsBadge.color}22`
+                        }} title={gpsBadge.title}></div>
                       </div>
+                        );
+                      })()
                     ))
                   ) : (
                     <div style={{

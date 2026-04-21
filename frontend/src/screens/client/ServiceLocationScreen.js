@@ -1061,7 +1061,7 @@ function ServiceLocationScreen() {
               fontSize: 12,
               lineHeight: 1.45
             }}>
-              Hasta 5 opciones por precio y cercanía.
+              Te mostraremos hasta 5 opciones según precio y cercanía.
             </div>
           </div>
         </div>

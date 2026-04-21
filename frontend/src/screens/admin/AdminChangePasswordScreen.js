@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 
 function validateNewPassword(pw) {
-  if (!pw || pw.length < 8 || pw.length > 12) return 'La nueva contraseña debe tener 8-12 caracteres.';
+  if (!pw || pw.length < 8 || pw.length > 64) return 'La nueva contraseña debe tener 8-64 caracteres.';
   const hasLetter = /[A-Za-z]/.test(pw);
   const hasNumber = /\d/.test(pw);
   if (!hasLetter || !hasNumber) return 'La nueva contraseña debe incluir letras y números.';
@@ -120,7 +120,7 @@ function AdminChangePasswordScreen() {
           </label>
 
           <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>
-            Nueva contraseña (8-12, letras y números)
+            Nueva contraseña (8-64, letras y números)
             <input
               type="password"
               value={newPassword}
@@ -185,4 +185,3 @@ function AdminChangePasswordScreen() {
 }
 
 export default AdminChangePasswordScreen;
-

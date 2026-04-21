@@ -427,9 +427,22 @@ function AdminRoute() {
         </p>
         <button
           type="button"
+          className="maqgo-btn-primary"
+          onClick={() => {
+            clearLocalSession();
+            clearAdminVerifiedCache();
+            clearAdminDemoBypass();
+            navigate('/admin', { replace: true });
+          }}
+          style={{ marginTop: 18, width: 'min(420px, 100%)' }}
+        >
+          Ingresar con cuenta admin
+        </button>
+        <button
+          type="button"
           className="maqgo-btn-secondary"
           onClick={() => navigate('/', { replace: true })}
-          style={{ marginTop: 24 }}
+          style={{ marginTop: 12, width: 'min(420px, 100%)' }}
         >
           Volver a la portada
         </button>
