@@ -67,10 +67,10 @@ function ClientHome() {
     <div className="maqgo-app maqgo-client-funnel">
       <div className="maqgo-screen" style={{ justifyContent: 'center', paddingBottom: 52 }}>
         {/* Logo */}
-        <MaqgoLogo size="medium" style={{ marginBottom: 40 }} />
+        <MaqgoLogo size="medium" style={{ marginBottom: 32 }} />
 
         {/* Título */}
-        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 30 }}>
+        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 22 }}>
           Arrendar maquinaria
         </h1>
 
@@ -81,7 +81,7 @@ function ClientHome() {
             background: 'linear-gradient(135deg, #EC6819 0%, #D45A10 100%)',
             borderRadius: 20,
             padding: '24px 20px',
-            marginBottom: 16,
+            marginBottom: 14,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -99,7 +99,7 @@ function ClientHome() {
             e.currentTarget.style.boxShadow = '0 8px 32px rgba(236, 104, 25, 0.25)';
           }}
           data-testid="immediate-reservation-btn"
-          aria-label="Inicio HOY - Servicio prioritario"
+          aria-label="Inicio hoy - Servicio prioritario"
         >
           {/* Ícono Reloj Urgente */}
           <div style={{
@@ -123,10 +123,10 @@ function ClientHome() {
           {/* Texto */}
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', marginBottom: 4, letterSpacing: '-0.02em', fontFamily: "'Inter', sans-serif" }}>
-              Inicio HOY
+              Inicio hoy
             </div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: 500, fontFamily: "'Inter', sans-serif", lineHeight: 1.3 }}>
-              Disponibilidad inmediata. Solo se cobra cuando un operador acepta tu solicitud.
+              Disponibilidad inmediata. Confirmas antes de pagar.
             </div>
           </div>
 
@@ -218,11 +218,11 @@ function ClientHome() {
 
         {/* Microcopy: propuesta de valor + cobro */}
         <p style={{
-          color: 'rgba(250,250,250,0.5)',
+          color: 'rgba(250,250,250,0.6)',
           fontSize: 12,
           fontWeight: 400,
           textAlign: 'center',
-          marginTop: 24,
+          marginTop: 18,
           lineHeight: 1.4,
           fontFamily: "'Inter', sans-serif"
         }}>

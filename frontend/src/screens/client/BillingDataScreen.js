@@ -6,6 +6,7 @@ import { validateRut, sanitizeRutInput, formatRut } from '../../utils/chileanVal
 import { getObject } from '../../utils/safeStorage';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import BookingProgress from '../../components/BookingProgress';
+import MaqgoLogo from '../../components/MaqgoLogo';
 import { MaqgoButton } from '../../components/base';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 
@@ -92,7 +93,9 @@ function BillingDataScreen() {
           >
             <BackArrowIcon style={{ color: '#fff' }} />
           </button>
-          <div style={{ flex: 1 }} />
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <MaqgoLogo size="small" />
+          </div>
           <div style={{ width: 24 }} />
         </div>
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 4 }}>

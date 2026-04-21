@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
+import MaqgoLogo from '../../components/MaqgoLogo';
 import { getObject } from '../../utils/safeStorage';
 import { validateEmail } from '../../utils/chileanValidation';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
@@ -379,18 +380,15 @@ function CardPaymentScreen() {
           >
             <BackArrowIcon style={{ color: '#fff' }} />
           </button>
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <span style={{ 
-              color: '#fff', 
-              fontSize: 18, 
-              fontWeight: 600,
-              fontFamily: "'Space Grotesk', sans-serif"
-            }}>
-              {PAYMENT_COPY.P6_VERIFY.screenTitle}
-            </span>
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <MaqgoLogo size="small" />
           </div>
           <div style={{ width: 24 }}></div>
         </div>
+
+        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 10 }}>
+          {PAYMENT_COPY.P6_VERIFY.screenTitle}
+        </h1>
 
         {/* Cobro vs registro: un bloque, dos líneas (sin duplicar abajo del botón) */}
         <div style={{
