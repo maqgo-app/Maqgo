@@ -2,6 +2,7 @@
 MAQGO Admin - Informe Operativo Semanal y Planilla de Pagos
 """
 from fastapi import APIRouter, HTTPException, Query, Depends
+from pydantic import BaseModel, Field
 
 from auth_dependency import get_current_admin_strict
 from fastapi.responses import StreamingResponse
@@ -9,9 +10,15 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timedelta
 from typing import Optional
 from collections import Counter
+from email.message import EmailMessage
+from html import escape as html_escape
 import io
 import csv
 import os
+import ssl
+import smtplib
+import asyncio
+from zoneinfo import ZoneInfo
 
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -23,6 +30,259 @@ router = APIRouter(prefix="/admin/reports", tags=["admin-reports"])
 mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
+
+SUBSCRIPTIONS_CONFIG_KEY = "admin_report_subscriptions"
+
+def _parse_bool(v: str, default: bool = False) -> bool:
+    if v is None:
+        return default
+    t = str(v).strip().lower()
+    if t in {"1", "true", "yes", "y", "on"}:
+        return True
+    if t in {"0", "false", "no", "n", "off"}:
+        return False
+    return default
+
+
+def _parse_int(v: str, default: int) -> int:
+    try:
+        return int(str(v).strip())
+    except Exception:
+        return default
+
+
+def _normalize_email_list(value) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, list):
+        raw = ",".join(str(x) for x in value if x is not None)
+    else:
+        raw = str(value)
+    emails = []
+    for part in raw.replace(";", ",").split(","):
+        t = part.strip().lower()
+        if not t:
+            continue
+        emails.append(t)
+    uniq = []
+    seen = set()
+    for e in emails:
+        if e in seen:
+            continue
+        seen.add(e)
+        uniq.append(e)
+    return uniq
+
+
+def _looks_like_email(value: str) -> bool:
+    t = str(value or "").strip()
+    if not t or "@" not in t:
+        return False
+    local, _, domain = t.partition("@")
+    if not local or not domain or "." not in domain:
+        return False
+    return True
+
+
+async def _get_subscription_config() -> dict:
+    doc = await db.config.find_one({"_id": SUBSCRIPTIONS_CONFIG_KEY}, {"_id": 0})
+    return doc or {}
+
+
+async def _get_weekly_recipients_from_config_or_env() -> list[str]:
+    try:
+        cfg = await _get_subscription_config()
+        weekly = cfg.get("weekly_emails")
+        if isinstance(weekly, list) and weekly:
+            return _normalize_email_list(weekly)
+    except Exception:
+        pass
+    raw = (
+        os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_EMAILS", "").strip()
+        or os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", "").strip()
+    )
+    return _normalize_email_list(raw)
+
+
+async def _get_monthly_recipients_from_config_or_env() -> list[str]:
+    try:
+        cfg = await _get_subscription_config()
+        monthly = cfg.get("monthly_emails")
+        if isinstance(monthly, list) and monthly:
+            return _normalize_email_list(monthly)
+    except Exception:
+        pass
+    raw = os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_EMAILS", "").strip()
+    return _normalize_email_list(raw)
+
+
+class AdminReportSubscriptionsUpdate(BaseModel):
+    weekly_emails: list[str] = Field(default_factory=list)
+    monthly_emails: list[str] = Field(default_factory=list)
+
+
+
+def _cron_verify(secret: Optional[str]) -> None:
+    expected = os.environ.get("MAQGO_CRON_SECRET", "").strip()
+    if not expected or (secret or "").strip() != expected:
+        raise HTTPException(status_code=403, detail="Cron no autorizado")
+
+
+async def _send_email(to_emails: list[str], subject: str, text: str, html: Optional[str] = None) -> dict:
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev").strip() or "onboarding@resend.dev"
+
+    smtp_host = os.environ.get("EMAIL_SMTP_HOST", "").strip()
+    smtp_user = os.environ.get("EMAIL_SMTP_USER", "").strip()
+    smtp_pass = os.environ.get("EMAIL_SMTP_PASS", "").strip()
+    smtp_port = _parse_int(os.environ.get("EMAIL_SMTP_PORT", "587"), 587)
+    use_ssl = _parse_bool(os.environ.get("EMAIL_SMTP_SSL", "false"), False)
+
+    if smtp_host and smtp_user and smtp_pass:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = sender
+        msg["To"] = ", ".join(to_emails)
+        msg.set_content(text or "")
+        if html:
+            msg.add_alternative(html, subtype="html")
+        if use_ssl:
+            context = ssl.create_default_context()
+            await asyncio.to_thread(_smtp_send_ssl, smtp_host, smtp_port, smtp_user, smtp_pass, msg, context)
+        else:
+            context = ssl.create_default_context()
+            await asyncio.to_thread(_smtp_send_starttls, smtp_host, smtp_port, smtp_user, smtp_pass, msg, context)
+        return {"provider": "smtp"}
+
+    try:
+        import resend
+    except Exception:
+        resend = None
+    resend_key = os.environ.get("RESEND_API_KEY", "").strip()
+    if not resend or not resend_key:
+        raise HTTPException(status_code=500, detail="Proveedor de email no configurado (SMTP o RESEND_API_KEY)")
+    resend.api_key = resend_key
+    payload = {
+        "from": sender,
+        "to": to_emails,
+        "subject": subject,
+        "text": text,
+    }
+    if html:
+        payload["html"] = html
+    result = await asyncio.to_thread(resend.Emails.send, payload)
+    return {"provider": "resend", "id": result.get("id") if isinstance(result, dict) else None}
+
+
+def _smtp_send_ssl(host: str, port: int, user: str, password: str, msg: EmailMessage, context) -> None:
+    with smtplib.SMTP_SSL(host, port, context=context, timeout=20) as server:
+        server.login(user, password)
+        server.send_message(msg)
+
+
+def _smtp_send_starttls(host: str, port: int, user: str, password: str, msg: EmailMessage, context) -> None:
+    with smtplib.SMTP(host, port, timeout=20) as server:
+        server.starttls(context=context)
+        server.login(user, password)
+        server.send_message(msg)
+
+
+def _scheduled_window_allows_send(now_local: datetime, hour: int, minute: int, window_minutes: int) -> bool:
+    target = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if now_local < target:
+        return False
+    delta = now_local - target
+    return delta.total_seconds() <= float(max(1, window_minutes)) * 60.0
+
+
+def _previous_week_key(now_local: datetime) -> str:
+    start_this_week = (now_local - timedelta(days=now_local.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    prev_week_start = start_this_week - timedelta(days=7)
+    return prev_week_start.date().isoformat()
+
+
+async def _send_admin_weekly_report_email(*, force: bool, dry_run: bool, weeks_ago: int) -> dict:
+    enabled = _parse_bool(os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_ENABLED", "false"), False)
+    tz_name = os.environ.get("MAQGO_ADMIN_REPORT_TIMEZONE", "America/Santiago").strip() or "America/Santiago"
+    hour = _parse_int(os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_HOUR", "7"), 7)
+    minute = _parse_int(os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_MINUTE", "0"), 0)
+    window = _parse_int(os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_WINDOW_MINUTES", "20"), 20)
+    recipients = await _get_weekly_recipients_from_config_or_env()
+
+    if not recipients:
+        return {"ok": False, "reason": "missing_recipients"}
+    if not enabled and not force:
+        return {"ok": False, "reason": "disabled"}
+
+    now_local = datetime.now(ZoneInfo(tz_name))
+    is_monday = now_local.weekday() == 0
+    in_window = _scheduled_window_allows_send(now_local, hour, minute, window)
+    if not force and not (is_monday and in_window):
+        return {
+            "ok": False,
+            "reason": "outside_schedule_window",
+            "timezone": tz_name,
+            "now_local": now_local.isoformat(),
+        }
+
+    week_key = _previous_week_key(now_local)
+    recipients_key = ",".join(sorted(recipients))
+    existing = await db.admin_weekly_report_mailings.find_one(
+        {"kind": "weekly_report", "week_key": week_key, "recipients_key": recipients_key},
+        {"_id": 0, "sent_at": 1},
+    )
+    if existing and not force:
+        return {"ok": True, "skipped": True, "reason": "already_sent", "week_key": week_key}
+
+    report = await _build_weekly_report(weeks_ago=weeks_ago)
+    subject = f"MAQGO — Informe semanal {report['periodo']['semana']}"
+    text = format_report_as_text(report)
+    html = f"<pre>{html_escape(text)}</pre>"
+
+    if dry_run:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "week_key": week_key,
+            "to": recipients,
+            "subject": subject,
+            "text_preview": text[:2000],
+        }
+
+    send_result = await _send_email(recipients, subject, text, html)
+    await db.admin_weekly_report_mailings.update_one(
+        {"kind": "weekly_report", "week_key": week_key, "recipients_key": recipients_key},
+        {
+            "$set": {
+                "kind": "weekly_report",
+                "week_key": week_key,
+                "recipients_key": recipients_key,
+                "to": recipients,
+                "timezone": tz_name,
+                "scheduled_hour": hour,
+                "scheduled_minute": minute,
+                "weeks_ago": weeks_ago,
+                "sent_at": datetime.utcnow().isoformat(),
+                "provider": send_result.get("provider"),
+                "provider_id": send_result.get("id"),
+            }
+        },
+        upsert=True,
+    )
+    return {"ok": True, "sent": True, "week_key": week_key, "to": recipients, "provider": send_result.get("provider")}
+
+
+cron_router = APIRouter(prefix="/admin", tags=["admin-cron-reports"])
+
+
+@cron_router.api_route("/cron/admin-weekly-report", methods=["GET", "POST"])
+async def cron_admin_weekly_report(
+    secret: Optional[str] = Query(None),
+    force: bool = Query(False),
+    dry_run: bool = Query(False),
+    weeks_ago: int = Query(1, ge=0, le=52),
+):
+    _cron_verify(secret)
+    return await _send_admin_weekly_report_email(force=force, dry_run=dry_run, weeks_ago=weeks_ago)
 
 
 @router.get("/sms-balance")
@@ -58,6 +318,39 @@ async def get_sms_balance(_: dict = Depends(get_current_admin_strict)):
         "is_low_balance": (credits is not None and credits <= threshold),
         "code": result.get("code"),
     }
+
+
+@router.get("/subscriptions")
+async def get_admin_report_subscriptions(_: dict = Depends(get_current_admin_strict)):
+    cfg = await _get_subscription_config()
+    weekly = _normalize_email_list(cfg.get("weekly_emails")) if cfg.get("weekly_emails") else await _get_weekly_recipients_from_config_or_env()
+    monthly = _normalize_email_list(cfg.get("monthly_emails")) if cfg.get("monthly_emails") else await _get_monthly_recipients_from_config_or_env()
+    return {
+        "ok": True,
+        "weekly_emails": weekly,
+        "monthly_emails": monthly,
+        "updated_at": cfg.get("updated_at"),
+        "source": {
+            "weekly": "db" if cfg.get("weekly_emails") else "env",
+            "monthly": "db" if cfg.get("monthly_emails") else ("env" if os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_EMAILS") else "empty"),
+        },
+    }
+
+
+@router.post("/subscriptions")
+async def update_admin_report_subscriptions(body: AdminReportSubscriptionsUpdate, _: dict = Depends(get_current_admin_strict)):
+    weekly = _normalize_email_list(body.weekly_emails)
+    monthly = _normalize_email_list(body.monthly_emails)
+    invalid = [e for e in weekly + monthly if not _looks_like_email(e)]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Emails inválidos: {', '.join(invalid[:5])}")
+    now = datetime.utcnow().isoformat()
+    await db.config.update_one(
+        {"_id": SUBSCRIPTIONS_CONFIG_KEY},
+        {"$set": {"weekly_emails": weekly, "monthly_emails": monthly, "updated_at": now}},
+        upsert=True,
+    )
+    return {"ok": True, "weekly_emails": weekly, "monthly_emails": monthly, "updated_at": now}
 
 async def _build_weekly_report(weeks_ago: int = 0):
     """
@@ -657,21 +950,26 @@ async def get_payments_planilla(
 
 
 @router.post("/weekly/send-email")
-async def send_weekly_report_email(email: str = None, _: dict = Depends(get_current_admin_strict)):
-    """Envía el informe semanal por email"""
-    report = await _build_weekly_report(weeks_ago=0)
-    
-    # Formatear como texto
-    texto = format_report_as_text(report)
-    
-    # TODO: Integrar con Resend cuando esté activo
-    # Por ahora retornamos el texto formateado
-    
-    return {
-        "status": "pending_email_integration",
-        "mensaje": "Informe generado. Integración de email pendiente.",
-        "informe_texto": texto
-    }
+async def send_weekly_report_email(
+    email: Optional[str] = Query(None),
+    weeks_ago: int = Query(1, ge=0, le=52),
+    dry_run: bool = Query(False),
+    _: dict = Depends(get_current_admin_strict),
+):
+    recipients = _normalize_email_list(email or os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_EMAILS", "") or os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", ""))
+    if not recipients:
+        raise HTTPException(status_code=400, detail="Falta destinatario email (param email o env MAQGO_ADMIN_WEEKLY_REPORT_EMAILS)")
+
+    report = await _build_weekly_report(weeks_ago=weeks_ago)
+    text = format_report_as_text(report)
+    subject = f"MAQGO — Informe semanal {report['periodo']['semana']}"
+    html = f"<pre>{html_escape(text)}</pre>"
+
+    if dry_run:
+        return {"ok": True, "dry_run": True, "to": recipients, "subject": subject, "text_preview": text[:2000]}
+
+    result = await _send_email(recipients, subject, text, html)
+    return {"ok": True, "sent": True, "to": recipients, "provider": result.get("provider"), "provider_id": result.get("id")}
 
 
 def format_report_as_text(report: dict) -> str:

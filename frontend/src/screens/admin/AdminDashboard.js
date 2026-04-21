@@ -91,6 +91,11 @@ function AdminDashboard() {
   const [invoiceModalSrc, setInvoiceModalSrc] = useState('');
   const [invoiceModalLoading, setInvoiceModalLoading] = useState(false);
   const [invoiceModalHint, setInvoiceModalHint] = useState('');
+  const [showReportSubscriptions, setShowReportSubscriptions] = useState(false);
+  const [reportSubsLoading, setReportSubsLoading] = useState(false);
+  const [weeklyReportEmailsText, setWeeklyReportEmailsText] = useState('');
+  const [monthlyReportEmailsText, setMonthlyReportEmailsText] = useState('');
+  const [reportSubsMeta, setReportSubsMeta] = useState(null);
 
   // Fallback si el backend no envía `finances` (versiones viejas / demo)
   const calculateFinances = useCallback((serviceList) => {
@@ -559,6 +564,81 @@ function AdminDashboard() {
     }
   };
 
+  const parseEmailsInput = useCallback((raw) => {
+    return String(raw || '')
+      .replace(/;/g, ',')
+      .split(/[\n,]+/g)
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }, []);
+
+  const loadReportSubscriptions = useCallback(async () => {
+    if (usingOfflineDemo) return;
+    setReportSubsLoading(true);
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reports/subscriptions`, { method: 'GET' }, 12000);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || `Error ${res.status}`);
+      }
+      const weekly = Array.isArray(data.weekly_emails) ? data.weekly_emails : [];
+      const monthly = Array.isArray(data.monthly_emails) ? data.monthly_emails : [];
+      setWeeklyReportEmailsText(weekly.join(', '));
+      setMonthlyReportEmailsText(monthly.join(', '));
+      setReportSubsMeta({
+        updatedAt: data.updated_at || '',
+        source: data.source || null,
+      });
+    } catch (e) {
+      toast.error(friendlyFetchError(e, 'No se pudieron cargar los destinatarios'), 'admin-report-subs');
+    } finally {
+      setReportSubsLoading(false);
+    }
+  }, [usingOfflineDemo, toast]);
+
+  const openReportSubscriptions = useCallback(() => {
+    if (usingOfflineDemo) {
+      toast.warning('Sin conexión al servidor: no se puede editar destinatarios.');
+      return;
+    }
+    setShowReportSubscriptions(true);
+    loadReportSubscriptions();
+  }, [usingOfflineDemo, loadReportSubscriptions, toast]);
+
+  const closeReportSubscriptions = useCallback(() => {
+    setShowReportSubscriptions(false);
+  }, []);
+
+  const saveReportSubscriptions = useCallback(async () => {
+    if (usingOfflineDemo) return;
+    setReportSubsLoading(true);
+    try {
+      const weekly = parseEmailsInput(weeklyReportEmailsText);
+      const monthly = parseEmailsInput(monthlyReportEmailsText);
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/admin/reports/subscriptions`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ weekly_emails: weekly, monthly_emails: monthly }),
+        },
+        12000
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || `Error ${res.status}`);
+      }
+      setWeeklyReportEmailsText((data.weekly_emails || []).join(', '));
+      setMonthlyReportEmailsText((data.monthly_emails || []).join(', '));
+      setReportSubsMeta({ updatedAt: data.updated_at || '', source: { weekly: 'db', monthly: 'db' } });
+      toast.success('Destinatarios guardados.', 'admin-report-subs');
+    } catch (e) {
+      toast.error(friendlyFetchError(e, 'No se pudieron guardar los destinatarios'), 'admin-report-subs');
+    } finally {
+      setReportSubsLoading(false);
+    }
+  }, [usingOfflineDemo, monthlyReportEmailsText, parseEmailsInput, toast, weeklyReportEmailsText]);
+
   useEffect(() => {
     fetchMonthlyFinance();
   }, [fetchMonthlyFinance]);
@@ -900,6 +980,25 @@ function AdminDashboard() {
               title="Descargar informe semanal en PDF (semana anterior, listo para imprimir)"
             >
               🖨 PDF semana anterior
+            </button>
+            <button
+              type="button"
+              onClick={openReportSubscriptions}
+              disabled={actionsLocked}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 8,
+                color: '#fff',
+                cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                fontWeight: 600,
+                opacity: actionsLocked ? 0.45 : 1,
+              }}
+              title={actionsLocked ? 'Sin conexión al servidor' : 'Configurar destinatarios de reportes semanales y mensuales'}
+            >
+              📧 Destinatarios
             </button>
             <button
               type="button"
@@ -2056,6 +2155,120 @@ function AdminDashboard() {
                   color: '#fff',
                   cursor: 'pointer'
                 }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReportSubscriptions && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: ADMIN_THEME.panelBg,
+              borderRadius: 16,
+              padding: 24,
+              width: '100%',
+              maxWidth: 520,
+              border: `1px solid ${ADMIN_THEME.border}`,
+            }}
+            role="dialog"
+            aria-label="Destinatarios reportes"
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ color: '#fff', margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
+                📧 Destinatarios de reportes
+              </h3>
+              <button
+                type="button"
+                onClick={closeReportSubscriptions}
+                style={{ background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer' }}
+                aria-label="Cerrar"
+              >
+                ×
+              </button>
+            </div>
+
+            <p style={{ margin: '0 0 14px', color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 1.45 }}>
+              Ingresa uno o más correos separados por coma o salto de línea.
+              {reportSubsMeta?.updatedAt ? ` Última actualización: ${String(reportSubsMeta.updatedAt).slice(0, 19)}` : ''}
+            </p>
+
+            <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.82)', marginBottom: 8 }}>
+              Reporte semanal
+              <textarea
+                value={weeklyReportEmailsText}
+                onChange={(e) => setWeeklyReportEmailsText(e.target.value)}
+                placeholder="ej: tomas@maqgo.cl, finanzas@maqgo.cl"
+                rows={3}
+                disabled={reportSubsLoading || actionsLocked}
+                style={{
+                  marginTop: 6,
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 10,
+                  border: '1px solid rgba(255,255,255,0.16)',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: '#fff',
+                  outline: 'none',
+                  resize: 'vertical',
+                }}
+              />
+            </label>
+
+            <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.82)', marginBottom: 8 }}>
+              Reporte mensual
+              <textarea
+                value={monthlyReportEmailsText}
+                onChange={(e) => setMonthlyReportEmailsText(e.target.value)}
+                placeholder="ej: contabilidad@maqgo.cl"
+                rows={2}
+                disabled={reportSubsLoading || actionsLocked}
+                style={{
+                  marginTop: 6,
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 10,
+                  border: '1px solid rgba(255,255,255,0.16)',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: '#fff',
+                  outline: 'none',
+                  resize: 'vertical',
+                }}
+              />
+            </label>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={saveReportSubscriptions}
+                disabled={reportSubsLoading || actionsLocked}
+                className="maqgo-btn-primary"
+                style={{ flex: 1, opacity: reportSubsLoading || actionsLocked ? 0.6 : 1 }}
+              >
+                {reportSubsLoading ? 'Guardando…' : 'Guardar'}
+              </button>
+              <button
+                type="button"
+                onClick={closeReportSubscriptions}
+                className="maqgo-btn-secondary"
+                style={{ flex: 1 }}
               >
                 Cerrar
               </button>
