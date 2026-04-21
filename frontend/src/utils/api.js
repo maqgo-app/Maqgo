@@ -73,6 +73,11 @@ function shouldRedirectToLoginOn401() {
 
 function handle401() {
   clearLocalSession();
+  const p = window.location.pathname || '';
+  if (p.startsWith('/admin')) {
+    window.location.href = '/admin?expired=1';
+    return;
+  }
   if (shouldRedirectToLoginOn401()) {
     traceRedirectToLogin('src/utils/api.js (handle401 → window.location)');
     window.location.href = '/login?expired=1';

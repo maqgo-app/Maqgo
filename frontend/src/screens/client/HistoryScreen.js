@@ -121,11 +121,11 @@ const DEMO_SERVICES_CLIENT = [
 function HistoryScreen() {
   const navigate = useNavigate();
   const [services, setServices] = useState([]);
-  const [activeTab, setActiveTab] = useState('completed');
   
   // Detectar si es cliente o proveedor
   const userRole = localStorage.getItem('userRole') || 'client';
   const isProvider = userRole === 'provider';
+  const [activeTab, setActiveTab] = useState('completed');
 
   useEffect(() => {
     const saved = getArray('serviceHistory', []);
@@ -437,7 +437,7 @@ function HistoryScreen() {
             textAlign: 'center',
             lineHeight: 1.4
           }}>
-            📱 Para cualquier consulta o reclamo, contacta a través de la app. 
+            📱 Para cualquier consulta o sugerencia, contacta a través de la app. 
             MAQGO es tu canal de comunicación seguro.
           </p>
         </div>

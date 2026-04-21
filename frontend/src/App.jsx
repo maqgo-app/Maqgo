@@ -201,6 +201,15 @@ function AppContent() {
         <Route path="/terms" element={<TermsScreen />} />
         <Route path="/privacy" element={<PrivacyScreen />} />
 
+        {/* Admin: puerta única en /admin (sin pasar por ProtectedRoute → no redirige a /login comercial). */}
+        <Route path="/admin" element={<AdminRoute />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="change-password" element={<AdminChangePasswordScreen />} />
+          <Route path="pricing" element={<AdminPricingScreen />} />
+          <Route path="users" element={<AdminUsersScreen />} />
+          <Route path="marketing" element={<AdminMarketingScreen />} />
+        </Route>
+
         <Route element={<ProtectedRoute />}>
         {/* Chat por servicio (canal obligatorio cliente ↔ proveedor) */}
         <Route path="/chat/:serviceId" element={<ServiceChatScreen />} />
@@ -363,15 +372,6 @@ function AppContent() {
         <Route path="/operator/home" element={<OperatorHomeScreen />} />
         <Route path="/operator/history" element={<OperatorHistoryScreen />} />
         <Route path="/operator/completed" element={<OperatorServiceCompletedScreen />} />
-
-        {/* Admin: un solo AdminRoute (layout) evita re-fetch /api/admin/stats y "Verificando..." en cada sub-ruta */}
-        <Route path="/admin" element={<AdminRoute />}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="change-password" element={<AdminChangePasswordScreen />} />
-          <Route path="pricing" element={<AdminPricingScreen />} />
-          <Route path="users" element={<AdminUsersScreen />} />
-          <Route path="marketing" element={<AdminMarketingScreen />} />
-        </Route>
 
         <Route path="/profile" element={<ProfileScreen />} />
         </Route>

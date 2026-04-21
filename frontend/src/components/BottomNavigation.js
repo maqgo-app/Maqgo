@@ -168,12 +168,6 @@ export function ClientNavigation() {
         label="Perfil"
         icon={Icons.profile}
       />
-      <NavItem
-        active={false}
-        onClick={() => logoutAndGoWelcome(navigate)}
-        label="Salir"
-        icon={Icons.logout}
-      />
     </div>
   );
 }
