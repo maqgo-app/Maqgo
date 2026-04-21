@@ -79,6 +79,7 @@ function AdminDashboard() {
   const [loadingMonthlyFinance, setLoadingMonthlyFinance] = useState(false);
   const [monthlyFinanceError, setMonthlyFinanceError] = useState('');
   const monthlyFinanceManualTriggerRef = useRef(false);
+  const [monthlyFinanceUpdatedAt, setMonthlyFinanceUpdatedAt] = useState(null);
   const [smsBalance, setSmsBalance] = useState(null);
   const [loadingSmsBalance, setLoadingSmsBalance] = useState(false);
   const [smsBalanceError, setSmsBalanceError] = useState('');
@@ -484,6 +485,7 @@ function AdminDashboard() {
       }
       setMonthlyFinance(data);
       setMonthlyFinanceError('');
+      setMonthlyFinanceUpdatedAt(Date.now());
       if (monthlyFinanceManualTriggerRef.current) {
         toast.success('IVA y margen actualizado.', 'admin-monthly-finance');
       }
@@ -503,6 +505,16 @@ function AdminDashboard() {
     monthlyFinanceManualTriggerRef.current = true;
     return fetchMonthlyFinance();
   }, [fetchMonthlyFinance]);
+
+  const monthlyFinanceUpdatedLabel = useCallback(() => {
+    if (!monthlyFinanceUpdatedAt) return '';
+    try {
+      const time = new Date(monthlyFinanceUpdatedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+      return `Actualizado ${time}`;
+    } catch {
+      return 'Actualizado';
+    }
+  }, [monthlyFinanceUpdatedAt]);
 
   const fetchSmsBalance = useCallback(async () => {
     if (usingOfflineDemo) {
@@ -1132,16 +1144,23 @@ function AdminDashboard() {
             }}>
               💰 Métricas Financieras MAQGO <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: 400 }}>(Neto sin IVA)</span>
             </h2>
-            <button
-              type="button"
-              className="maqgo-btn-secondary"
-              onClick={handleMonthlyFinanceClick}
-              disabled={loadingMonthlyFinance || actionsLocked}
-              title={actionsLocked ? 'Requiere conexión al API' : 'Actualizar IVA y margen mensual'}
-              style={{ opacity: loadingMonthlyFinance || actionsLocked ? 0.6 : 1 }}
-            >
-              {loadingMonthlyFinance ? 'Actualizando...' : 'IVA y margen (mes)'}
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+              <button
+                type="button"
+                className="maqgo-btn-secondary"
+                onClick={handleMonthlyFinanceClick}
+                disabled={loadingMonthlyFinance || actionsLocked}
+                title={actionsLocked ? 'Requiere conexión al API' : 'Actualizar IVA y margen mensual'}
+                style={{ opacity: loadingMonthlyFinance || actionsLocked ? 0.6 : 1 }}
+              >
+                {loadingMonthlyFinance ? 'Actualizando...' : 'IVA y margen (mes)'}
+              </button>
+              {monthlyFinanceUpdatedAt ? (
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                  {monthlyFinanceUpdatedLabel()}
+                </span>
+              ) : null}
+            </div>
           </div>
 
           <div style={{ marginBottom: 14 }}>
