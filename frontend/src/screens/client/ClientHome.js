@@ -126,7 +126,7 @@ function ClientHome() {
               Inicio hoy
             </div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: 500, fontFamily: "'Inter', sans-serif", lineHeight: 1.3 }}>
-              Disponibilidad inmediata. Confirmas antes de pagar.
+              Disponibilidad inmediata. Pagas sólo si aceptan tu solicitud.
             </div>
           </div>
 
