@@ -407,6 +407,11 @@ function ConfirmServiceScreen() {
     return { machineLine, dateLine, detailLine, ariaLabel };
   }, [machinery, machinerySpec, reservationType, dateRangeWithYear, getServiceDescription]);
 
+  const headerSummaryLine = useMemo(
+    () => [bookingSummaryLayout.machineLine, bookingSummaryLayout.dateLine, bookingSummaryLayout.detailLine].filter(Boolean).join(' · '),
+    [bookingSummaryLayout]
+  );
+
   // Sin proveedor = datos incompletos → redirigir a elegir proveedores
   if (!provider?.id) {
     return (
@@ -450,59 +455,27 @@ function ConfirmServiceScreen() {
 
         <BookingProgress compact />
 
-        <div
-          role="group"
-          aria-label={bookingSummaryLayout.ariaLabel}
-          style={{
-            textAlign: 'center',
-            margin: '4px 0 6px',
-            padding: '0 8px',
-            maxWidth: '100%',
-          }}
-        >
-          <div
-            style={{
-              color: 'rgba(255,255,255,0.95)',
-              fontSize: 13,
-              fontWeight: 600,
-              lineHeight: 1.35,
-              wordBreak: 'break-word',
-              overflowWrap: 'anywhere',
-            }}
-          >
-            {bookingSummaryLayout.machineLine}
-          </div>
-          {bookingSummaryLayout.dateLine ? (
-            <div
-              style={{
-                marginTop: 6,
-                color: 'rgba(255,255,255,0.82)',
-                fontSize: 12,
-                fontWeight: 500,
-                lineHeight: 1.4,
-                wordBreak: 'break-word',
-              }}
-            >
-              {bookingSummaryLayout.dateLine}
-            </div>
-          ) : null}
-          <div
-            style={{
-              marginTop: bookingSummaryLayout.dateLine ? 4 : 6,
-              color: 'rgba(255,255,255,0.72)',
-              fontSize: 13,
-              fontWeight: 500,
-              lineHeight: 1.4,
-              wordBreak: 'break-word',
-            }}
-          >
-            {bookingSummaryLayout.detailLine}
-          </div>
-        </div>
-
-        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 6, fontSize: 16, lineHeight: 1.2 }}>
+        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 6, fontSize: 20, fontWeight: 700 }}>
           Revisa tu solicitud
         </h1>
+
+        <p
+          aria-label={bookingSummaryLayout.ariaLabel}
+          style={{
+            color: 'rgba(255,255,255,0.92)',
+            fontSize: 13,
+            textAlign: 'center',
+            margin: '0 0 10px',
+            lineHeight: 1.4,
+            padding: '0 8px',
+            fontWeight: 500,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {headerSummaryLine}
+        </p>
 
         <div
           style={{

@@ -946,12 +946,6 @@ function ProviderOptionsScreen() {
             ? 'Selecciona al menos 1 proveedor'
             : `Enviar solicitud a ${validSelectedIds.length} proveedor${validSelectedIds.length > 1 ? 'es' : ''}`}
         </button>
-        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textAlign: 'center', margin: '8px 0 0' }}>
-          Solo se cobrará si un proveedor acepta tu solicitud.
-        </p>
-        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, textAlign: 'center', margin: '4px 0 0' }}>
-          Te llevamos al resumen final antes de enviarla.
-        </p>
       </div>
     </div>
   );

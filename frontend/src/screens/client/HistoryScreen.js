@@ -264,7 +264,7 @@ function HistoryScreen() {
                   onClick={() => navigate('/client/home')}
                   style={{ maxWidth: 280 }}
                 >
-                  Reservar maquinaria
+                  Arrendar maquinaria
                 </button>
               )}
               {isProvider && (
@@ -437,7 +437,7 @@ function HistoryScreen() {
             textAlign: 'center',
             lineHeight: 1.4
           }}>
-            📱 Para cualquier consulta o sugerencia, contacta a través de la app. 
+            📱 Para cualquier consulta o sugerencia, contacta a través de la aplicación. 
             MAQGO es tu canal de comunicación seguro.
           </p>
         </div>
