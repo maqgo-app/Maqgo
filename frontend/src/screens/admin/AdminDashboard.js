@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth, clearLocalSession } from '../../utils/api';
 import { pingBackendHealth, maskBackendHost } from '../../utils/apiHealth';
@@ -78,6 +78,7 @@ function AdminDashboard() {
   const [monthlyFinance, setMonthlyFinance] = useState(null);
   const [loadingMonthlyFinance, setLoadingMonthlyFinance] = useState(false);
   const [monthlyFinanceError, setMonthlyFinanceError] = useState('');
+  const monthlyFinanceManualTriggerRef = useRef(false);
   const [smsBalance, setSmsBalance] = useState(null);
   const [loadingSmsBalance, setLoadingSmsBalance] = useState(false);
   const [smsBalanceError, setSmsBalanceError] = useState('');
@@ -469,6 +470,9 @@ function AdminDashboard() {
     if (usingOfflineDemo) {
       setMonthlyFinance(null);
       setMonthlyFinanceError('Modo demostración: métricas tributarias y margen no disponibles sin API.');
+      if (monthlyFinanceManualTriggerRef.current) {
+        toast.warning('Sin conexión al servidor: IVA y margen no disponibles.', 'admin-monthly-finance');
+      }
       return;
     }
     setLoadingMonthlyFinance(true);
@@ -480,13 +484,25 @@ function AdminDashboard() {
       }
       setMonthlyFinance(data);
       setMonthlyFinanceError('');
+      if (monthlyFinanceManualTriggerRef.current) {
+        toast.success('IVA y margen actualizado.', 'admin-monthly-finance');
+      }
     } catch (error) {
       setMonthlyFinance(null);
       setMonthlyFinanceError(friendlyFetchError(error, 'No se pudo cargar IVA/margen mensual'));
+      if (monthlyFinanceManualTriggerRef.current) {
+        toast.error(friendlyFetchError(error, 'No se pudo cargar IVA/margen mensual'), 'admin-monthly-finance');
+      }
     } finally {
       setLoadingMonthlyFinance(false);
+      monthlyFinanceManualTriggerRef.current = false;
     }
-  }, [usingOfflineDemo]);
+  }, [usingOfflineDemo, toast]);
+
+  const handleMonthlyFinanceClick = useCallback(() => {
+    monthlyFinanceManualTriggerRef.current = true;
+    return fetchMonthlyFinance();
+  }, [fetchMonthlyFinance]);
 
   const fetchSmsBalance = useCallback(async () => {
     if (usingOfflineDemo) {
@@ -1119,7 +1135,7 @@ function AdminDashboard() {
             <button
               type="button"
               className="maqgo-btn-secondary"
-              onClick={fetchMonthlyFinance}
+              onClick={handleMonthlyFinanceClick}
               disabled={loadingMonthlyFinance || actionsLocked}
               title={actionsLocked ? 'Requiere conexión al API' : 'Actualizar IVA y margen mensual'}
               style={{ opacity: loadingMonthlyFinance || actionsLocked ? 0.6 : 1 }}
