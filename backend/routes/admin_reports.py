@@ -285,6 +285,17 @@ async def cron_admin_weekly_report(
     return await _send_admin_weekly_report_email(force=force, dry_run=dry_run, weeks_ago=weeks_ago)
 
 
+@router.api_route("/cron/admin-weekly-report", methods=["GET", "POST"])
+async def cron_admin_weekly_report_reports_namespace(
+    secret: Optional[str] = Query(None),
+    force: bool = Query(False),
+    dry_run: bool = Query(False),
+    weeks_ago: int = Query(1, ge=0, le=52),
+):
+    _cron_verify(secret)
+    return await _send_admin_weekly_report_email(force=force, dry_run=dry_run, weeks_ago=weeks_ago)
+
+
 @router.get("/sms-balance")
 async def get_sms_balance(_: dict = Depends(get_current_admin_strict)):
     """
