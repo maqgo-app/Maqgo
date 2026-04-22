@@ -61,8 +61,7 @@ function ConfirmServiceScreen() {
     ? (localStorage.getItem('selectedMachinerySpec') || '').trim()
     : '';
   const [provider, _setProvider] = useState(() => getObject('selectedProvider', {}));
-  /** Desglose siempre colapsado al entrar (1 o N proveedores); el usuario abre si quiere detalle. */
-  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(true);
   const [pricing, setPricing] = useState(null);
   const [, setPriceError] = useState(null);
   const [retryCount] = useState(0);
