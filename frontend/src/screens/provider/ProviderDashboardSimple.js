@@ -102,10 +102,16 @@ function ProviderDashboardSimple() {
     } catch (e) {
       const msg = e?.message === 'Tiempo de espera agotado' ? 'La solicitud tardó demasiado. Revisa tu conexión.' : (e?.message || 'No pudimos cargar el listado.');
       setError(msg);
-      const demo = buildDemoServices();
-      setServices(demo);
-      setTotals(computeTotals(demo));
-      setDataMode('demo');
+      if (import.meta.env.PROD) {
+        setServices([]);
+        setTotals({ pending: 0, toInvoice: 0, paid: 0 });
+        setDataMode('empty');
+      } else {
+        const demo = buildDemoServices();
+        setServices(demo);
+        setTotals(computeTotals(demo));
+        setDataMode('demo');
+      }
     } finally {
       setLoading(false);
     }

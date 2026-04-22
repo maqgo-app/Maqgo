@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { validateRut, formatRut, validateEmail } from '../../utils/chileanValidation';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import ComunaAutocomplete from '../../components/ComunaAutocomplete';
 import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/AddressAutocomplete';
 import { getObject } from '../../utils/safeStorage';
+import { getProviderBackRoute } from '../../utils/bookingFlow';
 
 /**
  * P04 - Datos del Proveedor
@@ -15,6 +16,7 @@ import { getObject } from '../../utils/safeStorage';
  */
 function ProviderDataScreen() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [rutError, setRutError] = useState('');
   const [didSubmit, setDidSubmit] = useState(false);
   const [scriptRetryKey, setScriptRetryKey] = useState(0);
@@ -83,12 +85,6 @@ function ProviderDataScreen() {
       return;
     }
     
-    // Evitar que un onboarding previo "contamine" el alta de una nueva máquina
-    // (ej: tipo anterior sin traslado + precio guardado). Fuente: localStorage.
-    localStorage.removeItem('machineData');
-    localStorage.removeItem('machinePricing');
-    localStorage.removeItem('machinePhotos');
-
     // Combinar con datos del registro inicial
     const registerData = getObject('registerData', {});
     localStorage.setItem('providerData', JSON.stringify({ 
@@ -101,8 +97,8 @@ function ProviderDataScreen() {
   };
 
   const handleBack = () => {
-    const cameFromWelcome = localStorage.getItem('providerCameFromWelcome');
-    navigate(cameFromWelcome ? '/' : '/login');
+    const backRoute = getProviderBackRoute(pathname) || '/login';
+    navigate(backRoute);
   };
 
   const isValid = form.businessName && form.email && validateEmail(form.email) && form.rut && validateRut(form.rut) && form.giro && form.comuna && form.address;

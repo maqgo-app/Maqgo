@@ -47,18 +47,22 @@ function ReviewScreen() {
     setLoading(true);
     
     try {
+      const isDev = import.meta.env.DEV;
       const userId = localStorage.getItem('userId');
       if (!userId) {
-        console.warn('ReviewScreen: userId no encontrado, continuando en modo demo');
-        localStorage.setItem('providerOnboardingCompleted', 'true');
-        localStorage.removeItem('providerOnboardingStep');
-        try {
-          localStorage.removeItem('providerCameFromWelcome');
-        } catch {
-          /* ignore */
+        if (isDev) {
+          localStorage.setItem('providerOnboardingCompleted', 'true');
+          localStorage.removeItem('providerOnboardingStep');
+          try {
+            localStorage.removeItem('providerCameFromWelcome');
+          } catch {
+            /* ignore */
+          }
+          navigate(getProviderLandingPath());
+          return;
         }
-        navigate(getProviderLandingPath());
-        setLoading(false);
+        toast.error('Tu sesión expiró. Inicia sesión nuevamente para finalizar el registro.');
+        navigate('/login?expired=1', { replace: true });
         return;
       }
       
@@ -142,7 +146,11 @@ function ReviewScreen() {
         navigate(getProviderLandingPath());
       }
     } catch {
-      // Continuar de todos modos para demo
+      if (import.meta.env.PROD) {
+        toast.error('No pudimos guardar tu registro. Revisa tu conexión e intenta nuevamente.');
+        return;
+      }
+
       localStorage.setItem('providerOnboardingCompleted', 'true');
       localStorage.removeItem('providerOnboardingStep');
       try {

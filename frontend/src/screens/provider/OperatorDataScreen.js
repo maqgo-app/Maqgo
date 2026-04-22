@@ -15,6 +15,8 @@ const EMPTY_OPERATOR = { nombre: '', apellido: '', rut: '', licenseType: '', pho
 
 function OperatorDataScreen() {
   const navigate = useNavigate();
+  const providerDataSnapshot = useMemo(() => getObject('providerData', {}), []);
+  const ownerRut = String(providerDataSnapshot.rut || '').trim();
   const initialFromStorage = useMemo(() => {
     const saved = getArray('operatorsData', []);
     const firstComplete =
@@ -27,6 +29,7 @@ function OperatorDataScreen() {
     return { operators: [{ ...EMPTY_OPERATOR }], sameAsOwner: true };
   }, []);
   const [sameAsOwner, setSameAsOwner] = useState(initialFromStorage.sameAsOwner);
+  const [ownerError, setOwnerError] = useState('');
   const [rutErrors, setRutErrors] = useState({});
   const [operators, setOperators] = useState(initialFromStorage.operators);
 
@@ -100,6 +103,11 @@ function OperatorDataScreen() {
     }
 
     if (sameAsOwner) {
+      setOwnerError('');
+      if (!ownerRut || !validateRut(ownerRut)) {
+        setOwnerError('Falta un RUT válido en “Datos del Proveedor” para registrar al operador.');
+        return;
+      }
       const registerData = getObject('registerData', {});
       const providerData = getObject('providerData', {});
       const businessName = (providerData.businessName || '').trim();
@@ -107,11 +115,11 @@ function OperatorDataScreen() {
       const nameParts = fullName ? fullName.split(/\s+/) : ['Operador'];
       const nombre = nameParts[0] || 'Operador';
       const apellido = nameParts.slice(1).join(' ') || (registerData.apellido || '').trim();
-      const rut = (providerData.rut || '').trim();
+      const rut = ownerRut;
       const ownerAsOperator = [{
         nombre,
         apellido: apellido || 'Operador',
-        rut: rut || '12.345.678-5', // fallback demo si no hay RUT de empresa
+        rut,
         licenseType: '',
         photo: null,
         isOwner: true
@@ -127,9 +135,11 @@ function OperatorDataScreen() {
   const handleBack = () => navigate('/provider/machine-photos-pricing');
 
   // Validación: todos los operadores deben tener nombre, apellido y RUT válido
-  const isValid = sameAsOwner || operators.every(op => 
-    op.nombre && op.apellido && op.rut && validateRut(op.rut)
-  );
+  const isValid = sameAsOwner
+    ? Boolean(ownerRut && validateRut(ownerRut))
+    : operators.every(op =>
+        op.nombre && op.apellido && op.rut && validateRut(op.rut)
+      );
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
@@ -171,7 +181,10 @@ function OperatorDataScreen() {
 
         {/* Opción: Yo mismo */}
         <div 
-          onClick={() => setSameAsOwner(true)}
+          onClick={() => {
+            setSameAsOwner(true);
+            if (ownerError) setOwnerError('');
+          }}
           style={{ 
             background: sameAsOwner ? 'rgba(236, 104, 25, 0.15)' : '#363636',
             border: sameAsOwner ? '2px solid #EC6819' : '2px solid transparent',
@@ -201,7 +214,10 @@ function OperatorDataScreen() {
 
         {/* Opción: Otro operador */}
         <div 
-          onClick={() => setSameAsOwner(false)}
+          onClick={() => {
+            setSameAsOwner(false);
+            if (ownerError) setOwnerError('');
+          }}
           style={{ 
             background: !sameAsOwner ? 'rgba(236, 104, 25, 0.15)' : '#363636',
             border: !sameAsOwner ? '2px solid #EC6819' : '2px solid transparent',
@@ -228,6 +244,12 @@ function OperatorDataScreen() {
           </div>
           <span style={{ color: '#fff', fontSize: 16 }}>Otro operador (puedes agregar varios)</span>
         </div>
+
+        {sameAsOwner && ownerError ? (
+          <p role="alert" style={{ color: '#f44336', fontSize: 12, margin: '-8px 0 16px', lineHeight: 1.4 }}>
+            {ownerError}
+          </p>
+        ) : null}
 
         {/* Formulario de operadores */}
         {!sameAsOwner && (

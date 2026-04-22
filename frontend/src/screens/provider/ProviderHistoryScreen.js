@@ -42,56 +42,62 @@ function ProviderHistoryScreen() {
       setServices(data.services || []);
       setUsingDemoFallback(false);
     } catch {
-      setFetchError('Mostrando datos de ejemplo hasta reconectar.');
-      setUsingDemoFallback(true);
-      setServices([
-        {
-          _id: 'demo-1',
-          transaction_id: 'MQ-12345678',
-          status: 'approved',
-          machinery_type: 'retroexcavadora',
-          hours: 4,
-          location: 'Santiago Centro',
-          net_total: 258111,
-          service_amount: 180000,
-          bonus_amount: 36000,
-          transport_amount: 25000,
-          client_billing: { billingType: 'empresa', rut: '76.123.456-7', razonSocial: 'Constructora Demo SpA', giro: 'Construcción', direccion: 'Av. Providencia 1234' },
-          created_at: new Date().toISOString(),
-          needs_invoice: true
-        },
-        {
-          _id: 'demo-2',
-          status: 'pending_review',
-          machinery_type: 'camion_aljibe',
-          hours: 0,
-          location: 'Las Condes',
-          net_total: 306306,
-          created_at: new Date(Date.now() - 3600000).toISOString(),
-          approval_time: 4,
-          needs_invoice: false
-        },
-        {
-          _id: 'demo-3',
-          status: 'paid',
-          machinery_type: 'excavadora',
-          hours: 8,
-          location: 'Providencia',
-          net_total: 450000,
-          created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-          paid_at: new Date(Date.now() - 86400000).toISOString()
-        },
-        {
-          _id: 'demo-4',
-          status: 'paid',
-          machinery_type: 'minicargador',
-          hours: 6,
-          location: 'Ñuñoa',
-          net_total: 320000,
-          created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
-          paid_at: new Date(Date.now() - 86400000 * 2).toISOString()
-        }
-      ]);
+      if (import.meta.env.PROD) {
+        setFetchError('No se pudo cargar tu historial. Revisa tu conexión e intenta nuevamente.');
+        setUsingDemoFallback(false);
+        setServices([]);
+      } else {
+        setFetchError('Mostrando datos de ejemplo hasta reconectar.');
+        setUsingDemoFallback(true);
+        setServices([
+          {
+            _id: 'demo-1',
+            transaction_id: 'MQ-12345678',
+            status: 'approved',
+            machinery_type: 'retroexcavadora',
+            hours: 4,
+            location: 'Santiago Centro',
+            net_total: 258111,
+            service_amount: 180000,
+            bonus_amount: 36000,
+            transport_amount: 25000,
+            client_billing: { billingType: 'empresa', rut: '76.123.456-7', razonSocial: 'Constructora Demo SpA', giro: 'Construcción', direccion: 'Av. Providencia 1234' },
+            created_at: new Date().toISOString(),
+            needs_invoice: true
+          },
+          {
+            _id: 'demo-2',
+            status: 'pending_review',
+            machinery_type: 'camion_aljibe',
+            hours: 0,
+            location: 'Las Condes',
+            net_total: 306306,
+            created_at: new Date(Date.now() - 3600000).toISOString(),
+            approval_time: 4,
+            needs_invoice: false
+          },
+          {
+            _id: 'demo-3',
+            status: 'paid',
+            machinery_type: 'excavadora',
+            hours: 8,
+            location: 'Providencia',
+            net_total: 450000,
+            created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+            paid_at: new Date(Date.now() - 86400000).toISOString()
+          },
+          {
+            _id: 'demo-4',
+            status: 'paid',
+            machinery_type: 'minicargador',
+            hours: 6,
+            location: 'Ñuñoa',
+            net_total: 320000,
+            created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+            paid_at: new Date(Date.now() - 86400000 * 2).toISOString()
+          }
+        ]);
+      }
     } finally {
       setLoading(false);
     }

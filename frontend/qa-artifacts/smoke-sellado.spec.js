@@ -56,7 +56,7 @@ test.describe('Sellado: welcome → login + ubicación', () => {
     await expect(page.getByRole('alert')).toHaveCount(0);
     await expect(page.locator('.maqgo-app')).toHaveCount(1);
 
-    await page.getByTestId('login-btn').click();
+    await page.getByRole('button', { name: /^Iniciar sesión$/i }).click();
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole('alert')).toHaveCount(0);
     await expect(page.getByLabel(/Nueve dígitos del celular/i)).toBeVisible({ timeout: 15000 });

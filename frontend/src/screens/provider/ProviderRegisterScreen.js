@@ -55,7 +55,7 @@ const JSON_POST = {
 };
 
 /** API canónica; en www a veces falla solo directo o solo mismo origen (rewrite). */
-const MAQGO_API_ORIGIN = 'https://api.maqgo.cl';
+const MAQGO_API_ORIGIN = 'https://api2.maqgo.cl';
 
 /** Sesión JWT sin SMS: celular ya verificado en MAQGO (backend existente; no usa login-sms/start). */
 function providerRegisterEstablishSessionUrl(base) {

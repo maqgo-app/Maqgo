@@ -5,6 +5,7 @@ import axios from 'axios';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
 import { getObject } from '../../utils/safeStorage';
 import BACKEND_URL from '../../utils/api';
+import { useToast } from '../../components/Toast';
 
 /**
  * Sub-pantalla: Datos Bancarios
@@ -83,6 +84,7 @@ function buildBancoFormInitial() {
 
 function BancoScreen() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [saved, setSaved] = useState(false);
   const [rutError, setRutError] = useState('');
   const [data, setData] = useState(buildBancoFormInitial);
@@ -151,6 +153,7 @@ function BancoScreen() {
     localStorage.setItem('bankData', JSON.stringify(toSave));
 
     // Fuente de verdad: persistir también en backend dentro de providerData.bankData.
+    let backendSynced = true;
     try {
       const userId = localStorage.getItem('userId');
       if (userId && !userId.startsWith('provider-') && !userId.startsWith('demo-')) {
@@ -166,11 +169,13 @@ function BancoScreen() {
         );
         localStorage.setItem('providerData', JSON.stringify(nextProviderData));
       }
-    } catch (e) {
-      // No bloquear guardado local por un fallo transitorio de red.
-      if (import.meta.env.DEV) {
-        console.warn('BancoScreen backend sync failed:', e?.response?.status || e?.message);
-      }
+    } catch {
+      backendSynced = false;
+    }
+
+    if (!backendSynced && import.meta.env.PROD) {
+      toast.error('No pudimos guardar tus datos bancarios. Revisa tu conexión e intenta nuevamente.');
+      return;
     }
 
     setSaved(true);
