@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { getClientBookingRoute, resetBookingState } from '../../utils/bookingFlow';
 import { preloadClientBookingFunnel } from '../../utils/preloadClientBookingFunnel';
-import { clearAuthSessionPreservingDraft } from '../../utils/sessionCleanup';
 
 /**
  * C10 - Tipo de Reserva - Diseño Premium
@@ -65,7 +64,6 @@ function ClientHome() {
   };
 
   const handleExit = () => {
-    clearAuthSessionPreservingDraft();
     navigate('/welcome');
   };
 
@@ -89,7 +87,7 @@ function ClientHome() {
           }}
           aria-label="Cerrar sesión"
         >
-          Salir
+          Portada
         </button>
         {/* Logo */}
         <MaqgoLogo size="medium" style={{ marginBottom: 32 }} />
