@@ -21,17 +21,22 @@ test.describe('Smoke crítico: login SMS + embudo cliente', () => {
       viewport: { width: 390, height: 844 },
     });
     await installApiMocks(context);
-    await context.addInitScript(() => localStorage.clear());
     const page = await context.newPage();
+
+    await page.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
 
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.waitForLoadState('load');
     await expect(page.getByRole('alert')).toHaveCount(0);
 
     await fillLoginPhone(page, '912345678');
-    await page.getByRole('button', { name: /continuar al código sms/i }).click();
+    await page.getByRole('button', { name: /continuar con tu celular/i }).click();
 
-    await expect(page.getByText(/código sms/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: /verificar código/i })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('login-otp-input-0')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole('alert')).toHaveCount(0);
 

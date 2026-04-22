@@ -189,7 +189,7 @@ test.describe('Checkout navigation (guard + recovery)', () => {
 
     await page.goto(`${BASE_URL}/client/confirm`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await expectPath(page, /\/client\/confirm\/?$/);
-    await expect(page.getByRole('heading', { name: /Confirmación/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: /Revisa tu solicitud/i })).toBeVisible({ timeout: 15_000 });
     await assertUrlStable(page);
 
     await context.close();
