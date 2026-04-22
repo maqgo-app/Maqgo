@@ -47,8 +47,19 @@ function ProfileScreen() {
       setMe(data);
       setEditName(data?.name || '');
       setEditEmail(data?.email || '');
-    } catch {
-      setError('No se pudo cargar tu perfil. Intenta de nuevo.');
+    } catch (e) {
+      const status = e?.response?.status;
+      if (status === 401) {
+        clearAuthSessionPreservingDraft();
+        traceRedirectToLogin('src/screens/ProfileScreen.js (loadMe 401)');
+        navigate('/login?expired=1', { replace: true });
+        return;
+      }
+      if (status === 404) {
+        setError('No pudimos cargar tu perfil (404). Revisa conexión o que la API esté actualizada.');
+      } else {
+        setError('No se pudo cargar tu perfil. Intenta de nuevo.');
+      }
       setMe(null);
     } finally {
       setLoading(false);
@@ -63,20 +74,18 @@ function ProfileScreen() {
   const displayPhone = formatPhoneClDisplay(me?.phone || localStorage.getItem('userPhone'));
 
   const handleSave = async () => {
-    const userId = localStorage.getItem('userId');
-    if (!userId) return;
     setSaveLoading(true);
     setError('');
     try {
       const nameTrim = editName.trim();
       const emailTrim = editEmail.trim();
-      await axios.patch(
-        `${BACKEND_URL}/api/users/${userId}`,
+      await axios.post(
+        `${BACKEND_URL}/api/auth/me/profile`,
         {
-          ...(nameTrim ? { name: nameTrim } : { name: null }),
-          ...(emailTrim ? { email: emailTrim.toLowerCase() } : { email: null }),
+          name: nameTrim ? nameTrim : null,
+          email: emailTrim ? emailTrim.toLowerCase() : null,
         },
-        { timeout: 15000 }
+        { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
       );
       if (emailTrim) persistClientEmailToStorage(emailTrim);
       setEditing(false);
