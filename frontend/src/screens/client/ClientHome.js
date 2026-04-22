@@ -85,7 +85,7 @@ function ClientHome() {
             cursor: 'pointer',
             padding: 0,
           }}
-          aria-label="Cerrar sesión"
+          aria-label="Volver a portada"
         >
           Portada
         </button>

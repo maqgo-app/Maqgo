@@ -1,7 +1,6 @@
 import React from 'react';
 import { Z_INDEX } from '../constants/zIndex';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { clearAuthSessionPreservingDraft } from '../utils/sessionCleanup';
 import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
 import { getSessionRole, isProviderSession } from '../utils/userAuthState';
 
@@ -81,10 +80,7 @@ const Icons = {
   )
 };
 
-function logoutAndGoWelcome(navigate) {
-  const confirmed = window.confirm('¿Quieres cerrar sesión ahora?');
-  if (!confirmed) return;
-  clearAuthSessionPreservingDraft();
+function goToPortada(navigate) {
   navigate('/welcome');
 }
 
@@ -229,7 +225,7 @@ export function ProviderNavigation() {
         />
         <NavItem
           active={false}
-          onClick={() => logoutAndGoWelcome(navigate)}
+          onClick={() => goToPortada(navigate)}
           label="Salir"
           icon={Icons.logout}
         />
@@ -274,7 +270,7 @@ export function ProviderNavigation() {
       />
       <NavItem
         active={false}
-        onClick={() => logoutAndGoWelcome(navigate)}
+        onClick={() => goToPortada(navigate)}
         label="Salir"
         icon={Icons.logout}
       />
