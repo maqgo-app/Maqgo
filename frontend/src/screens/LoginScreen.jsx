@@ -173,10 +173,25 @@ function LoginScreen({ setUserRole, setUserId }) {
     const token = localStorage.getItem('authToken') || localStorage.getItem('token');
     const userId = localStorage.getItem('userId');
     if (!token || !userId) return;
+    const desiredRole = localStorage.getItem('desiredRole');
+    const entryRole = location.state?.entry;
     const role = localStorage.getItem('userRole') || 'client';
     // Solo cuentas con rol admin van al panel; redirect=/admin sin rol admin debe mostrar login (otra cuenta).
     if (isAdminRoleStored()) {
       navigate('/admin', { replace: true });
+      return;
+    }
+    // Si el usuario viene desde Welcome como cliente, no debe caer al onboarding proveedor por una sesión persistente.
+    if (desiredRole === 'client' || entryRole === 'client') {
+      try {
+        localStorage.setItem('userRole', 'client');
+        localStorage.removeItem('desiredRole');
+      } catch {
+        /* ignore */
+      }
+      const target =
+        redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
+      navigate(target, { replace: true });
       return;
     }
     if (role === 'client') {

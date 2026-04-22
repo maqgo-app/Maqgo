@@ -98,7 +98,8 @@ function WelcomeScreen() {
   }, []);
 
   // Solo sesión real (JWT): evita “Mi cuenta” con userId demo sin token → 401 en API.
-  const hasSession = !!(localStorage.getItem('token') && localStorage.getItem('userId'));
+  // token puede ser `token` (legacy) o `authToken` (actual).
+  const hasSession = !!((localStorage.getItem('authToken') || localStorage.getItem('token')) && localStorage.getItem('userId'));
   /** Admin con sesión: la portada es para mercado; sin ?preview=1 se redirige al panel (login ya manda a /admin). */
   const allowPublicPreview =
     searchParams.get('preview') === '1' || location.state?.previewPublic === true;
@@ -118,6 +119,7 @@ function WelcomeScreen() {
       // Portada = arrendar: “Mi cuenta” entra como cliente (no al embudo proveedor por userRole).
       try {
         localStorage.setItem('desiredRole', 'client');
+        localStorage.setItem('userRole', 'client');
       } catch {
         /* ignore */
       }
