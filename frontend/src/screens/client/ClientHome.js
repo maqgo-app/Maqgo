@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { getClientBookingRoute, resetBookingState } from '../../utils/bookingFlow';
 import { preloadClientBookingFunnel } from '../../utils/preloadClientBookingFunnel';
+import { clearAuthSessionPreservingDraft } from '../../utils/sessionCleanup';
 
 /**
  * C10 - Tipo de Reserva - Diseño Premium
@@ -63,9 +64,33 @@ function ClientHome() {
     }
   };
 
+  const handleExit = () => {
+    clearAuthSessionPreservingDraft();
+    navigate('/welcome');
+  };
+
   return (
     <div className="maqgo-app maqgo-client-funnel">
-      <div className="maqgo-screen" style={{ justifyContent: 'center', paddingBottom: 52 }}>
+      <div className="maqgo-screen" style={{ justifyContent: 'center', paddingBottom: 52, position: 'relative' }}>
+        <button
+          type="button"
+          onClick={handleExit}
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            background: 'none',
+            border: 'none',
+            color: 'rgba(255,255,255,0.72)',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            padding: 0,
+          }}
+          aria-label="Cerrar sesión"
+        >
+          Salir
+        </button>
         {/* Logo */}
         <MaqgoLogo size="medium" style={{ marginBottom: 32 }} />
 

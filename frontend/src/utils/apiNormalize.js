@@ -21,7 +21,7 @@ function isLocalHostname(hostname) {
 /**
  * Base URL del API para axios (`${BACKEND_URL}/api/...`).
  *
- * En **www.maqgo.cl / maqgo.cl** (prod): sin env, base **`https://api.maqgo.cl`** (llamada directa a Railway).
+ * En **www.maqgo.cl / maqgo.cl** (prod): sin env, base **`https://api2.maqgo.cl`** (llamada directa a Railway).
  * Antes se usaba base vacía + rewrite Vercel `/api` → mismo origen; en móvil a veces no hay respuesta HTTP.
  * `CORS_ORIGINS` en Railway debe incluir `https://www.maqgo.cl` y `https://maqgo.cl`.
  * Si `VITE_BACKEND_URL` es explícitamente `https://api*.maqgo.cl`, se respeta.
@@ -50,7 +50,7 @@ export function resolveBackendBaseUrl(rawFromEnv) {
       return normalizeBackendBase(raw);
     }
     if (!compact) {
-      return 'https://api.maqgo.cl';
+      return 'https://api2.maqgo.cl';
     }
     return '';
   }
@@ -68,7 +68,7 @@ export function resolveBackendBaseUrl(rawFromEnv) {
   // Misma API canónica que www.maqgo.cl (CORS debe incluir el origen del front en Railway).
   if (import.meta.env.PROD) {
     if (!isLocalHostname(host)) {
-      return 'https://api.maqgo.cl';
+      return 'https://api2.maqgo.cl';
     }
     return normalizeBackendBase('http://localhost:8000');
   }

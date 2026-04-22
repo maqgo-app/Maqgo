@@ -23,6 +23,7 @@ function StepProgressSegments({
   // Diseño de círculos pequeños y uniformes
   const circleSize = compact ? 6 : 8;
   const connectorW = compact ? 4 : 6;
+  const todoBorderW = compact ? 1 : 1;
 
   const resolvedSublabel =
     sublabel != null && sublabel !== ''
@@ -52,6 +53,7 @@ function StepProgressSegments({
             const isPast = stepNum < cs;
             const clickable = typeof stepClickable === 'function' && stepClickable(stepNum);
             const title = labels[stepNum - 1] || `Paso ${stepNum}`;
+            const isTodo = !isActive && !isPast;
 
             return (
               <div key={stepNum} className="maqgo-step-progress__seg-group">
@@ -66,7 +68,9 @@ function StepProgressSegments({
                     cursor: clickable ? 'pointer' : 'default',
                     // El activo tiene un brillo sutil
                     boxShadow: isActive ? '0 0 8px rgba(236, 104, 25, 0.4)' : 'none',
-                    opacity: isActive || isPast ? 1 : 0.3
+                    background: isTodo ? 'transparent' : undefined,
+                    border: isTodo ? `${todoBorderW}px solid rgba(255, 255, 255, 0.32)` : 'none',
+                    opacity: isActive || isPast ? 1 : 0.9
                   }}
                   title={title}
                   role={clickable ? 'button' : undefined}
@@ -82,7 +86,7 @@ function StepProgressSegments({
                       width: connectorW, 
                       height: '1px', 
                       margin: '0 2px',
-                      opacity: 0.3
+                      opacity: stepNum < cs ? 1 : 0.35
                     }}
                   />
                 )}

@@ -257,16 +257,6 @@ function HistoryScreen() {
                   Cuando completes servicios aparecerán en esta lista.
                 </p>
               )}
-              {!isProvider && activeTab === 'completed' && (
-                <button
-                  type="button"
-                  className="maqgo-btn-primary"
-                  onClick={() => navigate('/client/home')}
-                  style={{ maxWidth: 280 }}
-                >
-                  Arrendar maquinaria
-                </button>
-              )}
               {isProvider && (
                 <button
                   type="button"
