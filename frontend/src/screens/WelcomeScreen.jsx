@@ -176,8 +176,8 @@ function WelcomeScreen() {
           padding: "24px",
           margin: "0 auto",
           maxWidth: "420px",
-          border: "1px solid rgba(0,0,0,0.06)",
-          borderRadius: "24px"
+          border: isDesktop ? "none" : "1px solid rgba(0,0,0,0.06)",
+          borderRadius: isDesktop ? "0px" : "24px"
         }}
       >
         {/* Hero - compacto en viewports cortos */}
@@ -586,25 +586,25 @@ function WelcomeScreen() {
           display: flex;
           align-items: center;
           gap: 14px;
-          box-shadow: 0 4px 22px rgba(236, 104, 25, 0.28), 0 1px 0 rgba(255,255,255,0.12) inset;
+          box-shadow: 0 4px 22px rgba(236, 104, 25, 0.28), inset 0 0 0 1px rgba(255,255,255,0.18);
           transition:
             transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
             box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1);
         }
         .welcome-cta-primary:hover {
           transform: translateY(-1px);
-          box-shadow: 0 8px 24px rgba(236, 104, 25, 0.38);
+          box-shadow: 0 8px 24px rgba(236, 104, 25, 0.38), inset 0 0 0 1px rgba(255,255,255,0.18);
         }
         .welcome-cta-primary:active {
           transform: translateY(0);
-          box-shadow: 0 3px 14px rgba(236, 104, 25, 0.32);
+          box-shadow: 0 3px 14px rgba(236, 104, 25, 0.32), inset 0 0 0 1px rgba(255,255,255,0.18);
         }
         .welcome-cta-secondary {
           width: 100%;
           padding: 15px 18px;
           flex-shrink: 0;
           background: rgba(22, 22, 28, 0.72);
-          border: 1px solid rgba(255,255,255,0.07);
+          border: 1px solid rgba(255,255,255,0.19);
           border-radius: 14px;
           color: #FAFAFA;
           font-family: 'Inter', sans-serif;
@@ -617,7 +617,7 @@ function WelcomeScreen() {
         }
         .welcome-cta-secondary:hover {
           background: rgba(30, 30, 38, 0.88);
-          border-color: rgba(255,255,255,0.11);
+          border-color: rgba(255,255,255,0.28);
         }
         .welcome-cta-primary:focus-visible,
         .welcome-cta-secondary:focus-visible,

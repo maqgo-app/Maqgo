@@ -23,6 +23,7 @@ function ProviderDataScreen() {
   const [placesReady, setPlacesReady] = useState(false);
   const [placesPhase, setPlacesPhase] = useState('idle');
   const [placesReason, setPlacesReason] = useState('');
+  const [placeRejectCode, setPlaceRejectCode] = useState('');
   const hasMapsApiKey = !!getGoogleMapsApiKey();
   
   const [form, setForm] = useState({
@@ -99,6 +100,48 @@ function ProviderDataScreen() {
   const handleBack = () => {
     const backRoute = getProviderBackRoute(pathname) || '/login';
     navigate(backRoute);
+  };
+
+  const isGoogleAddressSelected = form.addressSource === 'google_places' && form.addressLat != null && form.addressLng != null;
+  const allowManualComuna = !isGoogleAddressSelected || !hasMapsApiKey || placesPhase === 'failed' || placesPhase === 'no_key';
+
+  const placesFailureCopy = (() => {
+    if (!hasMapsApiKey) return 'Autocompletado no disponible por configuración. Puedes escribir la dirección manualmente.';
+    if (placesPhase !== 'failed') return '';
+    const r = String(placesReason || '').trim();
+    if (!r) {
+      return 'No se pudo cargar el autocompletado de mapas. Puedes escribir la dirección manualmente.';
+    }
+    if (r === 'RefererNotAllowedMapError') {
+      return 'Google Maps no está autorizado para este dominio. Si en cliente funciona y aquí no, revisa las restricciones de dominio (HTTP referrers) de la API key.';
+    }
+    if (r === 'ApiNotActivatedMapError') {
+      return 'Google Maps no está habilitado para esta API key. Revisa que esté activo el servicio “Places API” en Google Cloud.';
+    }
+    if (r === 'BillingNotEnabledMapError') {
+      return 'Google Maps requiere facturación habilitada para esta API key.';
+    }
+    if (r === 'InvalidKeyMapError') {
+      return 'La API key de Google Maps no es válida para este entorno.';
+    }
+    return 'No se pudo cargar el autocompletado de mapas. Puedes escribir la dirección manualmente.';
+  })();
+
+  const handleAddressChange = (value) => {
+    if (placeRejectCode) setPlaceRejectCode('');
+    setForm((prev) => {
+      const next = { ...prev, address: value };
+      if (prev.addressSource === 'google_places') {
+        const v = String(value || '').trim();
+        const last = String(prev.address || '').trim();
+        if (v !== last) {
+          next.addressSource = 'manual';
+          next.addressLat = null;
+          next.addressLng = null;
+        }
+      }
+      return next;
+    });
   };
 
   const isValid = form.businessName && form.email && validateEmail(form.email) && form.rut && validateRut(form.rut) && form.giro && form.comuna && form.address;
@@ -206,14 +249,17 @@ function ProviderDataScreen() {
           </label>
           <AddressAutocomplete
             value={form.address}
-            onChange={(value) => update('address', value)}
+            onChange={handleAddressChange}
             onPlacesReadyChange={setPlacesReady}
             onPlacesStatusChange={({ phase, reason }) => {
               setPlacesPhase(phase || 'idle');
               setPlacesReason(reason || '');
             }}
             scriptRetryKey={scriptRetryKey}
+            syncInputOnReject
+            onPlaceRejected={(code) => setPlaceRejectCode(String(code || ''))}
             onSelect={({ address, comuna, lat, lng }) => {
+              if (placeRejectCode) setPlaceRejectCode('');
               update('address', address || '');
               if (comuna) update('comuna', comuna);
               update('addressLat', Number.isFinite(lat) ? lat : null);
@@ -225,16 +271,35 @@ function ProviderDataScreen() {
             style={{ fontSize: 15 }}
             testId="provider-address"
           />
+          {placeRejectCode ? (
+            <p style={{ color: '#ffb4b4', fontSize: 13, marginTop: 6, marginBottom: 0, lineHeight: 1.35 }}>
+              {placeRejectCode === 'MISSING_STREET_NUMBER'
+                ? 'La sugerencia elegida no incluye número. Completa la dirección manualmente (con número) y la comuna.'
+                : placeRejectCode === 'NO_STREET_NUMBER'
+                  ? 'La sugerencia elegida no parece una dirección (sin calle y número). Escribe la dirección y la comuna manualmente.'
+                  : placeRejectCode === 'NO_COMUNA_FROM_PLACE'
+                    ? 'La sugerencia elegida no trae una comuna reconocible. Completa la comuna manualmente.'
+                    : 'No pudimos usar esa sugerencia. Puedes escribir la dirección y la comuna manualmente.'}
+            </p>
+          ) : null}
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
             Comuna <span style={{ color: '#EC6819' }}>*</span>
           </label>
           <ComunaAutocomplete
             value={form.comuna}
             onChange={(value) => update('comuna', value)}
-            placeholder="Se completa al seleccionar la dirección"
+            placeholder={
+              allowManualComuna ? 'Ej: Providencia, Las Condes...' : 'Se completa al seleccionar la dirección'
+            }
             className="maqgo-input"
             style={{ fontSize: 15 }}
+            disabled={isGoogleAddressSelected && !allowManualComuna}
           />
+          {isGoogleAddressSelected && !allowManualComuna ? (
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 6, marginBottom: 0 }}>
+              Comuna definida por la dirección seleccionada.
+            </p>
+          ) : null}
           
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
             Giro comercial <span style={{ color: '#EC6819' }}>*</span>
@@ -258,7 +323,7 @@ function ProviderDataScreen() {
           {hasMapsApiKey && placesPhase === 'failed' && (
             <div style={{ marginTop: 8 }}>
               <p style={{ color: '#ffb4b4', fontSize: 13, margin: 0 }}>
-                No se pudo cargar el autocompletado de mapas. Puedes escribir la dirección manualmente.
+                {placesFailureCopy}
               </p>
               <button
                 type="button"
@@ -276,7 +341,7 @@ function ProviderDataScreen() {
               >
                 Reintentar autocompletado
               </button>
-              {placesReason && (
+              {import.meta.env.DEV && placesReason && (
                 <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: '6px 0 0' }}>
                   Detalle: {placesReason}
                 </p>

@@ -91,6 +91,7 @@ export function AddressAutocomplete({
   onPlacesReadyChange,
   onPlacesStatusChange,
   scriptRetryKey = 0,
+  syncInputOnReject = false,
   placeholder = 'Ej: Av. Providencia 1234',
   className = 'maqgo-input',
   style = {},
@@ -105,6 +106,8 @@ export function AddressAutocomplete({
   const onPlaceRejectedRef = useRef(onPlaceRejected);
   const onPlacesReadyChangeRef = useRef(onPlacesReadyChange);
   const onPlacesStatusChangeRef = useRef(onPlacesStatusChange);
+  const valueRef = useRef(value);
+  const syncInputOnRejectRef = useRef(syncInputOnReject);
 
   useLayoutEffect(() => {
     onChangeRef.current = onChange;
@@ -112,6 +115,8 @@ export function AddressAutocomplete({
     onPlaceRejectedRef.current = onPlaceRejected;
     onPlacesReadyChangeRef.current = onPlacesReadyChange;
     onPlacesStatusChangeRef.current = onPlacesStatusChange;
+    valueRef.current = value;
+    syncInputOnRejectRef.current = syncInputOnReject;
   });
 
   const [useGooglePlaces, setUseGooglePlaces] = useState(false);
@@ -228,6 +233,10 @@ export function AddressAutocomplete({
       // Sin sugerencia válida: getPlace() suele venir sin address_components → no actualizar.
       if (!mapped) return;
       if (mapped.ok === false) {
+        if (syncInputOnRejectRef.current) {
+          const rawValue = inputRef.current?.value;
+          onChangeRef.current?.(rawValue != null ? rawValue : valueRef.current);
+        }
         onPlaceRejectedRef.current?.(mapped.code);
         return;
       }

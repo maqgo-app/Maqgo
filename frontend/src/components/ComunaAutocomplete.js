@@ -10,6 +10,7 @@ export const ComunaAutocomplete = ({
   placeholder = "Ej: Providencia",
   className = "maqgo-input",
   style = {},
+  disabled = false,
   id
 }) => {
   const [suggestions, setSuggestions] = useState([]);
@@ -29,6 +30,7 @@ export const ComunaAutocomplete = ({
   }, []);
 
   const handleInputChange = (e) => {
+    if (disabled) return;
     const inputValue = e.target.value;
     onChange(inputValue);
     
@@ -44,12 +46,14 @@ export const ComunaAutocomplete = ({
   };
 
   const handleSelect = (comuna) => {
+    if (disabled) return;
     onChange(comuna.nombre);
     setShowSuggestions(false);
     setSuggestions([]);
   };
 
   const handleKeyDown = (e) => {
+    if (disabled) return;
     if (!showSuggestions) return;
 
     if (e.key === 'ArrowDown') {
@@ -77,15 +81,17 @@ export const ComunaAutocomplete = ({
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onFocus={() => {
+          if (disabled) return;
           if (suggestions.length > 0) setShowSuggestions(true);
         }}
         placeholder={placeholder}
         className={className}
         style={style}
         autoComplete="off"
+        disabled={disabled}
       />
       
-      {showSuggestions && suggestions.length > 0 && (
+      {!disabled && showSuggestions && suggestions.length > 0 && (
         <div style={{
           position: 'absolute',
           top: '100%',

@@ -91,6 +91,7 @@ function LoginScreen({ setUserRole, setUserId }) {
   const entry = location.state?.entry;
   const isClientEntry = entry === 'client';
   const isAdminFlow = redirectTo === '/admin';
+  const isProviderEntry = entry === 'provider';
 
   const [step, setStep] = useState('phone'); // 'phone' | 'otp'
   /** 'sms' = cliente u otro vía celular; 'email' = proveedor (u cuenta con clave) → POST /api/auth/login */
@@ -99,7 +100,10 @@ function LoginScreen({ setUserRole, setUserId }) {
    * El toggle solo se muestra si no es cliente y estamos en el paso OTP o ya en modo email (o es admin).
    * Esto cumple con: "en primer sms opt en cliente nunca debe decir contraseña y correo".
    */
-  const showEmailPasswordToggle = !isClientEntry && (loginMode === 'email' || step !== 'phone' || isAdminFlow);
+  const showEmailPasswordToggle =
+    !isClientEntry &&
+    !isProviderEntry &&
+    (loginMode === 'email' || step !== 'phone' || isAdminFlow);
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
