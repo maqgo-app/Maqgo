@@ -924,7 +924,7 @@ function MachineDataScreen() {
       } catch {
         /* ignore */
       }
-      toast.success('Tu máquina ya puede recibir solicitudes en tu zona');
+      toast.success('Tu máquina ha sido ingresada correctamente');
       navigate('/provider/home', { replace: true, state: { showProfilePaymentsBanner: true } });
     } catch (e) {
       const detail = e.response?.data?.detail;
@@ -1146,7 +1146,7 @@ function MachineDataScreen() {
           {mfStep !== 2 && (
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 14, textAlign: 'center', marginBottom: 22 }}>
               {mfStep === 1 && 'Tipo, marca, modelo, capacidad si aplica y patente'}
-              {mfStep === 3 && 'Confirma máquina y tarifas. Lo demás lo ajustas en el panel.'}
+              {mfStep === 3 && 'Confirma máquina y tarifas. El resto lo completas en los pasos siguientes.'}
             </p>
           )}
 

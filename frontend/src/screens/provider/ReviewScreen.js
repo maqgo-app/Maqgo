@@ -138,7 +138,7 @@ function ReviewScreen() {
         } catch {
           /* ignore */
         }
-        toast.success('Tu máquina ya puede recibir solicitudes en tu zona');
+        toast.success('Tu máquina ha sido ingresada correctamente');
         navigate('/provider/home', { replace: true, state: { showProfilePaymentsBanner: true } });
       } else if (returnUrl && returnUrl.startsWith('/provider/')) {
         navigate(returnUrl);
@@ -177,7 +177,7 @@ function ReviewScreen() {
         } catch {
           /* ignore */
         }
-        toast.success('Tu máquina ya puede recibir solicitudes en tu zona');
+        toast.success('Tu máquina ha sido ingresada correctamente');
         navigate('/provider/home', { replace: true, state: { showProfilePaymentsBanner: true } });
       } else if (returnUrl && returnUrl.startsWith('/provider/')) {
         navigate(returnUrl);

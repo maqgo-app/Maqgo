@@ -82,6 +82,8 @@ function ProviderHomeScreen() {
   const activationCompletedCount = activationItems.filter((item) => item.ok).length;
   const activationProgressPct = Math.round((activationCompletedCount / activationItems.length) * 100);
   const activationAllComplete = activationCompletedCount === activationItems.length;
+  const activationPending = onboardingCompleted && !activationAllComplete;
+  const canReceiveRequests = onboardingCompleted && activationAllComplete;
   /** Solo falta banco: un único CTA principal (FASE 3). */
   const bankOnlyMissing =
     onboardingCompleted &&
@@ -96,6 +98,14 @@ function ProviderHomeScreen() {
     !!bankData?.accountNumber &&
     !!bankData?.holderName &&
     !!bankData?.holderRut;
+
+  const activationNextPath = !companyComplete
+    ? '/provider/data'
+    : !machineComplete
+      ? '/provider/machine-data'
+      : !operatorComplete
+        ? '/provider/team'
+        : '/provider/profile/banco';
 
   useEffect(() => {
     const completedLocal = localStorage.getItem('providerOnboardingCompleted') === 'true';
@@ -363,7 +373,7 @@ function ProviderHomeScreen() {
         {/* Header - Solo logo centrado */}
         <MaqgoLogo size="medium" style={{ marginBottom: 40 }} />
 
-        {location.state?.showProfilePaymentsBanner ? (
+        {location.state?.showProfilePaymentsBanner && !canReceiveRequests ? (
           <div
             role="status"
             style={{
@@ -375,13 +385,13 @@ function ProviderHomeScreen() {
             }}
           >
             <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>
-              Tu máquina ya puede recibir solicitudes en tu zona
+              Tu máquina ha sido ingresada correctamente
             </p>
             <p style={{ color: '#fff', fontSize: 13, fontWeight: 600, margin: '10px 0 0', lineHeight: 1.4 }}>
-              Completa tu perfil para recibir pagos
+              Completa los datos pendientes para activarla
             </p>
             <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.35 }}>
-              Agrega datos de empresa y cuenta bancaria cuando puedas.
+              Faltan datos de empresa, operador y banco para comenzar a recibir solicitudes.
             </p>
           </div>
         ) : null}
@@ -570,14 +580,14 @@ function ProviderHomeScreen() {
           {/* Toggle visual */}
           <button
             onClick={toggleAvailability}
-            disabled={!onboardingCompleted || isToggling || isBlockedByBank}
+            disabled={!canReceiveRequests || isToggling || isBlockedByBank}
             style={{
               width: 84,
               height: 84,
               borderRadius: '50%',
-              border: available ? '2px solid rgba(144,189,211,0.65)' : '2px solid rgba(236,104,25,0.65)',
-              background: available && onboardingCompleted ? 'rgba(144,189,211,0.2)' : 'rgba(236,104,25,0.15)',
-              cursor: onboardingCompleted && !isToggling && !isBlockedByBank ? 'pointer' : 'not-allowed',
+              border: canReceiveRequests && available ? '2px solid rgba(144,189,211,0.65)' : '2px solid rgba(236,104,25,0.65)',
+              background: canReceiveRequests && available ? 'rgba(144,189,211,0.2)' : 'rgba(236,104,25,0.15)',
+              cursor: canReceiveRequests && !isToggling && !isBlockedByBank ? 'pointer' : 'not-allowed',
               opacity: isToggling ? 0.7 : 1,
               transition: 'all 0.25s ease',
               display: 'flex',
@@ -599,13 +609,13 @@ function ProviderHomeScreen() {
           
           {/* Estado texto */}
           <p style={{ 
-            color: available && onboardingCompleted ? '#90BDD3' : '#ffb182',
+            color: canReceiveRequests && available ? '#90BDD3' : '#ffb182',
             fontSize: 24, 
             margin: 0,
             fontWeight: 700,
             marginBottom: 4
           }}>
-            {!onboardingCompleted ? 'Bloqueado' : (available ? 'Conectado' : 'Desconectado')}
+            {!onboardingCompleted ? 'Bloqueado' : (activationPending ? 'Activación pendiente' : (available ? 'Conectado' : 'Desconectado'))}
           </p>
           <p style={{
             color: onboardingCompleted ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.5)',
@@ -615,13 +625,15 @@ function ProviderHomeScreen() {
           }}>
             {!onboardingCompleted
               ? 'Primero completa tu registro para poder recibir solicitudes.'
-              : isBlockedByBank
-                ? 'Siguiente paso: completa tus datos bancarios para conectarte y recibir solicitudes.'
-                : available
-                  ? 'Estás en línea. Recibirás una alerta cuando haya una solicitud cerca.'
-                  : 'Estás desconectado. Conéctate para empezar a recibir solicitudes de arriendo.'}
+              : activationPending
+                ? 'Completa los pasos pendientes para habilitar la recepción de solicitudes.'
+                : isBlockedByBank
+                  ? 'Siguiente paso: completa tus datos bancarios para conectarte y recibir solicitudes.'
+                  : available
+                    ? 'Estás en línea. Recibirás una alerta cuando haya una solicitud cerca.'
+                    : 'Estás desconectado. Conéctate para empezar a recibir solicitudes de arriendo.'}
           </p>
-          {onboardingCompleted && bankDataComplete && available ? (
+          {canReceiveRequests && available ? (
             <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '0 0 12px', lineHeight: 1.45 }}>
               Te avisaremos cuando llegue tu primera solicitud
             </p>
@@ -629,15 +641,23 @@ function ProviderHomeScreen() {
 
           {/* CTA explícito: evita ambigüedad del "toca para conectarte" */}
           <button
-            onClick={isBlockedByBank ? () => navigate('/provider/profile/banco') : toggleAvailability}
+            onClick={
+              !onboardingCompleted
+                ? undefined
+                : activationPending
+                  ? () => navigate(activationNextPath)
+                  : isBlockedByBank
+                    ? () => navigate('/provider/profile/banco')
+                    : toggleAvailability
+            }
             disabled={!onboardingCompleted || isToggling}
             style={{
               width: '100%',
               marginTop: 4,
               padding: 13,
               borderRadius: 12,
-              border: available ? '1px solid rgba(255,255,255,0.25)' : 'none',
-              background: available ? 'rgba(255,255,255,0.06)' : '#EC6819',
+              border: canReceiveRequests && available ? '1px solid rgba(255,255,255,0.25)' : 'none',
+              background: canReceiveRequests && available ? 'rgba(255,255,255,0.06)' : '#EC6819',
               color: '#fff',
               fontSize: 15,
               fontWeight: 700,
@@ -647,18 +667,22 @@ function ProviderHomeScreen() {
             aria-label={
               !onboardingCompleted
                 ? 'Registro incompleto'
-                : isBlockedByBank
-                  ? 'Completar datos bancarios'
-                : (available ? 'Pausar disponibilidad' : 'Conectarme ahora')
+                : activationPending
+                  ? 'Completar activación'
+                  : isBlockedByBank
+                    ? 'Completar datos bancarios'
+                    : (available ? 'Pausar disponibilidad' : 'Conectarme ahora')
             }
           >
             {!onboardingCompleted
               ? 'Completa tu registro para activar'
-              : isBlockedByBank
-                ? 'Completar datos bancarios'
-              : (isToggling ? 'Actualizando estado...' : (available ? 'Pausar disponibilidad' : 'Conectarme ahora'))}
+              : activationPending
+                ? 'Completar activación'
+                : isBlockedByBank
+                  ? 'Completar datos bancarios'
+                  : (isToggling ? 'Actualizando estado...' : (available ? 'Pausar disponibilidad' : 'Conectarme ahora'))}
           </button>
-          {onboardingCompleted && (
+          {canReceiveRequests && (
             <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, margin: '10px 0 0' }}>
               Puedes pausar cuando no quieras recibir solicitudes.
             </p>
