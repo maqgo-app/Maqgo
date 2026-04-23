@@ -127,15 +127,19 @@ function goToHome(navigate) {
 export function ClientNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
   
   const isActive = (path) => location.pathname.includes(path);
+
+  const dockStyle = isDesktop
+    ? { left: '50%', right: 'auto', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, borderRadius: '0 0 40px 40px' }
+    : { left: 0, right: 0, transform: 'none', width: 'auto', maxWidth: 'none', borderRadius: 0 };
 
   return (
     <div style={{
       position: 'fixed',
       bottom: 0,
-      left: 0,
-      right: 0,
+      ...dockStyle,
       background: '#1A1A1F',
       borderTop: '1px solid rgba(255,255,255,0.1)',
       display: 'flex',
@@ -143,7 +147,7 @@ export function ClientNavigation() {
       alignItems: 'center',
       padding: '4px 0',
       paddingBottom: 'max(4px, env(safe-area-inset-bottom))',
-      zIndex: Z_INDEX.overlay
+      zIndex: Z_INDEX.fixedBar
     }}>
       <NavItem
         active={isActive('/client/home') || location.pathname === '/client/machinery'}
@@ -176,6 +180,7 @@ export function ProviderNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
   const providerRole = localStorage.getItem('providerRole') || 'owner';
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
   
   // Operadores solo ven: Inicio | Historial | Perfil (sin Cobros ni Máquinas)
   const isOperatorOnly = providerRole === 'operator';
@@ -189,12 +194,15 @@ export function ProviderNavigation() {
 
   // Navegación para Operador (sin Cobros ni Máquinas)
   if (isOperatorOnly) {
+    const dockStyle = isDesktop
+      ? { left: '50%', right: 'auto', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, borderRadius: '0 0 40px 40px' }
+      : { left: 0, right: 0, transform: 'none', width: 'auto', maxWidth: 'none', borderRadius: 0 };
+
     return (
       <div style={{
         position: 'fixed',
         bottom: 0,
-        left: 0,
-        right: 0,
+        ...dockStyle,
         background: '#1A1A1F',
         borderTop: '1px solid rgba(255,255,255,0.1)',
         display: 'flex',
@@ -202,7 +210,7 @@ export function ProviderNavigation() {
         alignItems: 'center',
       padding: '4px 0',
       paddingBottom: 'max(4px, env(safe-area-inset-bottom))',
-      zIndex: Z_INDEX.overlay
+      zIndex: Z_INDEX.fixedBar
     }}>
         <NavItem
           active={isActive('/operator/home')}
@@ -234,12 +242,15 @@ export function ProviderNavigation() {
   }
 
   // Navegación para Titular/Gerente (completa)
+  const dockStyle = isDesktop
+    ? { left: '50%', right: 'auto', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, borderRadius: '0 0 40px 40px' }
+    : { left: 0, right: 0, transform: 'none', width: 'auto', maxWidth: 'none', borderRadius: 0 };
+
   return (
     <div style={{
       position: 'fixed',
       bottom: 0,
-      left: 0,
-      right: 0,
+      ...dockStyle,
       background: '#1A1A1F',
       borderTop: '1px solid rgba(255,255,255,0.1)',
       display: 'flex',
@@ -247,7 +258,7 @@ export function ProviderNavigation() {
       alignItems: 'center',
       padding: '4px 0',
       paddingBottom: 'max(4px, env(safe-area-inset-bottom))',
-      zIndex: Z_INDEX.overlay
+      zIndex: Z_INDEX.fixedBar
     }}>
       <NavItem
         active={location.pathname === getProviderLandingPath()}

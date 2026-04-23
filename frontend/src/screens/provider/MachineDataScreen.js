@@ -1007,6 +1007,13 @@ function MachineDataScreen() {
       setMfStep((s) => s - 1);
       return;
     }
+    const isProviderSession = hasProviderRoleInStorage() || inlineReady;
+    const hasHistory = typeof window !== 'undefined' && window.history && window.history.length > 1;
+    if (isProviderSession) {
+      if (hasHistory) navigate(-1);
+      else navigate('/provider/machines');
+      return;
+    }
     navigate('/welcome');
   };
 

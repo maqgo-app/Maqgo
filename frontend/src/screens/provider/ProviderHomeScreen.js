@@ -99,14 +99,6 @@ function ProviderHomeScreen() {
     !!bankData?.holderName &&
     !!bankData?.holderRut;
 
-  const activationNextPath = !companyComplete
-    ? '/provider/data'
-    : !machineComplete
-      ? '/provider/machine-data'
-      : !operatorComplete
-        ? '/provider/team'
-        : '/provider/profile/banco';
-
   useEffect(() => {
     const completedLocal = localStorage.getItem('providerOnboardingCompleted') === 'true';
     setOnboardingCompleted(completedLocal);
@@ -393,12 +385,12 @@ function ProviderHomeScreen() {
             <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.35 }}>
               Completa los pasos pendientes para activarla.
             </p>
-            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+            <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => navigate('/provider/profile')}
                 style={{
-                  flex: 1,
+                  flex: '1 1 190px',
                   padding: 12,
                   background: '#EC6819',
                   border: 'none',
@@ -416,7 +408,7 @@ function ProviderHomeScreen() {
                 type="button"
                 onClick={() => navigate('/provider/add-machine')}
                 style={{
-                  flex: 1,
+                  flex: '1 1 190px',
                   padding: 12,
                   background: 'rgba(255,255,255,0.08)',
                   border: '1px solid rgba(255,255,255,0.22)',
@@ -677,57 +669,50 @@ function ProviderHomeScreen() {
             </p>
           ) : null}
 
-          {/* CTA explícito: evita ambigüedad del "toca para conectarte" */}
-          <button
-            onClick={
-              !onboardingCompleted
-                ? undefined
-                : activationPending
-                  ? () => navigate(activationNextPath)
+          {/* CTA explícito: evita ambigüedad del "toca para conectarte" (no competir con banner post-inscripción) */}
+          {!activationPending ? (
+            <button
+              onClick={
+                !onboardingCompleted
+                  ? undefined
                   : isBlockedByBank
                     ? () => navigate('/provider/profile/banco')
                     : toggleAvailability
-            }
-            disabled={!onboardingCompleted || isToggling}
-            style={{
-              width: '100%',
-              marginTop: 4,
-              padding: 13,
-              borderRadius: 12,
-              border: canReceiveRequests && available ? '1px solid rgba(255,255,255,0.25)' : 'none',
-              background: canReceiveRequests && available ? 'rgba(255,255,255,0.06)' : '#EC6819',
-              color: '#fff',
-              fontSize: 15,
-              fontWeight: 700,
-              cursor: onboardingCompleted && !isToggling ? 'pointer' : 'not-allowed',
-              opacity: onboardingCompleted ? (isToggling ? 0.7 : 1) : 0.5,
-            }}
-            aria-label={
-              !onboardingCompleted
-                ? 'Registro incompleto'
-                : activationPending
-                  ? 'Completar activación'
+              }
+              disabled={!onboardingCompleted || isToggling}
+              style={{
+                width: '100%',
+                marginTop: 4,
+                padding: 13,
+                borderRadius: 12,
+                border: canReceiveRequests && available ? '1px solid rgba(255,255,255,0.25)' : 'none',
+                background: canReceiveRequests && available ? 'rgba(255,255,255,0.06)' : '#EC6819',
+                color: '#fff',
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: onboardingCompleted && !isToggling ? 'pointer' : 'not-allowed',
+                opacity: onboardingCompleted ? (isToggling ? 0.7 : 1) : 0.5,
+              }}
+              aria-label={
+                !onboardingCompleted
+                  ? 'Registro incompleto'
                   : isBlockedByBank
                     ? 'Completar datos bancarios'
                     : (available ? 'Pausar disponibilidad' : 'Conectarme ahora')
-            }
-          >
-            {!onboardingCompleted
-              ? 'Completa tu registro para activar'
-              : activationPending
-                ? 'Completar activación'
+              }
+            >
+              {!onboardingCompleted
+                ? 'Completa tu registro para activar'
                 : isBlockedByBank
                   ? 'Completar datos bancarios'
                   : (isToggling ? 'Actualizando estado...' : (available ? 'Pausar disponibilidad' : 'Conectarme ahora'))}
-          </button>
+            </button>
+          ) : null}
           {canReceiveRequests && (
             <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, margin: '10px 0 0' }}>
               Puedes pausar cuando no quieras recibir solicitudes.
             </p>
           )}
-          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, margin: '8px 0 0' }}>
-            "Inicio" en la barra inferior solo navega a esta pantalla. Tu estado conectado se controla aquí.
-          </p>
         </div>
 
         {/* Accesos Rápidos (Solo si onboarding completo) */}
