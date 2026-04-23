@@ -988,29 +988,19 @@ function LoginScreen({ setUserRole, setUserId }) {
         </div>
 
         {/* Botón */}
-        <button
-          className="maqgo-btn-primary"
-          onClick={
-            loginMode === 'email'
-              ? handleEmailPasswordLogin
-              : step === 'phone'
-                ? handleStartLogin
-                : step === 'otp'
-                  ? handleVerifyCode
-                  : handleVerifyPassword
-          }
-          disabled={
-            loading ||
-            (loginMode === 'email'
-              ? !isEmailFormValid
-              : step === 'phone'
-                ? !isPhoneValid
-                : step === 'otp'
-                  ? !isCodeValid
-                  : password.length < 1)
-          }
-          style={{
-            opacity:
+        {!(loginMode === 'sms' && step === 'password_verify' && stepUpRequiresPasswordSetup) && (
+          <button
+            className="maqgo-btn-primary"
+            onClick={
+              loginMode === 'email'
+                ? handleEmailPasswordLogin
+                : step === 'phone'
+                  ? handleStartLogin
+                  : step === 'otp'
+                    ? handleVerifyCode
+                    : handleVerifyPassword
+            }
+            disabled={
               loading ||
               (loginMode === 'email'
                 ? !isEmailFormValid
@@ -1019,40 +1009,54 @@ function LoginScreen({ setUserRole, setUserId }) {
                   : step === 'otp'
                     ? !isCodeValid
                     : password.length < 1)
-                ? 0.5
-                : 1,
-            marginBottom: 15,
-          }}
-          aria-label={
-            loading
+            }
+            style={{
+              opacity:
+                loading ||
+                (loginMode === 'email'
+                  ? !isEmailFormValid
+                  : step === 'phone'
+                    ? !isPhoneValid
+                    : step === 'otp'
+                      ? !isCodeValid
+                      : password.length < 1)
+                  ? 0.5
+                  : 1,
+              marginBottom: 15,
+            }}
+            aria-label={
+              loading
+                ? loginMode === 'email'
+                  ? 'Iniciando sesión'
+                  : step === 'phone'
+                    ? 'Comprobando tu número'
+                    : 'Iniciando sesión'
+                : loginMode === 'email'
+                  ? 'Iniciar sesión proveedor con correo'
+                  : step === 'phone'
+                    ? 'Continuar con tu celular'
+                    : step === 'otp'
+                      ? 'Confirmar código e ingresar'
+                      : 'Verificar contraseña y continuar'
+            }
+          >
+            {loading
               ? loginMode === 'email'
-                ? 'Iniciando sesión'
+                ? 'Iniciando sesión...'
                 : step === 'phone'
-                  ? 'Comprobando tu número'
-                  : 'Iniciando sesión'
+                  ? 'Comprobando...'
+                  : 'Iniciando sesión...'
               : loginMode === 'email'
-                ? 'Iniciar sesión proveedor con correo'
+                ? 'Entrar'
                 : step === 'phone'
-                  ? 'Continuar con tu celular'
+                  ? 'Continuar'
                   : step === 'otp'
-                    ? 'Confirmar código e ingresar'
-                    : 'Verificar contraseña e ingresar'
-          }
-        >
-          {loading
-            ? loginMode === 'email'
-              ? 'Iniciando sesión...'
-              : step === 'phone'
-                ? 'Comprobando...'
-                : 'Iniciando sesión...'
-            : loginMode === 'email'
-              ? 'Entrar'
-              : step === 'phone'
-                ? 'Continuar'
-                : step === 'otp'
-                  ? 'Confirmar código'
-                  : 'Entrar al panel'}
-        </button>
+                    ? 'Confirmar código'
+                    : redirectTo === '/admin'
+                      ? 'Entrar al panel'
+                      : 'Continuar'}
+          </button>
+        )}
 
       </div>
     </div>
