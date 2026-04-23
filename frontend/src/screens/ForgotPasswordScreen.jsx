@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../components/MaqgoLogo';
 import PasswordField from '../components/PasswordField';
@@ -26,6 +26,7 @@ function isValidEmailLoose(email) {
 
 function ForgotPasswordScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const emailRef = useRef(null);
   const phoneInputRef = useRef(null);
   const otpRef = useRef(null);
@@ -42,6 +43,13 @@ function ForgotPasswordScreen() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [didSubmit, setDidSubmit] = useState(false);
+
+  useEffect(() => {
+    const prefillEmail = String(location.state?.prefillEmail || '').trim();
+    const prefillPhone = String(location.state?.prefillPhoneDigits || '').replace(/\D/g, '').slice(-9);
+    if (prefillEmail) setEmail(prefillEmail);
+    if (prefillPhone) setPhoneLocalDigits(prefillPhone);
+  }, [location.state]);
 
   useEffect(() => {
     if (step === 1) {

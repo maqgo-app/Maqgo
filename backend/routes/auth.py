@@ -968,6 +968,16 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
         has_password_protected_role = any(r in ["provider", "admin"] for r in roles)
         
         if is_step_up_flow and has_password_protected_role:
+            if not str(user.get("password") or "").strip():
+                logger.info("LOGIN_SMS_VERIFY step_up_password_missing userId=%s", user["id"])
+                return {
+                    "requires_password": True,
+                    "requires_password_setup": True,
+                    "user_id": user["id"],
+                    "phone": raw_phone,
+                    "email_masked": _mask_email_for_display(user.get("email", "")),
+                    "message": "Por seguridad, tu cuenta requiere una clave para acceder desde este dispositivo.",
+                }
             trusted = await find_trusted_device(
                 db, user_id=user["id"], phone_e164=raw_phone, device_id=device_norm
             )

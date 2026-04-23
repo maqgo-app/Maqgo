@@ -214,9 +214,12 @@ html, body, #root {
 /* Desktop: columna sobre --maqgo-bg-outer (#000); sumamos aro exterior para marcar el “teléfono” */
 @media (min-width: var(--maqgo-breakpoint-mobile)) {
   .maqgo-app:not(.welcome-desktop) {
+    border: 1px solid var(--maqgo-welcome-frame-stroke);
+    border-radius: 40px;
     box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.11),
-      0 0 0 1px rgba(255, 255, 255, 0.08);
+      inset 0 1px 0 var(--maqgo-welcome-frame-stroke-inset),
+      0 22px 56px rgba(0, 0, 0, 0.62),
+      0 8px 24px rgba(0, 0, 0, 0.38);
   }
 }
 

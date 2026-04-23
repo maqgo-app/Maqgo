@@ -24,6 +24,7 @@ import {
 } from '../utils/postLoginNavigation';
 import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
 import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
+import { peekReturnUrl } from '../utils/registrationReturn';
 
 /** OTP (Redis + LabsMobile): 30s evita cortar antes que el backend; sin reintentos (evita SMS duplicado). */
 const LOGIN_SMS_START_TIMEOUT_MS = 30000;
@@ -89,9 +90,41 @@ function LoginScreen({ setUserRole, setUserId }) {
   const redirectTo = location.state?.redirect || null;
   /** Quién abrió login: cliente desde welcome vs proveedor/admin (muestra acceso correo+clave). */
   const entry = location.state?.entry;
-  const isClientEntry = entry === 'client';
-  const isAdminFlow = redirectTo === '/admin';
-  const isProviderEntry = entry === 'provider';
+
+  const desiredRoleStored = (() => {
+    try {
+      return localStorage.getItem('desiredRole') || '';
+    } catch {
+      return '';
+    }
+  })();
+
+  const returnUrlStored = (() => {
+    try {
+      return peekReturnUrl() || '';
+    } catch {
+      return '';
+    }
+  })();
+
+  const inferredEntry =
+    entry ||
+    (redirectTo && redirectTo.startsWith('/provider')
+      ? 'provider'
+      : redirectTo && redirectTo.startsWith('/client')
+        ? 'client'
+        : desiredRoleStored === 'provider'
+          ? 'provider'
+          : desiredRoleStored === 'client'
+            ? 'client'
+            : returnUrlStored && returnUrlStored.startsWith('/provider')
+              ? 'provider'
+              : returnUrlStored && returnUrlStored.startsWith('/client')
+                ? 'client'
+                : null);
+
+  const isClientEntry = inferredEntry === 'client';
+  const isProviderEntry = inferredEntry === 'provider';
 
   const [step, setStep] = useState('phone'); // 'phone' | 'otp'
   /** 'sms' = cliente u otro vía celular; 'email' = proveedor (u cuenta con clave) → POST /api/auth/login */
@@ -101,9 +134,9 @@ function LoginScreen({ setUserRole, setUserId }) {
    * Esto cumple con: "en primer sms opt en cliente nunca debe decir contraseña y correo".
    */
   const showEmailPasswordToggle =
+    step === 'phone' &&
     !isClientEntry &&
-    !isProviderEntry &&
-    (loginMode === 'email' || step !== 'phone' || isAdminFlow);
+    !isProviderEntry;
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -117,6 +150,7 @@ function LoginScreen({ setUserRole, setUserId }) {
   const [stepUpPhone, setStepUpPhone] = useState('');
   /** Email enmascarado del proveedor para mostrar en Step-Up */
   const [stepUpEmailMasked, setStepUpEmailMasked] = useState('');
+  const [stepUpRequiresPasswordSetup, setStepUpRequiresPasswordSetup] = useState(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -462,6 +496,7 @@ function LoginScreen({ setUserRole, setUserId }) {
         setStepUpUserId(res.data.user_id);
         setStepUpPhone(res.data.phone);
         setStepUpEmailMasked(res.data.email_masked || '');
+        setStepUpRequiresPasswordSetup(Boolean(res.data.requires_password_setup));
         setStep('password_verify');
         return;
       }
@@ -530,6 +565,10 @@ function LoginScreen({ setUserRole, setUserId }) {
     setOtpHint('');
     setStep('phone');
     setCode('');
+    setStepUpUserId('');
+    setStepUpPhone('');
+    setStepUpEmailMasked('');
+    setStepUpRequiresPasswordSetup(false);
   };
 
   /** Vuelve a Welcome para cambiar arrendar vs ofrecer sin depender del botón atrás del navegador. */
@@ -784,7 +823,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                 }}
               >
                 <div style={{ color: '#4CAF50', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-                  ✓ Celular verificado
+                  ✓ Verificación adicional
                 </div>
                 <p
                   style={{
@@ -796,58 +835,97 @@ function LoginScreen({ setUserRole, setUserId }) {
                 >
                   {stepUpEmailMasked ? (
                     <>
-                      Hemos detectado tu cuenta vinculada a:
+                      Detectamos una cuenta MAQGO vinculada a:
                       <br />
                       <strong style={{ color: '#fff' }}>{stepUpEmailMasked}</strong>
                       <br />
                       <span style={{ fontSize: 12, opacity: 0.7, display: 'block', marginTop: 8 }}>
-                        Por seguridad en este nuevo dispositivo, ingresa tu clave para acceder.
+                        {stepUpRequiresPasswordSetup
+                          ? 'Por seguridad, debes crear o restablecer tu clave para continuar.'
+                          : 'Por seguridad, como este dispositivo es nuevo o no reconocido, ingresa tu clave para continuar.'}
+                        {!stepUpRequiresPasswordSetup ? (
+                          <>
+                            <br />
+                            <span style={{ opacity: 0.85 }}>
+                              En próximos accesos desde este dispositivo normalmente no se solicitará, salvo actividad inusual.
+                            </span>
+                          </>
+                        ) : null}
                       </span>
                     </>
                   ) : (
-                    'Por seguridad en este nuevo dispositivo, ingresa tu clave para acceder.'
+                    stepUpRequiresPasswordSetup
+                      ? 'Por seguridad, debes crear o restablecer tu clave para continuar.'
+                      : 'Por seguridad, como este dispositivo es nuevo o no reconocido, ingresa tu clave para continuar.'
                   )}
                 </p>
               </div>
 
-              <label
-                htmlFor="stepup-password"
-                style={{
-                  color: 'rgba(255,255,255,0.95)',
-                  fontSize: 13,
-                  marginBottom: 6,
-                  display: 'block',
-                }}
-              >
-                Tu contraseña
-              </label>
-              <PasswordField
-                id="stepup-password"
-                name="password"
-                value={password}
-                onChange={(ev) => {
-                  setError('');
-                  setPassword(ev.target.value);
-                }}
-                autoComplete="current-password"
-                placeholder="Ingresa tu clave"
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  marginBottom: 10,
-                  padding: '14px 12px',
-                  fontSize: 15,
-                }}
-              />
+              {stepUpRequiresPasswordSetup ? (
+                <div style={{ marginBottom: 20 }}>
+                  <button
+                    type="button"
+                    className="maqgo-button maqgo-button--primary"
+                    style={{ width: '100%', padding: '14px 16px', marginBottom: 10 }}
+                    onClick={() => {
+                      const e164 = String(stepUpPhone || '');
+                      const digits = e164.replace(/\D/g, '').slice(-9);
+                      navigate('/forgot-password', {
+                        state: {
+                          prefillEmail: stepUpEmailMasked || '',
+                          prefillPhoneDigits: digits,
+                        },
+                      });
+                    }}
+                  >
+                    Crear o restablecer clave
+                  </button>
+                  <p style={{ textAlign: 'center', margin: 0, color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>
+                    Te enviaremos un código para crear una nueva clave.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <label
+                    htmlFor="stepup-password"
+                    style={{
+                      color: 'rgba(255,255,255,0.95)',
+                      fontSize: 13,
+                      marginBottom: 6,
+                      display: 'block',
+                    }}
+                  >
+                    Tu contraseña
+                  </label>
+                  <PasswordField
+                    id="stepup-password"
+                    name="password"
+                    value={password}
+                    onChange={(ev) => {
+                      setError('');
+                      setPassword(ev.target.value);
+                    }}
+                    autoComplete="current-password"
+                    placeholder="Ingresa tu clave"
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      marginBottom: 10,
+                      padding: '14px 12px',
+                      fontSize: 15,
+                    }}
+                  />
 
-              <p style={{ textAlign: 'right', marginBottom: 20 }}>
-                <Link
-                  to="/forgot-password"
-                  style={{ color: 'rgba(144, 189, 211, 0.95)', fontSize: 13 }}
-                >
-                  ¿No recuerdas tu contraseña?
-                </Link>
-              </p>
+                  <p style={{ textAlign: 'right', marginBottom: 20 }}>
+                    <Link
+                      to="/forgot-password"
+                      style={{ color: 'rgba(144, 189, 211, 0.95)', fontSize: 13 }}
+                    >
+                      ¿No recuerdas tu contraseña?
+                    </Link>
+                  </p>
+                </>
+              )}
 
               <p style={{ textAlign: 'center', marginBottom: 12 }}>
                 <button
