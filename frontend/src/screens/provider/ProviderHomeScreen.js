@@ -58,24 +58,24 @@ function ProviderHomeScreen() {
       onClick: () => navigate('/provider/data')
     },
     {
-      label: 'Máquina (tipo + patente)',
+      label: 'Maquinaria',
       ok: machineComplete,
       missingHint: 'Falta tipo o patente de la máquina',
-      actionLabel: 'Completar máquina',
+      actionLabel: 'Completar maquinaria',
       onClick: () => navigate('/provider/machine-data')
     },
     {
-      label: 'Operador',
+      label: 'Roles y accesos',
       ok: operatorComplete,
-      missingHint: 'Falta operador asignado',
-      actionLabel: 'Asignar operador',
+      missingHint: 'Falta invitar o registrar equipo',
+      actionLabel: 'Gestionar roles y accesos',
       onClick: () => navigate('/provider/team')
     },
     {
-      label: 'Banco',
+      label: 'Datos bancarios',
       ok: bankDataComplete,
       missingHint: 'Faltan datos bancarios',
-      actionLabel: 'Completar banco',
+      actionLabel: 'Completar datos bancarios',
       onClick: () => navigate('/provider/profile/banco')
     },
   ];
@@ -385,14 +385,52 @@ function ProviderHomeScreen() {
             }}
           >
             <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>
-              Tu máquina ha sido ingresada correctamente
+              Tu máquina fue ingresada correctamente
             </p>
             <p style={{ color: '#fff', fontSize: 13, fontWeight: 600, margin: '10px 0 0', lineHeight: 1.4 }}>
-              Completa los datos pendientes para activarla
+              Aún no está activada para recibir solicitudes
             </p>
             <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.35 }}>
-              Faltan datos de empresa, operador y banco para comenzar a recibir solicitudes.
+              Completa los pasos pendientes para activarla.
             </p>
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={() => navigate('/provider/profile')}
+                style={{
+                  flex: 1,
+                  padding: 12,
+                  background: '#EC6819',
+                  border: 'none',
+                  borderRadius: 10,
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  lineHeight: 1.35,
+                }}
+              >
+                Completar en Mi Empresa
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/provider/add-machine')}
+                style={{
+                  flex: 1,
+                  padding: 12,
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid rgba(255,255,255,0.22)',
+                  borderRadius: 10,
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  lineHeight: 1.35,
+                }}
+              >
+                Agregar otra máquina
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -500,7 +538,7 @@ function ProviderHomeScreen() {
               Registro incompleto
             </p>
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, marginBottom: 15, lineHeight: 1.5 }}>
-              Completa datos de empresa, maquinaria y operador para recibir solicitudes.
+              Completa datos de empresa, maquinaria y roles y accesos para recibir solicitudes.
             </p>
             <button
               onClick={goToOnboarding}

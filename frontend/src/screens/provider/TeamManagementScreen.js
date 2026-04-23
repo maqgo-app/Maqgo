@@ -196,7 +196,7 @@ function TeamManagementScreen() {
             margin: 0,
             fontFamily: "'Space Grotesk', sans-serif"
           }}>
-            Mis operadores
+            Roles y accesos
           </h1>
         </div>
 

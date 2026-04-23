@@ -787,9 +787,9 @@ function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClo
                   No hay operadores disponibles o ya están asignados a esta máquina.
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: 0 }}>
-                  Ve a <strong>Mis operadores</strong> para invitar.
+                  Ve a <strong>Roles y accesos</strong> para invitar.
                 </p>
-                <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>Ir a Mis operadores</button>
+                <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>Ir a Roles y accesos</button>
               </div>
             ) : (
               <>

@@ -177,8 +177,8 @@ function ProviderProfileScreen() {
               onClick={() => navigate('/provider/cobros')}
             />
             <MenuItem 
-              label="Mis operadores" 
-              sublabel="Invitar y gestionar operadores"
+              label="Roles y accesos" 
+              sublabel="Invitar y gestionar equipo"
               onClick={() => navigate('/provider/team')}
             />
 

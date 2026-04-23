@@ -220,7 +220,7 @@ export function ProviderNavigation() {
         <NavItem
           active={isActive('/provider/profile')}
           onClick={() => navigate('/provider/profile')}
-          label="Perfil"
+          label="Mi Empresa"
           icon={Icons.profile}
         />
         <NavItem
@@ -265,7 +265,7 @@ export function ProviderNavigation() {
       <NavItem
         active={isActive('/provider/profile')}
         onClick={() => navigate('/provider/profile')}
-        label="Perfil"
+        label="Mi Empresa"
         icon={Icons.profile}
       />
       <NavItem
