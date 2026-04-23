@@ -201,33 +201,6 @@ function ProviderDataScreen() {
             </p>
           )}
           
-          {/* Comuna con autocompletado */}
-          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
-            Comuna <span style={{ color: '#EC6819' }}>*</span>
-          </label>
-          <ComunaAutocomplete
-            value={form.comuna}
-            onChange={(value) => update('comuna', value)}
-            placeholder="Ej: Providencia, Las Condes..."
-            className="maqgo-input"
-            style={{ fontSize: 15 }}
-          />
-          
-          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
-            Giro comercial <span style={{ color: '#EC6819' }}>*</span>
-          </label>
-          <input
-            className="maqgo-input"
-            placeholder="Ej: Arriendo de maquinaria pesada"
-            value={form.giro}
-            onChange={e => update('giro', e.target.value)}
-            onBlur={() => setDidSubmit(true)}
-            style={{
-              borderColor: didSubmit && !form.giro ? '#f44336' : undefined
-            }}
-            data-testid="provider-giro"
-          />
-
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
             Dirección comercial <span style={{ color: '#EC6819' }}>*</span>
           </label>
@@ -251,6 +224,31 @@ function ProviderDataScreen() {
             className="maqgo-input"
             style={{ fontSize: 15 }}
             testId="provider-address"
+          />
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
+            Comuna <span style={{ color: '#EC6819' }}>*</span>
+          </label>
+          <ComunaAutocomplete
+            value={form.comuna}
+            onChange={(value) => update('comuna', value)}
+            placeholder="Se completa al seleccionar la dirección"
+            className="maqgo-input"
+            style={{ fontSize: 15 }}
+          />
+          
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
+            Giro comercial <span style={{ color: '#EC6819' }}>*</span>
+          </label>
+          <input
+            className="maqgo-input"
+            placeholder="Ej: Arriendo de maquinaria pesada"
+            value={form.giro}
+            onChange={e => update('giro', e.target.value)}
+            onBlur={() => setDidSubmit(true)}
+            style={{
+              borderColor: didSubmit && !form.giro ? '#f44336' : undefined
+            }}
+            data-testid="provider-giro"
           />
           {didSubmit && missingFields.length > 0 && (
             <p style={{ color: '#f44336', fontSize: 12, marginTop: 8, marginBottom: 0 }}>

@@ -81,6 +81,7 @@ function ProviderHomeScreen() {
   ];
   const activationCompletedCount = activationItems.filter((item) => item.ok).length;
   const activationProgressPct = Math.round((activationCompletedCount / activationItems.length) * 100);
+  const activationAllComplete = activationCompletedCount === activationItems.length;
   /** Solo falta banco: un único CTA principal (FASE 3). */
   const bankOnlyMissing =
     onboardingCompleted &&
@@ -720,7 +721,7 @@ function ProviderHomeScreen() {
           </div>
         )}
 
-        {available && onboardingCompleted && (
+        {available && onboardingCompleted && activationAllComplete && (
           <div style={{
             background: '#2A2A2A',
             borderRadius: 12,

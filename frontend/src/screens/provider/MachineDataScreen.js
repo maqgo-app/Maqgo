@@ -1184,27 +1184,6 @@ function MachineDataScreen() {
             >
               <div>
               <MachineWizardPhotosBlock photos={mfPhotos} setPhotos={setMfPhotos} />
-              <p style={{ textAlign: 'center', marginBottom: 14 }}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    document
-                      .getElementById('machine-wizard-tarifas')
-                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                  }
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#90BDD3',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    textDecoration: 'underline',
-                    padding: 4,
-                  }}
-                >
-                  Ir a tarifas
-                </button>
-              </p>
               <div id="machine-wizard-tarifas" style={{ scrollMarginTop: 72 }}>
               <label
                 style={{
@@ -1248,6 +1227,29 @@ function MachineDataScreen() {
                   data-testid="mf-wizard-price-input"
                 />
               </div>
+              {priceAlertW ? (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: 10,
+                    borderRadius: 8,
+                    background: `${priceAlertW.color}20`,
+                    border: `1px solid ${priceAlertW.color}60`,
+                  }}
+                >
+                  <p
+                    style={{
+                      color: priceAlertW.color,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      margin: 0,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {priceAlertW.msg}
+                  </p>
+                </div>
+              ) : null}
               {needsTransportW ? (
                 <>
                   <label
@@ -1323,29 +1325,6 @@ function MachineDataScreen() {
                   Este tipo no lleva traslado en el cálculo MAQGO (precio por servicio/viaje).
                 </p>
               )}
-              {priceAlertW ? (
-                <div
-                  style={{
-                    marginTop: 10,
-                    padding: 10,
-                    borderRadius: 8,
-                    background: `${priceAlertW.color}20`,
-                    border: `1px solid ${priceAlertW.color}60`,
-                  }}
-                >
-                  <p
-                    style={{
-                      color: priceAlertW.color,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      margin: 0,
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {priceAlertW.msg}
-                  </p>
-                </div>
-              ) : null}
               </div>
               </div>
             </form>
