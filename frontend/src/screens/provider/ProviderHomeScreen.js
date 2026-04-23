@@ -65,10 +65,10 @@ function ProviderHomeScreen() {
       onClick: () => navigate('/provider/machine-data')
     },
     {
-      label: 'Roles y accesos',
+      label: 'Operador asignado',
       ok: operatorComplete,
-      missingHint: 'Falta invitar o registrar equipo',
-      actionLabel: 'Gestionar roles y accesos',
+      missingHint: 'Falta operador asignado',
+      actionLabel: 'Asignar operador',
       onClick: () => navigate('/provider/team')
     },
     {
@@ -538,7 +538,7 @@ function ProviderHomeScreen() {
               Registro incompleto
             </p>
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, marginBottom: 15, lineHeight: 1.5 }}>
-              Completa datos de empresa, maquinaria y roles y accesos para recibir solicitudes.
+              Completa datos de empresa, maquinaria y operador para recibir solicitudes.
             </p>
             <button
               onClick={goToOnboarding}
