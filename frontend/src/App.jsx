@@ -162,6 +162,10 @@ function AppContent() {
     '/profile', '/faq', '/terms', '/privacy'
   ];
   const showBottomNav = !hideNav && mainPathsWithNav.some(p => path === p || path.startsWith(p + '/'));
+  const isAdminRoute = path === '/admin' || path.startsWith('/admin/');
+  const hostname = typeof window !== 'undefined' ? String(window.location.hostname || '') : '';
+  const isAdminHost = hostname === 'admin.maqgo.cl' || hostname.startsWith('admin.');
+  const showChatBot = !isAdminRoute && !isAdminHost;
 
   return (
     <CheckoutProvider>
@@ -383,7 +387,7 @@ function AppContent() {
       </div>
       </div>
       {showBottomNav && <BottomNavigation />}
-      <ChatBot />
+      {showChatBot && <ChatBot />}
       </BookingNavigationGuard>
     </div>
     </CheckoutProvider>
