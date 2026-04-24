@@ -3,7 +3,7 @@ import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
-import { getObject } from '../../utils/safeStorage';
+import { getArray, getObject } from '../../utils/safeStorage';
 import { playNewRequestSound, playTapSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
 
@@ -45,10 +45,25 @@ function ProviderHomeScreen() {
   const isBlockedByBank = onboardingCompleted && !bankDataComplete && !available;
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});
-  const operatorsData = getObject('operatorsData', []);
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
   const machineComplete = !!(machineData?.machineryType && machineData?.licensePlate);
-  const operatorComplete = Array.isArray(operatorsData) && operatorsData.length > 0;
+  const providerMachines = getArray('providerMachines', []);
+  const onboardingOperators = getArray('operatorsData', []).filter((op) => {
+    if (!op || typeof op !== 'object') return false;
+    const fullName = String(op.name || `${op.nombre || ''} ${op.apellido || ''}`.trim()).trim();
+    return Boolean(fullName);
+  });
+  const operatorComplete =
+    (machineComplete && onboardingOperators.length > 0) ||
+    (Array.isArray(providerMachines) &&
+      providerMachines.some((m, idx) => {
+        if (!m || typeof m !== 'object') return false;
+        const hasRegisteredMachine = Boolean(m.machineryType && String(m.licensePlate || '').trim());
+        if (!hasRegisteredMachine) return false;
+        const ops = Array.isArray(m.operators) ? m.operators : [];
+        if (ops.length > 0) return true;
+        return (idx === 0 || providerMachines.length === 1) && onboardingOperators.length > 0;
+      }));
   const activationItems = [
     {
       label: 'Empresa',
@@ -67,9 +82,9 @@ function ProviderHomeScreen() {
     {
       label: 'Operador asignado',
       ok: operatorComplete,
-      missingHint: 'Falta operador asignado',
+      missingHint: 'Falta operador de maquinaria asignado',
       actionLabel: 'Asignar operador',
-      onClick: () => navigate('/provider/team')
+      onClick: () => navigate('/provider/machines')
     },
     {
       label: 'Datos bancarios',

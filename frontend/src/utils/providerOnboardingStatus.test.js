@@ -25,6 +25,14 @@ function installLocalStorageMock(seed = {}) {
 const completePayload = {
   providerData: JSON.stringify({ businessName: 'Empresa', rut: '12.345.678-9' }),
   machineData: JSON.stringify({ machineryType: 'retroexcavadora', licensePlate: 'ABCD12' }),
+  providerMachines: JSON.stringify([
+    {
+      id: 'mach_1',
+      machineryType: 'retroexcavadora',
+      licensePlate: 'ABCD12',
+      operators: [{ id: 'op_1', name: 'Op' }],
+    },
+  ]),
   operatorsData: JSON.stringify([{ id: '1', name: 'Op' }]),
   bankData: JSON.stringify({
     bank: 'b',
@@ -114,5 +122,17 @@ describe('providerOnboardingStatus', () => {
       providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
     });
     expect(getProviderLandingPath()).toBe('/provider/machine-data');
+  });
+
+  it('empresa + máquina sin operador asignado → /provider/machines', () => {
+    installLocalStorageMock({
+      providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
+      machineData: JSON.stringify({ machineryType: 'x', licensePlate: 'ZZ99' }),
+      providerMachines: JSON.stringify([
+        { id: 'mach_1', machineryType: 'x', licensePlate: 'ZZ99', operators: [] },
+      ]),
+    });
+    expect(getProviderLandingPath()).toBe('/provider/machines');
+    expect(isProviderActivationCompleteFromStorage()).toBe(false);
   });
 });

@@ -2,7 +2,7 @@
  * Completitud onboarding proveedor (misma regla que ProviderHomeScreen — checklist activación).
  * Solo lectura de localStorage; sin llamadas API (login/OTP/sesión intactos).
  */
-import { getObject } from './safeStorage';
+import { getArray, getObject } from './safeStorage';
 
 const MACHINE_FIRST_ENTRY = '/provider/add-machine';
 
@@ -24,17 +24,50 @@ function isProviderCameFromWelcomeFlag() {
   }
 }
 
+function normalizeMachineOperators(raw = []) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((op) => {
+      if (!op || typeof op !== 'object') return null;
+      const fullName = String(op.name || `${op.nombre || ''} ${op.apellido || ''}`.trim()).trim();
+      if (!fullName) return null;
+      return op;
+    })
+    .filter(Boolean);
+}
+
+function hasAssignedMachineOperatorFromStorage() {
+  const machines = getArray('providerMachines', []);
+  const onboardingOperators = normalizeMachineOperators(getArray('operatorsData', []));
+  const hasMachineData = (() => {
+    const machineData = getObject('machineData', {});
+    return Boolean(machineData?.machineryType && machineData?.licensePlate);
+  })();
+
+  if (Array.isArray(machines) && machines.length > 0) {
+    return machines.some((m, idx) => {
+      if (!m || typeof m !== 'object') return false;
+      const hasRegisteredMachine = Boolean(m.machineryType && String(m.licensePlate || '').trim());
+      if (!hasRegisteredMachine) return false;
+      const ops = Array.isArray(m.operators) ? m.operators : [];
+      if (ops.length > 0) return true;
+      return (idx === 0 || machines.length === 1) && onboardingOperators.length > 0;
+    });
+  }
+
+  return hasMachineData && onboardingOperators.length > 0;
+}
+
 /**
  * Empresa + máquina + operador + banco (cuatro pilares).
  */
 export function isProviderActivationCompleteFromStorage() {
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});
-  const operatorsData = getObject('operatorsData', []);
   const bankData = getObject('bankData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
   const machineComplete = !!(machineData?.machineryType && machineData?.licensePlate);
-  const operatorComplete = Array.isArray(operatorsData) && operatorsData.length > 0;
+  const operatorComplete = hasAssignedMachineOperatorFromStorage();
   const bankComplete = isBankDataComplete(bankData);
   return companyComplete && machineComplete && operatorComplete && bankComplete;
 }
@@ -69,16 +102,15 @@ export function getProviderLandingPath() {
   }
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});
-  const operatorsData = getObject('operatorsData', []);
   const bankData = getObject('bankData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
   const machineComplete = !!(machineData?.machineryType && machineData?.licensePlate);
-  const operatorComplete = Array.isArray(operatorsData) && operatorsData.length > 0;
+  const operatorComplete = hasAssignedMachineOperatorFromStorage();
   const bankComplete = isBankDataComplete(bankData);
 
   if (!companyComplete) return '/provider/data';
   if (!machineComplete) return '/provider/machine-data';
-  if (!operatorComplete) return '/provider/team';
+  if (!operatorComplete) return '/provider/machines';
   if (!bankComplete) return '/provider/profile/banco';
   return '/provider/home';
 }
