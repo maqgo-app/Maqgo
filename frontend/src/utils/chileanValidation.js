@@ -7,7 +7,7 @@
 // EMAIL VALIDATION
 // =======================================
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /**
  * Valida formato de email

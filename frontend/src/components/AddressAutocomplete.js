@@ -90,6 +90,7 @@ export function AddressAutocomplete({
   onPlaceRejected,
   onPlacesReadyChange,
   onPlacesStatusChange,
+  helperText,
   scriptRetryKey = 0,
   syncInputOnReject = false,
   placeholder = 'Ej: Av. Providencia 1234',
@@ -288,8 +289,15 @@ export function AddressAutocomplete({
       )}
       {useGooglePlaces && scriptLoaded && (
         <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: 8, marginBottom: 0, lineHeight: 1.4 }}>
-          Lo ideal: una sugerencia que traiga <strong style={{ fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>calle, número y comuna</strong>. Si no
-          aplica, marca «No encuentro mi dirección» y completa dirección + comuna a mano.
+          {helperText != null ? (
+            helperText
+          ) : (
+            <>
+              Lo ideal: una sugerencia que traiga{' '}
+              <strong style={{ fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>calle, número y comuna</strong>
+              . Si no aplica, marca «No encuentro mi dirección» y completa dirección + comuna a mano.
+            </>
+          )}
         </p>
       )}
     </div>

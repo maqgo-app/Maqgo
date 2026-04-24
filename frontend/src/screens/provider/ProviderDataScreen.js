@@ -144,10 +144,19 @@ function ProviderDataScreen() {
     });
   };
 
-  const isValid = form.businessName && form.email && validateEmail(form.email) && form.rut && validateRut(form.rut) && form.giro && form.comuna && form.address;
+  const isEmailValid = validateEmail(form.email) === '';
+  const isValid =
+    form.businessName &&
+    form.email &&
+    isEmailValid &&
+    form.rut &&
+    validateRut(form.rut) &&
+    form.giro &&
+    form.comuna &&
+    form.address;
   const missingFields = [];
   if (!form.businessName) missingFields.push('Nombre propietario o empresa');
-  if (!form.email || !validateEmail(form.email)) missingFields.push('Correo electrónico válido');
+  if (!form.email || !isEmailValid) missingFields.push('Correo electrónico válido');
   if (!form.rut || !validateRut(form.rut)) missingFields.push('RUT válido');
   if (!form.comuna) missingFields.push('Comuna');
   if (!form.giro) missingFields.push('Giro comercial');
@@ -184,12 +193,6 @@ function ProviderDataScreen() {
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 8 }}>
           Datos del Proveedor
         </h1>
-        <p style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, textAlign: 'center', marginBottom: 10, lineHeight: 1.45 }}>
-          Unos minutos para validar tu empresa y seguir al paso de la maquinaria. Así los clientes confían en que eres un proveedor formal.
-        </p>
-        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, textAlign: 'center', marginBottom: 22, lineHeight: 1.4 }}>
-          La dirección comercial es de tu negocio; la obra la verá el operador con la app cuando tomes trabajos.
-        </p>
 
         {/* Formulario */}
         <div style={{ flex: 1 }}>
@@ -219,7 +222,7 @@ function ProviderDataScreen() {
             onChange={e => update('email', e.target.value)}
             onBlur={() => setDidSubmit(true)}
             style={{
-              borderColor: didSubmit && (!form.email || !validateEmail(form.email)) ? '#f44336' : undefined
+              borderColor: didSubmit && (!form.email || !isEmailValid) ? '#f44336' : undefined
             }}
             data-testid="provider-email"
           />
@@ -270,6 +273,11 @@ function ProviderDataScreen() {
             className="maqgo-input"
             style={{ fontSize: 15 }}
             testId="provider-address"
+            helperText={
+              <>
+                Busca una dirección con calle, número y comuna. Si no aparece, usa ‘No encuentro mi dirección’.
+              </>
+            }
           />
           {placeRejectCode ? (
             <p style={{ color: '#ffb4b4', fontSize: 13, marginTop: 6, marginBottom: 0, lineHeight: 1.35 }}>
@@ -423,9 +431,6 @@ function ProviderDataScreen() {
           }}>
             ¿Hasta qué hora trabajas?
           </label>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: '0 0 10px', lineHeight: 1.35 }}>
-            Ayuda a mostrar disponibilidad creíble; no es un horario rígido de obra.
-          </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {['18:30', '19:00', '20:00', '21:00'].map(time => (
               <button
@@ -465,7 +470,7 @@ function ProviderDataScreen() {
           style={{ opacity: isValid ? 1 : 0.5 }}
           data-testid="provider-continue-btn"
         >
-          Siguiente: tu máquina
+          Guardar y continuar
         </button>
       </div>
     </div>
