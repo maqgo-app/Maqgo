@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import LoginPhoneChileInput from '../../components/LoginPhoneChileInput';
@@ -32,6 +32,9 @@ function parseChileMobile9(raw) {
 
 function MyMachinesScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const activationEdit = Boolean(location.state?.activationEdit);
+  const returnTo = String(location.state?.returnTo || '/provider/home');
   const [machines, setMachines] = useState(() => getMachines());
   const [defaultByMachinery, setDefaultByMachinery] = useState(() =>
     getObject(STORAGE_KEY_DEFAULT_BY_MACHINERY, {})
@@ -84,6 +87,7 @@ function MyMachinesScreen() {
     updateMachine(machineId, { operators: ops });
     loadMachines();
     setOperatorModal(null);
+    if (activationEdit) navigate(returnTo, { replace: true });
   };
 
   const deleteOperator = (machineId, operatorId) => {

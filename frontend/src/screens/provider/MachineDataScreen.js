@@ -649,6 +649,8 @@ function MachineDataScreen() {
   const toast = useToast();
   const passwordHintInline = getPasswordHint(false);
   const { id } = useParams();
+  const activationEdit = Boolean(location.state?.activationEdit);
+  const returnTo = String(location.state?.returnTo || '/provider/home');
   const isEditMode = Boolean(id && location.pathname.includes('edit-machine'));
   const isAddMachineEntry = location.pathname.includes('add-machine');
   const editMachine = location.state?.machine ?? (id ? getMachineById(id) : null);
@@ -1047,12 +1049,20 @@ function MachineDataScreen() {
       updateMachine(editMachine?.id || id, updates);
       navigate('/provider/machines');
     } else {
+      if (activationEdit) {
+        navigate(returnTo, { replace: true });
+        return;
+      }
       localStorage.setItem('providerOnboardingStep', '3');
       navigate('/provider/machine-photos-pricing');
     }
   };
 
   const handleBack = () => {
+    if (activationEdit) {
+      navigate(returnTo);
+      return;
+    }
     if (isEditMode) navigate('/provider/machines');
     else if (isAddMachineEntry) navigate('/welcome');
     else navigate('/provider/data');

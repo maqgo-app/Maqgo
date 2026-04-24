@@ -70,28 +70,32 @@ function ProviderHomeScreen() {
       ok: companyComplete,
       missingHint: 'Falta completar datos de empresa',
       actionLabel: 'Completar empresa',
-      onClick: () => navigate('/provider/data')
+      onClick: () =>
+        navigate('/provider/data', { state: { activationEdit: true, returnTo: '/provider/home' } })
     },
     {
       label: 'Maquinaria',
       ok: machineComplete,
       missingHint: 'Falta tipo o patente de la máquina',
       actionLabel: 'Completar maquinaria',
-      onClick: () => navigate('/provider/machine-data')
+      onClick: () =>
+        navigate('/provider/machine-data', { state: { activationEdit: true, returnTo: '/provider/home' } })
     },
     {
       label: 'Operador asignado',
       ok: operatorComplete,
       missingHint: 'Falta operador de maquinaria asignado',
       actionLabel: 'Asignar operador',
-      onClick: () => navigate('/provider/machines')
+      onClick: () =>
+        navigate('/provider/machines', { state: { activationEdit: true, returnTo: '/provider/home' } })
     },
     {
       label: 'Datos bancarios',
       ok: bankDataComplete,
       missingHint: 'Faltan datos bancarios',
       actionLabel: 'Completar datos bancarios',
-      onClick: () => navigate('/provider/profile/banco')
+      onClick: () =>
+        navigate('/provider/profile/banco', { state: { activationEdit: true, returnTo: '/provider/home' } })
     },
   ];
   const activationCompletedCount = activationItems.filter((item) => item.ok).length;

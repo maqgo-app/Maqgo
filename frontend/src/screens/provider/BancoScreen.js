@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
 import { getObject } from '../../utils/safeStorage';
@@ -84,6 +84,7 @@ function buildBancoFormInitial() {
 
 function BancoScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const [saved, setSaved] = useState(false);
   const [rutError, setRutError] = useState('');
@@ -91,6 +92,8 @@ function BancoScreen() {
   const provider = getObject('providerData', {});
   const [manualAccountEntry, setManualAccountEntry] = useState(false);
   const isNaturalPerson = !looksLikeCompany(provider.businessName);
+  const activationEdit = Boolean(location.state?.activationEdit);
+  const returnTo = String(location.state?.returnTo || '/provider/home');
 
   const shouldAutoVistaEstado =
     !manualAccountEntry && isNaturalPerson && data.bank === 'Banco Estado';
@@ -179,7 +182,7 @@ function BancoScreen() {
     }
 
     setSaved(true);
-    setTimeout(() => navigate('/provider/profile'), 1000);
+    setTimeout(() => navigate(activationEdit ? returnTo : '/provider/profile'), 800);
   };
 
   const isValid = data.bank && data.accountType && data.accountNumber && 
@@ -215,7 +218,7 @@ function BancoScreen() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
           <button 
-            onClick={() => navigate('/provider/profile')}
+            onClick={() => navigate(activationEdit ? returnTo : '/provider/profile')}
             style={{
               background: 'none',
               border: 'none',

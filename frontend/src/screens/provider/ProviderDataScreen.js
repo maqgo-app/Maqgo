@@ -16,7 +16,10 @@ import { getProviderBackRoute } from '../../utils/bookingFlow';
  */
 function ProviderDataScreen() {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
+  const activationEdit = Boolean(location.state?.activationEdit);
+  const returnTo = String(location.state?.returnTo || '/provider/home');
   const [rutError, setRutError] = useState('');
   const [didSubmit, setDidSubmit] = useState(false);
   const [scriptRetryKey, setScriptRetryKey] = useState(0);
@@ -93,11 +96,19 @@ function ProviderDataScreen() {
       // Datos del registro inicial
       phone: registerData.celular || form.phone
     }));
+    if (activationEdit) {
+      navigate(returnTo, { replace: true });
+      return;
+    }
     localStorage.setItem('providerOnboardingStep', '2');
     navigate('/provider/machine-data');
   };
 
   const handleBack = () => {
+    if (activationEdit) {
+      navigate(returnTo);
+      return;
+    }
     const backRoute = getProviderBackRoute(pathname) || '/login';
     navigate(backRoute);
   };
