@@ -715,59 +715,6 @@ function ProviderHomeScreen() {
           )}
         </div>
 
-        {/* Accesos Rápidos (Solo si onboarding completo) */}
-        {onboardingCompleted && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 12,
-            marginBottom: 24
-          }}>
-            <div 
-              onClick={() => navigate('/provider/machines')}
-              style={{
-                background: '#1E1E24',
-                borderRadius: 16,
-                padding: 16,
-                border: '1px solid rgba(255,255,255,0.06)',
-                cursor: 'pointer'
-              }}
-            >
-              <div style={{ color: '#EC6819', marginBottom: 8 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <rect x="2" y="14" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="2"/>
-                  <rect x="16" y="14" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M8 17H16" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M12 14V8" stroke="currentColor" strokeWidth="2"/>
-                  <circle cx="12" cy="6" r="2" stroke="currentColor" strokeWidth="2"/>
-                </svg>
-              </div>
-              <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, margin: 0 }}>Mis Máquinas</p>
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '2px 0 0' }}>Gestionar flota</p>
-            </div>
-
-            <div 
-              onClick={() => navigate('/provider/cobros')}
-              style={{
-                background: '#1E1E24',
-                borderRadius: 16,
-                padding: 16,
-                border: '1px solid rgba(255,255,255,0.06)',
-                cursor: 'pointer'
-              }}
-            >
-              <div style={{ color: '#4CAF50', marginBottom: 8 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M12 8V16M9 12H15" stroke="currentColor" strokeWidth="2"/>
-                </svg>
-              </div>
-              <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, margin: 0 }}>Mis Cobros</p>
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '2px 0 0' }}>Pagos y facturas</p>
-            </div>
-          </div>
-        )}
-
         {available && onboardingCompleted && activationAllComplete && (
           <div style={{
             background: '#2A2A2A',
