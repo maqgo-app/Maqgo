@@ -427,8 +427,7 @@ function HistoryScreen() {
             textAlign: 'center',
             lineHeight: 1.4
           }}>
-            📱 Para cualquier consulta o sugerencia, contacta a través de la aplicación. 
-            MAQGO es tu canal de comunicación seguro.
+            📱 ¿Necesitas ayuda? Abre el Asistente MAQGO (botón de chat) y escríbenos desde la app.
           </p>
         </div>
 

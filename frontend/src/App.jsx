@@ -147,6 +147,8 @@ function AppContent() {
     '/provider/data', '/provider/machine-data', '/provider/machine-photos',
     '/provider/machine-photos-pricing', '/provider/pricing', '/provider/operator-data', '/provider/review',
     '/provider/upload-invoice',
+    '/provider/add-machine', '/provider/edit-machine',
+    '/provider/profile/empresa', '/provider/profile/banco',
     '/client/machinery',
     '/client/confirm', '/client/billing', '/client/card-input', '/client/service-location',
     '/client/providers', '/client/hours-selection', '/client/searching', '/client/waiting-confirmation'
