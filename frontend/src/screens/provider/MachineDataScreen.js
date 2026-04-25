@@ -1,13 +1,12 @@
 import React, { useState, useLayoutEffect, useEffect, useCallback, useRef } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import PasswordField from '../../components/PasswordField';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../context/authHooks';
-import { updateMachine, getMachineById, upsertOnboardingMachine } from '../../utils/providerMachines';
+import { addMachine, updateMachine, getMachineById } from '../../utils/providerMachines';
 import { getMachineryCapacityOptions, getProviderSpecLabel } from '../../utils/machineryNames';
 import { getArray, getObject } from '../../utils/safeStorage';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
@@ -15,7 +14,6 @@ import { validateCelularChile } from '../../utils/chileanValidation';
 import { getPasswordHint, validatePassword, PASSWORD_RULES } from '../../utils/passwordValidation';
 import { getUserAuthState } from '../../utils/userAuthState';
 import { submitBecomeProviderMinimal, hasProviderRoleInStorage } from '../../utils/providerBecomeApi';
-import BACKEND_URL from '../../utils/api';
 import {
   REFERENCE_PRICES,
   REFERENCE_TRANSPORT,
@@ -139,13 +137,6 @@ function buildMachineForm(isEditMode, editMachine) {
     };
   }
   return { ...EMPTY_MACHINE_FORM };
-}
-
-/** Disponibilidad inicial sin pantalla extra (alineado a embudo simple; detalle en agenda después). */
-function defaultMachineFirstAvailabilityISO() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
 }
 
 /** Mismas reglas que el alta clásica `/provider/machine-data` (sin paso intermedio inventado). */
@@ -685,6 +676,18 @@ function MachineDataScreen() {
     if (mfStep === 3) setStepHint('');
   }, [isAddMachineEntry, isEditMode, mfStep]);
 
+  useEffect(() => {
+    if (!isAddMachineEntry || isEditMode) return;
+    const machines = getArray('providerMachines', []);
+    const hasRegisteredMachine = Array.isArray(machines)
+      ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))
+      : false;
+    if (hasRegisteredMachine) return;
+    const providerData = getObject('providerData', {});
+    const companyComplete = Boolean(providerData?.businessName && providerData?.rut);
+    navigate(companyComplete ? '/provider/machine-data' : '/provider/data', { replace: true });
+  }, [isAddMachineEntry, isEditMode, navigate]);
+
   useLayoutEffect(() => {
     if (!isAddMachineEntry || isEditMode) return;
     if (mfStep === 1) {
@@ -800,9 +803,14 @@ function MachineDataScreen() {
     const ok = await ensureProviderThenPublish();
     if (!ok) return;
 
-    const userId = localStorage.getItem('userId');
-    if (!userId) {
-      setPublishError('No hay sesión. Vuelve a la portada e inicia sesión.');
+    const machines = getArray('providerMachines', []);
+    const hasRegisteredMachine = Array.isArray(machines)
+      ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))
+      : false;
+    if (!hasRegisteredMachine) {
+      const providerData = getObject('providerData', {});
+      const companyComplete = Boolean(providerData?.businessName && providerData?.rut);
+      navigate(companyComplete ? '/provider/machine-data' : '/provider/data', { replace: true });
       return;
     }
 
@@ -811,7 +819,6 @@ function MachineDataScreen() {
       setPublishError('Falta el tipo de máquina.');
       return;
     }
-    const firstAvailableDate = defaultMachineFirstAvailabilityISO();
 
     const priceBaseNum = parseInt(String(priceBaseWizard).replace(/\D/g, ''), 10) || 0;
     const isPerHour = MACHINERY_PER_HOUR.includes(machineryType);
@@ -835,106 +842,47 @@ function MachineDataScreen() {
       }
     }
     const transportCost = needsTransport ? transportNum : 0;
-    const pricing = {
-      priceBase: priceBaseNum,
-      transportCost,
-      needsTransport,
-      isPerHour,
-      machineType: machineryType,
-    };
-
-    const typeName = MACHINERY_TYPES.find((m) => m.id === machineryType)?.name || 'Maquinaria';
     const plate = formatLicensePlateInput(form.licensePlate);
     if (!LICENSE_PLATE_REGEX.test(plate)) {
       setPublishError('Completa marca, modelo y patente válida (formato BBBB-44).');
       return;
     }
 
-    const machineDataFull = {
-      ...form,
-      machineryType,
-      licensePlate: plate,
-      firstAvailableDate,
-      serviceLocationLabel: DEFAULT_SERVICE_AREA_LABEL,
-      serviceLat: DEFAULT_SERVICE_LAT,
-      serviceLng: DEFAULT_SERVICE_LNG,
-      serviceComuna: '',
-    };
     const capOpts = getMachineryCapacityOptions(machineryType);
-    if (capOpts?.providerField) {
-      const raw = form[capOpts.providerField];
-      if (raw !== '' && raw != null) {
-        const num = String(raw).includes('.') ? parseFloat(raw) : parseInt(String(raw), 10);
-        if (Number.isFinite(num)) machineDataFull[capOpts.providerField] = num;
-      }
-    }
 
     setPublishLoading(true);
     try {
-      localStorage.setItem('machineData', JSON.stringify({ ...machineDataFull, type: typeName }));
-      localStorage.setItem('machinePricing', JSON.stringify(pricing));
-      try {
-        localStorage.setItem('serviceLocation', DEFAULT_SERVICE_AREA_LABEL);
-        localStorage.setItem('serviceLat', String(DEFAULT_SERVICE_LAT));
-        localStorage.setItem('serviceLng', String(DEFAULT_SERVICE_LNG));
-      } catch {
-        /* ignore */
-      }
-      const photosForStore = Array.isArray(mfPhotos) ? mfPhotos : [];
-      localStorage.setItem('machinePhotos', JSON.stringify(photosForStore));
-      localStorage.setItem('operatorsData', JSON.stringify([]));
-
-      let primaryPhoto = null;
-      if (photosForStore.length > 0) {
-        const first = photosForStore[0];
-        primaryPhoto = typeof first === 'string' ? first : first?.url || null;
-      }
-
-      const providerData = getObject('providerData', {});
-      const payload = {
-        providerData,
-        machineData: { ...machineDataFull, type: typeName, primaryPhoto },
+      const brandDisplay = [form.brand, form.model].filter(Boolean).join(' ').trim();
+      const next = {
+        machineryType,
+        brand: brandDisplay || form.brand || 'Nueva máquina',
+        model: form.model || '',
+        year: form.year || '',
+        licensePlate: plate,
+        pricePerHour: isPerHour ? priceBaseNum : null,
+        pricePerService: isPerHour ? null : priceBaseNum,
+        transportCost,
         operators: [],
-        onboarding_completed: true,
       };
-      if (machineryType) payload.machineryType = machineryType;
-
-      await axios.patch(`${BACKEND_URL}/api/users/${userId}`, payload, { timeout: 12000 });
-      try {
-        await axios.put(
-          `${BACKEND_URL}/api/users/${userId}/availability`,
-          { isAvailable: true, machineryType },
-          { timeout: 8000 }
-        );
-      } catch (e) {
-        if (import.meta.env.DEV) {
-          console.warn('MachineDataScreen machine-first: availability', e?.response?.status || e?.message);
+      if (capOpts?.providerField) {
+        const raw = form[capOpts.providerField];
+        if (raw !== '' && raw != null) {
+          const num = String(raw).includes('.') ? parseFloat(raw) : parseInt(String(raw), 10);
+          if (Number.isFinite(num)) next[capOpts.providerField] = num;
         }
       }
 
-      localStorage.setItem('providerOnboardingCompleted', 'true');
-      localStorage.removeItem('providerOnboardingStep');
-      try {
-        localStorage.removeItem('providerCameFromWelcome');
-      } catch {
-        /* ignore */
-      }
-      upsertOnboardingMachine(machineDataFull, pricing, []);
+      const created = addMachine(next);
+      const photosForStore = Array.isArray(mfPhotos) ? mfPhotos : [];
+      updateMachine(created.id, { photos: photosForStore });
 
-      try {
-        localStorage.setItem('providerAvailable', 'true');
-      } catch {
-        /* ignore */
-      }
-      toast.success('Tu máquina ha sido ingresada correctamente');
-      navigate('/provider/home', { replace: true, state: { showProfilePaymentsBanner: true } });
+      toast.success('Maquinaria guardada');
+      navigate('/provider/machines', {
+        replace: true,
+        state: { activationEdit: true, returnTo: '/provider/home', openOperatorForMachineId: created.id },
+      });
     } catch (e) {
-      const detail = e.response?.data?.detail;
-      let msg = 'No se pudo publicar. Intenta de nuevo.';
-      if (typeof detail === 'string') msg = detail;
-      else if (Array.isArray(detail) && detail[0]?.msg) msg = detail[0].msg;
-      else if (e.message) msg = e.message;
-      setPublishError(msg);
+      setPublishError(e?.message || 'No se pudo guardar la maquinaria. Intenta de nuevo.');
     } finally {
       setPublishLoading(false);
     }
@@ -1142,9 +1090,9 @@ function MachineDataScreen() {
             className="maqgo-h1"
             style={{ textAlign: 'center', marginBottom: mfStep === 2 ? 22 : 8 }}
           >
-            {mfStep === 1 && 'Publica tu máquina'}
+            {mfStep === 1 && 'Agregar maquinaria'}
             {mfStep === 2 && 'Fotos y tarifas'}
-            {mfStep === 3 && 'Revisa y publica'}
+            {mfStep === 3 && 'Revisa y guarda'}
           </h1>
           {mfStep === 2 && (
             <p
@@ -1157,13 +1105,13 @@ function MachineDataScreen() {
                 padding: '0 4px',
               }}
             >
-              Fotos opcionales. Tarifas obligatorias para publicar.
+              Fotos opcionales. Tarifas obligatorias para guardar.
             </p>
           )}
           {mfStep !== 2 && (
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 14, textAlign: 'center', marginBottom: 22 }}>
               {mfStep === 1 && 'Tipo, marca, modelo, capacidad si aplica y patente'}
-              {mfStep === 3 && 'Confirma máquina y tarifas. El resto lo completas en los pasos siguientes.'}
+              {mfStep === 3 && 'Confirma máquina y tarifas.'}
             </p>
           )}
 
@@ -1464,7 +1412,7 @@ function MachineDataScreen() {
               disabled={publishLoading || inlineLoading}
               style={{ opacity: publishLoading || inlineLoading ? 0.7 : 1 }}
             >
-              {publishLoading || inlineLoading ? 'Publicando…' : 'Publicar ahora'}
+              {publishLoading || inlineLoading ? 'Guardando…' : 'Guardar maquinaria'}
             </button>
           )}
         </div>

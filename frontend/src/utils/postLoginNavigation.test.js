@@ -101,7 +101,7 @@ describe('getPostLoginNavigation (invariante admin)', () => {
     ).toEqual({ kind: 'navigate', path: '/provider/data' });
   });
 
-  it('proveedor con redirect /provider/data + Welcome → add-machine', () => {
+  it('proveedor con redirect /provider/data + Welcome → /provider/data', () => {
     installLocalStorageMock({ userId: 'p1', providerCameFromWelcome: 'true' });
     expect(
       getPostLoginNavigation({
@@ -109,7 +109,7 @@ describe('getPostLoginNavigation (invariante admin)', () => {
         effectiveRole: 'provider',
         redirectTo: '/provider/data',
       })
-    ).toEqual({ kind: 'navigate', path: '/provider/add-machine' });
+    ).toEqual({ kind: 'navigate', path: '/provider/data' });
   });
 
   it('proveedor con deep link /provider/history → se respeta', () => {

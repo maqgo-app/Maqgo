@@ -95,7 +95,11 @@ export function isProviderOnboardingCompleteFromStorage() {
  */
 export function getProviderLandingPath() {
   if (isProviderCameFromWelcomeFlag()) {
-    return MACHINE_FIRST_ENTRY;
+    const machines = getArray('providerMachines', []);
+    const hasRegisteredMachine = Array.isArray(machines)
+      ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))
+      : false;
+    if (hasRegisteredMachine) return MACHINE_FIRST_ENTRY;
   }
   if (isProviderOnboardingCompleteFromStorage()) {
     return '/provider/home';

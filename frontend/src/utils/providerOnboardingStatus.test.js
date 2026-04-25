@@ -61,9 +61,9 @@ describe('providerOnboardingStatus', () => {
     expect(isProviderOnboardingCompleteFromStorage()).toBe(false);
   });
 
-  it('sin datos + providerCameFromWelcome → /provider/add-machine', () => {
+  it('sin datos + providerCameFromWelcome → /provider/data', () => {
     installLocalStorageMock({ providerCameFromWelcome: 'true' });
-    expect(getProviderLandingPath()).toBe('/provider/add-machine');
+    expect(getProviderLandingPath()).toBe('/provider/data');
   });
 
   it('cuatro pilares en LS → home', () => {
@@ -79,28 +79,36 @@ describe('providerOnboardingStatus', () => {
     expect(getProviderLandingPath()).toBe('/provider/home');
   });
 
-  it('Welcome (providerCameFromWelcome): siempre publicación primero → /provider/add-machine', () => {
+  it('Welcome (providerCameFromWelcome): sin máquina registrada sigue orden clásico', () => {
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
     });
-    expect(getProviderLandingPath()).toBe('/provider/add-machine');
+    expect(getProviderLandingPath()).toBe('/provider/machine-data');
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
       machineData: JSON.stringify({ machineryType: 'x', licensePlate: 'ZZ99' }),
     });
-    expect(getProviderLandingPath()).toBe('/provider/add-machine');
+    expect(getProviderLandingPath()).toBe('/provider/machines');
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
       machineData: JSON.stringify({ machineryType: 'x', licensePlate: 'ZZ99' }),
       operatorsData: JSON.stringify([{ id: '1' }]),
     });
+    expect(getProviderLandingPath()).toBe('/provider/machines');
+  });
+
+  it('Welcome + máquina registrada → /provider/add-machine (agregar rápida)', () => {
+    installLocalStorageMock({
+      providerCameFromWelcome: 'true',
+      providerMachines: JSON.stringify([{ id: 'mach_1', machineryType: 'x', licensePlate: 'ZZ99', operators: [] }]),
+    });
     expect(getProviderLandingPath()).toBe('/provider/add-machine');
   });
 
-  it('Welcome + onboarding completo en LS → sigue /provider/add-machine (no dashboard)', () => {
+  it('Welcome + onboarding completo en LS → /provider/add-machine (agregar rápida)', () => {
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerOnboardingCompleted: 'true',

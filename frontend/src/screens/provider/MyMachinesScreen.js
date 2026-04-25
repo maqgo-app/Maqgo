@@ -35,6 +35,7 @@ function MyMachinesScreen() {
   const location = useLocation();
   const activationEdit = Boolean(location.state?.activationEdit);
   const returnTo = String(location.state?.returnTo || '/provider/home');
+  const openOperatorForMachineId = location.state?.openOperatorForMachineId;
   const [machines, setMachines] = useState(() => getMachines());
   const [defaultByMachinery, setDefaultByMachinery] = useState(() =>
     getObject(STORAGE_KEY_DEFAULT_BY_MACHINERY, {})
@@ -45,6 +46,15 @@ function MyMachinesScreen() {
   const [deleteOperatorConfirm, setDeleteOperatorConfirm] = useState(null);
 
   const loadMachines = () => setMachines(getMachines());
+
+  useEffect(() => {
+    if (!openOperatorForMachineId) return;
+    const machine = getMachines().find((m) => m?.id === openOperatorForMachineId);
+    if (machine) {
+      setOperatorModal({ machine, operator: null });
+      navigate(location.pathname, { replace: true, state: { activationEdit, returnTo } });
+    }
+  }, [activationEdit, navigate, openOperatorForMachineId, location.pathname, returnTo]);
 
   const handleResetAllMachines = () => {
     resetMachines();

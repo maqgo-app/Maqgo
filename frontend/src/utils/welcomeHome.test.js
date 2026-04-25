@@ -70,14 +70,14 @@ describe('welcomeHome', () => {
       expect(getWelcomeAppHomePath()).toBe('/provider/data');
     });
 
-    it('proveedor titular con Welcome → /provider/add-machine', () => {
+    it('proveedor titular con Welcome → /provider/data', () => {
       installLocalStorageMock({
         userId: 'p1',
         userRole: 'provider',
         providerRole: 'super_master',
         providerCameFromWelcome: 'true',
       });
-      expect(getWelcomeAppHomePath()).toBe('/provider/add-machine');
+      expect(getWelcomeAppHomePath()).toBe('/provider/data');
     });
 
     it('proveedor pero desiredRole client (portada / arrendar) → /client/home', () => {
