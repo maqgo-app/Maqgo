@@ -274,7 +274,10 @@ function MachinePhotosPricingScreen() {
             padding: '0 4px',
           }}
         >
-          Fotos opcionales. Tarifas obligatorias para publicar.
+          <span style={{ display: 'block' }}>Fotos opcionales</span>
+          <span style={{ display: 'block' }}>
+            Son de uso interno de MAQGO y no serán visibles para clientes.
+          </span>
         </p>
         <p style={{ textAlign: 'center', marginBottom: 22 }}>
           <button

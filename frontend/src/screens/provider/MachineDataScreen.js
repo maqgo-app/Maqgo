@@ -1105,7 +1105,10 @@ function MachineDataScreen() {
                 padding: '0 4px',
               }}
             >
-              Fotos opcionales. Tarifas obligatorias para guardar.
+              <span style={{ display: 'block' }}>Fotos opcionales</span>
+              <span style={{ display: 'block' }}>
+                Son de uso interno de MAQGO y no serán visibles para clientes.
+              </span>
             </p>
           )}
           {mfStep !== 2 && (
