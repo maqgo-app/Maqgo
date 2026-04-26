@@ -37,25 +37,25 @@ function compressAvatar(dataUrl) {
 }
 
 /**
- * Pantalla: Onboarding de Operador
+ * Pantalla: Gerente Invitado (Onboarding con código de invitación)
  *
  * Flujo:
- * 1. Código del dueño
- * 2. Foto de perfil (opcional; la ven clientes al asignarte)
- * 3. Bienvenida → home operador
+ * 1. Código de invitación → POST /api/operators/masters/join
+ * 2. Confirmación de activación
+ * 3. Continuar al flujo OTP (login como proveedor)
  */
 function OperatorJoinScreen() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [code, setCode] = useState('');
-  const [step, setStep] = useState('code'); // 'code' | 'photo' | 'success'
+  const [step, setStep] = useState('code'); // 'code' | 'activated' | 'photo' | 'success'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [photoPreview, setPhotoPreview] = useState(null);
 
-  // Validar código y unirse directamente (flujo simple: solo código)
+  // Activar código de gerente invitado → POST /api/operators/masters/join
   const handleJoinWithCode = async () => {
     if (loading) return;
     if (code.length < 4) {
@@ -69,49 +69,32 @@ function OperatorJoinScreen() {
     setStatusMessage('Verificando código...');
 
     try {
-      const response = await axios.post(`${BACKEND_URL}/api/operators/join`, {
+      const response = await axios.post(`${BACKEND_URL}/api/operators/masters/join`, {
         code: code.toUpperCase()
       });
 
-      if (response.data.success) {
-        localStorage.setItem('userId', response.data.operator_id);
-        localStorage.setItem('userRole', 'provider');
-        localStorage.setItem('providerRole', 'operator');
-        localStorage.setItem('ownerId', response.data.owner_id);
-        if (response.data.token) localStorage.setItem('token', response.data.token);
-        localStorage.setItem('operatorName', 'Operador');
-        try {
-          localStorage.removeItem('operatorPhoto');
-        } catch {
-          /* ignore */
-        }
-
-        setOwnerName(response.data.owner_name);
-        setPhotoPreview(null);
-        setStep('photo');
+      if (response.data.success || response.status === 200) {
+        setOwnerName(response.data.owner_name || response.data.company_name || '');
+        setStep('activated');
         setStatusMessage('');
       }
     } catch (err) {
-      console.error('Error joining:', err);
+      console.error('Error activating invite code:', err);
       let msg = 'No pudimos validar el código. Verifica y vuelve a intentar.';
       if (err.response?.data?.detail) {
         const d = String(Array.isArray(err.response.data.detail) ? (err.response.data.detail[0]?.msg || '') : err.response.data.detail || '').toLowerCase();
         const hasInvalid = d.includes('inválido') || d.includes('invalido');
-        const hasUsed = d.includes('ya utilizado');
-        const hasMaster = d.includes('gerentes') || d.includes('master');
+        const hasUsed = d.includes('ya utilizado') || d.includes('usado');
         if (hasInvalid && hasUsed) {
-          // Mensaje combinado del backend: no sabemos la causa exacta.
-          msg = 'Código inválido o no disponible. Pide a tu empresa un código vigente de operador.';
+          msg = 'Código inválido o ya utilizado. Solicita un nuevo código de invitación.';
         } else if (hasInvalid) {
           msg = 'Código inválido. Revisa el código y vuelve a intentar.';
         } else if (hasUsed) {
-          msg = 'Este código ya fue usado. Pide uno nuevo a tu empresa.';
+          msg = 'Este código ya fue usado. Solicita uno nuevo a quien te invitó.';
         } else if (d.includes('expirado')) {
-          msg = 'Este código venció. Pide uno nuevo a tu empresa.';
-        } else if (hasMaster) {
-          msg = 'Este código es para gerente. Pide a tu empresa un código de operador.';
+          msg = 'Este código venció. Solicita un nuevo código de invitación.';
         } else {
-          msg = 'No pudimos validar el código. Pide a tu empresa un código nuevo.';
+          msg = 'No pudimos activar el código. Verifica e intenta nuevamente.';
         }
       } else if (err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
         msg = 'No pudimos conectarnos. Revisa tu internet e inténtalo de nuevo.';
@@ -121,6 +104,16 @@ function OperatorJoinScreen() {
     }
     
     setLoading(false);
+  };
+
+  // Continuar al flujo OTP como proveedor tras activar código
+  const handleContinueToOtp = () => {
+    try {
+      localStorage.setItem('desiredRole', 'provider');
+    } catch {
+      /* ignore */
+    }
+    navigate('/login', { state: { entry: 'provider' } });
   };
 
   const handlePhotoFile = async (e) => {
@@ -179,7 +172,7 @@ function OperatorJoinScreen() {
               margin: '0 0 10px',
               fontFamily: "'Space Grotesk', sans-serif"
             }}>
-              Únete como Operador
+              Me invitaron como gerente
             </h1>
             <p style={{ 
               color: 'rgba(255,255,255,0.9)', 
@@ -188,7 +181,7 @@ function OperatorJoinScreen() {
               margin: '0 0 30px',
               lineHeight: 1.5
             }}>
-              Ingresa el código que te compartió tu empresa. En segundos quedas listo para trabajar.
+              Ingresa el código de invitación que recibiste. Lo activaremos y luego te enviaremos un SMS para entrar.
             </p>
 
             {/* Input de código */}
@@ -244,15 +237,77 @@ function OperatorJoinScreen() {
               style={{ opacity: code.length < 4 ? 0.5 : 1 }}
               data-testid="validate-code-btn"
             >
-              {loading ? 'Verificando...' : 'Continuar'}
+              {loading ? 'Activando...' : 'Activar código y continuar'}
             </button>
 
             <div style={{ marginTop: 30, textAlign: 'center' }}>
               <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-                ¿No tienes código? Pídelo al dueño de la empresa
+                ¿No tienes código? Pídelo a quien te invitó como gerente
               </p>
             </div>
           </>
+        )}
+
+        {step === 'activated' && (
+          <div style={{ textAlign: 'center', paddingTop: 20 }}>
+            <div
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #EC6819 0%, #D45A10 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 24px',
+              }}
+            >
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                <path d="M9 12L11 14L15 10" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+
+            <h1 style={{
+              color: '#fff',
+              fontSize: 24,
+              fontWeight: 700,
+              margin: '0 0 12px',
+              fontFamily: "'Space Grotesk', sans-serif",
+            }}>
+              ¡Código activado!
+            </h1>
+
+            {ownerName ? (
+              <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, margin: '0 0 8px', lineHeight: 1.5 }}>
+                Quedaste vinculado a <strong style={{ color: '#EC6819' }}>{ownerName}</strong> como gerente.
+              </p>
+            ) : (
+              <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, margin: '0 0 8px', lineHeight: 1.5 }}>
+                Tu código de gerente fue activado correctamente.
+              </p>
+            )}
+
+            <p style={{
+              color: 'rgba(255,255,255,0.65)',
+              fontSize: 13,
+              margin: '0 0 32px',
+              lineHeight: 1.5,
+              padding: '12px 16px',
+              background: 'rgba(255,255,255,0.06)',
+              borderRadius: 12,
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}>
+              Ahora te enviaremos un SMS para verificar tu identidad y entrar a la plataforma.
+            </p>
+
+            <button
+              className="maqgo-btn-primary"
+              onClick={handleContinueToOtp}
+              data-testid="continue-to-otp-btn"
+            >
+              Continuar al SMS
+            </button>
+          </div>
         )}
 
         {step === 'photo' && (

@@ -5,7 +5,6 @@ import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 import { useWelcomeLayout } from '../hooks/useWelcomeLayout';
 import { shouldShowResumeBooking } from '../utils/abandonmentTracker';
 import {
-  getWelcomeAppHomePath,
   getWelcomeOperatorDestination,
   isAdminRoleStored,
 } from '../utils/welcomeHome';
@@ -110,35 +109,6 @@ function WelcomeScreen() {
     return <Navigate to="/admin" replace />;
   }
 
-  const handleAccount = () => {
-    if (hasSession) {
-      if (isAdminRoleStored()) {
-        navigate('/admin');
-        return;
-      }
-      // Portada = arrendar: “Mi cuenta” entra como cliente (no al embudo proveedor por userRole).
-      try {
-        localStorage.setItem('desiredRole', 'client');
-        localStorage.setItem('userRole', 'client');
-      } catch {
-        /* ignore */
-      }
-      navigate(getWelcomeAppHomePath());
-      return;
-    }
-    // No arrastrar intención vieja de "Ofrecer" / embudo machine-first (tras login no debe forzar /provider/add-machine).
-    try {
-      localStorage.removeItem('providerCameFromWelcome');
-      localStorage.setItem('desiredRole', 'client');
-    } catch {
-      /* ignore */
-    }
-    // Portada = mercado: "Iniciar sesión" entra como cliente (SMS por defecto). Quien se enroló como proveedor usa "Entrar con correo y contraseña" en Login.
-    traceRedirectToLogin('src/screens/WelcomeScreen.jsx (handleAccount → login, entry client)');
-    navigate('/login', {
-      state: { entry: 'client' },
-    });
-  };
 
   // Logo escala progresivamente según altura del viewport (p2→p6): más grande en pantallas altas
   const logoSize = isDesktop
@@ -336,22 +306,19 @@ function WelcomeScreen() {
             onClick={() => {
               try {
                 localStorage.setItem('desiredRole', 'provider');
-                // Si ya tiene sesión, actualizamos el rol activo
+                localStorage.setItem('providerCameFromWelcome', 'true');
                 if (hasSession) {
                   localStorage.setItem('userRole', 'provider');
                 }
               } catch {
                 /* ignore */
               }
-              const fromWelcome = true;
-              const finalRoute = '/provider/add-machine';
-              try {
-                localStorage.setItem('providerCameFromWelcome', 'true');
-              } catch {
-                /* ignore */
+              if (hasSession) {
+                navigate('/provider/add-machine');
+                return;
               }
-              console.log('PROVIDER FLOW ENTRY', { fromWelcome, finalRoute });
-              navigate(finalRoute);
+              traceRedirectToLogin('src/screens/WelcomeScreen.jsx (Ofrecer maquinaria CTA)');
+              navigate('/login', { state: { entry: 'provider' } });
             }}
             className="welcome-cta-secondary welcome-reveal"
             style={{ '--welcome-d': '270ms' }}
@@ -372,14 +339,14 @@ function WelcomeScreen() {
             className="welcome-cta-secondary welcome-reveal"
             style={{ '--welcome-d': '340ms' }}
             data-testid="operator-join-btn"
-            aria-label="Soy operador. Unirme con código de equipo."
+            aria-label="Me invitaron como gerente. Activar código de invitación."
           >
             <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.08)', color: '#C8C8C8' }}>
               <IconUser />
             </div>
             <div style={{ textAlign: 'left', minWidth: 0 }}>
-              <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Soy operador</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Unirme con código de equipo</div>
+              <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Me invitaron como gerente</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Tengo código de invitación</div>
             </div>
           </button>
             </>
@@ -422,24 +389,6 @@ function WelcomeScreen() {
         </main>
 
         <div style={{ textAlign: "center", marginTop: "20px" }}>
-
-  <div style={{ marginBottom: "18px" }}>
-    <button
-      onClick={handleAccount}
-      style={{
-        background: 'none',
-        border: 'none',
-        padding: 0,
-        fontFamily: 'inherit',
-        color: "#FF6B00",
-        fontSize: "14px",
-        textDecoration: "none",
-        cursor: 'pointer'
-      }}
-    >
-      Iniciar sesión
-    </button>
-  </div>
 
   <div className="welcome-legal-footer">
     <div className="welcome-legal-links" aria-label="Enlaces legales">

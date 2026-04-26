@@ -14,9 +14,14 @@ const ProtectedRoute = ({ children }) => {
   const path = window.location.pathname;
 
   // 🔒 BLOQUEO TOTAL DE CRUCE DE ROLES (incluye botón atrás)
-  // Un cliente nunca entra a /provider/*
+  // Un cliente nunca entra a /provider/* ni /operator/*
   if (isClientSession() && path.startsWith("/provider")) {
     console.log("PROTECTED_ROUTE: Client trying to access provider route. Redirecting to /client/home");
+    return <Navigate to="/client/home" replace />;
+  }
+
+  if (isClientSession() && path.startsWith("/operator")) {
+    console.log("PROTECTED_ROUTE: Client trying to access operator route. Redirecting to /client/home");
     return <Navigate to="/client/home" replace />;
   }
 

@@ -123,8 +123,16 @@ function LoginScreen({ setUserRole, setUserId }) {
                 ? 'client'
                 : null);
 
-  const isClientEntry = inferredEntry === 'client';
-  const isProviderEntry = inferredEntry === 'provider';
+  /** Rol elegido en el selector fallback (cuando llega sin contexto a /login). */
+  const [localDesiredRole, setLocalDesiredRole] = useState(null);
+
+  /** Rol efectivo: inferredEntry del contexto o el elegido en el selector fallback. */
+  const effectiveDesiredRole = inferredEntry || localDesiredRole;
+  const isClientEntry = effectiveDesiredRole === 'client';
+  const isProviderEntry = effectiveDesiredRole === 'provider';
+
+  /** Sin contexto de rol: mostrar selector fallback antes del formulario OTP. */
+  const showRoleFallbackSelector = !inferredEntry && !localDesiredRole && step === 'phone' && loginMode === 'sms';
 
   const [step, setStep] = useState('phone'); // 'phone' | 'otp'
   /** 'sms' = cliente u otro vía celular; 'email' = proveedor (u cuenta con clave) → POST /api/auth/login */
@@ -136,7 +144,8 @@ function LoginScreen({ setUserRole, setUserId }) {
   const showEmailPasswordToggle =
     step === 'phone' &&
     !isClientEntry &&
-    !isProviderEntry;
+    !isProviderEntry &&
+    !showRoleFallbackSelector;
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -390,6 +399,7 @@ function LoginScreen({ setUserRole, setUserId }) {
       const requestedRole =
         localStorage.getItem('desiredRole') ||
         location.state?.entry ||
+        localDesiredRole ||
         'client';
 
       const res = await axios.post(
@@ -479,7 +489,7 @@ function LoginScreen({ setUserRole, setUserId }) {
         return;
       }
       const deviceId = getDeviceId();
-      const requestedRole = localStorage.getItem('desiredRole') || (location.state?.entry) || 'client';
+      const requestedRole = localStorage.getItem('desiredRole') || (location.state?.entry) || localDesiredRole || 'client';
       
       const payload = {
         celular: `+56${nine}`,
@@ -593,11 +603,57 @@ function LoginScreen({ setUserRole, setUserId }) {
           fontSize: 24,
           fontWeight: 600,
           textAlign: 'center',
-          marginBottom: redirectTo === '/admin' ? 8 : (step === 'phone' || loginMode === 'email' ? 35 : 20),
+          marginBottom: redirectTo === '/admin' ? 8 : (step === 'phone' || loginMode === 'email' ? (showRoleFallbackSelector ? 12 : 16) : 20),
           marginTop: (step !== 'phone' && loginMode === 'sms') ? 20 : 0
         }}>
-          {loginMode === 'sms' && step === 'otp' ? 'Verificar código' : 'Iniciar sesión'}
+          {loginMode === 'sms' && step === 'otp'
+            ? 'Verificar código'
+            : isClientEntry
+              ? 'Acceso Clientes'
+              : isProviderEntry
+                ? 'Acceso Proveedores'
+                : showRoleFallbackSelector
+                  ? '¿Cómo quieres entrar?'
+                  : 'Iniciar sesión'}
         </h2>
+
+        {/* Descripción contextual según rol */}
+        {loginMode === 'sms' && step === 'phone' && (isClientEntry || isProviderEntry) && (
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, textAlign: 'center', marginBottom: 12, lineHeight: 1.45 }}>
+            Te enviaremos un código por SMS para verificar tu identidad.
+          </p>
+        )}
+
+        {/* Badge de rol */}
+        {loginMode === 'sms' && (step === 'phone' || step === 'otp') && (isClientEntry || isProviderEntry) && (
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            marginBottom: step === 'otp' ? 16 : 20,
+          }}>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '5px 14px',
+              borderRadius: 9999,
+              background: isClientEntry ? 'rgba(236, 104, 25, 0.15)' : 'rgba(144, 189, 211, 0.15)',
+              border: `1px solid ${isClientEntry ? 'rgba(236, 104, 25, 0.4)' : 'rgba(144, 189, 211, 0.4)'}`,
+              color: isClientEntry ? '#EC6819' : '#90BDD3',
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: '0.02em',
+            }}>
+              <span style={{ fontSize: 10 }}>●</span>
+              {step === 'otp'
+                ? `Verificando acceso como ${isClientEntry ? 'Cliente' : 'Proveedor'}`
+                : `Estás entrando como: ${isClientEntry ? 'Cliente' : 'Proveedor'}`}
+            </span>
+          </div>
+        )}
+
         {redirectTo === '/admin' && (
           <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textAlign: 'center', marginBottom: 27 }}>
             Acceso al panel de administración MAQGO
@@ -634,6 +690,78 @@ function LoginScreen({ setUserRole, setUserId }) {
                 : 'Entrar con celular (código SMS)'}
             </button>
           </p>
+        )}
+
+        {/* Selector fallback: solo cuando llega directo a /login sin contexto de rol */}
+        {showRoleFallbackSelector && (
+          <div style={{ marginBottom: 28 }}>
+            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, textAlign: 'center', marginBottom: 20, lineHeight: 1.45 }}>
+              Toca para continuar con tu celular
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  try { localStorage.setItem('desiredRole', 'client'); } catch { /* ignore */ }
+                  setLocalDesiredRole('client');
+                }}
+                style={{
+                  width: '100%',
+                  padding: '15px 18px',
+                  borderRadius: 14,
+                  background: 'linear-gradient(135deg, #EC6819 0%, #D45A10 100%)',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  boxShadow: '0 4px 22px rgba(236, 104, 25, 0.28)',
+                  fontFamily: 'inherit',
+                }}
+                data-testid="fallback-client-btn"
+              >
+                <span style={{ fontSize: 20 }}>🏗️</span>
+                <div>
+                  <div>Soy Cliente</div>
+                  <div style={{ fontSize: 12, fontWeight: 400, opacity: 0.9, marginTop: 2 }}>Necesito maquinaria</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try { localStorage.setItem('desiredRole', 'provider'); } catch { /* ignore */ }
+                  setLocalDesiredRole('provider');
+                }}
+                style={{
+                  width: '100%',
+                  padding: '15px 18px',
+                  borderRadius: 14,
+                  background: 'rgba(22, 22, 28, 0.72)',
+                  border: '1px solid rgba(255,255,255,0.19)',
+                  color: '#FAFAFA',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  fontFamily: 'inherit',
+                }}
+                data-testid="fallback-provider-btn"
+              >
+                <span style={{ fontSize: 20 }}>🏢</span>
+                <div>
+                  <div>Soy Proveedor</div>
+                  <div style={{ fontSize: 12, fontWeight: 400, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>Tengo maquinaria</div>
+                </div>
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Formulario */}
@@ -708,7 +836,7 @@ function LoginScreen({ setUserRole, setUserId }) {
             </>
           )}
 
-          {loginMode === 'sms' && step === 'phone' && (
+          {loginMode === 'sms' && step === 'phone' && !showRoleFallbackSelector && (
             <>
               <label
                 htmlFor="login-phone"
@@ -988,7 +1116,7 @@ function LoginScreen({ setUserRole, setUserId }) {
         </div>
 
         {/* Botón */}
-        {!(loginMode === 'sms' && step === 'password_verify' && stepUpRequiresPasswordSetup) && (
+        {!(loginMode === 'sms' && step === 'password_verify' && stepUpRequiresPasswordSetup) && !showRoleFallbackSelector && (
           <button
             className="maqgo-btn-primary"
             onClick={
@@ -1049,7 +1177,7 @@ function LoginScreen({ setUserRole, setUserId }) {
               : loginMode === 'email'
                 ? 'Entrar'
                 : step === 'phone'
-                  ? 'Continuar'
+                  ? (isClientEntry || isProviderEntry ? 'Enviar código' : 'Continuar')
                   : step === 'otp'
                     ? 'Confirmar código'
                     : redirectTo === '/admin'
