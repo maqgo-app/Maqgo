@@ -243,7 +243,6 @@ PERMISSIONS = {
     ],
     'operator': [
         'view_assigned_services',
-        'accept_requests',  # Si el dueño lo permite
         'update_service_status',
         'view_own_rating'
     ]

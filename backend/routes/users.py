@@ -2,6 +2,7 @@
 STABLE MODULE — NO MODIFICAR SIN REVISIÓN DE PRODUCCIÓN
 """
 import re
+import math
 
 from fastapi import APIRouter, HTTPException, Body, Depends
 from typing import Any, Dict, List, Optional
@@ -11,6 +12,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from auth_dependency import verify_user_access, get_current_user
 from security.policy import AccessPolicy
 from models.user import User, UserCreate, ProviderAvailabilityUpdate
+from utils.rbac import has_permission
 from motor.motor_asyncio import AsyncIOMotorClient
 import bcrypt
 
@@ -185,18 +187,24 @@ async def update_availability(
 ):
     """
     Actualizar disponibilidad del proveedor.
-    También actualiza tipo de maquinaria y ubicación si se proporcionan.
     """
+    doc = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    desired_available = bool(body.get("isAvailable", False))
+    if desired_available and not _is_provider_activation_complete({**doc, **{"isAvailable": desired_available}}):
+        raise HTTPException(
+            status_code=409,
+            detail="Antes de conectarte, completa tu activación (empresa, máquina, operador, banco y ubicación).",
+        )
+
     update_data = {
-        'isAvailable': body.get('isAvailable', False)
+        'isAvailable': desired_available
     }
     
     if body.get('machineryType'):
         update_data['machineryType'] = body['machineryType']
-    
-    if body.get('location'):
-        update_data['location'] = body['location']
-        update_data['locationUpdatedAt'] = datetime.now(timezone.utc).isoformat()
     
     result = await db.users.update_one(
         {'id': user_id},
@@ -210,6 +218,81 @@ async def update_availability(
         'message': 'Disponibilidad actualizada',
         **update_data
     }
+
+
+def _to_float(value):
+    if value is None:
+        return None
+    try:
+        n = float(value)
+        if not math.isfinite(n):
+            return None
+        return n
+    except Exception:
+        return None
+
+
+def _provider_dispatch_location(user_doc: dict):
+    loc = user_doc.get("location") if isinstance(user_doc, dict) else None
+    if isinstance(loc, dict):
+        lat = _to_float(loc.get("lat"))
+        lng = _to_float(loc.get("lng"))
+        if lat is not None and lng is not None:
+            return {"lat": lat, "lng": lng}
+    pdata = user_doc.get("providerData") if isinstance(user_doc, dict) else None
+    if isinstance(pdata, dict):
+        lat = _to_float(pdata.get("addressLat"))
+        lng = _to_float(pdata.get("addressLng"))
+        if lat is not None and lng is not None:
+            return {"lat": lat, "lng": lng}
+    return None
+
+
+def _is_bank_data_complete(user_doc: dict) -> bool:
+    pdata = user_doc.get("providerData") if isinstance(user_doc, dict) else None
+    if not isinstance(pdata, dict):
+        return False
+    bank_data = pdata.get("bankData")
+    if not isinstance(bank_data, dict):
+        return False
+    return bool(
+        bank_data.get("bank")
+        and bank_data.get("accountType")
+        and bank_data.get("accountNumber")
+        and bank_data.get("holderName")
+        and bank_data.get("holderRut")
+    )
+
+
+def _has_any_operator(user_doc: dict) -> bool:
+    ops = user_doc.get("operators")
+    if isinstance(ops, list) and len(ops) > 0:
+        return True
+    mdata = user_doc.get("machineData") if isinstance(user_doc, dict) else None
+    if isinstance(mdata, dict):
+        ops2 = mdata.get("operators")
+        if isinstance(ops2, list) and len(ops2) > 0:
+            return True
+    return False
+
+
+def _is_provider_activation_complete(user_doc: dict) -> bool:
+    if not isinstance(user_doc, dict):
+        return False
+    if user_doc.get("owner_id"):
+        return False
+    if user_doc.get("provider_role") == "operator":
+        return False
+    if not bool(user_doc.get("onboarding_completed")):
+        return False
+    pdata = user_doc.get("providerData") if isinstance(user_doc.get("providerData"), dict) else {}
+    mdata = user_doc.get("machineData") if isinstance(user_doc.get("machineData"), dict) else {}
+    company_ok = bool((pdata.get("businessName") or "").strip()) and bool((pdata.get("rut") or "").strip())
+    machine_ok = bool((mdata.get("machineryType") or "").strip()) and bool((mdata.get("licensePlate") or "").strip())
+    operator_ok = _has_any_operator(user_doc)
+    bank_ok = _is_bank_data_complete(user_doc)
+    location_ok = _provider_dispatch_location(user_doc) is not None
+    return bool(company_ok and machine_ok and operator_ok and bank_ok and location_ok)
 
 @router.put("/{user_id}/profile", response_model=dict)
 async def update_profile(
@@ -292,7 +375,7 @@ async def become_provider(
         "password": _hash_password(body.password),
         "roles": new_roles,
         "role": "provider",
-        "isAvailable": True,
+        "isAvailable": False,
         "phoneVerified": True,
     }
     if email_low:
@@ -397,7 +480,7 @@ async def patch_user(
         update_data["role"] = "provider"
         if not doc.get("provider_role"):
             update_data["provider_role"] = "super_master"
-        update_data["isAvailable"] = True
+        update_data["isAvailable"] = False
         update_data["phoneVerified"] = True
 
     # Para matching: si viene machineData con machineryType, sincronizar a nivel raíz
@@ -411,6 +494,14 @@ async def patch_user(
         avail = bool(body['available'])
         update_data['available'] = avail
         update_data['isAvailable'] = avail
+
+    if update_data.get("isAvailable") is True:
+        candidate = {**doc, **update_data}
+        if not _is_provider_activation_complete(candidate):
+            raise HTTPException(
+                status_code=409,
+                detail="Antes de conectarte, completa tu activación (empresa, máquina, operador, banco y ubicación).",
+            )
 
     if not update_data:
         raise HTTPException(status_code=400, detail="No hay campos válidos para actualizar")
@@ -599,7 +690,7 @@ async def get_user_role(
             'can_manage_operators': has_full_visibility,
             'can_manage_masters': is_super_master,  # Solo Titular puede invitar Masters
             'can_view_bank_data': has_full_visibility,
-            'can_accept_requests': True,  # Todos pueden aceptar
+            'can_accept_requests': has_permission(user, 'accept_requests'),
             'can_view_services': True
         }
     }

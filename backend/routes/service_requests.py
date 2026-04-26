@@ -30,6 +30,7 @@ from services.payment_rollout import (
     record_legacy_booking_id_generated,
     resolve_idempotency_key,
 )
+from utils.rbac import has_permission
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ServerSelectionTimeoutError
 from datetime import datetime, timezone
@@ -39,6 +40,85 @@ import logging
 from rate_limit import limiter
 
 logger = logging.getLogger(__name__)
+
+def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        s = str(value).strip()
+        if not s:
+            return None
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
+
+
+def _operator_gps_confirmed_for_accept(user: dict, req: dict) -> bool:
+    if user.get("provider_role") != "operator":
+        return False
+    loc = req.get("confirmedDepartureLocation") or {}
+    if str(loc.get("source") or "").lower() != "gps":
+        return False
+    if str(loc.get("confirmedByUserId") or "") != str(user.get("id") or ""):
+        return False
+    eta = req.get("etaCommitMinutes")
+    if not isinstance(eta, int) or eta <= 0:
+        return False
+    eta_by = req.get("etaConfirmedByUserId")
+    if eta_by and str(eta_by) != str(user.get("id") or ""):
+        return False
+    confirmed_at = _parse_iso_datetime(loc.get("confirmedAt")) or _parse_iso_datetime(req.get("etaConfirmedAt"))
+    if not confirmed_at:
+        return False
+    age_sec = (datetime.now(timezone.utc) - confirmed_at).total_seconds()
+    if age_sec < 0:
+        age_sec = 0
+    return age_sec <= 15 * 60
+
+def _format_cl_phone_e164(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if s.startswith("+"):
+        return s
+    digits = "".join([c for c in s if c.isdigit()])
+    if not digits:
+        return None
+    if digits.startswith("56") and len(digits) >= 11:
+        return f"+{digits}"
+    if len(digits) == 9 and digits.startswith("9"):
+        return f"+56{digits}"
+    return f"+{digits}"
+
+
+def _format_clp(amount: Optional[float]) -> str:
+    try:
+        n = float(amount or 0)
+        return f"${int(round(n)):,}".replace(",", ".")
+    except Exception:
+        return "$0"
+
+
+def _best_location_string(req: dict) -> str:
+    loc = req.get("location")
+    if isinstance(loc, dict):
+        a = loc.get("address") or loc.get("name")
+        if a:
+            return str(a)
+    if loc:
+        return str(loc)
+    for k in ("locationName", "location_name", "location_name_text", "address"):
+        v = req.get(k)
+        if v:
+            return str(v)
+    return "Ubicación no disponible"
 
 
 def _attach_client_matching_view(req: dict) -> None:
@@ -384,6 +464,46 @@ async def get_pending_requests_for_provider(
     
     return active_requests
 
+
+@router.get("/admin/active", response_model=List[dict])
+async def admin_active_service_requests(
+    limit: int = 200,
+    current_admin: dict = Depends(get_current_admin_strict),
+):
+    statuses = ["matching", "offer_sent", "confirmed", "in_progress", "last_30"]
+    q = {"status": {"$in": statuses}}
+    reqs = await db.service_requests.find(q, {"_id": 0}).sort("createdAt", -1).to_list(max(1, min(limit, 500)))
+    return reqs
+
+
+@router.post("/{request_id}/admin/expire-offer", response_model=dict)
+async def admin_expire_offer_now(
+    request_id: str,
+    current_admin: dict = Depends(get_current_admin_strict),
+):
+    req = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
+    if not req:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    if req.get("status") != "offer_sent":
+        raise HTTPException(status_code=409, detail="La solicitud no está en estado offer_sent")
+    provider_id = req.get("currentOfferId")
+    if not provider_id:
+        raise HTTPException(status_code=409, detail="La solicitud no tiene currentOfferId activo")
+    out = await handle_offer_expired(db, request_id, provider_id)
+    return {"status": "ok", "result": out}
+
+
+@router.post("/{request_id}/admin/retry-matching", response_model=dict)
+async def admin_retry_matching(
+    request_id: str,
+    current_admin: dict = Depends(get_current_admin_strict),
+):
+    req = await db.service_requests.find_one({"id": request_id}, {"_id": 0, "status": 1})
+    if not req:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    out = await start_matching(db, request_id)
+    return {"status": "ok", "result": out}
+
 @router.get("/{request_id}", response_model=dict)
 @limiter.limit("120/minute")
 async def get_service_request(
@@ -411,6 +531,93 @@ async def get_service_request(
     
     return request
 
+
+class ProviderIntentBody(BaseModel):
+    departureLocation: dict
+    etaMinutes: int
+
+
+@router.post("/{request_id}/intent", response_model=dict)
+async def provider_intent(
+    request_id: str,
+    body: ProviderIntentBody,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Preconfirmación sin cobro (especialmente para Inicio hoy):
+    - Confirma ubicación real de salida (coords)
+    - Registra ETA comprometido (minutos)
+    """
+    req = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
+    if not req:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+    if req.get("status") != "offer_sent":
+        raise HTTPException(status_code=400, detail="Esta solicitud ya no está disponible")
+
+    if current_user.get("role") != "admin":
+        ep = _effective_provider_account_id(current_user)
+        if not ep or req.get("currentOfferId") != ep:
+            raise HTTPException(status_code=403, detail="Sin permiso para confirmar esta oferta")
+
+    loc = body.departureLocation or {}
+    lat = loc.get("lat")
+    lng = loc.get("lng")
+    if lat is None or lng is None:
+        raise HTTPException(status_code=400, detail="departureLocation requiere lat y lng")
+
+    try:
+        lat_f = float(lat)
+        lng_f = float(lng)
+    except Exception:
+        raise HTTPException(status_code=400, detail="departureLocation lat/lng inválidos")
+
+    eta = int(body.etaMinutes or 0)
+    if eta <= 0:
+        raise HTTPException(status_code=400, detail="etaMinutes inválido")
+
+    now = datetime.now(timezone.utc)
+    role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
+    confirmed_loc = {
+        "lat": lat_f,
+        "lng": lng_f,
+        "address": loc.get("address") or "",
+        "source": loc.get("source") or "manual",
+        "confirmedAt": now.isoformat(),
+        "confirmedByUserId": current_user.get("id"),
+        "confirmedByRole": role,
+    }
+
+    await db.service_requests.update_one(
+        {"id": request_id, "status": "offer_sent"},
+        {
+            "$set": {
+                "providerIntentAt": now.isoformat(),
+                "providerIntentByUserId": current_user.get("id"),
+                "providerIntentByRole": role,
+                "confirmedDepartureLocation": confirmed_loc,
+                "etaCommitMinutes": eta,
+                "etaConfirmedAt": now.isoformat(),
+                "etaConfirmedByUserId": current_user.get("id"),
+                "etaConfirmedByRole": role,
+            }
+        },
+    )
+
+    urgency_window = req.get("urgencyWindowMinutes")
+    ready = True
+    if str(req.get("reservationType") or "").lower() == "immediate":
+        ready = bool(lat_f and lng_f and eta > 0)
+        if isinstance(urgency_window, int) and urgency_window > 0:
+            ready = ready and eta <= urgency_window
+
+    return {
+        "success": True,
+        "readyForAccept": bool(ready),
+        "confirmedDepartureLocation": confirmed_loc,
+        "etaCommitMinutes": eta,
+    }
+
 @router.put("/{request_id}/accept", response_model=dict)
 async def accept_service_request(
     request_id: str,
@@ -433,6 +640,10 @@ async def accept_service_request(
     )
 
     provider_id = body.get("providerId")
+    if current_user.get("role") != "admin":
+        effective = _effective_provider_account_id(current_user)
+        if effective:
+            provider_id = effective
     if not provider_id:
         raise HTTPException(status_code=400, detail="providerId requerido")
 
@@ -442,6 +653,23 @@ async def accept_service_request(
         req = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
         if not req:
             raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+        reservation_type = str(req.get("reservationType") or "").lower()
+        if reservation_type == "immediate":
+            loc = req.get("confirmedDepartureLocation") or {}
+            has_coords = loc.get("lat") is not None and loc.get("lng") is not None
+            eta = req.get("etaCommitMinutes")
+            if not has_coords or not isinstance(eta, int) or eta <= 0:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Antes de aceptar una solicitud inmediata debes confirmar ubicación de salida y tiempo de llegada.",
+                )
+            urgency_window = req.get("urgencyWindowMinutes")
+            if isinstance(urgency_window, int) and urgency_window > 0 and eta > urgency_window:
+                raise HTTPException(
+                    status_code=409,
+                    detail="El tiempo de llegada informado no cumple la urgencia del cliente.",
+                )
 
         offered_provider_id = provider_id
         pending_ids = [
@@ -459,6 +687,33 @@ async def accept_service_request(
 
         if req.get("status") != "offer_sent":
             raise HTTPException(status_code=400, detail="Esta solicitud ya no está disponible")
+
+        provider_role = current_user.get("provider_role") or (
+            "operator" if current_user.get("owner_id") else "super_master"
+        )
+        if current_user.get("role") != "admin":
+            if provider_role == "operator":
+                if not _operator_gps_confirmed_for_accept(current_user, req):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Como operador, para aceptar debes tener GPS activo y confirmar ubicación/tiempo de llegada.",
+                    )
+            elif not has_permission(current_user, "accept_requests"):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Tu rol no tiene permisos para aceptar esta solicitud",
+                )
+
+        accepted_role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
+        await db.service_requests.update_one(
+            {"id": request_id, "status": "offer_sent"},
+            {
+                "$set": {
+                    "acceptedByUserId": current_user.get("id"),
+                    "acceptedByRole": accepted_role,
+                }
+            },
+        )
 
         result = await handle_offer_response(db, request_id, offered_provider_id, accepted=True)
 
@@ -488,10 +743,79 @@ async def accept_service_request(
                 raise HTTPException(status_code=400, detail="Error procesando el pago")
 
             result["payment"] = payment_result
+
+            if provider_role == "operator" and current_user.get("owner_id"):
+                owner = await db.users.find_one(
+                    {"id": current_user.get("owner_id")},
+                    {"_id": 0, "phone": 1, "name": 1},
+                )
+                owner_phone = _format_cl_phone_e164(owner.get("phone") if isinstance(owner, dict) else None)
+                operator_name = str(current_user.get("name") or "").strip() or "Operador"
+                eta_minutes = int(req.get("etaCommitMinutes") or 0)
+                location_text = _best_location_string(req)
+                amount_text = _format_clp(req.get("providerEarnings"))
+
+                mirror_status = "skipped"
+                mirror_error = None
+                mirror_channel = "whatsapp"
+                mirror_to = owner_phone or ""
+
+                if owner_phone:
+                    try:
+                        from communications import notify_owner_operator_accepted
+
+                        r_notify = notify_owner_operator_accepted(
+                            owner_phone=owner_phone,
+                            operator_name=operator_name,
+                            location=location_text,
+                            eta_minutes=eta_minutes,
+                            amount=amount_text,
+                            request_id=str(request_id),
+                        )
+                        if r_notify.get("success"):
+                            mirror_status = "sent"
+                        else:
+                            mirror_status = "failed"
+                            mirror_error = r_notify.get("error")
+                    except Exception as e:
+                        mirror_status = "failed"
+                        mirror_error = str(e)
+                else:
+                    mirror_status = "failed"
+                    mirror_error = "owner_phone_missing"
+
+                now_iso = datetime.now(timezone.utc).isoformat()
+                await db.service_requests.update_one(
+                    {"id": request_id, "$or": [{"events": {"$exists": False}}, {"events": None}]},
+                    {"$set": {"events": []}},
+                )
+                await db.service_requests.update_one(
+                    {"id": request_id},
+                    {
+                        "$set": {
+                            "ownerMirrorNotifiedAt": now_iso,
+                            "ownerMirrorNotifiedChannel": mirror_channel,
+                            "ownerMirrorNotifiedTo": mirror_to,
+                            "ownerMirrorNotifiedStatus": mirror_status,
+                            "ownerMirrorNotifiedError": mirror_error,
+                        },
+                        "$push": {
+                            "events": {
+                                "type": "owner_mirror_operator_accept",
+                                "createdAt": now_iso,
+                                "channel": mirror_channel,
+                                "to": mirror_to,
+                                "status": mirror_status,
+                                "error": mirror_error,
+                            }
+                        },
+                    },
+                )
             booking_id = req.get("bookingId")
             if booking_id:
                 try:
                     await payment_intent_service.set_state(
+                        booking_id,
                         booking_id,
                         PI_PROVIDER_ACCEPTED,
                         last_idempotency_key=idempotency_key,

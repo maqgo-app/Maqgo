@@ -93,6 +93,30 @@ class ServiceRequest(BaseModel):
     # Tipo de reserva
     reservationType: str = 'immediate'  # immediate | scheduled
     scheduledDate: Optional[str] = None
+
+    # Urgencia (solo para immediate; scheduled puede omitirse)
+    urgencyType: Optional[str] = None  # urgent | express | today | (otros)
+    urgencyWindowMinutes: Optional[int] = None
+
+    # Confirmación operativa para inmediata (origen + ETA comprometido)
+    confirmedDepartureLocation: Optional[dict] = None  # { lat, lng, address?, source, confirmedAt, confirmedByUserId, confirmedByRole }
+    etaCommitMinutes: Optional[int] = None
+    etaConfirmedAt: Optional[str] = None
+    etaConfirmedByUserId: Optional[str] = None
+    etaConfirmedByRole: Optional[str] = None
+
+    # Auditoría de intención/aceptación (separar quién hizo click vs cuenta dueña)
+    providerIntentAt: Optional[str] = None
+    providerIntentByUserId: Optional[str] = None
+    providerIntentByRole: Optional[str] = None
+    acceptedByUserId: Optional[str] = None
+    acceptedByRole: Optional[str] = None
+
+    ownerMirrorNotifiedAt: Optional[str] = None
+    ownerMirrorNotifiedChannel: Optional[str] = None
+    ownerMirrorNotifiedTo: Optional[str] = None
+    ownerMirrorNotifiedStatus: Optional[str] = None
+    ownerMirrorNotifiedError: Optional[str] = None
     
     # Booking estable (cliente) — enlaza payment_intent ↔ service_request
     bookingId: Optional[str] = None
@@ -125,6 +149,8 @@ class ServiceRequestCreate(BaseModel):
     workdayAccepted: bool = True  # Cliente debe aceptar la jornada
     reservationType: str = 'immediate'  # immediate | scheduled
     scheduledDate: Optional[str] = None
+    urgencyType: Optional[str] = None
+    urgencyWindowMinutes: Optional[int] = None
 
 
 # Configuración de comisiones MAQGO con IVA

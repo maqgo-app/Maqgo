@@ -173,6 +173,71 @@ def _get_provider_coords(provider: dict) -> tuple[float, float]:
     except (TypeError, ValueError):
         return -33.45, -70.66
 
+
+def _has_real_provider_coords(provider: dict) -> bool:
+    loc = provider.get("location")
+    if isinstance(loc, dict) and loc.get("lat") is not None and loc.get("lng") is not None:
+        try:
+            float(loc.get("lat"))
+            float(loc.get("lng"))
+            return True
+        except (TypeError, ValueError):
+            return False
+    pdata = provider.get("providerData")
+    if isinstance(pdata, dict) and pdata.get("addressLat") is not None and pdata.get("addressLng") is not None:
+        try:
+            float(pdata.get("addressLat"))
+            float(pdata.get("addressLng"))
+            return True
+        except (TypeError, ValueError):
+            return False
+    return False
+
+
+def _is_bank_data_complete(provider: dict) -> bool:
+    pdata = provider.get("providerData")
+    if not isinstance(pdata, dict):
+        return False
+    bank_data = pdata.get("bankData")
+    if not isinstance(bank_data, dict):
+        return False
+    return bool(
+        bank_data.get("bank")
+        and bank_data.get("accountType")
+        and bank_data.get("accountNumber")
+        and bank_data.get("holderName")
+        and bank_data.get("holderRut")
+    )
+
+
+def _has_any_operator(provider: dict) -> bool:
+    ops = provider.get("operators")
+    if isinstance(ops, list) and len(ops) > 0:
+        return True
+    md = provider.get("machineData")
+    if isinstance(md, dict):
+        ops2 = md.get("operators")
+        if isinstance(ops2, list) and len(ops2) > 0:
+            return True
+    return False
+
+
+def _is_provider_activation_complete(provider: dict) -> bool:
+    if provider.get("owner_id"):
+        return False
+    if provider.get("provider_role") == "operator":
+        return False
+    if not bool(provider.get("onboarding_completed")):
+        return False
+    pdata = provider.get("providerData") if isinstance(provider.get("providerData"), dict) else {}
+    mdata = provider.get("machineData") if isinstance(provider.get("machineData"), dict) else {}
+    company_ok = bool((pdata.get("businessName") or "").strip()) and bool((pdata.get("rut") or "").strip())
+    machine_ok = bool((mdata.get("machineryType") or "").strip()) and bool((mdata.get("licensePlate") or "").strip())
+    operator_ok = _has_any_operator(provider)
+    bank_ok = _is_bank_data_complete(provider)
+    location_ok = _has_real_provider_coords(provider)
+    return bool(company_ok and machine_ok and operator_ok and bank_ok and location_ok)
+
 @router.get("/match")
 async def match_providers(
     machinery_type: str = Query(..., description="Tipo de maquinaria requerida"),
@@ -205,7 +270,11 @@ async def match_providers(
             "role": "provider",
             # Campo de disponibilidad alineado con el resto del backend
             "isAvailable": True,
-            "onboarding_completed": True
+            "onboarding_completed": True,
+            "$and": [
+                {"$or": [{"owner_id": {"$exists": False}}, {"owner_id": None}, {"owner_id": ""}]},
+                {"$or": [{"provider_role": {"$exists": False}}, {"provider_role": None}, {"provider_role": {"$ne": "operator"}}]},
+            ],
         }
         
         # Proyección: solo campos necesarios para matching y respuesta (nunca password ni datos sensibles)
@@ -215,6 +284,7 @@ async def match_providers(
             "name": 1,
             "providerData": 1,
             "machineData": 1,
+            "operators": 1,
             "latitude": 1,
             "longitude": 1,
             "location": 1,
@@ -251,6 +321,8 @@ async def match_providers(
         eligible_providers = []
         
         for provider in all_providers:
+            if not _is_provider_activation_complete(provider):
+                continue
             # No filtrar por factura: cliente con factura ve a todos; el precio mostrado ya refleja con/sin IVA
             # Verificar maquinaria compatible
             machine_data = provider.get('machineData', {})
@@ -322,10 +394,19 @@ async def match_providers(
             # Contar proveedores para mañana (misma maquinaria, sin filtro de disponibilidad inmediata)
             tomorrow_count = 0
             tomorrow_cursor = db.users.find(
-                {"role": "provider", "onboarding_completed": True},
-                {"machineData": 1, "latitude": 1, "longitude": 1, "providerData": 1, "location": 1}
+                {
+                    "role": "provider",
+                    "onboarding_completed": True,
+                    "$and": [
+                        {"$or": [{"owner_id": {"$exists": False}}, {"owner_id": None}, {"owner_id": ""}]},
+                        {"$or": [{"provider_role": {"$exists": False}}, {"provider_role": None}, {"provider_role": {"$ne": "operator"}}]},
+                    ],
+                },
+                {"machineData": 1, "operators": 1, "latitude": 1, "longitude": 1, "providerData": 1, "location": 1}
             )
             async for p in tomorrow_cursor:
+                if not _is_provider_activation_complete(p):
+                    continue
                 if p.get('machineData', {}).get('machineryType') == machinery_type:
                     ploc = _get_provider_coords(p)
                     if haversine_distance(client_lat, client_lng, ploc[0], ploc[1]) <= max_radius:

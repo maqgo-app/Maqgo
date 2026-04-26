@@ -195,9 +195,87 @@ def calculate_distance(lat1: float, lng1: float, lat2: float, lng2: float) -> fl
     
     return R * c
 
+def _to_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        n = float(value)
+        return n if math.isfinite(n) else None
+    except Exception:
+        return None
+
+
+def _provider_dispatch_location(provider: dict) -> Optional[dict]:
+    loc = provider.get('location') if isinstance(provider, dict) else None
+    if isinstance(loc, dict):
+        lat = _to_float(loc.get('lat'))
+        lng = _to_float(loc.get('lng'))
+        if lat is not None and lng is not None:
+            return {'lat': lat, 'lng': lng}
+
+    pd = provider.get('providerData') if isinstance(provider, dict) else None
+    if isinstance(pd, dict):
+        lat = _to_float(pd.get('addressLat'))
+        lng = _to_float(pd.get('addressLng'))
+        if lat is not None and lng is not None:
+            return {'lat': lat, 'lng': lng}
+
+    return None
+
+
+def _is_bank_data_complete(provider: dict) -> bool:
+    pd = provider.get('providerData') if isinstance(provider, dict) else None
+    if not isinstance(pd, dict):
+        return False
+    bd = pd.get('bankData')
+    if not isinstance(bd, dict):
+        return False
+    return bool(
+        bd.get('bank')
+        and bd.get('accountType')
+        and bd.get('accountNumber')
+        and bd.get('holderName')
+        and bd.get('holderRut')
+    )
+
+
+def _has_any_operator(provider: dict) -> bool:
+    ops = provider.get('operators')
+    if isinstance(ops, list) and len(ops) > 0:
+        return True
+    md = provider.get('machineData') if isinstance(provider, dict) else None
+    if isinstance(md, dict):
+        ops2 = md.get('operators')
+        if isinstance(ops2, list) and len(ops2) > 0:
+            return True
+    return False
+
+
+def _is_provider_activation_complete(provider: dict) -> bool:
+    if not isinstance(provider, dict):
+        return False
+    if provider.get('owner_id'):
+        return False
+    if provider.get('provider_role') == 'operator':
+        return False
+    if not bool(provider.get('onboarding_completed')):
+        return False
+
+    pd = provider.get('providerData') if isinstance(provider.get('providerData'), dict) else {}
+    md = provider.get('machineData') if isinstance(provider.get('machineData'), dict) else {}
+
+    company_ok = bool((pd.get('businessName') or '').strip()) and bool((pd.get('rut') or '').strip())
+    machine_ok = bool((md.get('machineryType') or '').strip()) and bool((md.get('licensePlate') or '').strip())
+    operator_ok = _has_any_operator(provider)
+    bank_ok = _is_bank_data_complete(provider)
+    location_ok = _provider_dispatch_location(provider) is not None
+
+    return bool(company_ok and machine_ok and operator_ok and bank_ok and location_ok)
+
+
 def _distance_to_provider_km(provider: dict, request_location: dict) -> float:
-    provider_loc = provider.get('location', {})
-    if not provider_loc or not provider_loc.get('lat'):
+    provider_loc = _provider_dispatch_location(provider)
+    if not provider_loc:
         return float(MATCHING_CONFIG['max_distance_km'])
     return calculate_distance(
         request_location['lat'],
@@ -240,6 +318,10 @@ async def get_available_providers(
     query = {
         '$or': [{'role': 'provider'}, {'roles': 'provider'}],
         'isAvailable': True,
+        '$and': [
+            {'$or': [{'owner_id': {'$exists': False}}, {'owner_id': None}, {'owner_id': ''}]},
+            {'$or': [{'provider_role': {'$exists': False}}, {'provider_role': None}, {'provider_role': {'$ne': 'operator'}}]},
+        ],
     }
     if machinery_type:
         query['machineryType'] = machinery_type
@@ -251,6 +333,10 @@ async def get_available_providers(
         query_fallback = {
             '$or': [{'role': 'provider'}, {'roles': 'provider'}],
             'isAvailable': True,
+            '$and': [
+                {'$or': [{'owner_id': {'$exists': False}}, {'owner_id': None}, {'owner_id': ''}]},
+                {'$or': [{'provider_role': {'$exists': False}}, {'provider_role': None}, {'provider_role': {'$ne': 'operator'}}]},
+            ],
         }
         if excluded_provider_ids:
             query_fallback['id'] = {'$nin': excluded_provider_ids}
@@ -258,6 +344,8 @@ async def get_available_providers(
         if providers:
             logger.info(f"Usando fallback sin machineryType (encontrados {len(providers)})")
     
+    providers = [p for p in providers if _is_provider_activation_complete(p)]
+
     # Filtrar proveedores con servicios activos
     available_providers = []
     for provider in providers:

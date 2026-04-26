@@ -164,6 +164,15 @@ Destino: {location}
 Pago estimado: {amount}
 
 El operador ya está en camino.""",
+
+    'owner_operator_accepted': """MAQGO: Aceptación registrada.
+
+El operador {operator_name} aceptó una solicitud con GPS activo.
+Ubicación: {location}
+ETA comprometido: {eta_minutes} min
+Ingreso estimado: {amount}
+
+Solicitud: {request_id}""",
     
     'owner_service_finished': """MAQGO: Servicio completado.
 
@@ -558,6 +567,27 @@ def notify_owner_new_assignment(
             'location': location,
             'amount': amount
         }
+    )
+
+
+def notify_owner_operator_accepted(
+    owner_phone: str,
+    operator_name: str,
+    location: str,
+    eta_minutes: int,
+    amount: str,
+    request_id: str,
+) -> dict:
+    return send_whatsapp(
+        phone_number=owner_phone,
+        template='owner_operator_accepted',
+        params={
+            'operator_name': operator_name,
+            'location': location,
+            'eta_minutes': eta_minutes,
+            'amount': amount,
+            'request_id': request_id,
+        },
     )
 
 
@@ -1000,5 +1030,4 @@ async def notify_team_new_request_async(
     )
     
     return result
-
 
