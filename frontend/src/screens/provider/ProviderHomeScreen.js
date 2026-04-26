@@ -159,7 +159,7 @@ function ProviderHomeScreen() {
     // Polling para verificar solicitudes entrantes (solo si disponible y onboarding completo)
     const checkRequests = async () => {
       const userId = localStorage.getItem('userId');
-      if (userId && available && onboardingCompleted) {
+      if (userId && available && canReceiveRequests) {
         const res = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
         if (res.data && res.data.length > 0) {
           localStorage.setItem('incomingRequest', JSON.stringify(res.data[0]));
@@ -171,7 +171,7 @@ function ProviderHomeScreen() {
       }
     };
 
-    if (!available || !onboardingCompleted) return undefined;
+    if (!available || !canReceiveRequests) return undefined;
 
     let cancelled = false;
     let timeoutId = null;
@@ -216,10 +216,16 @@ function ProviderHomeScreen() {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [available, onboardingCompleted, navigate]);
+  }, [available, canReceiveRequests, navigate]);
 
   const toggleAvailability = async () => {
     if (!onboardingCompleted || isToggling) return;
+    if (!canReceiveRequests && !available) {
+      const firstPending = activationItems.find((i) => !i.ok);
+      toast.warning('Completa tu activación para conectarte y recibir solicitudes.');
+      if (firstPending?.onClick) firstPending.onClick();
+      return;
+    }
     if (!bankDataComplete && !available) {
       setShowBankWarningModal(true);
       toast.warning('Completa tus datos bancarios antes de conectarte.');

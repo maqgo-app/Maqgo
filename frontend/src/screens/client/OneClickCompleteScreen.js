@@ -149,6 +149,17 @@ function OneClickCompleteScreen() {
         const transportFee = parseFloat(localStorage.getItem('serviceTransportFee')) || 0;
         const totalAmount = parseInt(localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0', 10);
         const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
+        const reservationType = localStorage.getItem('reservationType') || 'immediate';
+        const urgencyType = localStorage.getItem('urgencyType') || '';
+
+        const urgencyWindowMinutes = (() => {
+          if (String(reservationType).toLowerCase() !== 'immediate') return null;
+          const t = String(urgencyType || '').toLowerCase();
+          if (t === 'urgent') return 90;
+          if (t === 'express') return 240;
+          if (t === 'today') return 480;
+          return null;
+        })();
 
         const selectedProvider = getObject('selectedProvider', {});
         const selectedProviderIds = getArray('selectedProviderIds', []);
@@ -173,8 +184,10 @@ function OneClickCompleteScreen() {
           needsInvoice: needsInvoice || undefined,
           machineryType: localStorage.getItem('selectedMachinery') || 'retroexcavadora',
           workdayAccepted: true,
-          reservationType: localStorage.getItem('reservationType') || 'immediate',
+          reservationType,
           scheduledDate: localStorage.getItem('selectedDate') || undefined,
+          urgencyType: urgencyType || undefined,
+          urgencyWindowMinutes: urgencyWindowMinutes || undefined,
         };
 
         const { data } = await axios.post(`${BACKEND_URL}/api/service-requests`, payload, {

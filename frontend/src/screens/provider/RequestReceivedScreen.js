@@ -10,10 +10,62 @@ import BACKEND_URL from '../../utils/api';
 import { idempotencyKey } from '../../utils/bookingPaymentKeys';
 import { syncAssignedOperatorToApi } from '../../utils/syncAssignedOperatorToApi';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
-import { IMMEDIATE_MULTIPLIERS } from '../../utils/pricing';
+import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/AddressAutocomplete';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
+import { useAuth } from '../../context/authHooks';
 const MIN_HOURS_FOR_LUNCH = 6;
+
+function parseIsoToMs(value) {
+  if (!value) return null;
+  const ms = Date.parse(String(value));
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function toNumber(value) {
+  if (value == null) return null;
+  const n = typeof value === 'number' ? value : Number(String(value).replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+function getOfferRemainingSeconds(req) {
+  const explicit = toNumber(req?.remainingSeconds);
+  if (explicit != null) return Math.max(0, Math.floor(explicit));
+  const expMs = parseIsoToMs(req?.offerExpiresAt);
+  if (!expMs) return 60;
+  const left = Math.ceil((expMs - Date.now()) / 1000);
+  return Math.max(0, left);
+}
+
+function getProviderEarningsFromRequest(req) {
+  const direct =
+    toNumber(req?.providerEarnings) ??
+    toNumber(req?.provider_earnings) ??
+    toNumber(req?.pricing?.providerEarnings) ??
+    toNumber(req?.pricing?.provider_earnings);
+  if (direct != null) return direct;
+
+  const isDemo = typeof req?.id === 'string' && req.id.startsWith('req-');
+  if (!isDemo) return null;
+
+  const hours = toNumber(req?.hours) ?? 0;
+  const pricePerHour = toNumber(req?.pricePerHour) ?? 0;
+  const transportFee = toNumber(req?.transportFee) ?? 0;
+  const base = pricePerHour * hours + transportFee;
+  return Number.isFinite(base) ? Math.round(base) : 0;
+}
+
+function getUrgencyBonusFromRequest(req) {
+  return (
+    toNumber(req?.urgencyBonus) ??
+    toNumber(req?.immediateBonus) ??
+    toNumber(req?.breakdown?.urgency_bonus) ??
+    toNumber(req?.breakdown?.immediate_bonus) ??
+    toNumber(req?.pricing?.urgency_bonus) ??
+    toNumber(req?.pricing?.immediate_bonus) ??
+    null
+  );
+}
 
 function buildInitialIncomingRequest() {
   const parsed = getJSON('incomingRequest', null);
@@ -50,7 +102,8 @@ function buildInitialIncomingRequest() {
     client_lat: workCoords?.lat,
     client_lng: workCoords?.lng,
     workCoords,
-    reference: serviceReference
+    reference: serviceReference,
+    offerExpiresAt: new Date(Date.now() + 60000).toISOString(),
   };
 }
 
@@ -65,11 +118,20 @@ function buildInitialIncomingRequest() {
  */
 function RequestReceivedScreen() {
   const navigate = useNavigate();
-  const [countdown, setCountdown] = useState(60);
-  const [request] = useState(buildInitialIncomingRequest);
+  const { hasPermission } = useAuth();
+  const [request, setRequest] = useState(() => buildInitialIncomingRequest());
+  const [countdown, setCountdown] = useState(() => getOfferRemainingSeconds(getJSON('incomingRequest', {}) || {}));
   const [loading, setLoading] = useState(false);
   const [expired, setExpired] = useState(false);
   const [acceptError, setAcceptError] = useState(null); // Error al aceptar (pago, red, etc.)
+  const [intentError, setIntentError] = useState(null);
+  const [intentLoading, setIntentLoading] = useState(false);
+  const [flowStep, setFlowStep] = useState('review'); // review | preconfirm
+  const [storedDeparture, setStoredDeparture] = useState(null);
+  const [departureMode, setDepartureMode] = useState('');
+  const [departureLocation, setDepartureLocation] = useState(null);
+  const [etaMode, setEtaMode] = useState('');
+  const [etaMinutes, setEtaMinutes] = useState(null);
   const expirationHandledRef = useRef(false);
 
   useEffect(() => {
@@ -77,6 +139,10 @@ function RequestReceivedScreen() {
     playNewRequestSound();
     vibrate('newRequest');
   }, []);
+
+  useEffect(() => {
+    setCountdown(getOfferRemainingSeconds(request));
+  }, [request]);
 
   useEffect(() => {
     if (countdown <= 0) {
@@ -115,51 +181,23 @@ function RequestReceivedScreen() {
     };
   }, [countdown]);
 
-  // Cálculos según Pricing Policy v1
-  const calculateEarnings = () => {
-    if (!request) return { base: 0, bonus: 0, total: 0 };
-    
-    const hours = request.hours || 4;
-    const basePrice = request.pricePerHour || 80000;
-    const transportFee = request.transportFee || 0;
-    const multiplier = IMMEDIATE_MULTIPLIERS[hours] || 1.20;
-    
-    // Ganancia base (sin bonificación)
-    const baseService = basePrice * hours;
-    const baseTotal = baseService + transportFee;
-    
-    // Ganancia con bonificación inmediata
-    const immediateService = Math.round(basePrice * hours * multiplier);
-    const immediateTotal = immediateService + transportFee;
-    
-    // Bonificación (lo extra que gana)
-    const bonus = immediateService - baseService;
-    const bonusPercent = Math.round((multiplier - 1) * 100);
-    
-    return {
-      baseService,
-      baseTotal,
-      immediateService,
-      immediateTotal,
-      bonus,
-      bonusPercent,
-      multiplier,
-      transportFee,
-      hours
-    };
-  };
-
-  const earnings = calculateEarnings();
-
   const handleAccept = async () => {
     setAcceptError(null);
     setLoading(true);
     try {
       const userId = localStorage.getItem('userId');
+      const providerIdForOffer = String(
+        request?.currentOfferId ||
+          request?.providerId ||
+          request?.provider_id ||
+          localStorage.getItem('ownerId') ||
+          userId ||
+          ''
+      );
       if (request?.id && !request.id.startsWith('req-')) {
         await axios.put(
           `${BACKEND_URL}/api/service-requests/${request.id}/accept`,
-          { providerId: userId },
+          { providerId: providerIdForOffer },
           {
             timeout: 12000,
             headers: { 'Idempotency-Key': idempotencyKey(`accept-${request.id}`) },
@@ -221,6 +259,127 @@ function RequestReceivedScreen() {
     }).format(amount);
   };
 
+  const providerEarnings = getProviderEarningsFromRequest(request);
+  const urgencyBonus = getUrgencyBonusFromRequest(request);
+  const transportFee = toNumber(request?.transportFee);
+  const countdownMax = Math.max(1, Math.floor(toNumber(request?.offerTimeoutSeconds) ?? 60));
+  const reservationType = String(request?.reservationType || '').toLowerCase();
+  const isImmediate = reservationType === 'immediate';
+  const isScheduled = reservationType === 'scheduled';
+  const scheduledDate = request?.scheduledDate || null;
+  const showEtaDistance = toNumber(request?.distance) != null || toNumber(request?.eta) != null;
+  const urgencyWindowMinutes = toNumber(request?.urgencyWindowMinutes);
+  const hasDepartureConfirmed =
+    request?.confirmedDepartureLocation &&
+    request.confirmedDepartureLocation.lat != null &&
+    request.confirmedDepartureLocation.lng != null;
+  const hasEtaCommitted = typeof request?.etaCommitMinutes === 'number' && request.etaCommitMinutes > 0;
+  const requiresPreconfirm = Boolean(isImmediate && !request?.id?.startsWith?.('req-') && (!hasDepartureConfirmed || !hasEtaCommitted));
+  const canProceedToAccept = !requiresPreconfirm;
+  const userId = localStorage.getItem('userId') || '';
+  const operatorGpsConfirmed =
+    Boolean(
+      isOperator &&
+      hasDepartureConfirmed &&
+      String(request?.confirmedDepartureLocation?.source || '').toLowerCase() === 'gps' &&
+      String(request?.confirmedDepartureLocation?.confirmedByUserId || '') === String(userId) &&
+      hasEtaCommitted
+    );
+  const canAcceptRequests = typeof hasPermission === 'function' ? hasPermission('canAcceptRequests') : true;
+  const canAcceptNow = canProceedToAccept && (canAcceptRequests || operatorGpsConfirmed);
+
+  const loadStoredDepartureLocation = async () => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) return;
+    const isDemoId = userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-');
+    if (isDemoId) return;
+    try {
+      const res = await axios.get(`${BACKEND_URL}/api/users/${userId}`, { timeout: 6000 });
+      const loc = res.data?.location;
+      const lat = toNumber(loc?.lat);
+      const lng = toNumber(loc?.lng);
+      if (lat != null && lng != null) {
+        setStoredDeparture({ lat, lng, address: '', source: 'stored' });
+      }
+    } catch {
+      void 0;
+    }
+  };
+
+  const captureGpsSnapshot = async () => {
+    if (!navigator.geolocation) return null;
+    try {
+      const pos = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 });
+      });
+      return { lat: pos.coords.latitude, lng: pos.coords.longitude, address: '', source: 'gps' };
+    } catch {
+      return null;
+    }
+  };
+
+  const handleStartPreconfirm = async () => {
+    setIntentError(null);
+    setAcceptError(null);
+    setFlowStep('preconfirm');
+    setDepartureMode('');
+    setDepartureLocation(null);
+    setEtaMode('');
+    setEtaMinutes(null);
+    await loadStoredDepartureLocation();
+  };
+
+  const handleConfirmIntent = async () => {
+    setIntentError(null);
+    setIntentLoading(true);
+    try {
+      if (!request?.id || request.id.startsWith('req-')) {
+        setIntentLoading(false);
+        setFlowStep('review');
+        return;
+      }
+      const loc = departureLocation;
+      if (!loc || loc.lat == null || loc.lng == null) {
+        setIntentError('Debes confirmar desde dónde sale la máquina.');
+        setIntentLoading(false);
+        return;
+      }
+      if (isOperator && String(loc.source || '').toLowerCase() !== 'gps') {
+        setIntentError('Como operador, debes confirmar usando GPS activo.');
+        setIntentLoading(false);
+        return;
+      }
+      const eta = typeof etaMinutes === 'number' ? etaMinutes : null;
+      if (!eta || eta <= 0) {
+        setIntentError('Debes confirmar el tiempo de llegada.');
+        setIntentLoading(false);
+        return;
+      }
+      if (typeof urgencyWindowMinutes === 'number' && urgencyWindowMinutes > 0 && eta > urgencyWindowMinutes) {
+        setIntentError('El tiempo informado no cumple la urgencia solicitada.');
+        setIntentLoading(false);
+        return;
+      }
+      const { data } = await axios.post(
+        `${BACKEND_URL}/api/service-requests/${request.id}/intent`,
+        { departureLocation: loc, etaMinutes: eta },
+        { timeout: 12000 }
+      );
+      const next = {
+        ...request,
+        confirmedDepartureLocation: data?.confirmedDepartureLocation || { lat: loc.lat, lng: loc.lng, address: loc.address || '', source: loc.source || 'manual' },
+        etaCommitMinutes: data?.etaCommitMinutes || eta,
+      };
+      setRequest(next);
+      localStorage.setItem('incomingRequest', JSON.stringify(next));
+      setFlowStep('review');
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      setIntentError(typeof detail === 'string' && detail.trim() ? detail.trim() : 'No se pudo confirmar ubicación y llegada.');
+    }
+    setIntentLoading(false);
+  };
+
   // Estado: Solicitud expirada
   if (expired) {
     return (
@@ -270,7 +429,7 @@ function RequestReceivedScreen() {
             width: 80,
             height: 80,
             borderRadius: '50%',
-            background: `conic-gradient(#EC6819 ${(countdown/60)*360}deg, #333 0deg)`,
+            background: `conic-gradient(#EC6819 ${(countdown / countdownMax) * 360}deg, #333 0deg)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -300,8 +459,7 @@ function RequestReceivedScreen() {
           </p>
         </div>
 
-        {/* BONIFICACIÓN DESTACADA - Sin gradiente, sin emoji */}
-        {request?.reservationType === 'immediate' && (
+        {isImmediate && urgencyBonus != null && urgencyBonus > 0 && (
           <div style={{
             background: '#2A2A2A',
             border: '2px solid #90BDD3',
@@ -318,7 +476,7 @@ function RequestReceivedScreen() {
               marginBottom: 8,
               fontWeight: 600
             }}>
-              Bonificación por reserva prioritaria
+              Adicional por urgencia
             </p>
             <p style={{ 
               color: '#90BDD3', 
@@ -326,10 +484,10 @@ function RequestReceivedScreen() {
               fontWeight: 700, 
               margin: '0 0 4px' 
             }}>
-              +{formatMoney(earnings.bonus)}
+              +{formatMoney(urgencyBonus)}
             </p>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-              Ganas <strong style={{ color: '#90BDD3' }}>+{earnings.bonusPercent}%</strong> por inicio HOY ({isPerTripMachineryType(request?.machinery_type || request?.machineryType) ? 'Valor viaje' : `${earnings.hours} horas`})
+              Inicio HOY
             </p>
           </div>
         )}
@@ -398,6 +556,15 @@ function RequestReceivedScreen() {
             </span>
           </div>
 
+          {isScheduled && scheduledDate ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Fecha</span>
+              <span style={{ color: '#fff', fontSize: 13, fontWeight: 600, textAlign: 'right', maxWidth: '55%' }}>
+                {String(scheduledDate)}
+              </span>
+            </div>
+          ) : null}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Ubicación</span>
             <span style={{ color: '#fff', fontSize: 13, fontWeight: 600, textAlign: 'right', maxWidth: '55%' }}>
@@ -406,16 +573,22 @@ function RequestReceivedScreen() {
           </div>
 
           {/* ETA y distancia */}
-          <div style={{ display: 'flex', gap: 12, marginTop: 12, paddingTop: 10, borderTop: '1px solid #444' }}>
-            <div style={{ flex: 1, background: '#2D2D2D', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
-              <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>Distancia</div>
-              <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{request?.distance || 5} km</div>
+          {showEtaDistance ? (
+            <div style={{ display: 'flex', gap: 12, marginTop: 12, paddingTop: 10, borderTop: '1px solid #444' }}>
+              {toNumber(request?.distance) != null ? (
+                <div style={{ flex: 1, background: '#2D2D2D', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                  <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>Distancia</div>
+                  <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{toNumber(request?.distance)} km</div>
+                </div>
+              ) : null}
+              {toNumber(request?.eta) != null ? (
+                <div style={{ flex: 1, background: '#2D2D2D', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                  <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>Llegar en</div>
+                  <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{toNumber(request?.eta)} min</div>
+                </div>
+              ) : null}
             </div>
-            <div style={{ flex: 1, background: '#2D2D2D', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
-              <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>Llegar en</div>
-              <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{request?.eta || 10} min</div>
-            </div>
-          </div>
+          ) : null}
         </div>
 
         {/* TU GANANCIA TOTAL */}
@@ -433,7 +606,7 @@ function RequestReceivedScreen() {
             textTransform: 'uppercase',
             letterSpacing: 1
           }}>
-            Tu ganancia total
+            Ganas con este trabajo
           </p>
           <p style={{ 
             color: '#90BDD3', 
@@ -441,12 +614,12 @@ function RequestReceivedScreen() {
             fontWeight: 700, 
             margin: '0 0 8px' 
           }}>
-            {formatMoney(earnings.immediateTotal)}
+            {formatMoney(providerEarnings || 0)}
           </p>
           
-          {earnings.transportFee > 0 && (
+          {transportFee != null && transportFee > 0 && (
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
-              Incluye {formatMoney(earnings.transportFee)} de traslado
+              Incluye {formatMoney(transportFee)} de traslado
             </p>
           )}
         </div>
@@ -484,9 +657,216 @@ function RequestReceivedScreen() {
             margin: 0,
             textAlign: 'center'
           }}>
-            Al aceptar, se cobra al cliente desde su tarjeta guardada.
+            Al aceptar, MAQGO confirma la solicitud y ejecuta el cobro OneClick al cliente.
           </p>
         </div>
+
+        {flowStep === 'preconfirm' && isImmediate && (
+          <div style={{ background: '#2A2A2A', borderRadius: 14, padding: 16, marginBottom: 16, border: '1px solid rgba(255,255,255,0.12)' }}>
+            <p style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: 0, marginBottom: 10 }}>
+              Confirma ubicación y llegada
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: 0, marginBottom: 14, lineHeight: 1.45 }}>
+              Para solicitudes inmediatas, confirma desde dónde sale la máquina y el tiempo de llegada.
+            </p>
+
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: '0 0 8px', fontWeight: 700 }}>
+                ¿Desde dónde sale la máquina?
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {storedDeparture ? (
+                  <button
+                    type="button"
+                    onClick={() => { setDepartureMode('stored'); setDepartureLocation(storedDeparture); }}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 10,
+                      border: departureMode === 'stored' ? '2px solid #EC6819' : '1px solid rgba(255,255,255,0.18)',
+                      background: departureMode === 'stored' ? 'rgba(236,104,25,0.15)' : 'transparent',
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      flex: '1 1 160px',
+                    }}
+                  >
+                    Ubicación registrada
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setDepartureMode('gps');
+                    const gps = await captureGpsSnapshot();
+                    if (!gps) {
+                      setIntentError('No se pudo obtener tu ubicación. Activa GPS o marca una ubicación.');
+                      return;
+                    }
+                    setDepartureLocation(gps);
+                  }}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    border: departureMode === 'gps' ? '2px solid #EC6819' : '1px solid rgba(255,255,255,0.18)',
+                    background: departureMode === 'gps' ? 'rgba(236,104,25,0.15)' : 'transparent',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    flex: '1 1 160px',
+                  }}
+                >
+                  Usar GPS ahora
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDepartureMode('address'); setDepartureLocation(null); }}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    border: departureMode === 'address' ? '2px solid #EC6819' : '1px solid rgba(255,255,255,0.18)',
+                    background: departureMode === 'address' ? 'rgba(236,104,25,0.15)' : 'transparent',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    flex: '1 1 160px',
+                  }}
+                >
+                  Marcar ubicación
+                </button>
+              </div>
+            </div>
+
+            {departureMode === 'address' && (
+              <div style={{ marginBottom: 14 }}>
+                {getGoogleMapsApiKey() ? (
+                  <AddressAutocomplete
+                    value={departureLocation?.address || ''}
+                    onChange={() => void 0}
+                    onSelect={(result) => {
+                      const lat = toNumber(result?.lat);
+                      const lng = toNumber(result?.lng);
+                      if (lat == null || lng == null) return;
+                      const addr = String(result?.address || result?.address_full || result?.address_short || '').trim();
+                      setDepartureLocation({ lat, lng, address: addr, source: 'office_pin' });
+                    }}
+                    placeholder="Busca la dirección de salida"
+                    testId="departure-address-autocomplete"
+                  />
+                ) : (
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <input
+                      value={departureLocation?.lat ?? ''}
+                      onChange={(e) => setDepartureLocation({ ...(departureLocation || {}), lat: e.target.value, source: 'manual' })}
+                      placeholder="Lat"
+                      style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: '#1F1F1F', color: '#fff' }}
+                    />
+                    <input
+                      value={departureLocation?.lng ?? ''}
+                      onChange={(e) => setDepartureLocation({ ...(departureLocation || {}), lng: e.target.value, source: 'manual' })}
+                      placeholder="Lng"
+                      style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: '#1F1F1F', color: '#fff' }}
+                    />
+                  </div>
+                )}
+                {departureLocation?.lat != null && departureLocation?.lng != null ? (
+                  <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '8px 0 0' }}>
+                    Ubicación lista para confirmar.
+                  </p>
+                ) : null}
+              </div>
+            )}
+
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: '0 0 8px', fontWeight: 700 }}>
+                ¿En cuánto tiempo llegas?
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {[30, 45, 60, 90].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => { setEtaMode('preset'); setEtaMinutes(m); }}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 10,
+                      border: etaMinutes === m ? '2px solid #90BDD3' : '1px solid rgba(255,255,255,0.18)',
+                      background: etaMinutes === m ? 'rgba(144,189,211,0.15)' : 'transparent',
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      flex: '1 1 110px',
+                    }}
+                  >
+                    {m} min
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => { setEtaMode('custom'); setEtaMinutes(null); }}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    border: etaMode === 'custom' ? '2px solid #90BDD3' : '1px solid rgba(255,255,255,0.18)',
+                    background: etaMode === 'custom' ? 'rgba(144,189,211,0.15)' : 'transparent',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    flex: '1 1 110px',
+                  }}
+                >
+                  Otro
+                </button>
+              </div>
+              {etaMode === 'custom' ? (
+                <input
+                  value={etaMinutes ?? ''}
+                  onChange={(e) => setEtaMinutes(Math.max(0, parseInt(e.target.value || '0', 10) || 0))}
+                  placeholder="Minutos"
+                  inputMode="numeric"
+                  style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: '#1F1F1F', color: '#fff' }}
+                />
+              ) : null}
+              {typeof urgencyWindowMinutes === 'number' && urgencyWindowMinutes > 0 ? (
+                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '10px 0 0' }}>
+                  El cliente necesita inicio dentro de {urgencyWindowMinutes} min.
+                </p>
+              ) : null}
+            </div>
+
+            {intentError ? (
+              <div style={{ background: 'rgba(229, 57, 53, 0.12)', border: '1px solid rgba(229, 57, 53, 0.35)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                <p style={{ color: '#ffb4b4', fontSize: 13, margin: 0, lineHeight: 1.45 }}>{intentError}</p>
+              </div>
+            ) : null}
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                className="maqgo-btn-secondary"
+                onClick={() => { setFlowStep('review'); setIntentError(null); }}
+                style={{ flex: 1 }}
+                disabled={intentLoading}
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                className="maqgo-btn-primary"
+                onClick={handleConfirmIntent}
+                disabled={intentLoading}
+                aria-busy={intentLoading}
+                style={{ flex: 2 }}
+              >
+                {intentLoading ? 'Confirmando...' : 'Confirmar ubicación y llegada'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Error al aceptar (pago fallido, red, solicitud no disponible) */}
         {acceptError && (
@@ -506,7 +886,14 @@ function RequestReceivedScreen() {
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <button
                 type="button"
-                onClick={() => { setAcceptError(null); handleAccept(); }}
+                onClick={() => {
+                  setAcceptError(null);
+                  if (canAcceptNow) {
+                    handleAccept();
+                  } else {
+                    navigate(homeRoute);
+                  }
+                }}
                 style={{
                   flex: 1,
                   padding: 10,
@@ -533,6 +920,14 @@ function RequestReceivedScreen() {
           </div>
         )}
 
+        {isOperator && !canAcceptRequests && !operatorGpsConfirmed ? (
+          <div style={{ background: 'rgba(144, 189, 211, 0.12)', border: '1px solid rgba(144, 189, 211, 0.35)', borderRadius: 12, padding: 12, marginBottom: 14 }}>
+            <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
+              Si eres operador, puedes aceptar solo con GPS activo. Confirma ubicación y tiempo de llegada usando GPS.
+            </p>
+          </div>
+        ) : null}
+
         {/* Botones */}
         <div style={{ display: 'flex', gap: 12 }}>
           <button 
@@ -549,14 +944,20 @@ function RequestReceivedScreen() {
               cursor: 'pointer'
             }}
           >
-            No puedo esta reserva
+            No puedo tomarla
           </button>
           <button 
             className="maqgo-btn-primary"
-            onClick={handleAccept}
-            disabled={loading}
+            onClick={canAcceptNow ? handleAccept : (requiresPreconfirm ? handleStartPreconfirm : undefined)}
+            disabled={loading || (flowStep === 'preconfirm') || (!canAcceptNow && !requiresPreconfirm)}
             aria-busy={loading}
-            aria-label={loading ? 'Aceptando solicitud' : 'Aceptar reserva'}
+            aria-label={
+              loading
+                ? 'Aceptando solicitud'
+                : (canAcceptNow
+                  ? 'Aceptar solicitud'
+                  : (requiresPreconfirm ? 'Confirmar ubicación y llegada' : 'Debe aceptar tu titular o gerente'))
+            }
             style={{ flex: 2, padding: 14, fontSize: 16 }}
             data-testid="accept-request-btn"
           >
@@ -566,7 +967,7 @@ function RequestReceivedScreen() {
                 Aceptando...
               </span>
             ) : (
-              'Aceptar reserva'
+              (canAcceptNow ? 'Aceptar solicitud' : (requiresPreconfirm ? 'Confirmar ubicación y llegada' : 'Debe aceptar tu titular/gerente'))
             )}
           </button>
         </div>

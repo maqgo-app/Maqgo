@@ -6,7 +6,7 @@ import LoginPhoneChileInput from '../../components/LoginPhoneChileInput';
 import { ProviderNavigation } from '../../components/BottomNavigation';
 import { useToast } from '../../components/Toast';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
-import { getMachines, resetMachines, updateMachine, addMachine, removeMachine, needsTransport, MACHINERY_TYPES } from '../../utils/providerMachines';
+import { getMachines, resetMachines, updateMachine, removeMachine, needsTransport, MACHINERY_TYPES } from '../../utils/providerMachines';
 import { REFERENCE_PRICES, REFERENCE_TRANSPORT, MAX_PRICE_ABOVE_MARKET_PCT, getPriceAlert, getTransportAlert } from '../../utils/pricing';
 import { vibrate } from '../../utils/uberUX';
 import BACKEND_URL from '../../utils/api';
@@ -121,17 +121,7 @@ function MyMachinesScreen() {
   };
 
   const handleAddMachine = () => {
-    const newMachine = addMachine({
-      machineryType: 'retroexcavadora',
-      type: 'Retroexcavadora',
-      brand: 'Nueva máquina',
-      pricePerHour: 80000,
-      transportCost: 25000,
-      available: true,
-      operators: []
-    });
-    loadMachines();
-    navigate(`/provider/edit-machine/${newMachine.id}`, { state: { machine: newMachine } });
+    navigate('/provider/add-machine', { state: { returnTo: '/provider/machines' } });
   };
 
   const handleDeleteMachine = (machineId) => {

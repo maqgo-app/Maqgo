@@ -62,7 +62,7 @@ const DEFAULT_PERMISSIONS = {
     canManageOperators: false,
     canManageMasters: false,
     canViewBankData: false,
-    canAcceptRequests: true,
+    canAcceptRequests: false,
     canViewServices: true,
     canViewDashboard: false
   }
@@ -106,7 +106,18 @@ export function AuthProvider({ children }) {
             let role = roleData.provider_role || 'super_master';
             if (role === 'owner') role = 'super_master';
             setProviderRole(role);
-            setPermissions(DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.super_master);
+            const basePerms = DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.super_master;
+            const apiPerms = roleData?.permissions && typeof roleData.permissions === 'object' ? roleData.permissions : {};
+            const mergedPerms = { ...basePerms };
+            if (typeof apiPerms.can_view_finances === 'boolean') mergedPerms.canViewFinances = apiPerms.can_view_finances;
+            if (typeof apiPerms.can_view_invoices === 'boolean') mergedPerms.canViewInvoices = apiPerms.can_view_invoices;
+            if (typeof apiPerms.can_upload_invoice === 'boolean') mergedPerms.canUploadInvoice = apiPerms.can_upload_invoice;
+            if (typeof apiPerms.can_manage_operators === 'boolean') mergedPerms.canManageOperators = apiPerms.can_manage_operators;
+            if (typeof apiPerms.can_manage_masters === 'boolean') mergedPerms.canManageMasters = apiPerms.can_manage_masters;
+            if (typeof apiPerms.can_view_bank_data === 'boolean') mergedPerms.canViewBankData = apiPerms.can_view_bank_data;
+            if (typeof apiPerms.can_accept_requests === 'boolean') mergedPerms.canAcceptRequests = apiPerms.can_accept_requests;
+            if (typeof apiPerms.can_view_services === 'boolean') mergedPerms.canViewServices = apiPerms.can_view_services;
+            setPermissions(mergedPerms);
             setOwnerId(roleData.owner_id || null);
             setOwnerName(roleData.owner_name);
             localStorage.setItem('providerRole', role);

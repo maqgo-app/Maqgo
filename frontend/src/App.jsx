@@ -82,7 +82,6 @@ const MachinePhotosPricingScreen = lazy(() => import('./screens/provider/Machine
 const PricingScreen = lazy(() => import('./screens/provider/PricingScreen'));
 const OperatorDataScreen = lazy(() => import('./screens/provider/OperatorDataScreen'));
 const ReviewScreen = lazy(() => import('./screens/provider/ReviewScreen'));
-const ProviderAvailability = lazy(() => import('./screens/provider/ProviderAvailability'));
 const RequestReceivedScreen = lazy(() => import('./screens/provider/RequestReceivedScreen'));
 const ServiceAccepted = lazy(() => import('./screens/provider/ServiceAccepted'));
 const SelectOperatorScreen = lazy(() => import('./screens/provider/SelectOperatorScreen'));
@@ -328,7 +327,7 @@ function AppContent() {
           }
         />
         <Route path={ROUTES.PROVIDER_HOME} element={<ProviderHomeScreen />} />
-        <Route path="/provider/availability" element={<ProviderAvailability />} />
+        <Route path="/provider/availability" element={<Navigate to="/provider/home" replace />} />
         <Route path="/provider/request" element={<RequestReceivedScreen />} />
         <Route path="/provider/request-received" element={<RequestReceivedScreen />} />
         <Route path="/provider/accepted" element={<ServiceAccepted />} />

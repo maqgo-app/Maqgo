@@ -96,6 +96,10 @@ function AdminDashboard() {
   const [weeklyReportEmailsText, setWeeklyReportEmailsText] = useState('');
   const [monthlyReportEmailsText, setMonthlyReportEmailsText] = useState('');
   const [reportSubsMeta, setReportSubsMeta] = useState(null);
+  const [liveRequests, setLiveRequests] = useState([]);
+  const [liveRequestsLoading, setLiveRequestsLoading] = useState(false);
+  const [liveRequestsError, setLiveRequestsError] = useState('');
+  const [liveRequestsUpdatedAt, setLiveRequestsUpdatedAt] = useState(null);
 
   // Fallback si el backend no envía `finances` (versiones viejas / demo)
   const calculateFinances = useCallback((serviceList) => {
@@ -133,6 +137,64 @@ function AdminDashboard() {
       disputed
     });
   }, []);
+
+  const fetchLiveRequests = useCallback(async () => {
+    setLiveRequestsLoading(true);
+    setLiveRequestsError('');
+    try {
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/service-requests/admin/active?limit=200`,
+        { method: 'GET' },
+        15000
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data?.detail || `Error al cargar solicitudes activas (${res.status})`;
+        setLiveRequests([]);
+        setLiveRequestsError(msg);
+        toast.error(msg, 'admin-live-requests');
+        return;
+      }
+      setLiveRequests(Array.isArray(data) ? data : []);
+      setLiveRequestsUpdatedAt(new Date());
+    } catch (e) {
+      const msg = friendlyFetchError(e);
+      setLiveRequests([]);
+      setLiveRequestsError(msg);
+    } finally {
+      setLiveRequestsLoading(false);
+    }
+  }, [toast]);
+
+  const runLiveRequestAction = useCallback(
+    async (requestId, action) => {
+      if (!requestId) return false;
+      if (actionsLocked) {
+        toast.warning('Sin conexión al servidor: acción no disponible.');
+        return false;
+      }
+      try {
+        const endpoint =
+          action === 'expire'
+            ? `${BACKEND_URL}/api/service-requests/${encodeURIComponent(requestId)}/admin/expire-offer`
+            : `${BACKEND_URL}/api/service-requests/${encodeURIComponent(requestId)}/admin/retry-matching`;
+        const res = await fetchWithAuth(endpoint, { method: 'POST' }, 20000);
+        const data = await res.json();
+        if (!res.ok) {
+          const msg = data?.detail || `Acción falló (${res.status})`;
+          toast.error(msg);
+          return false;
+        }
+        toast.success(action === 'expire' ? 'Oferta expirada' : 'Matching reintentado');
+        fetchLiveRequests();
+        return true;
+      } catch (e) {
+        toast.error(friendlyFetchError(e));
+        return false;
+      }
+    },
+    [actionsLocked, fetchLiveRequests, toast]
+  );
 
   const fetchServices = useCallback(async () => {
     setLoading(true);
@@ -296,6 +358,14 @@ function AdminDashboard() {
   useEffect(() => {
     fetchServices();
   }, [fetchServices]);
+
+  useEffect(() => {
+    fetchLiveRequests();
+    const id = window.setInterval(() => {
+      fetchLiveRequests();
+    }, 6000);
+    return () => window.clearInterval(id);
+  }, [fetchLiveRequests]);
 
   const retryConnection = useCallback(() => {
     setConnDiagNonce((n) => n + 1);
@@ -1031,6 +1101,188 @@ function AdminDashboard() {
 
       {/* Content */}
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
+        <div
+          style={{
+            marginBottom: 20,
+            padding: '16px 18px',
+            borderRadius: 14,
+            background: ADMIN_THEME.panelBg,
+            border: `1px solid ${ADMIN_THEME.border}`,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.4 }}>
+                Solicitudes en vivo (service_requests)
+              </div>
+              <div style={{ color: ADMIN_THEME.textMuted, fontSize: 12, marginTop: 4 }}>
+                {liveRequestsUpdatedAt ? `Actualizado: ${liveRequestsUpdatedAt.toLocaleTimeString('es-CL')}` : 'Cargando…'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={fetchLiveRequests}
+              disabled={liveRequestsLoading}
+              style={{
+                padding: '8px 12px',
+                background: 'transparent',
+                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                borderRadius: 10,
+                color: '#fff',
+                cursor: liveRequestsLoading ? 'default' : 'pointer',
+                opacity: liveRequestsLoading ? 0.6 : 1,
+                fontSize: 13,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {liveRequestsLoading ? 'Actualizando…' : 'Actualizar'}
+            </button>
+          </div>
+
+          {liveRequestsError && (
+            <div
+              role="alert"
+              style={{
+                marginTop: 12,
+                padding: '10px 12px',
+                borderRadius: 10,
+                background: 'rgba(229,115,115,0.12)',
+                border: '1px solid rgba(229,115,115,0.35)',
+                color: 'rgba(255,255,255,0.95)',
+                fontSize: 13,
+              }}
+            >
+              {liveRequestsError}
+            </div>
+          )}
+
+          {!liveRequestsLoading && !liveRequestsError && (!Array.isArray(liveRequests) || liveRequests.length === 0) && (
+            <div style={{ marginTop: 12, color: ADMIN_THEME.textMuted, fontSize: 13 }}>
+              No hay solicitudes activas (matching / offer_sent / confirmed / in_progress).
+            </div>
+          )}
+
+          {Array.isArray(liveRequests) && liveRequests.length > 0 && (
+            <div style={{ marginTop: 14, overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', color: 'rgba(255,255,255,0.8)' }}>
+                    <th style={{ padding: '8px 6px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Estado</th>
+                    <th style={{ padding: '8px 6px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Tipo</th>
+                    <th style={{ padding: '8px 6px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Proveedor</th>
+                    <th style={{ padding: '8px 6px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Pago</th>
+                    <th style={{ padding: '8px 6px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Origen/ETA</th>
+                    <th style={{ padding: '8px 6px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Oferta</th>
+                    <th style={{ padding: '8px 6px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {liveRequests.slice(0, 200).map((r) => {
+                    const statusTxt = String(r?.status || '');
+                    const reservation = String(r?.reservationType || '');
+                    const provider = String(r?.providerId || r?.currentOfferId || '');
+                    const acceptedRole = String(r?.acceptedByRole || '');
+                    const paymentStatus = String(r?.paymentStatus || '');
+                    const pe = typeof r?.providerEarnings === 'number' ? r.providerEarnings : null;
+                    const total = typeof r?.totalAmount === 'number' ? r.totalAmount : null;
+                    const eta = r?.etaCommitMinutes;
+                    const windowMin = r?.urgencyWindowMinutes;
+                    const hasDeparture =
+                      r?.confirmedDepartureLocation && typeof r.confirmedDepartureLocation === 'object'
+                        ? Boolean(r.confirmedDepartureLocation.lat != null && r.confirmedDepartureLocation.lng != null)
+                        : false;
+                    const exp = r?.offerExpiresAt ? new Date(String(r.offerExpiresAt).replace('Z', '+00:00')) : null;
+                    const remainingSec = exp ? Math.max(0, Math.floor((exp.getTime() - Date.now()) / 1000)) : null;
+                    const money = (n) =>
+                      typeof n === 'number' ? new Intl.NumberFormat('es-CL').format(Math.round(n)) : '—';
+                    return (
+                      <tr key={String(r?.id || provider + statusTxt)} style={{ borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+                        <td style={{ padding: '10px 6px', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 800 }}>{statusTxt || '—'}</div>
+                          {acceptedRole && (
+                            <div style={{ color: ADMIN_THEME.textMuted, marginTop: 2 }}>accept: {acceptedRole}</div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 6px', verticalAlign: 'top' }}>
+                          <div>{reservation || '—'}</div>
+                          {r?.urgencyType ? (
+                            <div style={{ color: ADMIN_THEME.textMuted, marginTop: 2 }}>{String(r.urgencyType)}</div>
+                          ) : null}
+                        </td>
+                        <td style={{ padding: '10px 6px', verticalAlign: 'top' }}>
+                          <div style={{ fontFamily: 'monospace' }}>{provider ? provider.slice(0, 10) : '—'}</div>
+                          {r?.currentOfferId && (
+                            <div style={{ color: ADMIN_THEME.textMuted, marginTop: 2 }}>
+                              offer: {String(r.currentOfferId).slice(0, 10)}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 6px', verticalAlign: 'top' }}>
+                          <div>Gana: ${money(pe)}</div>
+                          <div style={{ color: ADMIN_THEME.textMuted, marginTop: 2 }}>
+                            total: ${money(total)} · {paymentStatus || '—'}
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px 6px', verticalAlign: 'top' }}>
+                          <div>{hasDeparture ? 'origen ✓' : 'origen —'}</div>
+                          <div style={{ color: ADMIN_THEME.textMuted, marginTop: 2 }}>
+                            ETA: {typeof eta === 'number' ? `${eta}m` : '—'}
+                            {typeof windowMin === 'number' ? ` / win ${windowMin}m` : ''}
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px 6px', verticalAlign: 'top' }}>
+                          {statusTxt === 'offer_sent' && remainingSec != null ? (
+                            <div style={{ fontWeight: 800 }}>{remainingSec}s</div>
+                          ) : (
+                            <div style={{ color: ADMIN_THEME.textMuted }}>—</div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 6px', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                          {statusTxt === 'offer_sent' && (
+                            <button
+                              type="button"
+                              onClick={() => runLiveRequestAction(String(r?.id || ''), 'expire')}
+                              disabled={actionsLocked}
+                              style={{
+                                padding: '6px 10px',
+                                background: 'rgba(217,161,90,0.15)',
+                                border: '1px solid rgba(217,161,90,0.35)',
+                                borderRadius: 10,
+                                color: '#fff',
+                                cursor: actionsLocked ? 'default' : 'pointer',
+                                marginRight: 8,
+                                fontSize: 12,
+                              }}
+                            >
+                              Expirar
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => runLiveRequestAction(String(r?.id || ''), 'retry')}
+                            disabled={actionsLocked}
+                            style={{
+                              padding: '6px 10px',
+                              background: 'rgba(126,184,212,0.12)',
+                              border: '1px solid rgba(126,184,212,0.32)',
+                              borderRadius: 10,
+                              color: '#fff',
+                              cursor: actionsLocked ? 'default' : 'pointer',
+                              fontSize: 12,
+                            }}
+                          >
+                            Re-match
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
         {/* Bloque: Diagnóstico de conexión / demo */}
         {usingOfflineDemo && (
           <div

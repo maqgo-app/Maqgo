@@ -32,7 +32,7 @@ function RateClient() {
       setSubmitted(true);
       setTimeout(() => {
         localStorage.removeItem('currentServiceId');
-        navigate('/provider/availability');
+        navigate('/provider/home');
       }, 2000);
     } catch (error) {
       console.error('Error:', error);
@@ -189,7 +189,7 @@ function RateClient() {
         <button 
           type="button"
           className="btn-skip"
-          onClick={() => navigate('/provider/availability')}
+          onClick={() => navigate('/provider/home')}
         >
           Omitir por ahora
         </button>

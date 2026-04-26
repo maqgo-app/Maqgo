@@ -43,7 +43,7 @@ export const PERMISSIONS = {
   operator: {
     // Solicitudes
     viewRequests: true,
-    acceptRequests: true,  // Puede aceptar (modelo híbrido)
+    acceptRequests: false,
     assignOperator: false,
     
     // Operativo

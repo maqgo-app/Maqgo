@@ -15,7 +15,7 @@ function OperatorScreen() {
   const handleFinish = () => {
     const data = isOperator ? 'self' : { ...form, name: `${form.nombre} ${form.apellido}`.trim() };
     localStorage.setItem('operatorData', JSON.stringify(data));
-    navigate('/provider/availability');
+    navigate('/provider/home');
   };
 
   return (

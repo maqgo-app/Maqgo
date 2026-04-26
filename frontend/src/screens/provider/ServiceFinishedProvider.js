@@ -105,7 +105,7 @@ function ServiceFinishedProvider() {
         <button 
           type="button"
           className="maqgo-btn-secondary"
-          onClick={() => navigate('/provider/availability')}
+          onClick={() => navigate('/provider/home')}
           style={{ width: '100%' }}
         >
           Volver al inicio

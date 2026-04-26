@@ -590,10 +590,10 @@ function TeamManagementScreen() {
                         </div>
                         <div>
                           <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
-                            Gerente / Master
+                            Gerente
                           </p>
                           <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
-                            Cuenta proveedor tipo gerente: gestión de la empresa (no es operador de una máquina)
+                            Cuenta de gestión para tu empresa (no es operador de maquinaria)
                           </p>
                         </div>
                       </div>
@@ -612,7 +612,7 @@ function TeamManagementScreen() {
                     }}
                   >
                     <p style={{ color: '#E1BEE7', fontSize: 12, fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                      Autorización de gerente
+                      Invitación de gerente
                     </p>
                     <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
                       Este código es el mecanismo para dar de alta a un <strong>gerente</strong>: al usarlo en la app crea una cuenta <strong>proveedor</strong> con rol gerente, vinculada a tu empresa. Es una autorización fuerte: solo compártelo con alguien de confianza. No sustituye invitar operadores de terreno ni asignar personas en{' '}
