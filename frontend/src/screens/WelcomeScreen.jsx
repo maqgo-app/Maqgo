@@ -100,6 +100,8 @@ function WelcomeScreen() {
   // Solo sesión real (JWT): evita “Mi cuenta” con userId demo sin token → 401 en API.
   // token puede ser `token` (legacy) o `authToken` (actual).
   const hasSession = !!((localStorage.getItem('authToken') || localStorage.getItem('token')) && localStorage.getItem('userId'));
+  const storedKnownRole = (localStorage.getItem('userRole') || localStorage.getItem('role') || '').trim();
+  const hasKnownLoginContext = hasSession || (!!storedKnownRole && !!localStorage.getItem('userId'));
   /** Admin con sesión: la portada es para mercado; sin ?preview=1 se redirige al panel (login ya manda a /admin). */
   const allowPublicPreview =
     searchParams.get('preview') === '1' || location.state?.previewPublic === true;
@@ -423,23 +425,25 @@ function WelcomeScreen() {
 
         <div style={{ textAlign: "center", marginTop: "20px" }}>
 
-  <div style={{ marginBottom: "18px" }}>
-    <button
-      onClick={handleAccount}
-      style={{
-        background: 'none',
-        border: 'none',
-        padding: 0,
-        fontFamily: 'inherit',
-        color: "#FF6B00",
-        fontSize: "14px",
-        textDecoration: "none",
-        cursor: 'pointer'
-      }}
-    >
-      Iniciar sesión
-    </button>
-  </div>
+  {hasKnownLoginContext && (
+    <div style={{ marginBottom: "18px" }}>
+      <button
+        onClick={handleAccount}
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          fontFamily: 'inherit',
+          color: "#FF6B00",
+          fontSize: "14px",
+          textDecoration: "none",
+          cursor: 'pointer'
+        }}
+      >
+        Iniciar sesión
+      </button>
+    </div>
+  )}
 
   <div className="welcome-legal-footer">
     <div className="welcome-legal-links" aria-label="Enlaces legales">
