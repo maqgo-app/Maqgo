@@ -85,9 +85,9 @@ function ClientHome() {
             cursor: 'pointer',
             padding: 0,
           }}
-          aria-label="Volver a portada"
+          aria-label="Salir a bienvenida"
         >
-          Portada
+          Salir
         </button>
         {/* Logo */}
         <MaqgoLogo size="medium" style={{ marginBottom: 32 }} />
@@ -249,7 +249,7 @@ function ClientHome() {
           lineHeight: 1.4,
           fontFamily: "'Inter', sans-serif"
         }}>
-          En horas, no días. Paga solo al confirmar.
+          En horas, no días. Pagas solo si aceptan tu solicitud.
         </p>
 
         <div style={{ flex: 1 }}></div>
