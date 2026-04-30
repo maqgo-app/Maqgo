@@ -148,8 +148,6 @@ function LoginScreen({ setUserRole, setUserId }) {
   const [stepUpUserId, setStepUpUserId] = useState('');
   /** Teléfono normalizado para el paso de Step-Up */
   const [stepUpPhone, setStepUpPhone] = useState('');
-  /** Email enmascarado del proveedor para mostrar en Step-Up */
-  const [stepUpEmailMasked, setStepUpEmailMasked] = useState('');
   const [stepUpRequiresPasswordSetup, setStepUpRequiresPasswordSetup] = useState(false);
 
   const [email, setEmail] = useState('');
@@ -244,6 +242,7 @@ function LoginScreen({ setUserRole, setUserId }) {
   }, [navigate, redirectTo, searchParams, location.state]);
 
   const applySessionAndNavigate = (data, options = {}) => {
+    const authSource = options.authSource || 'unknown';
     if (!data || !data.token) {
       setError('No se generó sesión. Intenta nuevamente.');
       return false;
@@ -257,8 +256,6 @@ function LoginScreen({ setUserRole, setUserId }) {
     // Si el usuario tiene múltiples roles (ej: client + provider), decidir cuál usar:
     const desiredRole = localStorage.getItem('desiredRole');
     const previouslySelectedRole = localStorage.getItem('userRole');
-    const isAdmin = data.role === 'admin' || roles.includes('admin');
-    const mustChangePassword = isAdmin && Boolean(data.must_change_password);
     let effectiveRole = null;
     
     // PRIORIDAD 1: El rol que el usuario acaba de elegir en Welcome (Arrendar vs Ofrecer)
@@ -273,7 +270,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     }
     // PRIORIDAD 3: Redirección forzada por ruta protegida
     else if (redirectTo) {
-      if (redirectTo.startsWith('/admin') && isAdmin) effectiveRole = 'admin';
+      if (redirectTo.startsWith('/admin') && (data.role === 'admin' || roles.includes('admin'))) effectiveRole = 'admin';
       else if (redirectTo.startsWith('/provider') && roles.includes('provider')) effectiveRole = 'provider';
       else if (redirectTo.startsWith('/client') && roles.includes('client')) effectiveRole = 'client';
     }
@@ -283,13 +280,17 @@ function LoginScreen({ setUserRole, setUserId }) {
     
     // Si nada de lo anterior aplica, usamos el rol por defecto del backend
     if (!effectiveRole) {
-      effectiveRole = isAdmin ? 'admin' : data.role;
+      effectiveRole = String(data.role || '').trim();
     }
 
     // Fallback final si no hay rol definido
     if (!effectiveRole && roles.length > 0) {
       effectiveRole = roles.includes('provider') ? 'provider' : roles[0];
     }
+    if (!effectiveRole) effectiveRole = 'client';
+
+    const isAdmin = effectiveRole === 'admin';
+    const mustChangePassword = isAdmin && Boolean(data.must_change_password);
     const next = getPostLoginNavigation({
       isAdmin,
       effectiveRole,
@@ -309,7 +310,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     setUserId(uid);
     localStorage.setItem('userRole', effectiveRole);
     localStorage.setItem('userRoles', JSON.stringify(roles));
-    if (data.email) {
+    if (authSource === 'email' && data.email) {
       localStorage.setItem('userEmail', data.email);
     }
     if (mustChangePassword) {
@@ -405,7 +406,7 @@ function LoginScreen({ setUserRole, setUserId }) {
       // puede devolver sesión sin SMS (requires_otp false) si el número/dispositivo ya es confiable.
 
       if (result?.requires_otp === false && result?.token) {
-        applySessionAndNavigate(result, { logSmsTrustedRouting: true });
+      applySessionAndNavigate(result, { logSmsTrustedRouting: true, authSource: 'sms' });
         return;
       }
 
@@ -446,7 +447,7 @@ function LoginScreen({ setUserRole, setUserId }) {
         { identifier: em, password },
         { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
       );
-      applySessionAndNavigate(res.data);
+      applySessionAndNavigate(res.data, { authSource: 'email' });
     } catch (e) {
       setError(
         getHttpErrorMessage(e, {
@@ -495,13 +496,12 @@ function LoginScreen({ setUserRole, setUserId }) {
       if (res.data?.requires_password) {
         setStepUpUserId(res.data.user_id);
         setStepUpPhone(res.data.phone);
-        setStepUpEmailMasked(res.data.email_masked || '');
         setStepUpRequiresPasswordSetup(Boolean(res.data.requires_password_setup));
         setStep('password_verify');
         return;
       }
 
-      applySessionAndNavigate(res.data);
+      applySessionAndNavigate(res.data, { authSource: 'sms' });
     } catch (e) {
       setError(
         getHttpErrorMessage(e, {
@@ -538,7 +538,7 @@ function LoginScreen({ setUserRole, setUserId }) {
           headers: { 'Content-Type': 'application/json' },
         }
       );
-      applySessionAndNavigate(res.data);
+      applySessionAndNavigate(res.data, { authSource: 'sms' });
     } catch (e) {
       setError(
         getHttpErrorMessage(e, {
@@ -567,7 +567,6 @@ function LoginScreen({ setUserRole, setUserId }) {
     setCode('');
     setStepUpUserId('');
     setStepUpPhone('');
-    setStepUpEmailMasked('');
     setStepUpRequiresPasswordSetup(false);
   };
 
@@ -833,31 +832,9 @@ function LoginScreen({ setUserRole, setUserId }) {
                     margin: 0
                   }}
                 >
-                  {stepUpEmailMasked ? (
-                    <>
-                      Detectamos una cuenta MAQGO vinculada a:
-                      <br />
-                      <strong style={{ color: '#fff' }}>{stepUpEmailMasked}</strong>
-                      <br />
-                      <span style={{ fontSize: 12, opacity: 0.7, display: 'block', marginTop: 8 }}>
-                        {stepUpRequiresPasswordSetup
-                          ? 'Por seguridad, debes crear o restablecer tu clave para continuar.'
-                          : 'Por seguridad, como este dispositivo es nuevo o no reconocido, ingresa tu clave para continuar.'}
-                        {!stepUpRequiresPasswordSetup ? (
-                          <>
-                            <br />
-                            <span style={{ opacity: 0.85 }}>
-                              En próximos accesos desde este dispositivo normalmente no se solicitará, salvo actividad inusual.
-                            </span>
-                          </>
-                        ) : null}
-                      </span>
-                    </>
-                  ) : (
-                    stepUpRequiresPasswordSetup
-                      ? 'Por seguridad, debes crear o restablecer tu clave para continuar.'
-                      : 'Por seguridad, como este dispositivo es nuevo o no reconocido, ingresa tu clave para continuar.'
-                  )}
+                  {stepUpRequiresPasswordSetup
+                    ? 'Por seguridad, debes crear o restablecer tu clave para continuar.'
+                    : 'Por seguridad, como este dispositivo es nuevo o no reconocido, ingresa tu clave para continuar.'}
                 </p>
               </div>
 
@@ -872,7 +849,6 @@ function LoginScreen({ setUserRole, setUserId }) {
                       const digits = e164.replace(/\D/g, '').slice(-9);
                       navigate('/forgot-password', {
                         state: {
-                          prefillEmail: stepUpEmailMasked || '',
                           prefillPhoneDigits: digits,
                         },
                       });

@@ -14,17 +14,6 @@ function safeLocalStorage() {
   return null;
 }
 
-function parseUserRoles(ls) {
-  if (!ls) return [];
-  try {
-    const raw = ls.getItem('userRoles');
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Home coherente con BottomNavigation / login según `userRole` y `providerRole`.
  * Usado en Welcome (footer “Mi cuenta”) y CTA “Arrendar” cuando ya hay sesión.
@@ -89,6 +78,5 @@ export function getWelcomeOperatorDestination() {
 export function isAdminRoleStored() {
   const ls = safeLocalStorage();
   if (!ls) return false;
-  if (ls.getItem('userRole') === 'admin') return true;
-  return parseUserRoles(ls).includes('admin');
+  return ls.getItem('userRole') === 'admin';
 }

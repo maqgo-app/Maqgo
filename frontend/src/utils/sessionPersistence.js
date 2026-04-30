@@ -31,8 +31,7 @@ export function persistLoginSessionMetadata(data) {
   if (!data || typeof data !== 'object') return;
   try {
     const roles = Array.isArray(data.roles) ? data.roles : [];
-    const isAdmin = data.role === 'admin' || roles.includes('admin');
-    let effectiveRole = isAdmin ? 'admin' : String(data.role || '').trim();
+    let effectiveRole = String(data.role || '').trim();
     if (!effectiveRole && roles.length) {
       effectiveRole = roles.includes('provider') ? 'provider' : String(roles[0]);
     }

@@ -6,7 +6,7 @@ import axios from 'axios';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import { getArray } from '../../utils/safeStorage';
 import { calculateClientPrice, totalConFactura } from '../../utils/pricing';
-import { NoProvidersError, NoProvidersTryTomorrow } from '../../components/ErrorStates';
+import { NoProvidersTryTomorrow } from '../../components/ErrorStates';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
 import { ProviderOptionsSkeleton } from '../../components/ListSkeleton';
@@ -68,6 +68,7 @@ function ProviderOptionsScreen() {
   const [tomorrowAvailable, setTomorrowAvailable] = useState(false);
   const [tomorrowCount, setTomorrowCount] = useState(0);
   const [isDemoProviders, setIsDemoProviders] = useState(false);
+  const [emptyState, setEmptyState] = useState(false);
   const normalizeMachinery = (m) => String(m || '').trim().toLowerCase().replace(/\s+/g, '_');
   const [selectedMachinery, setSelectedMachinery] = useState(() =>
     normalizeMachinery(localStorage.getItem('selectedMachinery') || 'retroexcavadora')
@@ -203,6 +204,7 @@ function ProviderOptionsScreen() {
 
   const fetchProviders = useCallback(async () => {
     setLoading(true);
+    setEmptyState(false);
     // Usar la ubicación exacta ingresada en ServiceLocationScreen.
     // Si no existe (ej. fallback sin Google Places), usar coordenadas demo.
     const savedLat = parseFloat(localStorage.getItem('serviceLat') || '');
@@ -210,31 +212,26 @@ function ProviderOptionsScreen() {
     const clientLat = Number.isFinite(savedLat) ? savedLat : -33.4489;
     const clientLng = Number.isFinite(savedLng) ? savedLng : -70.6693;
     const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
-    const FAST_FALLBACK_MS = 2500; // Si la API tarda más, mostrar opciones de inmediato
-
-    const apiCall = axios.get(`${BACKEND_URL}/api/providers/match`, {
-      params: { machinery_type: selectedMachinery, client_lat: clientLat, client_lng: clientLng, max_radius: 30, limit: 5, needs_invoice: needsInvoice },
-      timeout: 5000
-    });
-
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('timeout')), FAST_FALLBACK_MS)
-    );
 
     try {
-      const response = await Promise.race([apiCall, timeoutPromise]);
+      const response = await axios.get(`${BACKEND_URL}/api/providers/match`, {
+        params: { machinery_type: selectedMachinery, client_lat: clientLat, client_lng: clientLng, max_radius: 30, limit: 5, needs_invoice: needsInvoice },
+        timeout: 8000
+      });
 
       setTomorrowAvailable(response.data?.tomorrow_available ?? false);
       setTomorrowCount(response.data?.tomorrow_count ?? 0);
 
       // Agregar cálculo de horas máximas y precio total a cada proveedor
-      let rawProviders = sanitizeProviders(response.data?.providers || []);
-      let demoFlag = Boolean(response.data?.is_demo);
+      const rawProviders = sanitizeProviders(response.data?.providers || []);
       if (rawProviders.length === 0) {
-        rawProviders = sanitizeProviders(getDemoProvidersFallback());
-        demoFlag = true;
+        setProviders([]);
+        setIsDemoProviders(false);
+        setEmptyState(true);
+        return;
       }
-      setIsDemoProviders(demoFlag);
+      setIsDemoProviders(false);
+      setEmptyState(false);
       // Maquinaria por viaje: si el backend envía precios por hora (ej. 42k), normalizar a precio por viaje de mercado
       const refTrip = isPerTripMachineryType(selectedMachinery) ? REFERENCE_PRICES[selectedMachinery] : null;
       const providersWithData = rawProviders.map((provider, idx) => {
@@ -257,6 +254,8 @@ function ProviderOptionsScreen() {
     } catch {
       setIsDemoProviders(true);
       setTomorrowAvailable(false);
+      setTomorrowCount(0);
+      setEmptyState(false);
       const fallbackProviders = sanitizeProviders(getDemoProvidersFallback());
       const safeFallback = Array.isArray(fallbackProviders) && fallbackProviders.length
         ? fallbackProviders
@@ -477,7 +476,7 @@ function ProviderOptionsScreen() {
   }
 
   // Estado: No hay proveedores hoy pero sí mañana (reserva inmediata)
-  if (!loading && reservationType === 'immediate' && isDemoProviders && tomorrowAvailable) {
+  if (!loading && reservationType === 'immediate' && emptyState && tomorrowAvailable) {
     return (
       <div className="maqgo-app maqgo-client-funnel">
         <div className="maqgo-screen maqgo-screen--scroll">
@@ -486,91 +485,6 @@ function ProviderOptionsScreen() {
             onReserveTomorrow={handleReserveTomorrow}
             onModify={() => navigate('/client/home')}
           />
-        </div>
-      </div>
-    );
-  }
-
-  // Estado: No hay proveedores disponibles
-  if (!loading && providers.length === 0) {
-    // Caso especial: reserva programada que incluye sábado
-    if (reservationType === 'scheduled' && hasSaturday) {
-      return (
-        <div className="maqgo-app maqgo-client-funnel">
-          <div className="maqgo-screen maqgo-screen--scroll" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px', justifyContent: 'center' }}>
-            <div
-              style={{
-                background: '#2A2A2A',
-                borderRadius: 16,
-                padding: 20,
-                marginBottom: 16
-              }}
-            >
-              <h2
-                style={{
-                  color: '#fff',
-                  fontSize: 18,
-                  fontWeight: 600,
-                  margin: '0 0 8px',
-                  textAlign: 'center'
-                }}
-              >
-                Pocos proveedores para estas fechas
-              </h2>
-              <p
-                style={{
-                  color: 'rgba(255,255,255,0.85)',
-                  fontSize: 13,
-                  textAlign: 'center',
-                  margin: '0 0 14px'
-                }}
-              >
-                Para reservas que incluyen sábado hay menos operadores disponibles. Si puedes, prueba
-                quitando el sábado para ver más opciones.
-              </p>
-              <button
-                onClick={() => navigate('/client/calendar-multi')}
-                style={{
-                  width: '100%',
-                  padding: 14,
-                  background: '#EC6819',
-                  border: 'none',
-                  borderRadius: 24,
-                  color: '#fff',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  marginBottom: 10
-                }}
-              >
-                Ajustar fechas
-              </button>
-              <button
-                onClick={() => navigate('/client/home')}
-                style={{
-                  width: '100%',
-                  padding: 12,
-                  background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.25)',
-                  borderRadius: 24,
-                  color: '#fff',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: 'pointer'
-                }}
-              >
-                Volver al inicio
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="maqgo-app maqgo-client-funnel">
-        <div className="maqgo-screen maqgo-screen--scroll">
-          <NoProvidersError onModify={() => navigate('/client/home')} />
         </div>
       </div>
     );
@@ -659,9 +573,15 @@ function ProviderOptionsScreen() {
           <div style={{ width: 24 }}></div>
         </div>
 
+        {emptyState && (
+          <div className="demo-banner" role="status" aria-live="polite">
+            Estamos activando proveedores en tu zona. Te mostraremos opciones disponibles en breve.
+          </div>
+        )}
+
         {isDemoProviders && (
           <div className="demo-banner" role="status" aria-live="polite">
-            Estamos mostrando opciones referenciales por un problema de conexión.
+            No pudimos cargar proveedores en este momento. Estamos mostrando opciones referenciales.
           </div>
         )}
 

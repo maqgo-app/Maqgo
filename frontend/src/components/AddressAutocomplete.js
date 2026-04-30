@@ -10,17 +10,29 @@ export function getGoogleMapsApiKey() {
     return raw.replace(/^['"]|['"]$/g, '').trim();
   };
 
-  // 1) Build-time env (Vercel)
+  const mask = (value) => {
+    const v = String(value || '');
+    if (!v) return '';
+    if (v.length <= 10) return `${v.slice(0, 2)}…${v.slice(-2)}`;
+    return `${v.slice(0, 6)}…${v.slice(-4)}`;
+  };
+
+  const fromRuntimeRaw = window.__MAQGO_RUNTIME_CONFIG__?.googleMapsApiKey || '';
+  const fromRuntime = sanitize(fromRuntimeRaw);
+
+  // Build-time env (Vercel)
   const fromEnvRaw =
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
     import.meta.env.REACT_APP_GOOGLE_MAPS_API_KEY ||
     '';
   const fromEnv = sanitize(fromEnvRaw);
-  if (fromEnv) return fromEnv;
 
-  // 2) Runtime config (si queremos inyectar sin rebuild)
-  const fromRuntime = sanitize(window.__MAQGO_RUNTIME_CONFIG__?.googleMapsApiKey || '');
-  return String(fromRuntime || '');
+  if (!window.__MAQGO_MAPS_KEY_SOURCE_LOGGED__) {
+    window.__MAQGO_MAPS_KEY_SOURCE_LOGGED__ = true;
+    console.log('MAPS KEY SOURCE:', { runtime: mask(fromRuntime), env: mask(fromEnv) });
+  }
+
+  return String(fromRuntime || fromEnv || '');
 }
 
 /**
@@ -132,6 +144,12 @@ export function AddressAutocomplete({
 
   useEffect(() => {
     if (!apiKey) {
+      if (!window.__MAQGO_MAPS_KEY_WARNED__) {
+        window.__MAQGO_MAPS_KEY_WARNED__ = true;
+        console.warn(
+          '[Maqgo] Google Maps desactivado: falta API key. Configura window.__MAQGO_RUNTIME_CONFIG__.googleMapsApiKey o VITE_GOOGLE_MAPS_API_KEY y redeploy/rebuild.'
+        );
+      }
       onPlacesStatusChange?.({ ready: false, phase: 'no_key', hasApiKey: false, reason: 'NO_API_KEY' });
       onPlacesReadyChange?.(false);
       return;

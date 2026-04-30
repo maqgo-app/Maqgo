@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import LoginPhoneChileInput from '../../components/LoginPhoneChileInput';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/authHooks';
@@ -27,10 +26,8 @@ function TeamManagementScreen() {
   const [showCode, setShowCode] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [operatorNombre, setOperatorNombre] = useState('');
-  const [operatorApellido, setOperatorApellido] = useState('');
+  const [operatorNombreCompleto, setOperatorNombreCompleto] = useState('');
   const [operatorRut, setOperatorRut] = useState('');
-  const [operatorPhone, setOperatorPhone] = useState('');
   const [didAttemptInvite, setDidAttemptInvite] = useState(false);
   const GPS_FRESH_MINUTES = 10;
   const GPS_STALE_MINUTES = 120;
@@ -67,13 +64,10 @@ function TeamManagementScreen() {
 
   useEffect(() => {
     const fetchTeam = async () => {
-      const FAST_FALLBACK_MS = 2500;
       const userId = localStorage.getItem('userId');
       const ownerId = localStorage.getItem('ownerId') || userId;
       try {
-        const apiPromise = axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 5000 });
-        const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
-        const response = await Promise.race([apiPromise, timeoutPromise]);
+        const response = await axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 8000 });
         setTeam(response.data);
       } catch (e) {
         console.error('Error loading team:', e);
@@ -103,22 +97,19 @@ function TeamManagementScreen() {
         ? `${BACKEND_URL}/api/operators/masters/invite`
         : `${BACKEND_URL}/api/operators/invite`;
 
-      // Validaciones básicas para operador: nombre y RUT obligatorios
+      // Validaciones básicas para operador: nombre completo y RUT obligatorios
       let payload = { owner_id: ownerId };
       if (inviteType === 'operator') {
-        const nom = operatorNombre.trim();
-        const ape = operatorApellido.trim();
-        if (!nom || !ape || !operatorRut.trim()) {
-          toast.warning('Ingresa nombre, apellido y RUT del operador antes de generar el código.');
+        const fullName = operatorNombreCompleto.trim();
+        if (!fullName || !operatorRut.trim()) {
+          toast.warning('Ingresa nombre completo y RUT del operador antes de generar el código.');
           setInviting(false);
           return;
         }
-        const phoneDigits = String(operatorPhone || '').replace(/\D/g, '').slice(0, 9);
         payload = {
           owner_id: ownerId,
-          operator_name: `${nom} ${ape}`.trim(),
+          operator_name: fullName,
           operator_rut: operatorRut.trim(),
-          operator_phone: /^9\d{8}$/.test(phoneDigits) ? `+56${phoneDigits}` : null,
         };
       }
 
@@ -127,10 +118,8 @@ function TeamManagementScreen() {
       setInviteCode(response.data.code);
       setShowCode(true);
       // Limpiar formulario de datos de operador
-      setOperatorNombre('');
-      setOperatorApellido('');
+      setOperatorNombreCompleto('');
       setOperatorRut('');
-      setOperatorPhone('');
       setDidAttemptInvite(false);
       loadTeam(); // Recargar para ver la invitación pendiente
     } catch (e) {
@@ -159,8 +148,7 @@ function TeamManagementScreen() {
 
   const missingInviteFields = [];
   if (inviteType === 'operator') {
-    if (!operatorNombre.trim()) missingInviteFields.push('Nombre');
-    if (!operatorApellido.trim()) missingInviteFields.push('Apellido');
+    if (!operatorNombreCompleto.trim()) missingInviteFields.push('Nombre completo');
     if (!operatorRut.trim()) missingInviteFields.push('RUT');
   }
   const isInviteFormValid = inviteType !== 'operator' || missingInviteFields.length === 0;
@@ -371,6 +359,16 @@ function TeamManagementScreen() {
                           background: gpsBadge.color,
                           boxShadow: `0 0 0 3px ${gpsBadge.color}22`
                         }} title={gpsBadge.title}></div>
+                        <span style={{
+                          padding: '4px 10px',
+                          borderRadius: 20,
+                          background: 'rgba(76, 175, 80, 0.18)',
+                          color: '#4CAF50',
+                          fontSize: 13,
+                          fontWeight: 600
+                        }}>
+                          Activo
+                        </span>
                       </div>
                         );
                       })()
@@ -442,6 +440,11 @@ function TeamManagementScreen() {
                             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
                               {inv.invite_type === 'master' ? 'Para Gerente' : 'Para Operador'}
                             </p>
+                            {inv.operator_name && (
+                              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '6px 0 0' }}>
+                                {inv.operator_name}{inv.operator_rut ? ` · RUT ${inv.operator_rut}` : ''}
+                              </p>
+                            )}
                           </div>
                           <button
                             onClick={() => cancelInvitation(inv.code)}
@@ -457,6 +460,19 @@ function TeamManagementScreen() {
                           >
                             Cancelar
                           </button>
+                        </div>
+                        <div style={{ marginTop: 10 }}>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '4px 10px',
+                            borderRadius: 20,
+                            background: 'rgba(255, 167, 38, 0.18)',
+                            color: '#FFA726',
+                            fontSize: 13,
+                            fontWeight: 600
+                          }}>
+                            Pendiente
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -637,39 +653,18 @@ function TeamManagementScreen() {
                     </p>
                     <div style={{ marginBottom: 10 }}>
                       <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        Nombre *
+                        Nombre completo *
                       </label>
                       <input
                         type="text"
-                        value={operatorNombre}
-                        onChange={(e) => setOperatorNombre(e.target.value)}
-                        placeholder="Ej: Tomás"
+                        value={operatorNombreCompleto}
+                        onChange={(e) => setOperatorNombreCompleto(e.target.value)}
+                        placeholder="Ej: Juan Pérez"
                         style={{
                           width: '100%',
                           padding: '10px 12px',
                           borderRadius: 8,
-                          border: didAttemptInvite && !operatorNombre.trim() ? '1px solid #F44336' : '1px solid #444',
-                          background: '#1F1F1F',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-                    <div style={{ marginBottom: 10 }}>
-                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        Apellido *
-                      </label>
-                      <input
-                        type="text"
-                        value={operatorApellido}
-                        onChange={(e) => setOperatorApellido(e.target.value)}
-                        placeholder="Ej: Leiva"
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          border: didAttemptInvite && !operatorApellido.trim() ? '1px solid #F44336' : '1px solid #444',
+                          border: didAttemptInvite && !operatorNombreCompleto.trim() ? '1px solid #F44336' : '1px solid #444',
                           background: '#1F1F1F',
                           color: '#fff',
                           fontSize: 14,
@@ -704,21 +699,6 @@ function TeamManagementScreen() {
                         Falta completar: {missingInviteFields.join(', ')}.
                       </p>
                     )}
-                    <div>
-                      <label htmlFor="team-invite-operator-phone" style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        Celular (opcional)
-                      </label>
-                      <LoginPhoneChileInput
-                        id="team-invite-operator-phone"
-                        name="operatorPhone"
-                        value={operatorPhone}
-                        onDigitsChange={setOperatorPhone}
-                        ariaLabel="Celular del operador, nueve dígitos"
-                      />
-                      <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, margin: '6px 0 0', lineHeight: 1.35 }}>
-                        El prefijo +56 ya está fijo; ingresa solo los 9 dígitos (empiezan en 9). Puedes dejarlo vacío.
-                      </p>
-                    </div>
                   </div>
                 )}
 

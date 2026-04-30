@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import LoginPhoneChileInput from '../../components/LoginPhoneChileInput';
 import { ProviderNavigation } from '../../components/BottomNavigation';
 import { useToast } from '../../components/Toast';
-import { validateRut, formatRut } from '../../utils/chileanValidation';
 import { getMachines, resetMachines, updateMachine, removeMachine, needsTransport, MACHINERY_TYPES } from '../../utils/providerMachines';
 import { REFERENCE_PRICES, REFERENCE_TRANSPORT, MAX_PRICE_ABOVE_MARKET_PCT, getPriceAlert, getTransportAlert } from '../../utils/pricing';
 import { vibrate } from '../../utils/uberUX';
@@ -18,16 +16,6 @@ function toMachineryId(type) {
   if (!type) return 'retroexcavadora';
   const t = type.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
   return MACHINERY_TYPES.find(m => m.id === t || m.name.toLowerCase().includes(t))?.id || 'retroexcavadora';
-}
-
-/** 9 dígitos nacionales desde valor guardado (+56… o suelto). */
-function parseChileMobile9(raw) {
-  if (raw == null || raw === '') return '';
-  let s = String(raw).replace(/\s/g, '');
-  if (s.startsWith('+56')) s = s.slice(3);
-  else if (s.startsWith('56') && s.length > 9) s = s.slice(2);
-  const d = s.replace(/\D/g, '').slice(0, 9);
-  return /^9\d{8}$/.test(d) ? d : '';
 }
 
 function MyMachinesScreen() {
@@ -43,7 +31,6 @@ function MyMachinesScreen() {
   const [editPricingModal, setEditPricingModal] = useState(null);
   const [operatorModal, setOperatorModal] = useState(null);
   const [deleteMachineConfirm, setDeleteMachineConfirm] = useState(null);
-  const [deleteOperatorConfirm, setDeleteOperatorConfirm] = useState(null);
 
   const loadMachines = () => setMachines(getMachines());
 
@@ -51,7 +38,7 @@ function MyMachinesScreen() {
     if (!openOperatorForMachineId) return;
     const machine = getMachines().find((m) => m?.id === openOperatorForMachineId);
     if (machine) {
-      setOperatorModal({ machine, operator: null });
+      setOperatorModal({ machine });
       navigate(location.pathname, { replace: true, state: { activationEdit, returnTo } });
     }
   }, [activationEdit, navigate, openOperatorForMachineId, location.pathname, returnTo]);
@@ -75,42 +62,21 @@ function MyMachinesScreen() {
     setEditPricingModal(null);
   };
 
-  const saveOperator = (machineId, operatorData) => {
+  const saveMachineOperators = (machineId, operators) => {
     const machines = getMachines();
     const machine = machines.find(m => m.id === machineId);
     if (!machine) return;
 
-    const ops = [...(machine.operators || [])];
-    if (operatorData.id) {
-      const idx = ops.findIndex(o => o.id === operatorData.id);
-      if (idx >= 0) ops[idx] = { ...ops[idx], ...operatorData };
-    } else {
-      ops.push({
-        id: `op-${Date.now()}`,
-        name: operatorData.name,
-        phone: operatorData.phone || '',
-        online: false,
-        lastSeen: new Date().toISOString(),
-        ...operatorData
-      });
+    const mid = toMachineryId(machine.type);
+    const selectedIds = new Set((operators || []).map(o => o.id));
+    if (defaultByMachinery[mid] && !selectedIds.has(defaultByMachinery[mid])) {
+      setDefaultOperator(mid, '');
     }
-    updateMachine(machineId, { operators: ops });
+
+    updateMachine(machineId, { operators: operators || [] });
     loadMachines();
     setOperatorModal(null);
     if (activationEdit) navigate(returnTo, { replace: true });
-  };
-
-  const deleteOperator = (machineId, operatorId) => {
-    const machines = getMachines();
-    const machine = machines.find(m => m.id === machineId);
-    if (!machine) return;
-    const ops = (machine.operators || []).filter(o => o.id !== operatorId);
-    updateMachine(machineId, { operators: ops });
-    const mid = toMachineryId(machine.type);
-    if (defaultByMachinery[mid] === operatorId) {
-      setDefaultOperator(mid, '');
-    }
-    loadMachines();
   };
 
   const toggleAvailability = (machineId) => {
@@ -128,11 +94,6 @@ function MyMachinesScreen() {
     removeMachine(machineId);
     loadMachines();
     setDeleteMachineConfirm(null);
-  };
-
-  const handleDeleteOperator = (machineId, operatorId) => {
-    deleteOperator(machineId, operatorId);
-    setDeleteOperatorConfirm(null);
   };
 
   const formatPrice = (price) =>
@@ -384,10 +345,6 @@ function MyMachinesScreen() {
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{
-                            width: 8, height: 8, borderRadius: '50%',
-                            background: op.online ? '#4CAF50' : '#666', flexShrink: 0
-                          }} />
                           <div>
                             <p style={{ color: '#fff', fontSize: 13, margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: 6 }}>
                               {op.name}
@@ -398,7 +355,7 @@ function MyMachinesScreen() {
                               )}
                             </p>
                             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>
-                              {op.phone || (op.online ? 'Conectado' : 'Desconectado')}
+                              {op.phone || 'Sin celular'}
                             </p>
                           </div>
                         </div>
@@ -421,25 +378,6 @@ function MyMachinesScreen() {
                               {isDefault ? '✓ Activo' : 'Activar'}
                             </button>
                           )}
-                          <button
-                            onClick={() => setOperatorModal({ machine, operator: op })}
-                            title="Editar operador"
-                            style={{ background: 'none', border: 'none', color: '#90BDD3', cursor: 'pointer', padding: 4 }}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                              <path d="M11 4H4C3.44772 4 3 4.44772 3 5V20C3 20.5523 3.44772 21 4 21H19C19.5523 21 20 20.5523 20 20V13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                              <path d="M18.5 2.5C19.3284 1.67157 20.6716 1.67157 21.5 2.5C22.3284 3.32843 22.3284 4.67157 21.5 5.5L12 15L8 16L9 12L18.5 2.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => setDeleteOperatorConfirm({ machine, operator: op })}
-                            title="Eliminar operador"
-                            style={{ background: 'none', border: 'none', color: '#F44336', cursor: 'pointer', padding: 4 }}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                              <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                            </svg>
-                          </button>
                         </div>
                       </div>
                     );
@@ -451,7 +389,7 @@ function MyMachinesScreen() {
                 </p>
               )}
               <button
-                onClick={() => setOperatorModal({ machine, operator: null })}
+                onClick={() => setOperatorModal({ machine })}
                 style={{
                   width: '100%', marginTop: 8, padding: '10px',
                   background: 'none', border: '1px dashed rgba(255,255,255,0.3)', borderRadius: 8,
@@ -459,7 +397,7 @@ function MyMachinesScreen() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
                 }}
               >
-                + Agregar operador
+                Asignar operadores
               </button>
             </div>
 
@@ -507,21 +445,11 @@ function MyMachinesScreen() {
       )}
 
       {operatorModal && (
-        operatorModal.operator ? (
-          <OperatorModal
-            machine={operatorModal.machine}
-            operator={operatorModal.operator}
-            onSave={(data) => saveOperator(operatorModal.machine.id, data)}
-            onClose={() => setOperatorModal(null)}
-          />
-        ) : (
-          <AddOperatorChoiceModal
-            machine={operatorModal.machine}
-            onSelectFromTeam={(op) => { saveOperator(operatorModal.machine.id, { id: op.id, name: op.name, phone: op.phone || '' }); setOperatorModal(null); }}
-            onSaveManual={(data) => { saveOperator(operatorModal.machine.id, data); setOperatorModal(null); }}
-            onClose={() => setOperatorModal(null)}
-          />
-        )
+        <AssignOperatorsModal
+          machine={operatorModal.machine}
+          onSave={(operators) => saveMachineOperators(operatorModal.machine.id, operators)}
+          onClose={() => setOperatorModal(null)}
+        />
       )}
 
       {deleteMachineConfirm && (
@@ -541,14 +469,6 @@ function MyMachinesScreen() {
         />
       )}
 
-      {deleteOperatorConfirm && (
-        <ConfirmModal
-          title="Eliminar operador"
-          message={`¿Quitar a ${deleteOperatorConfirm.operator.name} de esta máquina?`}
-          onConfirm={() => handleDeleteOperator(deleteOperatorConfirm.machine.id, deleteOperatorConfirm.operator.id)}
-          onCancel={() => setDeleteOperatorConfirm(null)}
-        />
-      )}
       </div>
 
       <ProviderNavigation />
@@ -620,352 +540,121 @@ function EditPricingModal({ machine, priceVal: initialPrice, transportVal: initi
   );
 }
 
-function AddOperatorChoiceModal({ machine, onSelectFromTeam, onSaveManual, onClose }) {
+function AssignOperatorsModal({ machine, onSave, onClose }) {
   const navigate = useNavigate();
   const toast = useToast();
-  const [mode, setMode] = useState('loading'); // 'loading' | 'choice' | 'fromTeam' | 'inviteForm' | 'inviteNew' | 'manual'
-  const [teamOperators, setTeamOperators] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [inviteCode, setInviteCode] = useState('');
-  const [inviting, setInviting] = useState(false);
-  const [nombre, setNombre] = useState('');
-  const [apellido, setApellido] = useState('');
-  const [phone, setPhone] = useState('');
-  const [rut, setRut] = useState('');
+  const [teamOperators, setTeamOperators] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(() => new Set((machine.operators || []).map(o => o.id)));
   const [error, setError] = useState('');
-  const existingIds = (machine.operators || []).map(o => o.id);
 
-  // Cargar equipo al abrir (mejor práctica: mostrar opción más probable primero)
   useEffect(() => {
     const ownerId = localStorage.getItem('ownerId') || localStorage.getItem('userId');
-    const FAST_FALLBACK_MS = 2500;
-    const apiPromise = axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 5000 });
-    const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
-    Promise.race([apiPromise, timeoutPromise])
-      .then(r => {
-        const ops = r.data.operators || [];
+    axios
+      .get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 8000 })
+      .then((r) => {
+        const ops = (r.data?.operators || []).filter((o) => (o?.provider_role || '') === 'operator' || !o?.provider_role);
         setTeamOperators(ops);
-        const available = ops.filter(o => !existingIds.includes(o.id));
-        setMode(available.length > 0 ? 'fromTeam' : 'choice');
       })
-      .catch(() => { setTeamOperators([]); setMode('choice'); })
+      .catch(() => {
+        setTeamOperators([]);
+        setError('No pudimos cargar los operadores de tu empresa.');
+      })
       .finally(() => setLoading(false));
-    // Carga única al abrir el modal; existingIds solo filtra la respuesta (incluirlo re-dispararía cada render).
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- existingIds es un array nuevo por render
   }, []);
 
-  const handleInviteNew = async () => {
-    setError('');
-    const nom = nombre.trim();
-    const ape = apellido.trim();
-    const fullName = `${nom} ${ape}`.trim();
-    const p = String(phone || '').replace(/\D/g, '').slice(0, 9);
-    if (!nom) { setError('Ingresa el nombre del operador'); return; }
-    if (!ape) { setError('Ingresa el apellido del operador'); return; }
-    if (!/^9\d{8}$/.test(p)) { setError('Ingresa el celular completo: 9 dígitos empezando en 9'); return; }
-    if (rut.trim() && !validateRut(rut)) { setError('RUT inválido'); return; }
-    setInviting(true);
-    try {
-      const ownerId = localStorage.getItem('ownerId') || localStorage.getItem('userId');
-      const r = await axios.post(`${BACKEND_URL}/api/operators/invite`, {
-        owner_id: ownerId,
-        operator_name: fullName,
-        operator_phone: `+56${p}`,
-        operator_rut: rut.trim() || null
-      });
-      setInviteCode(r.data.code);
-      setMode('inviteNew');
-    } catch (e) {
-      setError(e.response?.data?.detail || 'Error al generar código');
-    }
-    setInviting(false);
+  const toggle = (opId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(opId)) next.delete(opId);
+      else next.add(opId);
+      return next;
+    });
   };
-
-  const availableOperators = teamOperators.filter(o => !existingIds.includes(o.id));
-
-  return (
-    <ModalOverlay onClick={onClose}>
-      <div style={modalStyle} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0 }}>Agregar operador</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: 4 }}>✕</button>
-        </div>
-        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '0 0 20px' }}>{machine.type}</p>
-
-        {mode === 'loading' && (
-          <div style={{ textAlign: 'center', padding: 24 }}>
-            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>Cargando operadores...</p>
-          </div>
-        )}
-
-        {mode === 'choice' && (
-          <>
-            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, margin: '0 0 16px' }}>
-              No hay operadores registrados. Invita uno o agrega manualmente.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              <button
-                onClick={() => setMode('inviteForm')}
-                style={{
-                  padding: 14, background: 'rgba(236, 104, 25, 0.2)', border: '2px solid #EC6819', borderRadius: 12,
-                  color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12
-                }}
-              >
-                <span style={{ fontSize: 20 }}>📱</span>
-                <div>
-                  <div>Invitar nuevo operador</div>
-                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 400 }}>Inscríbelo y genera código · Solo necesitará el código</div>
-                </div>
-              </button>
-              <button
-                onClick={() => setMode('manual')}
-                style={{
-                  padding: 14, background: '#2A2A2A', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 12,
-                  color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12
-                }}
-              >
-                <span style={{ fontSize: 20 }}>✏️</span>
-                <div>
-                  <div>Agregar manualmente</div>
-                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 400 }}>Nombre y teléfono (sin enrolar)</div>
-                </div>
-              </button>
-            </div>
-            {error && <p style={{ color: '#F44336', fontSize: 12, marginBottom: 12 }}>{error}</p>}
-          </>
-        )}
-
-        {mode === 'inviteForm' && (
-          <>
-            <button
-              type="button"
-              className="maqgo-btn-secondary"
-              onClick={() => setMode(availableOperators.length > 0 ? 'fromTeam' : 'choice')}
-              style={{ marginBottom: 16, width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-            >
-              <BackArrowIcon />
-              Volver
-            </button>
-            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, margin: '0 0 16px' }}>
-              Inscribe al operador. Solo necesitará el código para enrolarse.
-            </p>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>Nombre *</label>
-              <input type="text" placeholder="Ej: Juan" value={nombre} onChange={e => setNombre(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>Apellido *</label>
-              <input type="text" placeholder="Ej: Pérez" value={apellido} onChange={e => setApellido(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label htmlFor="invite-op-phone" style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>Celular *</label>
-              <LoginPhoneChileInput
-                id="invite-op-phone"
-                name="operatorPhone"
-                value={phone}
-                onDigitsChange={setPhone}
-                ariaLabel="Celular del operador: nueve dígitos sin el más 56"
-              />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 6 }}>RUT (opcional)</label>
-              <input type="text" placeholder="12.345.678-9" value={rut} onChange={e => setRut(formatRut(e.target.value))} maxLength={12} className="maqgo-input" style={{ width: '100%', fontFamily: "'JetBrains Mono', monospace" }} />
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '6px 0 0', lineHeight: 1.35 }}>
-                Si no lo tienes a mano, déjalo vacío: el operador puede completar su identidad al aceptar la invitación.
-              </p>
-            </div>
-            {error && <p style={{ color: '#F44336', fontSize: 12, marginBottom: 12 }}>{error}</p>}
-            <button onClick={handleInviteNew} disabled={inviting} style={btnPrimary}>
-              {inviting ? 'Generando...' : 'Inscribir y generar código'}
-            </button>
-          </>
-        )}
-
-        {mode === 'fromTeam' && (
-          <>
-            {loading ? (
-              <p style={{ color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>Cargando operadores...</p>
-            ) : availableOperators.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 20 }}>
-                <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, margin: '0 0 12px' }}>
-                  No hay operadores disponibles o ya están asignados a esta máquina.
-                </p>
-                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: 0 }}>
-                  Ve a <strong>Roles y accesos</strong> para invitar.
-                </p>
-                <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>Ir a Roles y accesos</button>
-              </div>
-            ) : (
-              <>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto', marginBottom: 12 }}>
-                  {availableOperators.map(op => (
-                    <button
-                      key={op.id}
-                      onClick={() => onSelectFromTeam(op)}
-                      style={{
-                        padding: 12, background: '#2A2A2A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
-                        color: '#fff', fontSize: 14, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12
-                      }}
-                    >
-                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#90BDD3', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F0F12', fontWeight: 700 }}>
-                        {op.name?.charAt(0) || 'O'}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{op.name}</div>
-                        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{op.phone || 'Sin teléfono'}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => setMode('inviteForm')}
-                  style={{
-                    width: '100%', padding: 10, background: 'none', border: 'none',
-                    color: '#90BDD3', fontSize: 12, cursor: 'pointer', textDecoration: 'underline'
-                  }}
-                >
-                  ¿No está? Inscribir e invitar nuevo operador
-                </button>
-              </>
-            )}
-          </>
-        )}
-
-        {mode === 'inviteNew' && inviteCode && (
-          <>
-            <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 24, marginBottom: 16, textAlign: 'center' }}>
-              <p style={{ color: '#90BDD3', fontSize: 28, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 6, margin: '0 0 8px' }}>{inviteCode}</p>
-              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>Válido 7 días</p>
-            </div>
-            <div style={{ background: 'rgba(236, 104, 25, 0.1)', borderRadius: 10, padding: 12, marginBottom: 16 }}>
-              <p style={{ color: '#EC6819', fontSize: 13, margin: 0 }}>
-                Envía este código al operador. Solo debe abrir Maqgo → <strong>Soy operador</strong> → ingresar el código.
-              </p>
-            </div>
-            <a
-              href={`https://wa.me/?text=${encodeURIComponent(`Tu código MAQGO: ${inviteCode}\n\nAbre Maqgo → Soy operador → ingresa el código + tu nombre + celular.`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                width: '100%', padding: 14, marginBottom: 8,
-                background: '#25D366', border: 'none', borderRadius: 10, color: '#fff',
-                fontSize: 14, fontWeight: 600, cursor: 'pointer', textDecoration: 'none'
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              Compartir por WhatsApp
-            </a>
-            <button type="button" className="maqgo-btn-secondary" onClick={() => { navigator.clipboard.writeText(inviteCode); toast.success('Código copiado'); }} style={{ marginBottom: 8, width: '100%' }}>
-              Copiar código
-            </button>
-            <button onClick={onClose} style={btnPrimary}>Listo</button>
-          </>
-        )}
-
-        {mode === 'manual' && (
-          <>
-            <button
-              type="button"
-              className="maqgo-btn-secondary"
-              onClick={() => setMode('choice')}
-              style={{ marginBottom: 16, width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-            >
-              <BackArrowIcon />
-              Volver
-            </button>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Nombre *</label>
-              <input type="text" placeholder="Ej: Juan" value={nombre} onChange={e => setNombre(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Apellido *</label>
-              <input type="text" placeholder="Ej: Pérez" value={apellido} onChange={e => setApellido(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <label htmlFor="manual-op-phone" style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Celular *</label>
-              <LoginPhoneChileInput
-                id="manual-op-phone"
-                name="manualPhone"
-                value={phone}
-                onDigitsChange={setPhone}
-                ariaLabel="Celular del operador"
-              />
-            </div>
-            {error && <p style={{ color: '#F44336', fontSize: 12, margin: '0 0 12px' }}>{error}</p>}
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button type="button" className="maqgo-btn-secondary" onClick={() => setMode('choice')} style={{ flex: 1 }}>Cancelar</button>
-              <button
-                onClick={() => {
-                  setError('');
-                  const nom = nombre.trim();
-                  const ape = apellido.trim();
-                  const p = String(phone || '').replace(/\D/g, '').slice(0, 9);
-                  if (!nom) { setError('El nombre es obligatorio'); return; }
-                  if (!ape) { setError('El apellido es obligatorio'); return; }
-                  if (!/^9\d{8}$/.test(p)) { setError('Ingresa el celular completo (9 dígitos).'); return; }
-                  onSaveManual({ name: `${nom} ${ape}`.trim(), phone: `+56${p}` });
-                }}
-                style={btnPrimary}
-              >
-                Guardar
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </ModalOverlay>
-  );
-}
-
-function OperatorModal({ machine, operator, onSave, onClose }) {
-  const parts = (operator?.name || '').trim().split(/\s+/);
-  const [nombre, setNombre] = useState(parts[0] || '');
-  const [apellido, setApellido] = useState(parts.slice(1).join(' ') || '');
-  const [phone, setPhone] = useState(() => parseChileMobile9(operator?.phone));
-  const [error, setError] = useState('');
 
   const handleSave = () => {
-    setError('');
-    const nom = nombre.trim();
-    const ape = apellido.trim();
-    const p = String(phone || '').replace(/\D/g, '').slice(0, 9);
-    if (!nom) { setError('El nombre es obligatorio'); return; }
-    if (!ape) { setError('El apellido es obligatorio'); return; }
-    if (!/^9\d{8}$/.test(p)) { setError('Ingresa un celular chileno válido (9 dígitos).'); return; }
-    onSave({ id: operator?.id, name: `${nom} ${ape}`.trim(), phone: `+56${p}` });
+    const selected = teamOperators
+      .filter((op) => selectedIds.has(op.id))
+      .map((op) => ({
+        id: op.id,
+        name: op.name,
+        phone: op.phone || '',
+        rut: op.rut || '',
+      }));
+    onSave(selected);
+    toast.success('Operadores asignados');
   };
 
   return (
     <ModalOverlay onClick={onClose}>
-      <div style={modalStyle} onClick={e => e.stopPropagation()}>
-        <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: '0 0 6px' }}>
-          {operator ? 'Editar operador' : 'Agregar operador'}
-        </h3>
-        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '0 0 20px' }}>{machine.type}</p>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Nombre *</label>
-          <input type="text" placeholder="Ej: Juan" value={nombre} onChange={e => setNombre(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
+      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0 }}>Asignar operadores</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: 4 }}>✕</button>
         </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Apellido *</label>
-          <input type="text" placeholder="Ej: Pérez" value={apellido} onChange={e => setApellido(e.target.value)} className="maqgo-input" style={{ width: '100%' }} />
+        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '0 0 14px' }}>{machine.type}</p>
+
+        <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 12, marginBottom: 16 }}>
+          <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
+            Aquí solo aparecen <strong>operadores activos</strong>. Los operadores <strong>pendientes</strong> (código sin usar) no se muestran para asignación.
+          </p>
         </div>
-        <div style={{ marginBottom: 20 }}>
-          <label htmlFor="edit-op-phone" style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Celular *</label>
-          <LoginPhoneChileInput
-            id="edit-op-phone"
-            name="editOperatorPhone"
-            value={phone}
-            onDigitsChange={setPhone}
-            ariaLabel="Celular del operador"
-          />
-        </div>
-        {error && <p style={{ color: '#F44336', fontSize: 12, margin: '0 0 12px' }}>{error}</p>}
-        <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-          <button type="button" className="maqgo-btn-secondary" onClick={onClose} style={{ flex: 1 }}>Cancelar</button>
-          <button onClick={handleSave} style={btnPrimary}>Guardar</button>
-        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 24 }}>
+            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, margin: 0 }}>Cargando operadores…</p>
+          </div>
+        ) : teamOperators.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 20 }}>
+            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, margin: '0 0 10px' }}>
+              No tienes operadores activos.
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
+              Crea un operador en <strong>Roles y accesos</strong>, comparte el código y cuando se enrolen aparecerán aquí.
+            </p>
+            <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>
+              Ir a Roles y accesos
+            </button>
+          </div>
+        ) : (
+          <>
+            {error && <p style={{ color: '#F44336', fontSize: 12, margin: '0 0 12px' }}>{error}</p>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto', marginBottom: 16 }}>
+              {teamOperators.map((op) => (
+                <label
+                  key={op.id}
+                  style={{
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'center',
+                    background: '#2A2A2A',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 10,
+                    padding: 12,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(op.id)}
+                    onChange={() => toggle(op.id)}
+                    style={{ width: 18, height: 18 }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{op.name}</div>
+                    <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 2 }}>
+                      {(op.rut ? `RUT ${op.rut} · ` : '')}{op.phone || 'Sin celular'}
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button type="button" className="maqgo-btn-secondary" onClick={onClose} style={{ flex: 1 }}>Cancelar</button>
+              <button onClick={handleSave} style={btnPrimary}>Guardar</button>
+            </div>
+          </>
+        )}
       </div>
     </ModalOverlay>
   );
