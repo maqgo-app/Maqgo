@@ -14,18 +14,46 @@ const BACKEND_URL = resolveBackendBaseUrl(rawBackend);
 const DEFAULT_TIMEOUT_MS = 20000;
 axios.defaults.timeout = DEFAULT_TIMEOUT_MS;
 
-function getBearerToken() {
+function getUserBearerToken() {
   return (localStorage.getItem('token') || localStorage.getItem('authToken') || '').trim();
 }
 
 /** Misma regla que las peticiones autenticadas: `token` o `authToken` (login guarda ambos). */
 function hasPersistedSessionCredentials() {
   const userId = localStorage.getItem('userId');
-  return Boolean(userId && getBearerToken());
+  return Boolean(userId && getUserBearerToken());
+}
+
+function getAdminBearerToken() {
+  return (
+    (localStorage.getItem('adminToken') ||
+      localStorage.getItem('adminAuthToken') ||
+      '').trim()
+  );
+}
+
+export function hasPersistedAdminSessionCredentials() {
+  const userId = localStorage.getItem('adminUserId');
+  return Boolean(userId && getAdminBearerToken());
+}
+
+function isAdminPath() {
+  try {
+    return (
+      typeof window !== 'undefined' &&
+      String(window.location.pathname || '').startsWith('/admin')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function getBearerTokenForCurrentSection() {
+  return isAdminPath() ? getAdminBearerToken() : getUserBearerToken();
 }
 
 function getAuthHeaders() {
-  const token = getBearerToken();
+  const token = getBearerTokenForCurrentSection();
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
 }
@@ -63,6 +91,15 @@ export function clearLocalSession() {
   localStorage.removeItem('ownerId');
 }
 
+export function clearAdminSession() {
+  localStorage.removeItem('adminToken');
+  localStorage.removeItem('adminAuthToken');
+  localStorage.removeItem('adminUserId');
+  localStorage.removeItem('adminEmail');
+  localStorage.removeItem('adminRoles');
+  localStorage.removeItem('adminMustChangePassword');
+}
+
 function shouldRedirectToLoginOn401() {
   const p = window.location.pathname || '';
   if (p === '/login') return false;
@@ -72,12 +109,13 @@ function shouldRedirectToLoginOn401() {
 }
 
 function handle401() {
-  clearLocalSession();
   const p = window.location.pathname || '';
   if (p.startsWith('/admin')) {
+    clearAdminSession();
     window.location.href = '/admin?expired=1';
     return;
   }
+  clearLocalSession();
   if (shouldRedirectToLoginOn401()) {
     traceRedirectToLogin('src/utils/api.js (handle401 → window.location)');
     window.location.href = '/login?expired=1';

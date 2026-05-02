@@ -54,3 +54,32 @@ export function persistLoginSessionMetadata(data) {
     /* ignore */
   }
 }
+
+export function establishAdminSession(response) {
+  if (!response || typeof response !== 'object') return false;
+  const token = String(response.token ?? '').trim();
+  const rawId = response.user_id ?? response.userId ?? response.id;
+  const userId = rawId != null && rawId !== '' ? String(rawId).trim() : '';
+  if (!token || !userId) return false;
+  try {
+    localStorage.setItem('adminAuthToken', token);
+    localStorage.setItem('adminToken', token);
+    localStorage.setItem('adminUserId', userId);
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+export function persistAdminSessionMetadata(data) {
+  if (!data || typeof data !== 'object') return;
+  try {
+    const roles = Array.isArray(data.roles) ? data.roles : [];
+    localStorage.setItem('adminRoles', JSON.stringify(roles.length ? roles : ['admin']));
+    if (data.email) localStorage.setItem('adminEmail', data.email);
+    if (data.must_change_password) localStorage.setItem('adminMustChangePassword', '1');
+    else localStorage.removeItem('adminMustChangePassword');
+  } catch {
+    /* ignore */
+  }
+}

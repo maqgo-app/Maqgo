@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import BACKEND_URL, { clearLocalSession, fetchWithAuth } from '../utils/api';
+import BACKEND_URL, { clearAdminSession, fetchWithAuth } from '../utils/api';
 import {
   maskBackendHost,
   getAdminDemoBypass,
   setAdminDemoBypass,
   clearAdminDemoBypass,
 } from '../utils/apiHealth';
-import { establishSession, persistLoginSessionMetadata } from '../utils/sessionPersistence';
+import { establishAdminSession, persistAdminSessionMetadata } from '../utils/sessionPersistence';
 
 const VERIFY_TIMEOUT_MS = 3500;
 const ADMIN_VERIFY_CACHE_KEY = 'maqgo_admin_verified_at';
@@ -48,10 +48,9 @@ function clearAdminVerifiedCache() {
 function AdminRoute() {
   const location = useLocation();
   const navigate = useNavigate();
-  const userId = localStorage.getItem('userId');
-  const userRole = localStorage.getItem('userRole');
-  const token = localStorage.getItem('token');
-  const userRolesRaw = localStorage.getItem('userRoles');
+  const userId = localStorage.getItem('adminUserId');
+  const token = localStorage.getItem('adminToken') || localStorage.getItem('adminAuthToken');
+  const rolesRaw = localStorage.getItem('adminRoles');
   const [verifiedAdmin, setVerifiedAdmin] = useState(false);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -59,16 +58,15 @@ function AdminRoute() {
   const [statsNetworkFailure, setStatsNetworkFailure] = useState(false);
   const [demoBypass, setDemoBypassState] = useState(() => getAdminDemoBypass());
 
-  const userRoles = useMemo(() => {
+  const roles = useMemo(() => {
     try {
-      return userRolesRaw ? JSON.parse(userRolesRaw) : [];
+      return rolesRaw ? JSON.parse(rolesRaw) : [];
     } catch {
       return [];
     }
-  }, [userRolesRaw]);
+  }, [rolesRaw]);
 
-  const isAdminByStorage =
-    userRole === 'admin' || (Array.isArray(userRoles) && userRoles.includes('admin'));
+  const isAdminByStorage = Array.isArray(roles) && roles.includes('admin');
   const shouldVerifyAdmin = Boolean(userId && token);
 
   /** Solo muestra bloqueo en la primera entrada o cuando vence el cache. */
@@ -112,7 +110,11 @@ function AdminRoute() {
           } catch {
             payload = null;
           }
-          localStorage.setItem('userRole', 'admin');
+          try {
+            localStorage.setItem('adminRoles', JSON.stringify(['admin']));
+          } catch {
+            /* ignore */
+          }
           setVerifiedAdmin(true);
           setAdminVerifiedNow();
           setStatsNetworkFailure(false);
@@ -126,24 +128,10 @@ function AdminRoute() {
             localStorage.removeItem('adminMustChangePassword');
           }
           if (payload?.email) {
-            localStorage.setItem('userEmail', payload.email);
+            localStorage.setItem('adminEmail', payload.email);
           }
         } else if (res.status === 401 || res.status === 403) {
-          try {
-            const raw = localStorage.getItem('userRoles');
-            const parsed = raw ? JSON.parse(raw) : [];
-            const next = Array.isArray(parsed) ? parsed.filter((x) => x !== 'admin') : [];
-            localStorage.removeItem('userRole');
-            if (next.length) {
-              localStorage.setItem('userRoles', JSON.stringify(next));
-              localStorage.setItem('userRole', next[0]);
-            } else {
-              localStorage.removeItem('userRoles');
-            }
-          } catch {
-            localStorage.removeItem('userRole');
-            localStorage.removeItem('userRoles');
-          }
+          clearAdminSession();
           setVerifiedAdmin(false);
           setMustChangePassword(false);
           clearAdminVerifiedCache();
@@ -219,18 +207,20 @@ function AdminRoute() {
       const roles = Array.isArray(data?.roles) ? data.roles : [];
       const isAdmin = data?.role === 'admin' || roles.includes('admin');
       if (!isAdmin) {
-        clearLocalSession();
+        clearAdminSession();
         setAdminLoginError('Acceso restringido a administradores.');
         return;
       }
-      if (!establishSession(data)) {
+      if (!establishAdminSession(data)) {
         setAdminLoginError('No se pudo crear la sesión.');
         return;
       }
-      persistLoginSessionMetadata(data);
-      if (data?.email) localStorage.setItem('userEmail', data.email);
-      if (data?.must_change_password) localStorage.setItem('adminMustChangePassword', '1');
-      else localStorage.removeItem('adminMustChangePassword');
+      persistAdminSessionMetadata(data);
+      try {
+        localStorage.setItem('adminRoles', JSON.stringify(roles.length ? roles : ['admin']));
+      } catch {
+        /* ignore */
+      }
       clearAdminVerifiedCache();
       setRetryNonce((n) => n + 1);
       navigate('/admin', { replace: true });
@@ -429,7 +419,7 @@ function AdminRoute() {
           type="button"
           className="maqgo-btn-primary"
           onClick={() => {
-            clearLocalSession();
+            clearAdminSession();
             clearAdminVerifiedCache();
             clearAdminDemoBypass();
             navigate('/admin', { replace: true });
