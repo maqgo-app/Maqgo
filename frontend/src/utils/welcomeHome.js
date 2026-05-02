@@ -28,6 +28,9 @@ export function getWelcomeAppHomePath() {
 
   if (isAdminRoleStored()) return '/admin';
 
+  const desiredRole = String(ls.getItem('desiredRole') || '').trim().toLowerCase();
+  if (desiredRole === 'client') return ROUTES.CLIENT_HOME;
+
   const token = ls.getItem('authToken') || ls.getItem('token');
   const rawRoles = ls.getItem('userRoles');
   const roles = (() => {
@@ -88,5 +91,13 @@ export function getWelcomeOperatorDestination() {
 export function isAdminRoleStored() {
   const ls = safeLocalStorage();
   if (!ls) return false;
-  return ls.getItem('userRole') === 'admin';
+  const ur = ls.getItem('userRole');
+  if (ur === 'admin') return true;
+  try {
+    const raw = ls.getItem('userRoles');
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) && parsed.includes('admin');
+  } catch {
+    return false;
+  }
 }
