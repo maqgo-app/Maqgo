@@ -118,28 +118,16 @@ function WelcomeScreen() {
         navigate('/admin');
         return;
       }
-      // Portada = arrendar: “Mi cuenta” entra como cliente (no al embudo proveedor por userRole).
-      try {
-        localStorage.setItem('desiredRole', 'client');
-        localStorage.setItem('userRole', 'client');
-      } catch {
-        /* ignore */
-      }
       navigate(getWelcomeAppHomePath());
       return;
     }
-    // No arrastrar intención vieja de "Ofrecer" / embudo machine-first (tras login no debe forzar /provider/add-machine).
     try {
       localStorage.removeItem('providerCameFromWelcome');
-      localStorage.setItem('desiredRole', 'client');
     } catch {
       /* ignore */
     }
-    // Portada = mercado: "Iniciar sesión" entra como cliente (SMS por defecto). Quien se enroló como proveedor usa "Entrar con correo y contraseña" en Login.
-    traceRedirectToLogin('src/screens/WelcomeScreen.jsx (handleAccount → login, entry client)');
-    navigate('/login', {
-      state: { entry: 'client' },
-    });
+    traceRedirectToLogin('src/screens/WelcomeScreen.jsx (handleAccount → login)');
+    navigate('/login');
   };
 
   // Logo escala progresivamente según altura del viewport (p2→p6): más grande en pantallas altas
@@ -291,23 +279,11 @@ function WelcomeScreen() {
             onClick={() => {
               const target = '/client/home';
               if (!hasSession) {
-                try {
-                  localStorage.setItem('desiredRole', 'client');
-                } catch {
-                  /* ignore */
-                }
                 traceRedirectToLogin('src/screens/WelcomeScreen.jsx (Arrendar maquinaria CTA)');
                 navigate('/login', { state: { redirect: target, entry: 'client' } });
                 return;
               }
               // "Arrendar maquinaria" siempre debe iniciar el funnel cliente.
-              try {
-                localStorage.setItem('desiredRole', 'client');
-                // Si ya tiene sesión, actualizamos el rol activo para evitar redirecciones cruzadas
-                localStorage.setItem('userRole', 'client');
-              } catch {
-                /* ignore */
-              }
               navigate(target);
             }}
             className="welcome-cta-primary welcome-reveal"

@@ -43,6 +43,7 @@ function LegacyVerifiedToSelectRole() {
 // Code-splitting: pantallas se cargan bajo demanda (menor bundle inicial, carga más rápida)
 // Públicas
 const ServiceChatScreen = lazy(() => import('./screens/ServiceChatScreen.jsx'));
+const RoleSelectionScreen = lazy(() => import('./screens/RoleSelection'));
 
 // Cliente
 const UrgencySelectionScreen = lazy(() => import('./screens/client/UrgencySelectionScreen'));
@@ -183,6 +184,7 @@ function AppContent() {
         <Route path="/welcome" element={<WelcomeScreen />} />
         <Route path="/login" element={<LoginScreen setUserRole={setUserRole} setUserId={setUserId} />} />
         <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
+        <Route path="/select-role" element={<RoleSelectionScreen setUserRole={setUserRole} setUserId={setUserId} />} />
         
         {/* Rutas Públicas de Registro y Ayuda */}
         <Route

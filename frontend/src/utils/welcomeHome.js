@@ -28,9 +28,21 @@ export function getWelcomeAppHomePath() {
 
   if (isAdminRoleStored()) return '/admin';
 
-  if (ls.getItem('desiredRole') === 'client') return ROUTES.CLIENT_HOME;
+  const token = ls.getItem('authToken') || ls.getItem('token');
+  const rawRoles = ls.getItem('userRoles');
+  const roles = (() => {
+    try {
+      const parsed = rawRoles ? JSON.parse(rawRoles) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
 
   const userRole = ls.getItem('userRole');
+  if (token && roles.includes('client') && roles.includes('provider') && !userRole) {
+    return '/select-role';
+  }
   if (userRole === 'client') return ROUTES.CLIENT_HOME;
   if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager') {
     const providerRole = ls.getItem('providerRole');

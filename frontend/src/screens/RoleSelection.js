@@ -77,6 +77,43 @@ function RoleSelection({ setUserRole, setUserId }) {
     setError('');
     setSelected(roleToUse);
     try {
+      const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+      const existingUserId = localStorage.getItem('userId');
+      const storedRoles = (() => {
+        try {
+          const raw = localStorage.getItem('userRoles');
+          const parsed = raw ? JSON.parse(raw) : [];
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      })();
+      const isSessionMultiRole =
+        Boolean(token && existingUserId) &&
+        storedRoles.includes('client') &&
+        storedRoles.includes('provider');
+
+      if (isSessionMultiRole) {
+        localStorage.removeItem('desiredRole');
+        setUserRole(roleToUse);
+        setUserId(existingUserId);
+        localStorage.setItem('userRole', roleToUse);
+        const savedReturnUrl = getAndClearReturnUrl() || returnUrl;
+        if (roleToUse === 'client') {
+          if (savedReturnUrl && savedReturnUrl.startsWith('/client/')) {
+            navigate(savedReturnUrl);
+          } else {
+            navigate('/client/home');
+          }
+          return;
+        }
+        if (savedReturnUrl && savedReturnUrl.startsWith('/provider/')) {
+          saveProviderReturnUrl(savedReturnUrl);
+        }
+        navigate(getProviderLandingPath());
+        return;
+      }
+
       const data = getObject('registerData', {});
       const celDigits = data.celular
         ? String(data.celular).replace(/\D/g, '').slice(-9)

@@ -211,25 +211,34 @@ function LoginScreen({ setUserRole, setUserId }) {
     if (!token || !userId) return;
     const desiredRole = localStorage.getItem('desiredRole');
     const entryRole = location.state?.entry;
-    const role = localStorage.getItem('userRole') || 'client';
+    const storedRole = localStorage.getItem('userRole');
+    const storedRoles = (() => {
+      try {
+        const raw = localStorage.getItem('userRoles');
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })();
+    const intentRole = (desiredRole || entryRole || '').trim() || null;
     // Solo cuentas con rol admin van al panel; redirect=/admin sin rol admin debe mostrar login (otra cuenta).
     if (isAdminRoleStored()) {
       navigate('/admin', { replace: true });
       return;
     }
-    // Si el usuario viene desde Welcome como cliente, no debe caer al onboarding proveedor por una sesión persistente.
-    if (desiredRole === 'client' || entryRole === 'client') {
-      try {
-        localStorage.setItem('userRole', 'client');
-        localStorage.removeItem('desiredRole');
-      } catch {
-        /* ignore */
+    if (!storedRole) {
+      if (!intentRole && storedRoles.includes('client') && storedRoles.includes('provider')) {
+        navigate('/select-role', { replace: true });
+        return;
       }
-      const target =
-        redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
-      navigate(target, { replace: true });
-      return;
+      if (intentRole && storedRoles.includes(intentRole)) {
+        localStorage.setItem('userRole', intentRole);
+        setUserRole(intentRole);
+      }
     }
+
+    const role = localStorage.getItem('userRole') || '';
     if (role === 'client') {
       const target =
         redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
@@ -239,7 +248,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     const raw =
       redirectTo && redirectTo.startsWith('/provider') ? redirectTo : getProviderLandingPath();
     navigate(normalizeProviderPostLoginRedirect(raw), { replace: true });
-  }, [navigate, redirectTo, searchParams, location.state]);
+  }, [navigate, redirectTo, searchParams, location.state, setUserRole]);
 
   const applySessionAndNavigate = (data, options = {}) => {
     const authSource = options.authSource || 'unknown';
@@ -253,29 +262,47 @@ function LoginScreen({ setUserRole, setUserId }) {
     }
     const uid = data.id ?? data.user_id ?? data.userId ?? localStorage.getItem('userId');
     const roles = Array.isArray(data.roles) ? data.roles : [];
-    // Si el usuario tiene múltiples roles (ej: client + provider), decidir cuál usar:
     const desiredRole = localStorage.getItem('desiredRole');
+    const entryRole = location.state?.entry;
+    const intentRole = (desiredRole || entryRole || '').trim() || null;
     const previouslySelectedRole = localStorage.getItem('userRole');
     let effectiveRole = null;
     
-    // PRIORIDAD 1: El rol que el usuario acaba de elegir en Welcome (Arrendar vs Ofrecer)
-    if (desiredRole && roles.includes(desiredRole)) {
-      console.log("LOGIN: Using desiredRole from Welcome:", desiredRole);
-      effectiveRole = desiredRole;
-    } 
-    // PRIORIDAD 2: El rol que ya tenía en su sesión anterior (si sigue siendo válido)
-    else if (previouslySelectedRole && roles.includes(previouslySelectedRole)) {
-      console.log("LOGIN: Using previouslySelectedRole:", previouslySelectedRole);
-      effectiveRole = previouslySelectedRole;
+    if (!intentRole && !redirectTo && roles.includes('client') && roles.includes('provider') && !previouslySelectedRole) {
+      setUserId(uid);
+      localStorage.setItem('userId', String(uid || ''));
+      localStorage.setItem('userRoles', JSON.stringify(roles));
+      if (roles.includes('provider')) {
+        localStorage.setItem('providerRole', data.provider_role || 'super_master');
+      } else {
+        localStorage.removeItem('providerRole');
+      }
+      if (data.owner_id) {
+        localStorage.setItem('ownerId', data.owner_id);
+      } else {
+        localStorage.removeItem('ownerId');
+      }
+      if (data.phone) {
+        localStorage.setItem('userPhone', data.phone);
+      }
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('desiredRole');
+      navigate('/select-role', { replace: true });
+      return true;
     }
-    // PRIORIDAD 3: Redirección forzada por ruta protegida
-    else if (redirectTo) {
+
+    if (intentRole && roles.includes(intentRole)) {
+      effectiveRole = intentRole;
+    } else if (previouslySelectedRole && roles.includes(previouslySelectedRole)) {
+      effectiveRole = previouslySelectedRole;
+    } else if (redirectTo) {
       if (redirectTo.startsWith('/admin') && (data.role === 'admin' || roles.includes('admin'))) effectiveRole = 'admin';
       else if (redirectTo.startsWith('/provider') && roles.includes('provider')) effectiveRole = 'provider';
       else if (redirectTo.startsWith('/client') && roles.includes('client')) effectiveRole = 'client';
+    } else if (roles.length === 1) {
+      effectiveRole = roles[0];
     }
 
-    // Limpiamos el rol deseado una vez usado para no afectar futuros logins
     localStorage.removeItem('desiredRole');
     
     // Si nada de lo anterior aplica, usamos el rol por defecto del backend
@@ -353,8 +380,17 @@ function LoginScreen({ setUserRole, setUserId }) {
     if (loading) return;
     const existingToken = localStorage.getItem('authToken') || localStorage.getItem('token');
     const userId = localStorage.getItem('userId');
-    const role = localStorage.getItem('userRole') || 'client';
     if (existingToken && userId) {
+      const storedRole = localStorage.getItem('userRole');
+      const storedRoles = (() => {
+        try {
+          const raw = localStorage.getItem('userRoles');
+          const parsed = raw ? JSON.parse(raw) : [];
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      })();
       // Sesión persistente: reutilizar navegación sin pedir OTP.
       const isAdminStored = isAdminRoleStored();
       if (isAdminStored) {
@@ -365,6 +401,20 @@ function LoginScreen({ setUserRole, setUserId }) {
         navigate('/admin', { replace: true });
         return;
       }
+      if (!storedRole) {
+        if (storedRoles.includes('client') && storedRoles.includes('provider')) {
+          navigate('/select-role', { replace: true });
+          return;
+        }
+        if (storedRoles.length === 1) {
+          const r = String(storedRoles[0] || '').trim();
+          if (r) {
+            localStorage.setItem('userRole', r);
+            setUserRole(r);
+          }
+        }
+      }
+      const role = localStorage.getItem('userRole') || '';
       if (role === 'client') {
         const target =
           redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
@@ -391,11 +441,15 @@ function LoginScreen({ setUserRole, setUserId }) {
       const requestedRole =
         localStorage.getItem('desiredRole') ||
         location.state?.entry ||
-        'client';
+        null;
 
       const res = await axios.post(
         `${BACKEND_URL}/api/auth/login-sms/start`,
-        { celular, device_id: deviceId, requested_role: requestedRole },
+        {
+          celular,
+          device_id: deviceId,
+          ...(requestedRole ? { requested_role: requestedRole } : {}),
+        },
         {
           timeout: LOGIN_SMS_START_TIMEOUT_MS,
           headers: { 'Content-Type': 'application/json' },
@@ -480,13 +534,13 @@ function LoginScreen({ setUserRole, setUserId }) {
         return;
       }
       const deviceId = getDeviceId();
-      const requestedRole = localStorage.getItem('desiredRole') || (location.state?.entry) || 'client';
+      const requestedRole = localStorage.getItem('desiredRole') || location.state?.entry || null;
       
       const payload = {
         celular: `+56${nine}`,
         code: digits,
         device_id: deviceId,
-        requested_role: requestedRole,
+        ...(requestedRole ? { requested_role: requestedRole } : {}),
       };
       const res = await axios.post(`${BACKEND_URL}/api/auth/login-sms/verify`, payload, {
         timeout: LOGIN_SMS_VERIFY_TIMEOUT_MS,
