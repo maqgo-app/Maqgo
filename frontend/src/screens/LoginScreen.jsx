@@ -227,15 +227,13 @@ function LoginScreen({ setUserRole, setUserId }) {
       navigate('/admin', { replace: true });
       return;
     }
-    if (!storedRole) {
-      if (!intentRole && storedRoles.includes('client') && storedRoles.includes('provider')) {
-        navigate('/select-role', { replace: true });
-        return;
-      }
-      if (intentRole && storedRoles.includes(intentRole)) {
-        localStorage.setItem('userRole', intentRole);
-        setUserRole(intentRole);
-      }
+    if (!intentRole && !redirectTo && storedRoles.includes('client') && storedRoles.includes('provider')) {
+      navigate('/select-role', { replace: true });
+      return;
+    }
+    if (!storedRole && intentRole && storedRoles.includes(intentRole)) {
+      localStorage.setItem('userRole', intentRole);
+      setUserRole(intentRole);
     }
 
     const role = localStorage.getItem('userRole') || '';
@@ -268,7 +266,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     const previouslySelectedRole = localStorage.getItem('userRole');
     let effectiveRole = null;
     
-    if (!intentRole && !redirectTo && roles.includes('client') && roles.includes('provider') && !previouslySelectedRole) {
+    if (!intentRole && !redirectTo && roles.includes('client') && roles.includes('provider')) {
       setUserId(uid);
       localStorage.setItem('userId', String(uid || ''));
       localStorage.setItem('userRoles', JSON.stringify(roles));
@@ -285,7 +283,6 @@ function LoginScreen({ setUserRole, setUserId }) {
       if (data.phone) {
         localStorage.setItem('userPhone', data.phone);
       }
-      localStorage.removeItem('userRole');
       localStorage.removeItem('desiredRole');
       navigate('/select-role', { replace: true });
       return true;
@@ -401,17 +398,18 @@ function LoginScreen({ setUserRole, setUserId }) {
         navigate('/admin', { replace: true });
         return;
       }
-      if (!storedRole) {
-        if (storedRoles.includes('client') && storedRoles.includes('provider')) {
-          navigate('/select-role', { replace: true });
-          return;
-        }
-        if (storedRoles.length === 1) {
-          const r = String(storedRoles[0] || '').trim();
-          if (r) {
-            localStorage.setItem('userRole', r);
-            setUserRole(r);
-          }
+      const desiredRole = localStorage.getItem('desiredRole');
+      const entryRole = location.state?.entry;
+      const intentRole = (desiredRole || entryRole || '').trim() || null;
+      if (!intentRole && !redirectTo && storedRoles.includes('client') && storedRoles.includes('provider')) {
+        navigate('/select-role', { replace: true });
+        return;
+      }
+      if (!storedRole && storedRoles.length === 1) {
+        const r = String(storedRoles[0] || '').trim();
+        if (r) {
+          localStorage.setItem('userRole', r);
+          setUserRole(r);
         }
       }
       const role = localStorage.getItem('userRole') || '';

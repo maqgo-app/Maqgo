@@ -40,13 +40,11 @@ export function getWelcomeAppHomePath() {
   })();
 
   const userRole = ls.getItem('userRole');
-  if (token && roles.includes('client') && roles.includes('provider') && !userRole) {
-    return '/select-role';
-  }
+  const providerRole = ls.getItem('providerRole');
+  if (providerRole === 'operator') return ROUTES.OPERATOR_HOME;
+  if (token && roles.includes('client') && roles.includes('provider')) return '/select-role';
   if (userRole === 'client') return ROUTES.CLIENT_HOME;
   if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager') {
-    const providerRole = ls.getItem('providerRole');
-    if (providerRole === 'operator') return ROUTES.OPERATOR_HOME;
     return getProviderLandingPath();
   }
 
