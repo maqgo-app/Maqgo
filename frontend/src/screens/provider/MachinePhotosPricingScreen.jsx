@@ -77,6 +77,17 @@ function MachinePhotosPricingScreen() {
   const prevMachineTypeRef = useRef(null);
 
   const [photos, setPhotos] = useState(() => getArray('machinePhotos', []));
+  const hasFrontalPhoto =
+    Array.isArray(photos) &&
+    photos.some((p, i) => {
+      if (i === 0 && typeof p === 'string') return true;
+      if (p && typeof p === 'object') {
+        return String(p.label || '')
+          .trim()
+          .toLowerCase() === 'frontal';
+      }
+      return false;
+    });
   const [priceBase, setPriceBase] = useState(() => {
     const savedPricing = getObject('machinePricing', {});
     return savedPricing.priceBase != null
@@ -190,6 +201,11 @@ function MachinePhotosPricingScreen() {
 
   const handleContinue = () => {
     setError('');
+    if (!hasFrontalPhoto) {
+      setError('La foto frontal es obligatoria.');
+      document.getElementById('seccion-fotos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     if (!priceBaseNum || priceBaseNum < minPrice) {
       setError(`El precio mínimo es ${formatPrice(minPrice)}${isPerHour ? '/hora' : ''}`);
       return;
@@ -274,9 +290,9 @@ function MachinePhotosPricingScreen() {
             padding: '0 4px',
           }}
         >
-          <span style={{ display: 'block' }}>Fotos opcionales</span>
+          <span style={{ display: 'block' }}>Foto frontal obligatoria</span>
           <span style={{ display: 'block' }}>
-            Son de uso interno de MAQGO y no serán visibles para clientes.
+            Las otras (lateral/trasera) son opcionales y no serán visibles para clientes.
           </span>
         </p>
         <p style={{ textAlign: 'center', marginBottom: 22 }}>
@@ -300,10 +316,10 @@ function MachinePhotosPricingScreen() {
         </p>
 
         {/* —— Fotos —— */}
-        <div style={sectionCard}>
+        <div id="seccion-fotos" style={sectionCard}>
           <h2 style={sectionTitle}>Fotos de la máquina</h2>
           <p style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, marginBottom: 14, lineHeight: 1.45 }}>
-            Hasta 3: frontal, lateral o trasera.
+            Frontal obligatoria. Lateral y trasera opcionales (máx 3).
           </p>
 
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
@@ -328,9 +344,11 @@ function MachinePhotosPricingScreen() {
                 />
               </svg>
               <span style={{ color: '#90BDD3', fontSize: 13, fontWeight: 600 }}>
-                {photos.length === 0
-                  ? 'Sin fotos'
-                  : `${photos.length} foto${photos.length !== 1 ? 's' : ''}`}
+                    {!hasFrontalPhoto
+                      ? 'Falta foto frontal'
+                      : photos.length === 0
+                        ? 'Sin fotos'
+                        : `${photos.length} foto${photos.length !== 1 ? 's' : ''}`}
               </span>
             </div>
           </div>

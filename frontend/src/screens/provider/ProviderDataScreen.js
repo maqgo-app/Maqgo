@@ -443,7 +443,7 @@ function ProviderDataScreen() {
             ¿Hasta qué hora trabajas?
           </label>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {['18:30', '19:00', '20:00', '21:00'].map(time => (
+            {['17:00', '17:30', '18:00', '18:30', '19:00', '20:00', '21:00', '22:00'].map((time) => (
               <button
                 key={time}
                 type="button"
@@ -458,13 +458,35 @@ function ProviderDataScreen() {
                   fontSize: 16,
                   fontWeight: form.closingTime === time ? 600 : 400,
                   cursor: 'pointer',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
                 }}
                 data-testid={`closing-time-${time.replace(':', '')}`}
               >
                 {time}
               </button>
             ))}
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '0 0 8px', lineHeight: 1.35 }}>
+              Si tu horario es distinto, elige uno personalizado:
+            </p>
+            <input
+              type="time"
+              step={1800}
+              value={form.closingTime || ''}
+              onChange={(e) => update('closingTime', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '14px 12px',
+                borderRadius: 12,
+                border: '2px solid #444',
+                background: '#363636',
+                color: '#fff',
+                fontSize: 16,
+                boxSizing: 'border-box',
+              }}
+              aria-label="Hora de cierre personalizada"
+            />
           </div>
         </div>
       </div>

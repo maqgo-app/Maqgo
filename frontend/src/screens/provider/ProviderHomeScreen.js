@@ -46,8 +46,11 @@ function ProviderHomeScreen() {
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
-  const machineComplete = !!(machineData?.machineryType && machineData?.licensePlate);
   const providerMachines = getArray('providerMachines', []);
+  const machineComplete =
+    !!(machineData?.machineryType && machineData?.licensePlate) ||
+    (Array.isArray(providerMachines) &&
+      providerMachines.some((m) => Boolean(m?.machineryType && String(m?.licensePlate || '').trim())));
   const onboardingOperators = getArray('operatorsData', []).filter((op) => {
     if (!op || typeof op !== 'object') return false;
     const fullName = String(op.name || `${op.nombre || ''} ${op.apellido || ''}`.trim()).trim();
@@ -389,6 +392,26 @@ function ProviderHomeScreen() {
       <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
         {/* Header - Solo logo centrado */}
         <MaqgoLogo size="medium" style={{ marginBottom: 40 }} />
+
+        {location.state?.activationCongrats ? (
+          <div
+            role="status"
+            style={{
+              background: 'rgba(76, 175, 80, 0.12)',
+              border: '1px solid rgba(76, 175, 80, 0.35)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              marginBottom: 16,
+            }}
+          >
+            <p style={{ color: '#fff', fontSize: 14, fontWeight: 800, margin: 0, lineHeight: 1.35 }}>
+              Felicitaciones, ya puedes recibir solicitudes
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.4 }}>
+              {available ? 'Estás en línea.' : 'Pulsa “Conectarme ahora” para quedar en línea.'}
+            </p>
+          </div>
+        ) : null}
 
         {location.state?.showProfilePaymentsBanner && !canReceiveRequests ? (
           <div

@@ -119,6 +119,14 @@ function ReviewScreen() {
       // Sincronizar onboarding -> Mis Máquinas (fuente de UI local del proveedor)
       const pricing = getObject('machinePricing', {});
       upsertOnboardingMachine(machineData, pricing, operatorsPayload);
+
+      try {
+        localStorage.removeItem('machineData');
+        localStorage.removeItem('machinePricing');
+        localStorage.removeItem('machinePhotos');
+      } catch {
+        void 0;
+      }
       
       const returnUrl = getAndClearProviderReturnUrl();
       let machineFirst = false;
@@ -166,6 +174,13 @@ function ReviewScreen() {
         machineFirst = false;
       }
       const returnUrl = getAndClearProviderReturnUrl();
+      try {
+        localStorage.removeItem('machineData');
+        localStorage.removeItem('machinePricing');
+        localStorage.removeItem('machinePhotos');
+      } catch {
+        void 0;
+      }
       if (machineFirst) {
         try {
           sessionStorage.removeItem('machineFirstFlow');

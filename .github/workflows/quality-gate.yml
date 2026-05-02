@@ -25,6 +25,12 @@ jobs:
       # Misma barra que release local: unit + guardrails prod (no demo UI) + build + verify dist
       - name: Frontend gate deploy
         run: npm run gate:deploy
+      - name: Install Playwright (chromium)
+        run: npx playwright install --with-deps chromium
+      - name: E2E smoke (proveedor)
+        env:
+          PLAYWRIGHT_E2E_SKIP_BUILD: "true"
+        run: npx playwright test qa-artifacts/smoke-provider-onboarding.spec.js
 
   backend:
     runs-on: ubuntu-latest

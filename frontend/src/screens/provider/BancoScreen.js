@@ -181,8 +181,36 @@ function BancoScreen() {
       return;
     }
 
+    if (activationEdit) {
+      try {
+        const userId = localStorage.getItem('userId');
+        const isDemoId =
+          userId &&
+          (userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-'));
+        if (userId && !isDemoId) {
+          const machineData = getObject('machineData', {});
+          const machineryType = machineData?.machineryType || undefined;
+          await axios.put(
+            `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}/availability`,
+            { isAvailable: true, machineryType },
+            { timeout: 8000 }
+          );
+          localStorage.setItem('providerAvailable', 'true');
+        }
+      } catch {
+        void 0;
+      }
+    }
+
     setSaved(true);
-    setTimeout(() => navigate(activationEdit ? returnTo : '/provider/profile'), 800);
+    setTimeout(
+      () =>
+        navigate(activationEdit ? returnTo : '/provider/profile', {
+          replace: activationEdit,
+          state: activationEdit ? { activationCongrats: true } : undefined,
+        }),
+      800
+    );
   };
 
   const isValid = data.bank && data.accountType && data.accountNumber && 

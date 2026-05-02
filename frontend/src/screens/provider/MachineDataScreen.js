@@ -342,6 +342,17 @@ function MachineWizardPhotosBlock({ photos, setPhotos }) {
     padding: 16,
     marginBottom: 20,
   };
+  const hasFrontal =
+    Array.isArray(photos) &&
+    photos.some((p, i) => {
+      if (i === 0 && typeof p === 'string') return true;
+      if (p && typeof p === 'object') {
+        return String(p.label || '')
+          .trim()
+          .toLowerCase() === 'frontal';
+      }
+      return false;
+    });
 
   const handleAddPhoto = (e) => {
     if (photos.length >= MAX_PHOTOS) return;
@@ -392,7 +403,7 @@ function MachineWizardPhotosBlock({ photos, setPhotos }) {
     <div style={sectionCard}>
       <h2 style={sectionTitle}>Fotos de la máquina</h2>
       <p style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, marginBottom: 14, lineHeight: 1.45 }}>
-        Hasta 3: frontal, lateral o trasera.
+        Frontal obligatoria. Lateral y trasera opcionales (máx 3).
       </p>
 
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
@@ -417,9 +428,11 @@ function MachineWizardPhotosBlock({ photos, setPhotos }) {
             />
           </svg>
           <span style={{ color: '#90BDD3', fontSize: 13, fontWeight: 600 }}>
-            {photos.length === 0
-              ? 'Sin fotos'
-              : `${photos.length} foto${photos.length !== 1 ? 's' : ''}`}
+            {!hasFrontal
+              ? 'Falta foto frontal'
+              : photos.length === 0
+                ? 'Sin fotos'
+                : `${photos.length} foto${photos.length !== 1 ? 's' : ''}`}
           </span>
         </div>
       </div>
@@ -816,6 +829,21 @@ function MachineDataScreen() {
       setPublishError('Falta el tipo de máquina.');
       return;
     }
+    const hasFrontalPhoto =
+      Array.isArray(mfPhotos) &&
+      mfPhotos.some((p, i) => {
+        if (i === 0 && typeof p === 'string') return true;
+        if (p && typeof p === 'object') {
+          return String(p.label || '')
+            .trim()
+            .toLowerCase() === 'frontal';
+        }
+        return false;
+      });
+    if (!hasFrontalPhoto) {
+      setPublishError('La foto frontal es obligatoria.');
+      return;
+    }
 
     const priceBaseNum = parseInt(String(priceBaseWizard).replace(/\D/g, ''), 10) || 0;
     const isPerHour = MACHINERY_PER_HOUR.includes(machineryType);
@@ -873,6 +901,14 @@ function MachineDataScreen() {
       const photosForStore = Array.isArray(mfPhotos) ? mfPhotos : [];
       updateMachine(created.id, { photos: photosForStore });
 
+      try {
+        localStorage.removeItem('machineData');
+        localStorage.removeItem('machinePricing');
+        localStorage.removeItem('machinePhotos');
+      } catch {
+        void 0;
+      }
+
       toast.success('Maquinaria guardada');
       navigate('/provider/machines', {
         replace: true,
@@ -918,6 +954,21 @@ function MachineDataScreen() {
       return;
     }
     if (mfStep === 2) {
+      const hasFrontalPhoto =
+        Array.isArray(mfPhotos) &&
+        mfPhotos.some((p, i) => {
+          if (i === 0 && typeof p === 'string') return true;
+          if (p && typeof p === 'object') {
+            return String(p.label || '')
+              .trim()
+              .toLowerCase() === 'frontal';
+          }
+          return false;
+        });
+      if (!hasFrontalPhoto) {
+        setStepHint('La foto frontal es obligatoria. Sube al menos una foto (Frontal).');
+        return;
+      }
       const machineryType = form.machineryType;
       const priceBaseNum = parseInt(String(priceBaseWizard).replace(/\D/g, ''), 10) || 0;
       const isPerHour = MACHINERY_PER_HOUR.includes(machineryType);
@@ -1102,9 +1153,9 @@ function MachineDataScreen() {
                 padding: '0 4px',
               }}
             >
-              <span style={{ display: 'block' }}>Fotos opcionales</span>
+              <span style={{ display: 'block' }}>Foto frontal obligatoria</span>
               <span style={{ display: 'block' }}>
-                Son de uso interno de MAQGO y no serán visibles para clientes.
+                Las otras (lateral/trasera) son opcionales y no serán visibles para clientes.
               </span>
             </p>
           )}
@@ -1265,6 +1316,7 @@ function MachineDataScreen() {
                     <div
                       style={{
                         marginTop: 8,
+                        marginBottom: 14,
                         padding: 10,
                         borderRadius: 8,
                         background: `${transportAlertW.color}20`,
@@ -1298,55 +1350,212 @@ function MachineDataScreen() {
           {mfStep === 3 && (
             <div>
               <div
-                className="maqgo-machine-review-card"
                 style={{
-                  background: 'rgba(255,255,255,0.06)',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.08)',
                   borderRadius: 14,
                   padding: 16,
                   marginBottom: 16,
-                  fontSize: 14,
-                  color: 'rgba(255,255,255,0.92)',
-                  lineHeight: 1.5,
                 }}
               >
-                <div>
-                  <strong>Tipo:</strong> {typeLabel}
-                </div>
-                <div>
-                  <strong>Marca / modelo:</strong>{' '}
-                  {[form.brand, form.model].filter(Boolean).join(' ') || '—'}
-                </div>
-                {form.year ? (
-                  <div>
-                    <strong>Año:</strong> {form.year}
+                <p
+                  style={{
+                    color: '#fff',
+                    fontSize: 17,
+                    fontWeight: 700,
+                    margin: '0 0 10px',
+                    fontFamily: "'Space Grotesk', sans-serif",
+                  }}
+                >
+                  Fotos de la máquina
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+                  <div
+                    style={{
+                      background: 'rgba(144, 189, 211, 0.2)',
+                      border: '1px solid #90BDD3',
+                      borderRadius: 20,
+                      padding: '6px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+                      <path
+                        d="M4 8L7 11L12 5"
+                        stroke="#90BDD3"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <span style={{ color: '#90BDD3', fontSize: 13, fontWeight: 600 }}>
+                      {mfPhotos.length === 0
+                        ? 'Sin fotos'
+                        : `${mfPhotos.length} foto${mfPhotos.length !== 1 ? 's' : ''}`}
+                    </span>
                   </div>
-                ) : null}
-                {capacitySummaryLine ? (
-                  <div>
-                    <strong>{getProviderSpecLabel(form.machineryType)}:</strong> {capacitySummaryLine}
+                </div>
+                {mfPhotos.length > 0 ? (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, 1fr)',
+                      gap: 12,
+                    }}
+                  >
+                    {mfPhotos.map((photo, index) => {
+                      const src = typeof photo === 'string' ? photo : photo?.url;
+                      const currentLabel =
+                        typeof photo === 'object' ? photo?.label || `Foto ${index + 1}` : `Foto ${index + 1}`;
+                      if (!src) return null;
+                      return (
+                        <div key={index}>
+                          <div
+                            style={{
+                              position: 'relative',
+                              background: '#363636',
+                              borderRadius: 12,
+                              overflow: 'hidden',
+                              aspectRatio: '4/3',
+                            }}
+                          >
+                            <img
+                              src={src}
+                              alt=""
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                            <div
+                              style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                background: 'rgba(0,0,0,0.7)',
+                                padding: '4px 8px',
+                                fontSize: 13,
+                                color: '#fff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 6,
+                              }}
+                            >
+                              <span>{currentLabel}</span>
+                              <span style={{ color: '#90BDD3', fontWeight: 600 }}>✓ Cargada</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ) : null}
-                <div>
-                  <strong>Patente:</strong> {form.licensePlate || '—'}
-                </div>
-                <div>
-                  <strong>Fotos:</strong>{' '}
-                  {mfPhotos.length > 0 ? `${mfPhotos.length} cargada(s)` : 'ninguna (opcional)'}
-                </div>
-                <div>
-                  <strong>Precio:</strong>{' '}
-                  {priceBaseNumWizard
-                    ? `${priceBaseNumWizard.toLocaleString('es-CL')} CLP${isPerHourW ? '/h' : ''}`
-                    : '—'}
-                </div>
-                {needsTransportW ? (
+                ) : (
+                  <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
+                    Son opcionales y no serán visibles para clientes.
+                  </p>
+                )}
+              </div>
+
+              <div
+                style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 14,
+                  padding: 16,
+                  marginBottom: 16,
+                }}
+              >
+                <p
+                  style={{
+                    color: '#fff',
+                    fontSize: 17,
+                    fontWeight: 700,
+                    margin: '0 0 10px',
+                    fontFamily: "'Space Grotesk', sans-serif",
+                  }}
+                >
+                  Resumen de la máquina
+                </p>
+                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.92)', lineHeight: 1.5 }}>
                   <div>
-                    <strong>Traslado:</strong>{' '}
-                    {transportNumW
-                      ? `${transportNumW.toLocaleString('es-CL')} CLP`
-                      : '—'}
+                    <strong>Tipo:</strong> {typeLabel}
                   </div>
-                ) : null}
+                  <div>
+                    <strong>Marca / modelo:</strong> {[form.brand, form.model].filter(Boolean).join(' ') || '—'}
+                  </div>
+                  {form.year ? (
+                    <div>
+                      <strong>Año:</strong> {form.year}
+                    </div>
+                  ) : null}
+                  {capacitySummaryLine ? (
+                    <div>
+                      <strong>{getProviderSpecLabel(form.machineryType)}:</strong> {capacitySummaryLine}
+                    </div>
+                  ) : null}
+                  <div>
+                    <strong>Patente:</strong> {form.licensePlate || '—'}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 14,
+                  padding: 16,
+                  marginBottom: 16,
+                }}
+              >
+                <p
+                  style={{
+                    color: '#fff',
+                    fontSize: 17,
+                    fontWeight: 700,
+                    margin: '0 0 10px',
+                    fontFamily: "'Space Grotesk', sans-serif",
+                  }}
+                >
+                  Tarifas
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+                  <div
+                    style={{
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.10)',
+                      borderRadius: 12,
+                      padding: 14,
+                    }}
+                  >
+                    <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
+                      Precio {isPerHourW ? 'por hora' : 'por servicio'} (neto sin IVA)
+                    </p>
+                    <p style={{ margin: '6px 0 0', fontSize: 18, fontWeight: 800, color: '#fff' }}>
+                      {priceBaseNumWizard
+                        ? `$ ${priceBaseNumWizard.toLocaleString('es-CL')} ${isPerHourW ? 'CLP/h' : 'CLP'}`
+                        : '—'}
+                    </p>
+                  </div>
+                  {needsTransportW ? (
+                    <div
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.10)',
+                        borderRadius: 12,
+                        padding: 14,
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
+                        Traslado (neto sin IVA)
+                      </p>
+                      <p style={{ margin: '6px 0 0', fontSize: 18, fontWeight: 800, color: '#fff' }}>
+                        {transportNumW ? `$ ${transportNumW.toLocaleString('es-CL')} CLP` : '—'}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               {!hasProviderRoleInStorage() ? (
@@ -1389,7 +1598,21 @@ function MachineDataScreen() {
           )}
 
           {stepHint ? (
-            <p style={{ color: '#ffb74d', fontSize: 13, marginTop: 12, textAlign: 'center' }}>{stepHint}</p>
+            <p
+              style={{
+                color: '#ffb74d',
+                fontSize: 13,
+                marginTop: 16,
+                textAlign: 'center',
+                lineHeight: 1.45,
+                padding: '10px 12px',
+                borderRadius: 10,
+                background: 'rgba(255, 183, 77, 0.12)',
+                border: '1px solid rgba(255, 183, 77, 0.35)',
+              }}
+            >
+              {stepHint}
+            </p>
           ) : null}
         </div>
 
