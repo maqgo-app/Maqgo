@@ -683,9 +683,6 @@ function MachineDataScreen() {
       ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))
       : false;
     if (hasRegisteredMachine) return;
-    const providerData = getObject('providerData', {});
-    const companyComplete = Boolean(providerData?.businessName && providerData?.rut);
-    navigate(companyComplete ? '/provider/machine-data' : '/provider/data', { replace: true });
   }, [isAddMachineEntry, isEditMode, navigate]);
 
   useLayoutEffect(() => {

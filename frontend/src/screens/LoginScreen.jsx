@@ -847,9 +847,15 @@ function LoginScreen({ setUserRole, setUserId }) {
                     onClick={() => {
                       const e164 = String(stepUpPhone || '');
                       const digits = e164.replace(/\D/g, '').slice(-9);
+                      try {
+                        localStorage.setItem('desiredRole', 'provider');
+                      } catch {
+                        /* ignore */
+                      }
                       navigate('/forgot-password', {
                         state: {
                           prefillPhoneDigits: digits,
+                          entry: 'provider',
                         },
                       });
                     }}

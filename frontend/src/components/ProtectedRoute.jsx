@@ -1,17 +1,37 @@
 import React from "react";
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { isProviderSession, isClientSession, getSessionRole } from "../utils/userAuthState";
 
 const ProtectedRoute = ({ children }) => {
+  const location = useLocation();
   const role = getSessionRole();
+  const path = location.pathname || "/";
+  const fullPath = `${path}${location.search || ""}`;
+
+  const isPublicPath =
+    path === "/provider/register" ||
+    path === "/provider/add-machine" ||
+    path === "/operator/join";
+
+  if (!role && isPublicPath) {
+    return children ? children : <Outlet />;
+  }
 
   // Si no hay sesión → login
   if (!role) {
     console.log("PROTECTED_ROUTE: No session found, redirecting to /login");
-    return <Navigate to="/login" replace />;
+    const entry = path.startsWith("/provider") ? "provider" : "client";
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{
+          redirect: fullPath,
+          entry,
+        }}
+      />
+    );
   }
-
-  const path = window.location.pathname;
 
   // 🔒 BLOQUEO TOTAL DE CRUCE DE ROLES (incluye botón atrás)
   // Un cliente nunca entra a /provider/*

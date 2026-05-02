@@ -51,6 +51,16 @@ function ForgotPasswordScreen() {
     if (prefillPhone) setPhoneLocalDigits(prefillPhone);
   }, [location.state]);
 
+  const backToLogin = () => {
+    const entry = location.state?.entry || 'client';
+    navigate('/login', {
+      state: {
+        entry,
+        ...(location.state?.redirect ? { redirect: location.state.redirect } : {}),
+      },
+    });
+  };
+
   useEffect(() => {
     if (step === 1) {
       setTimeout(() => emailRef.current?.focus(), 0);
@@ -228,7 +238,7 @@ function ForgotPasswordScreen() {
       setMessage(res.data?.message || 'Contraseña actualizada correctamente');
       setTimeout(() => {
         traceRedirectToLogin('src/screens/ForgotPasswordScreen.jsx (post password reset)');
-        navigate('/login');
+        backToLogin();
       }, 1200);
     } catch (e) {
       setError(
@@ -459,7 +469,7 @@ function ForgotPasswordScreen() {
           className="maqgo-btn-secondary"
           onClick={() => {
             traceRedirectToLogin('src/screens/ForgotPasswordScreen.jsx (Volver al login)');
-            navigate('/login');
+            backToLogin();
           }}
           style={{ marginTop: 10, width: '100%' }}
           data-testid="forgot-back-login"
