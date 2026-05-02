@@ -1495,7 +1495,7 @@ function MachineDataScreen() {
                                 {primaryPriceText}
                               </p>
                               <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: 700 }}>
-                                {priceSuffix} · neto
+                                {priceSuffix} · neto (sin IVA)
                               </p>
                             </div>
                           </div>
@@ -1542,11 +1542,14 @@ function MachineDataScreen() {
                           <span style={{ color: '#fff', fontSize: 13, fontWeight: 800 }}>
                             {needsTransportW
                               ? transportNumW
-                                ? `Desde $${transportNumW.toLocaleString('es-CL')} neto`
+                                ? `Desde $${transportNumW.toLocaleString('es-CL')} neto (sin IVA)`
                                 : '—'
                               : 'No aplica'}
                           </span>
                         </div>
+                        <p style={{ margin: '10px 0 0', color: 'rgba(255,255,255,0.62)', fontSize: 12, lineHeight: 1.4 }}>
+                          Valores referenciales netos. El total para el cliente puede incluir IVA.
+                        </p>
                       </div>
                     </div>
 
