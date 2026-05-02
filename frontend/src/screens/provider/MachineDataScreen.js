@@ -1162,7 +1162,7 @@ function MachineDataScreen() {
           {mfStep !== 2 && (
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 14, textAlign: 'center', marginBottom: 22 }}>
               {mfStep === 1 && 'Tipo, marca, modelo, capacidad si aplica y patente'}
-              {mfStep === 3 && 'Confirma máquina y tarifas.'}
+              {mfStep === 3 && 'Revisión final antes de guardar.'}
             </p>
           )}
 
@@ -1349,214 +1349,303 @@ function MachineDataScreen() {
 
           {mfStep === 3 && (
             <div>
-              <div
-                style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 14,
-                  padding: 16,
-                  marginBottom: 16,
-                }}
-              >
-                <p
-                  style={{
-                    color: '#fff',
-                    fontSize: 17,
-                    fontWeight: 700,
-                    margin: '0 0 10px',
-                    fontFamily: "'Space Grotesk', sans-serif",
-                  }}
-                >
-                  Fotos de la máquina
-                </p>
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
-                  <div
-                    style={{
-                      background: 'rgba(144, 189, 211, 0.2)',
-                      border: '1px solid #90BDD3',
-                      borderRadius: 20,
-                      padding: '6px 14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-                      <path
-                        d="M4 8L7 11L12 5"
-                        stroke="#90BDD3"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <span style={{ color: '#90BDD3', fontSize: 13, fontWeight: 600 }}>
-                      {mfPhotos.length === 0
-                        ? 'Sin fotos'
-                        : `${mfPhotos.length} foto${mfPhotos.length !== 1 ? 's' : ''}`}
-                    </span>
-                  </div>
-                </div>
-                {mfPhotos.length > 0 ? (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(2, 1fr)',
-                      gap: 12,
-                    }}
-                  >
-                    {mfPhotos.map((photo, index) => {
-                      const src = typeof photo === 'string' ? photo : photo?.url;
-                      const currentLabel =
-                        typeof photo === 'object' ? photo?.label || `Foto ${index + 1}` : `Foto ${index + 1}`;
-                      if (!src) return null;
-                      return (
-                        <div key={index}>
+              {(() => {
+                const photos = Array.isArray(mfPhotos) ? mfPhotos : [];
+                const frontal =
+                  photos.find((p) => {
+                    if (p && typeof p === 'object') {
+                      return String(p.label || '')
+                        .trim()
+                        .toLowerCase() === 'frontal';
+                    }
+                    return false;
+                  }) || photos[0] || null;
+                const primarySrc = frontal ? (typeof frontal === 'string' ? frontal : frontal.url) : '';
+                const brandModel = [form.brand, form.model].filter(Boolean).join(' ').trim();
+                const primaryPriceText = priceBaseNumWizard
+                  ? `$${priceBaseNumWizard.toLocaleString('es-CL')}`
+                  : '—';
+                const priceSuffix = isPerHourW ? '/hora' : '/servicio';
+                const specChips = [];
+                if (capacitySummaryLine) specChips.push(capacitySummaryLine);
+                if (form.year) specChips.push(`Año ${form.year}`);
+                return (
+                  <>
+                    <div style={{ marginBottom: 14 }}>
+                      <p
+                        style={{
+                          color: 'rgba(255,255,255,0.86)',
+                          fontSize: 13,
+                          textAlign: 'center',
+                          margin: 0,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        Así verán tu máquina los clientes
+                      </p>
+                    </div>
+
+                    <div
+                      style={{
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.035) 100%)',
+                        border: '1px solid rgba(255,255,255,0.10)',
+                        borderRadius: 16,
+                        overflow: 'hidden',
+                        marginBottom: 16,
+                        boxShadow: '0 14px 34px rgba(0,0,0,0.28)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'relative',
+                          background: '#363636',
+                          aspectRatio: '4/3',
+                        }}
+                      >
+                        {primarySrc ? (
+                          <img
+                            src={primarySrc}
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
                           <div
                             style={{
-                              position: 'relative',
-                              background: '#363636',
-                              borderRadius: 12,
-                              overflow: 'hidden',
-                              aspectRatio: '4/3',
+                              width: '100%',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'rgba(255,255,255,0.75)',
+                              fontSize: 13,
+                              fontWeight: 600,
                             }}
                           >
-                            <img
-                              src={src}
-                              alt=""
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            />
-                            <div
-                              style={{
-                                position: 'absolute',
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                background: 'rgba(0,0,0,0.7)',
-                                padding: '4px 8px',
-                                fontSize: 13,
-                                color: '#fff',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                gap: 6,
-                              }}
-                            >
-                              <span>{currentLabel}</span>
-                              <span style={{ color: '#90BDD3', fontWeight: 600 }}>✓ Cargada</span>
+                            Sin foto
+                          </div>
+                        )}
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 10,
+                            left: 10,
+                            display: 'flex',
+                            gap: 8,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <span
+                            style={{
+                              background: 'rgba(0,0,0,0.58)',
+                              border: '1px solid rgba(255,255,255,0.18)',
+                              color: '#fff',
+                              padding: '6px 10px',
+                              borderRadius: 999,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              letterSpacing: 0.2,
+                            }}
+                          >
+                            Operador incluido
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.78) 100%)',
+                            padding: '18px 14px 12px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-end' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <p
+                                style={{
+                                  margin: 0,
+                                  color: '#fff',
+                                  fontSize: 20,
+                                  fontWeight: 900,
+                                  lineHeight: 1.15,
+                                  fontFamily: "'Space Grotesk', sans-serif",
+                                }}
+                              >
+                                {typeLabel}
+                              </p>
+                              {brandModel ? (
+                                <p
+                                  style={{
+                                    margin: '6px 0 0',
+                                    color: 'rgba(255,255,255,0.9)',
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    lineHeight: 1.3,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {brandModel}
+                                </p>
+                              ) : null}
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <p style={{ margin: 0, color: '#EC6819', fontSize: 28, fontWeight: 900, lineHeight: 1 }}>
+                                {primaryPriceText}
+                              </p>
+                              <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: 700 }}>
+                                {priceSuffix} · neto
+                              </p>
                             </div>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
-                    Son opcionales y no serán visibles para clientes.
-                  </p>
-                )}
-              </div>
+                      </div>
 
-              <div
-                style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 14,
-                  padding: 16,
-                  marginBottom: 16,
-                }}
-              >
-                <p
-                  style={{
-                    color: '#fff',
-                    fontSize: 17,
-                    fontWeight: 700,
-                    margin: '0 0 10px',
-                    fontFamily: "'Space Grotesk', sans-serif",
-                  }}
-                >
-                  Resumen de la máquina
-                </p>
-                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.92)', lineHeight: 1.5 }}>
-                  <div>
-                    <strong>Tipo:</strong> {typeLabel}
-                  </div>
-                  <div>
-                    <strong>Marca / modelo:</strong> {[form.brand, form.model].filter(Boolean).join(' ') || '—'}
-                  </div>
-                  {form.year ? (
-                    <div>
-                      <strong>Año:</strong> {form.year}
-                    </div>
-                  ) : null}
-                  {capacitySummaryLine ? (
-                    <div>
-                      <strong>{getProviderSpecLabel(form.machineryType)}:</strong> {capacitySummaryLine}
-                    </div>
-                  ) : null}
-                  <div>
-                    <strong>Patente:</strong> {form.licensePlate || '—'}
-                  </div>
-                </div>
-              </div>
+                      <div style={{ padding: 14 }}>
+                        {specChips.length ? (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                            {specChips.slice(0, 2).map((t) => (
+                              <span
+                                key={t}
+                                style={{
+                                  background: 'rgba(255,255,255,0.06)',
+                                  border: '1px solid rgba(255,255,255,0.12)',
+                                  color: 'rgba(255,255,255,0.92)',
+                                  padding: '6px 10px',
+                                  borderRadius: 999,
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
 
-              <div
-                style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 14,
-                  padding: 16,
-                  marginBottom: 16,
-                }}
-              >
-                <p
-                  style={{
-                    color: '#fff',
-                    fontSize: 17,
-                    fontWeight: 700,
-                    margin: '0 0 10px',
-                    fontFamily: "'Space Grotesk', sans-serif",
-                  }}
-                >
-                  Tarifas
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
-                  <div
-                    style={{
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.10)',
-                      borderRadius: 12,
-                      padding: 14,
-                    }}
-                  >
-                    <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
-                      Precio {isPerHourW ? 'por hora' : 'por servicio'} (neto sin IVA)
-                    </p>
-                    <p style={{ margin: '6px 0 0', fontSize: 18, fontWeight: 800, color: '#fff' }}>
-                      {priceBaseNumWizard
-                        ? `$ ${priceBaseNumWizard.toLocaleString('es-CL')} ${isPerHourW ? 'CLP/h' : 'CLP'}`
-                        : '—'}
-                    </p>
-                  </div>
-                  {needsTransportW ? (
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '10px 12px',
+                            borderRadius: 12,
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                          }}
+                        >
+                          <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: 700 }}>
+                            Traslado
+                          </span>
+                          <span style={{ color: '#fff', fontSize: 13, fontWeight: 800 }}>
+                            {needsTransportW
+                              ? transportNumW
+                                ? `Desde $${transportNumW.toLocaleString('es-CL')} neto`
+                                : '—'
+                              : 'No aplica'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
                     <div
                       style={{
-                        background: 'rgba(255,255,255,0.06)',
-                        border: '1px solid rgba(255,255,255,0.10)',
-                        borderRadius: 12,
-                        padding: 14,
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 14,
+                        padding: 16,
+                        marginBottom: 16,
                       }}
                     >
-                      <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
-                        Traslado (neto sin IVA)
-                      </p>
-                      <p style={{ margin: '6px 0 0', fontSize: 18, fontWeight: 800, color: '#fff' }}>
-                        {transportNumW ? `$ ${transportNumW.toLocaleString('es-CL')} CLP` : '—'}
-                      </p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                        <p
+                          style={{
+                            color: '#fff',
+                            fontSize: 15,
+                            fontWeight: 800,
+                            margin: 0,
+                            fontFamily: "'Space Grotesk', sans-serif",
+                          }}
+                        >
+                          Fotos (interno)
+                        </p>
+                        <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 700 }}>
+                          {photos.length === 0 ? 'Sin fotos' : `${photos.length} foto${photos.length !== 1 ? 's' : ''}`}
+                        </span>
+                      </div>
+                      {photos.length ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                          {photos.slice(0, 3).map((photo, index) => {
+                            const src = typeof photo === 'string' ? photo : photo?.url;
+                            if (!src) return null;
+                            return (
+                              <div
+                                key={index}
+                                style={{
+                                  position: 'relative',
+                                  background: '#363636',
+                                  borderRadius: 12,
+                                  overflow: 'hidden',
+                                  aspectRatio: '4/3',
+                                }}
+                              >
+                                <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
+                          Son opcionales y no serán visibles para clientes.
+                        </p>
+                      )}
                     </div>
-                  ) : null}
-                </div>
-              </div>
+
+                    <div
+                      style={{
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 14,
+                        padding: 16,
+                        marginBottom: 16,
+                      }}
+                    >
+                      <p
+                        style={{
+                          color: '#fff',
+                          fontSize: 15,
+                          fontWeight: 800,
+                          margin: '0 0 10px',
+                          fontFamily: "'Space Grotesk', sans-serif",
+                        }}
+                      >
+                        Identificación
+                      </p>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '10px 12px',
+                          borderRadius: 12,
+                          background: 'rgba(255,255,255,0.05)',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                        }}
+                      >
+                        <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: 700 }}>
+                          Patente
+                        </span>
+                        <span style={{ color: '#fff', fontSize: 14, fontWeight: 900, letterSpacing: 1, fontFamily: 'monospace' }}>
+                          {form.licensePlate || '—'}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               {!hasProviderRoleInStorage() ? (
                 <div
