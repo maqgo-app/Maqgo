@@ -82,33 +82,29 @@ function ForgotPasswordScreen() {
     setDidSubmit(true);
     const em = email.trim();
     const cel = buildCelularNational(phoneLocalDigits);
-    if (!em) {
-      setError('Ingresa tu correo registrado.');
-      setMessage('');
-      setTimeout(() => emailRef.current?.focus(), 0);
-      return;
-    }
-    if (!isValidEmailLoose(em)) {
+    if (em && !isValidEmailLoose(em)) {
       setError('Revisa el formato del correo.');
       setMessage('');
       setTimeout(() => emailRef.current?.focus(), 0);
       return;
     }
-    if (!cel) {
-      setError('Ingresa los 9 dígitos de tu celular.');
+    if (!em && !cel) {
+      setError('Ingresa tu correo o tu celular para continuar.');
       setMessage('');
-      setTimeout(() => phoneInputRef.current?.focus(), 0);
+      setTimeout(() => (phoneInputRef.current?.focus ? phoneInputRef.current.focus() : emailRef.current?.focus()), 0);
       return;
     }
+    if (!em && !cel) return;
     requestCodeInFlightRef.current = true;
     setLoading(true);
     setError('');
     setMessage('');
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/request`, {
-        email: em.toLowerCase(),
-        celular: cel,
-      });
+      const payload =
+        em && cel
+          ? { email: em.toLowerCase(), celular: cel }
+          : { identifier: em ? em.toLowerCase() : `+56${cel}` };
+      const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/request`, payload);
       const ok = res.data?.success !== false && res.data?.requires_channel_selection !== true;
       if (ok) {
         setMaskedPhone(res.data?.masked_phone || res.data?.masked?.sms || '');
@@ -145,18 +141,23 @@ function ForgotPasswordScreen() {
     setDidSubmit(true);
     const em = email.trim();
     const cel = buildCelularNational(phoneLocalDigits);
-    if (!em || !cel) {
-      setError('Vuelve al paso anterior y completa correo y celular.');
+    if (em && !isValidEmailLoose(em)) {
+      setError('Vuelve al paso anterior y revisa el correo.');
+      return;
+    }
+    if (!em && !cel) {
+      setError('Vuelve al paso anterior y completa correo o celular.');
       return;
     }
     setLoading(true);
     setError('');
     setMessage('');
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/request`, {
-        email: em.toLowerCase(),
-        celular: cel,
-      });
+      const payload =
+        em && cel
+          ? { email: em.toLowerCase(), celular: cel }
+          : { identifier: em ? em.toLowerCase() : `+56${cel}` };
+      const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/request`, payload);
       if (res.data?.success === false) {
         setError(String(res.data?.message || '').trim() || 'No pudimos reenviar el código.');
         setMessage('');
@@ -205,16 +206,25 @@ function ForgotPasswordScreen() {
     }
     const em = email.trim().toLowerCase();
     const cel = buildCelularNational(phoneLocalDigits);
+    if (em && !isValidEmailLoose(em)) {
+      setError('Revisa el formato del correo.');
+      setMessage('');
+      return;
+    }
+    if (!em && !cel) {
+      setError('Vuelve al paso anterior y completa correo o celular.');
+      setMessage('');
+      return;
+    }
     setLoading(true);
     setError('');
     setMessage('');
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/confirm`, {
-        email: em,
-        celular: cel,
-        code: digits,
-        new_password: newPassword,
-      });
+      const payload =
+        em && cel
+          ? { email: em, celular: cel, code: digits, new_password: newPassword }
+          : { identifier: em ? em : `+56${cel}`, code: digits, new_password: newPassword };
+      const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/confirm`, payload);
       setMessage(res.data?.message || 'Contraseña actualizada correctamente');
       setTimeout(() => {
         traceRedirectToLogin('src/screens/ForgotPasswordScreen.jsx (post password reset)');
@@ -289,11 +299,11 @@ function ForgotPasswordScreen() {
             </div>
             <h2 style={headingStyle}>Restablecer contraseña</h2>
             <p style={subStyle}>
-              Ingresa tu correo y celular registrados. Te enviaremos un código por SMS para continuar.
+              Ingresa tu correo o celular registrado. Te enviaremos un código para continuar.
             </p>
 
             <label htmlFor="forgot-email" style={{ ...sectionTitle, display: 'block' }}>
-              Correo
+              Correo (opcional)
             </label>
             <input
               id="forgot-email"
@@ -308,7 +318,7 @@ function ForgotPasswordScreen() {
             />
 
             <label htmlFor="forgot-phone-local" style={{ ...sectionTitle, display: 'block', marginTop: 14 }}>
-              Celular
+              Celular (opcional)
             </label>
             <PhoneNationalInput
               id="forgot-phone-local"
@@ -329,7 +339,7 @@ function ForgotPasswordScreen() {
             </div>
             <h2 style={{ ...headingStyle, marginBottom: 6 }}>Verifica tu código</h2>
             <p style={{ ...subStyle, marginBottom: 12 }}>
-              Ingresa el código de 6 dígitos que enviamos a tu celular y define tu nueva contraseña.
+              Ingresa el código de 6 dígitos que te enviamos y define tu nueva contraseña.
             </p>
 
             <label htmlFor="forgot-otp-code" style={{ ...sectionTitle, display: 'block' }}>
@@ -420,14 +430,12 @@ function ForgotPasswordScreen() {
             onClick={requestCode}
             disabled={
               loading ||
-              !email.trim() ||
-              !isValidEmailLoose(email.trim()) ||
-              buildCelularNational(phoneLocalDigits).length !== 9
+              (email.trim() ? !isValidEmailLoose(email.trim()) : buildCelularNational(phoneLocalDigits).length !== 9)
             }
             style={{ width: '100%' }}
             data-testid="forgot-request-code"
           >
-            {loading ? 'Enviando código...' : 'Te enviamos un código por SMS'}
+            {loading ? 'Enviando código...' : 'Enviar código'}
           </button>
         ) : (
           <button
