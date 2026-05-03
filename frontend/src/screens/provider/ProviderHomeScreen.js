@@ -261,9 +261,42 @@ function ProviderHomeScreen() {
     }
 
     const machineDataLocal = getObject('machineData', {});
-    const machineryType = machineDataLocal?.machineryType || machineDataLocal?.type || undefined;
+    const providerMachinesLocal = getArray('providerMachines', []);
+    const firstRegisteredMachine =
+      Array.isArray(providerMachinesLocal)
+        ? providerMachinesLocal.find((m) => m && typeof m === 'object' && m.machineryType && String(m.licensePlate || '').trim())
+        : null;
+    const effectiveMachineData =
+      machineDataLocal && typeof machineDataLocal === 'object' && machineDataLocal.machineryType && String(machineDataLocal.licensePlate || '').trim()
+        ? machineDataLocal
+        : (firstRegisteredMachine
+          ? {
+            machineryType: firstRegisteredMachine.machineryType,
+            licensePlate: String(firstRegisteredMachine.licensePlate || '').trim(),
+            operators: Array.isArray(firstRegisteredMachine.operators) ? firstRegisteredMachine.operators : undefined,
+          }
+          : machineDataLocal);
+    if (
+      effectiveMachineData &&
+      typeof effectiveMachineData === 'object' &&
+      effectiveMachineData.machineryType &&
+      String(effectiveMachineData.licensePlate || '').trim() &&
+      !(machineDataLocal && typeof machineDataLocal === 'object' && machineDataLocal.machineryType && String(machineDataLocal.licensePlate || '').trim())
+    ) {
+      try {
+        localStorage.setItem('machineData', JSON.stringify(effectiveMachineData));
+      } catch {
+        void 0;
+      }
+    }
+    const machineryType = effectiveMachineData?.machineryType || effectiveMachineData?.type || undefined;
     const providerDataLocal = getObject('providerData', {});
     const bankDataLocal = getObject('bankData', {});
+    const operatorsDataLocal = getArray('operatorsData', []);
+    const effectiveOperators =
+      (Array.isArray(effectiveMachineData?.operators) && effectiveMachineData.operators.length > 0)
+        ? effectiveMachineData.operators
+        : (Array.isArray(operatorsDataLocal) ? operatorsDataLocal.filter(Boolean) : []);
     const nextProviderData = {
       ...(providerDataLocal && typeof providerDataLocal === 'object' ? providerDataLocal : {}),
       bankData: bankDataLocal && typeof bankDataLocal === 'object' ? bankDataLocal : undefined,
@@ -283,7 +316,8 @@ function ProviderHomeScreen() {
             `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`,
             {
               providerData: nextProviderData,
-              machineData: machineDataLocal,
+              machineData: effectiveMachineData,
+              operators: effectiveOperators,
               onboarding_completed: true,
             },
             { timeout: 8000 }
@@ -323,7 +357,11 @@ function ProviderHomeScreen() {
         const hasCoords = Number.isFinite(pd.addressLat) && Number.isFinite(pd.addressLng);
         if (!hasCoords) missing.push('ubicación de empresa');
         if (!bankDataComplete) missing.push('datos bancarios');
-        if (!machineDataLocal?.machineryType || !machineDataLocal?.licensePlate) missing.push('maquinaria');
+        const hasMachine =
+          Boolean(effectiveMachineData?.machineryType && String(effectiveMachineData?.licensePlate || '').trim());
+        if (!hasMachine) missing.push('maquinaria');
+        const hasOperators = Array.isArray(effectiveOperators) && effectiveOperators.length > 0;
+        if (!hasOperators) missing.push('operador');
         toast.warning(
           missing.length
             ? `Antes de conectarte, completa: ${missing.join(', ')}.`
@@ -331,6 +369,10 @@ function ProviderHomeScreen() {
         );
         if (!hasCoords) {
           navigate('/provider/profile/empresa', { state: { activationEdit: true, returnTo: '/provider/home' } });
+        } else if (!hasMachine) {
+          navigate('/provider/machine-data', { state: { activationEdit: true, returnTo: '/provider/home' } });
+        } else if (!hasOperators) {
+          navigate('/provider/machines', { state: { activationEdit: true, returnTo: '/provider/home' } });
         }
       } else if (isNetworkError) {
         setAvailable(newStatus);
@@ -434,6 +476,18 @@ function ProviderHomeScreen() {
       <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
         {/* Header - Solo logo centrado */}
         <MaqgoLogo size="medium" style={{ marginBottom: 40 }} />
+
+        <p style={{
+          margin: '0 0 14px',
+          textAlign: 'center',
+          color: 'rgba(255,255,255,0.82)',
+          fontSize: 12,
+          fontWeight: 700,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase'
+        }}>
+          Centro de solicitudes
+        </p>
 
         {location.state?.activationCongrats ? (
           <div
@@ -687,18 +741,6 @@ function ProviderHomeScreen() {
           textAlign: 'center',
           boxShadow: '0 12px 28px rgba(0,0,0,0.28)'
         }}>
-          <p style={{
-            margin: 0,
-            marginBottom: 12,
-            color: 'rgba(255,255,255,0.82)',
-            fontSize: 12,
-            fontWeight: 600,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase'
-          }}>
-            Centro de disponibilidad
-          </p>
-
           {/* Toggle visual */}
           <button
             onClick={toggleAvailability}

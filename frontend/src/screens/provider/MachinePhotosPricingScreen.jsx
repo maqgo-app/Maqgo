@@ -350,10 +350,7 @@ function MachinePhotosPricingScreen() {
             padding: '0 4px',
           }}
         >
-          <span style={{ display: 'block' }}>Foto frontal obligatoria</span>
-          <span style={{ display: 'block' }}>
-            Las otras (lateral/trasera) son opcionales y no serán visibles para clientes.
-          </span>
+          Foto frontal obligatoria. Lateral y trasera opcionales.
         </p>
         <p style={{ textAlign: 'center', marginBottom: 22 }}>
           <button
@@ -379,9 +376,6 @@ function MachinePhotosPricingScreen() {
           <div className="maqgo-photos-pricing-sticky">
             <div id="seccion-fotos" style={sectionCard}>
               <h2 style={sectionTitle}>Fotos de la máquina</h2>
-              <p style={{ color: 'rgba(255,255,255,0.88)', fontSize: 13, marginBottom: 12, lineHeight: 1.45 }}>
-                Frontal obligatoria. Lateral y trasera opcionales.
-              </p>
 
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
                 <div
@@ -583,7 +577,7 @@ function MachinePhotosPricingScreen() {
               />
             </div>
             <p style={inputHintStyle}>
-              Ingresa tu precio. El valor sugerido es solo una referencia.
+              Ingresa tu precio (referencia: {formatPrice(refPrice)}{isPerHour ? '/h' : ''}).
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
               <button
@@ -687,7 +681,7 @@ function MachinePhotosPricingScreen() {
                 />
               </div>
               <p style={inputHintStyle}>
-                Ingresa el costo de traslado. El valor sugerido es solo una referencia.
+                Ingresa el traslado (referencia: {formatPrice(REFERENCE_TRANSPORT)}).
               </p>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
               <button

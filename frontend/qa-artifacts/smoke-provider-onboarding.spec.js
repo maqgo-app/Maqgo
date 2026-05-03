@@ -89,6 +89,10 @@ test.describe('Smoke: provider onboarding + perfil', () => {
 
     await page.getByRole('button', { name: 'Conectarme ahora' }).click();
     await expect(page.getByText('Conectado')).toBeVisible();
+    await page.getByRole('button', { name: 'Pausar disponibilidad' }).click();
+    await expect(page.getByText('Desconectado', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Conectarme ahora' }).click();
+    await expect(page.getByText('Conectado')).toBeVisible();
 
     await context.close();
   });
