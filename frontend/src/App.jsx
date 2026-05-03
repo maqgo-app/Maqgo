@@ -40,10 +40,57 @@ function LegacyVerifiedToSelectRole() {
   return <Navigate to="/login" replace state={state} />;
 }
 
+function ProviderAddMachineRedirect() {
+  let target = '/provider/data';
+  try {
+    const raw = globalThis.localStorage?.getItem('providerData');
+    const providerData = raw ? JSON.parse(raw) : {};
+    const companyComplete = Boolean(providerData?.businessName && providerData?.rut);
+    target = companyComplete ? '/provider/machine-data' : '/provider/data';
+  } catch {
+    target = '/provider/data';
+  }
+  return <Navigate to={target} replace />;
+}
+
+function ProviderSensitiveGate({ children }) {
+  const location = useLocation();
+  let isProvider = false;
+  let hasPassword = false;
+  let prefillPhoneDigits = '';
+  try {
+    const userRole = String(globalThis.localStorage?.getItem('userRole') || '').trim();
+    const providerRole = String(globalThis.localStorage?.getItem('providerRole') || '').trim();
+    isProvider = userRole === 'provider' || Boolean(providerRole);
+    hasPassword = globalThis.localStorage?.getItem('hasPassword') === '1';
+    const rawPhone = String(globalThis.localStorage?.getItem('userPhone') || '');
+    const digits = rawPhone.replace(/\D/g, '').slice(-9);
+    if (digits.length === 9 && digits.startsWith('9')) prefillPhoneDigits = digits;
+  } catch {
+    isProvider = false;
+    hasPassword = false;
+    prefillPhoneDigits = '';
+  }
+  if (isProvider && !hasPassword) {
+    const fullPath = `${location.pathname}${location.search || ''}`;
+    return (
+      <Navigate
+        to="/forgot-password"
+        replace
+        state={{
+          entry: 'provider',
+          redirect: fullPath,
+          ...(prefillPhoneDigits ? { prefillPhoneDigits } : {}),
+        }}
+      />
+    );
+  }
+  return children;
+}
+
 // Code-splitting: pantallas se cargan bajo demanda (menor bundle inicial, carga más rápida)
 // Públicas
 const ServiceChatScreen = lazy(() => import('./screens/ServiceChatScreen.jsx'));
-const RoleSelectionScreen = lazy(() => import('./screens/RoleSelection'));
 
 // Cliente
 const UrgencySelectionScreen = lazy(() => import('./screens/client/UrgencySelectionScreen'));
@@ -147,7 +194,7 @@ function AppContent() {
     '/provider/data', '/provider/machine-data', '/provider/machine-photos',
     '/provider/machine-photos-pricing', '/provider/pricing', '/provider/operator-data', '/provider/review',
     '/provider/upload-invoice',
-    '/provider/add-machine', '/provider/edit-machine',
+    '/provider/edit-machine',
     '/provider/profile/empresa', '/provider/profile/banco',
     '/client/machinery',
     '/client/confirm', '/client/billing', '/client/card-input', '/client/service-location',
@@ -157,7 +204,7 @@ function AppContent() {
   // MOSTRAR footer en pantallas principales: home, máquinas, perfil, historial (incluye subrutas)
   const mainPathsWithNav = [
     '/client/home', '/client/history', '/client/detalle-servicio',
-    '/provider/home', '/provider/machines', '/provider/add-machine', '/provider/edit-machine',
+    '/provider/home', '/provider/machines', '/provider/edit-machine',
     '/provider/profile', '/provider/history', '/provider/cobros', '/provider/dashboard', '/provider/my-services',
     '/provider/operator', '/provider/team', '/provider/tariffs',
     '/operator/home', '/operator/history', '/operator/completed',
@@ -184,7 +231,7 @@ function AppContent() {
         <Route path="/welcome" element={<WelcomeScreen />} />
         <Route path="/login" element={<LoginScreen setUserRole={setUserRole} setUserId={setUserId} />} />
         <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
-        <Route path="/select-role" element={<RoleSelectionScreen setUserRole={setUserRole} setUserId={setUserId} />} />
+        <Route path="/select-role" element={<Navigate to="/" replace />} />
         
         {/* Rutas Públicas de Registro y Ayuda */}
         <Route
@@ -348,7 +395,7 @@ function AppContent() {
           path="/provider/add-machine"
           element={
             <ProviderOnboardingGate>
-              <MachineDataScreen />
+              <ProviderAddMachineRedirect />
             </ProviderOnboardingGate>
           }
         />
@@ -360,18 +407,46 @@ function AppContent() {
             </ProviderOnboardingGate>
           }
         />
-        <Route path="/provider/cobros" element={<ProviderDashboardSimple />} />
+        <Route
+          path="/provider/cobros"
+          element={
+            <ProviderSensitiveGate>
+              <ProviderDashboardSimple />
+            </ProviderSensitiveGate>
+          }
+        />
         <Route path="/provider/my-services" element={<ProviderDashboardSimple />} />
         <Route path="/provider/dashboard" element={<ProviderDashboardSimple />} />
         <Route path="/provider/history" element={<ProviderHistoryScreen />} />
         <Route path="/provider/profile" element={<ProviderProfileScreen />} />
-        <Route path="/provider/upload-invoice/:serviceId" element={<UploadInvoiceScreen />} />
-        <Route path="/provider/upload-invoice" element={<UploadInvoiceScreen />} />
+        <Route
+          path="/provider/upload-invoice/:serviceId"
+          element={
+            <ProviderSensitiveGate>
+              <UploadInvoiceScreen />
+            </ProviderSensitiveGate>
+          }
+        />
+        <Route
+          path="/provider/upload-invoice"
+          element={
+            <ProviderSensitiveGate>
+              <UploadInvoiceScreen />
+            </ProviderSensitiveGate>
+          }
+        />
         <Route path="/provider/tariffs" element={<TariffsScreen />} />
         <Route path="/provider/operator" element={<OperatorScreen />} />
         <Route path="/provider/team" element={<TeamManagementScreen />} />
         <Route path="/provider/profile/empresa" element={<EmpresaScreen />} />
-        <Route path="/provider/profile/banco" element={<BancoScreen />} />
+        <Route
+          path="/provider/profile/banco"
+          element={
+            <ProviderSensitiveGate>
+              <BancoScreen />
+            </ProviderSensitiveGate>
+          }
+        />
         <Route path="/provider/profile/maqgo-billing" element={<MaqgoBillingScreen />} />
 
         {/* Operador */}

@@ -228,7 +228,7 @@ function LoginScreen({ setUserRole, setUserId }) {
       return;
     }
     if (!intentRole && !redirectTo && storedRoles.includes('client') && storedRoles.includes('provider')) {
-      navigate('/select-role', { replace: true });
+      navigate('/welcome', { replace: true });
       return;
     }
     if (!storedRole && intentRole && storedRoles.includes(intentRole)) {
@@ -284,7 +284,7 @@ function LoginScreen({ setUserRole, setUserId }) {
         localStorage.setItem('userPhone', data.phone);
       }
       localStorage.removeItem('desiredRole');
-      navigate('/select-role', { replace: true });
+      navigate('/welcome', { replace: true });
       return true;
     }
 
@@ -334,6 +334,11 @@ function LoginScreen({ setUserRole, setUserId }) {
     setUserId(uid);
     localStorage.setItem('userRole', effectiveRole);
     localStorage.setItem('userRoles', JSON.stringify(roles));
+    if (typeof data.has_password === 'boolean') {
+      localStorage.setItem('hasPassword', data.has_password ? '1' : '0');
+    } else {
+      localStorage.removeItem('hasPassword');
+    }
     if (authSource === 'email' && data.email) {
       localStorage.setItem('userEmail', data.email);
     }
@@ -402,7 +407,7 @@ function LoginScreen({ setUserRole, setUserId }) {
       const entryRole = location.state?.entry;
       const intentRole = (desiredRole || entryRole || '').trim() || null;
       if (!intentRole && !redirectTo && storedRoles.includes('client') && storedRoles.includes('provider')) {
-        navigate('/select-role', { replace: true });
+        navigate('/welcome', { replace: true });
         return;
       }
       if (!storedRole && storedRoles.length === 1) {

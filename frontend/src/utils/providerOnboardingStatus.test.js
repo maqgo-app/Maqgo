@@ -100,21 +100,21 @@ describe('providerOnboardingStatus', () => {
     expect(getProviderLandingPath()).toBe('/provider/machines');
   });
 
-  it('Welcome + máquina registrada → /provider/add-machine (agregar rápida)', () => {
+  it('Welcome + máquina registrada → /provider/machine-data (agregar rápida)', () => {
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerMachines: JSON.stringify([{ id: 'mach_1', machineryType: 'x', licensePlate: 'ZZ99', operators: [] }]),
     });
-    expect(getProviderLandingPath()).toBe('/provider/add-machine');
+    expect(getProviderLandingPath()).toBe('/provider/machine-data');
   });
 
-  it('Welcome + onboarding completo en LS → /provider/add-machine (agregar rápida)', () => {
+  it('Welcome + onboarding completo en LS → /provider/machine-data (agregar rápida)', () => {
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerOnboardingCompleted: 'true',
       ...completePayload,
     });
-    expect(getProviderLandingPath()).toBe('/provider/add-machine');
+    expect(getProviderLandingPath()).toBe('/provider/machine-data');
   });
 
   it('tras quitar flag Welcome + onboarding completo → /provider/home', () => {

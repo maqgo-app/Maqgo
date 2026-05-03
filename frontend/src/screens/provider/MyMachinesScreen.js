@@ -87,7 +87,7 @@ function MyMachinesScreen() {
   };
 
   const handleAddMachine = () => {
-    navigate('/provider/add-machine', { state: { returnTo: '/provider/machines' } });
+    navigate('/provider/machine-data', { state: { returnTo: '/provider/machines' } });
   };
 
   const handleDeleteMachine = (machineId) => {

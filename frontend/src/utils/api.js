@@ -87,6 +87,7 @@ export function clearLocalSession() {
   localStorage.removeItem('userId');
   localStorage.removeItem('userRole');
   localStorage.removeItem('userRoles');
+  localStorage.removeItem('hasPassword');
   localStorage.removeItem('providerRole');
   localStorage.removeItem('ownerId');
 }

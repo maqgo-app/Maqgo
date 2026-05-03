@@ -6,6 +6,7 @@ export function clearAuthSessionPreservingDraft() {
   const authKeys = [
     'token',
     'authToken',
+    'hasPassword',
     'userPhone',
     'userId',
     'userRole',

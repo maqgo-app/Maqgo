@@ -253,8 +253,18 @@ export function getProviderBackRoute(pathname) {
   if (pathname === '/provider/data' && typeof localStorage !== 'undefined' && localStorage.getItem('providerCameFromWelcome')) {
     return '/';
   }
-  if (pathname === '/provider/add-machine' && typeof localStorage !== 'undefined' && localStorage.getItem('providerCameFromWelcome')) {
-    return '/';
+  if (pathname === '/provider/machine-data' && typeof localStorage !== 'undefined' && localStorage.getItem('providerCameFromWelcome')) {
+    try {
+      if (localStorage.getItem('providerOnboardingCompleted') === 'true') return '/';
+      const raw = localStorage.getItem('providerMachines');
+      const machines = raw ? JSON.parse(raw) : [];
+      const hasRegisteredMachine = Array.isArray(machines)
+        ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))
+        : false;
+      if (hasRegisteredMachine) return '/';
+    } catch {
+      /* ignore */
+    }
   }
   return PROVIDER_ONBOARDING_BACK_ROUTES[pathname] || null;
 }

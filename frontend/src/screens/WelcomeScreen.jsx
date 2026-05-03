@@ -322,7 +322,15 @@ function WelcomeScreen() {
                 /* ignore */
               }
               const fromWelcome = true;
-              const finalRoute = '/provider/add-machine';
+              let finalRoute = '/provider/data';
+              try {
+                const raw = localStorage.getItem('providerData');
+                const providerData = raw ? JSON.parse(raw) : {};
+                const companyComplete = Boolean(providerData?.businessName && providerData?.rut);
+                finalRoute = companyComplete ? '/provider/machine-data' : '/provider/data';
+              } catch {
+                finalRoute = '/provider/data';
+              }
               try {
                 localStorage.setItem('providerCameFromWelcome', 'true');
               } catch {

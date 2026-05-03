@@ -454,7 +454,7 @@ function ProviderHomeScreen() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/provider/add-machine')}
+                onClick={() => navigate('/provider/machine-data')}
                 style={{
                   flex: '1 1 190px',
                   padding: 12,

@@ -124,6 +124,7 @@ describe('persistLoginSessionMetadata', () => {
     expect(store.userRoles).toBe(JSON.stringify(['client']));
     expect(store.userPhone).toBe('+56912345678');
     expect(store.providerRole).toBeUndefined();
+    expect(store.hasPassword).toBeUndefined();
   });
 
   it('proveedor: guarda providerRole', () => {
@@ -143,8 +144,10 @@ describe('persistLoginSessionMetadata', () => {
       role: 'provider',
       roles: ['client', 'provider'],
       provider_role: 'super_master',
+      has_password: true,
     });
     expect(store.userRole).toBe('provider');
     expect(store.providerRole).toBe('super_master');
+    expect(store.hasPassword).toBe('1');
   });
 });

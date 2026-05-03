@@ -39,6 +39,11 @@ export function persistLoginSessionMetadata(data) {
 
     localStorage.setItem('userRole', effectiveRole);
     localStorage.setItem('userRoles', JSON.stringify(roles.length ? roles : [effectiveRole]));
+    if (typeof data.has_password === 'boolean') {
+      localStorage.setItem('hasPassword', data.has_password ? '1' : '0');
+    } else {
+      localStorage.removeItem('hasPassword');
+    }
 
     if (roles.includes('provider')) {
       let pr = data.provider_role || 'super_master';

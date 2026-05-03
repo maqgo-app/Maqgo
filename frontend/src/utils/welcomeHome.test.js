@@ -145,25 +145,26 @@ describe('welcomeHome', () => {
       expect(getWelcomeOfferMachineryDestination()).toBe('/admin');
     });
 
-    it('proveedor titular con sesión → CTA siempre /provider/add-machine', () => {
+    it('proveedor titular con sesión → /provider/data (onboarding legacy)', () => {
       installLocalStorageMock({
         userId: 'p1',
         userRole: 'provider',
         providerRole: 'super_master',
         token: 't',
       });
-      expect(getWelcomeOfferMachineryDestination()).toBe('/provider/add-machine');
+      expect(getWelcomeOfferMachineryDestination()).toBe('/provider/data');
     });
 
-    it('proveedor titular completo → CTA sigue siendo /provider/add-machine', () => {
+    it('proveedor titular con empresa completa → /provider/machine-data', () => {
       installLocalStorageMock({
         userId: 'p1',
         userRole: 'provider',
         providerRole: 'super_master',
         token: 't',
         providerOnboardingCompleted: 'true',
+        providerData: JSON.stringify({ businessName: 'Empresa', rut: '1-9' }),
       });
-      expect(getWelcomeOfferMachineryDestination()).toBe('/provider/add-machine');
+      expect(getWelcomeOfferMachineryDestination()).toBe('/provider/machine-data');
     });
 
     it('operador → /operator/home', () => {
@@ -176,12 +177,12 @@ describe('welcomeHome', () => {
       expect(getWelcomeOfferMachineryDestination()).toBe('/operator/home');
     });
 
-    it('cliente → /provider/add-machine (machine-first)', () => {
+    it('cliente → /provider/data (alta proveedor legacy)', () => {
       installLocalStorageMock({ userId: 'c1', userRole: 'client', token: 't' });
-      expect(getWelcomeOfferMachineryDestination()).toBe('/provider/add-machine');
+      expect(getWelcomeOfferMachineryDestination()).toBe('/provider/data');
     });
 
-    it('multi-rol en userRoles: CTA → /provider/add-machine', () => {
+    it('multi-rol en userRoles: CTA → /provider/data', () => {
       installLocalStorageMock({
         userId: 'm1',
         userRole: 'client',
@@ -189,7 +190,7 @@ describe('welcomeHome', () => {
         providerRole: 'super_master',
         token: 't',
       });
-      expect(getWelcomeOfferMachineryDestination()).toBe('/provider/add-machine');
+      expect(getWelcomeOfferMachineryDestination()).toBe('/provider/data');
     });
   });
 

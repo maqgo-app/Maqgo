@@ -45,7 +45,7 @@ export function getWelcomeAppHomePath() {
   const userRole = ls.getItem('userRole');
   const providerRole = ls.getItem('providerRole');
   if (providerRole === 'operator') return ROUTES.OPERATOR_HOME;
-  if (token && roles.includes('client') && roles.includes('provider')) return '/select-role';
+  if (token && roles.includes('client') && roles.includes('provider')) return '/welcome';
   if (userRole === 'client') return ROUTES.CLIENT_HOME;
   if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager') {
     return getProviderLandingPath();
@@ -55,7 +55,7 @@ export function getWelcomeAppHomePath() {
 }
 
 /**
- * CTA “Ofrecer mi maquinaria”: siempre `/provider/add-machine` (machine-first; única entrada).
+ * CTA “Ofrecer mi maquinaria”: entrada al onboarding legacy.
  * @returns {string|null} ruta si hay sesión válida; `null` si no (Welcome navega igual a add-machine, ruta pública).
  */
 export function getWelcomeOfferMachineryDestination() {
@@ -72,7 +72,15 @@ export function getWelcomeOfferMachineryDestination() {
     return ROUTES.OPERATOR_HOME;
   }
 
-  return '/provider/add-machine';
+  let companyComplete = false;
+  try {
+    const raw = ls.getItem('providerData');
+    const providerData = raw ? JSON.parse(raw) : {};
+    companyComplete = Boolean(providerData?.businessName && providerData?.rut);
+  } catch {
+    companyComplete = false;
+  }
+  return companyComplete ? '/provider/machine-data' : '/provider/data';
 }
 
 /**

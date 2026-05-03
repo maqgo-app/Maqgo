@@ -4,7 +4,7 @@
  */
 import { getArray, getObject } from './safeStorage';
 
-const MACHINE_FIRST_ENTRY = '/provider/add-machine';
+const MACHINE_FIRST_ENTRY = '/provider/machine-data';
 
 function isBankDataComplete(bankData) {
   return (
@@ -89,7 +89,7 @@ export function isProviderOnboardingCompleteFromStorage() {
 
 /**
  * Post-login / home / "Completar registro":
- * - CTA "Ofrecer mi maquinaria" (Welcome): `providerCameFromWelcome` → siempre publicación en `/provider/add-machine`;
+ * - CTA "Ofrecer mi maquinaria" (Welcome): `providerCameFromWelcome` → continuar/agregar en `/provider/machine-data`;
  *   el flag se elimina al completar publicación/onboarding para no bloquear `/provider/home` después.
  * - Sin Welcome: orden clásico (empresa → máquina → …) o `/provider/home` si onboarding completo.
  */

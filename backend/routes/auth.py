@@ -323,6 +323,7 @@ def _build_login_sms_session_payload(user: dict, token: str, *, requires_otp: bo
     pr = _provider_role_for_api(user, roles)
     oid = user.get("owner_id")
     uid = user["id"]
+    has_password = bool(str(user.get("password") or "").strip())
     return {
         "id": uid,
         "user_id": uid,
@@ -333,6 +334,7 @@ def _build_login_sms_session_payload(user: dict, token: str, *, requires_otp: bo
         "roles": roles,
         "token": token,
         "requires_otp": requires_otp,
+        "has_password": has_password,
         "provider_role": pr,
         "owner_id": oid,
         "user": {
@@ -342,6 +344,7 @@ def _build_login_sms_session_payload(user: dict, token: str, *, requires_otp: bo
             "phone": user.get("phone"),
             "roles": roles,
             "role": effective_role,
+            "has_password": has_password,
             "provider_role": pr,
             "owner_id": oid,
         },
@@ -962,10 +965,8 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
             phone9, req_role, roles
         )
 
-        # La exigencia de contraseña (Step-Up Auth) aplica solo si el flujo es PROVIDER o ADMIN.
-        # Si req_role es 'client' (o no viene), saltamos el Step-Up.
-        is_step_up_flow = req_role in ["provider", "admin"]
-        has_password_protected_role = any(r in ["provider", "admin"] for r in roles)
+        is_step_up_flow = req_role == "admin"
+        has_password_protected_role = "admin" in roles
         
         if is_step_up_flow and has_password_protected_role:
             if not str(user.get("password") or "").strip():
@@ -2062,6 +2063,7 @@ async def login(request: Request, body: LoginRequest):
         "role": effective_role,
         "roles": roles,
         "token": token,
+        "has_password": bool(str(user.get("password") or "").strip()),
         "provider_role": pr,
         "owner_id": user.get("owner_id"),
         "must_change_password": bool(user.get("must_change_password")),
