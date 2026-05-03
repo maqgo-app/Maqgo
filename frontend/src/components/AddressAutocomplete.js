@@ -39,21 +39,50 @@ export function getGoogleMapsApiKey() {
  * Carga el script de Google Maps Places
  */
 function loadGoogleMapsScript(apiKey) {
-  return new Promise((resolve, reject) => {
+  if (window.google?.maps?.places) return Promise.resolve();
+  if (window.__MAQGO_GOOGLE_MAPS_LOADER__) return window.__MAQGO_GOOGLE_MAPS_LOADER__;
+
+  const existing = document.getElementById('maqgo-google-maps-js');
+  if (existing && window.google?.maps) {
+    return Promise.resolve();
+  }
+
+  window.__MAQGO_GOOGLE_MAPS_LOADER__ = new Promise((resolve, reject) => {
     if (window.google?.maps?.places) {
       resolve();
       return;
     }
-    const script = document.createElement('script');
-    // Best practice: loading=async para evitar warning de performance.
-    // v=weekly: evita casos donde el núcleo carga antes que el submódulo `places`.
+    const script = existing || document.createElement('script');
+    script.id = 'maqgo-google-maps-js';
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&libraries=places&language=es&loading=async`;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('GoogleMapsScriptLoadError'));
-    document.head.appendChild(script);
+
+    const onLoad = () => resolve();
+    const onError = (e) => {
+      const details = {
+        origin: typeof window !== 'undefined' ? window.location?.origin : '',
+        scriptSrc: script.src,
+        error: String(e?.message || e?.type || ''),
+      };
+      console.error('[Maqgo][Maps] Script load error', details);
+      reject(new Error('GoogleMapsScriptLoadError'));
+    };
+    script.addEventListener('load', onLoad, { once: true });
+    script.addEventListener('error', onError, { once: true });
+
+    if (!existing) document.head.appendChild(script);
+  }).finally(() => {
+    window.setTimeout(() => {
+      try {
+        delete window.__MAQGO_GOOGLE_MAPS_LOADER__;
+      } catch {
+        window.__MAQGO_GOOGLE_MAPS_LOADER__ = undefined;
+      }
+    }, 0);
   });
+
+  return window.__MAQGO_GOOGLE_MAPS_LOADER__;
 }
 
 /**
@@ -168,6 +197,14 @@ export function AddressAutocomplete({
     const errorListener = (event) => {
       const extracted = parseGoogleMapsError(event?.message);
       if (!extracted) return;
+      console.error('[Maqgo][Maps] Google Maps runtime error', {
+        code: extracted,
+        message: String(event?.message || ''),
+        filename: String(event?.filename || ''),
+        lineno: event?.lineno,
+        colno: event?.colno,
+        origin: window.location?.origin,
+      });
       setLastMapsError(extracted);
       onPlacesStatusChange?.({
         ready: false,
@@ -176,6 +213,22 @@ export function AddressAutocomplete({
         reason: extracted
       });
     };
+
+    if (!window.__MAQGO_GM_AUTH_FAILURE_INSTALLED__) {
+      window.__MAQGO_GM_AUTH_FAILURE_INSTALLED__ = true;
+      window.gm_authFailure = () => {
+        console.error('[Maqgo][Maps] gm_authFailure (key/billing/restrictions)', {
+          origin: window.location?.origin,
+        });
+        setLastMapsError('RequestDeniedMapError');
+        onPlacesStatusChange?.({
+          ready: false,
+          phase: 'failed',
+          hasApiKey: true,
+          reason: 'RequestDeniedMapError'
+        });
+      };
+    }
 
     window.addEventListener('error', errorListener);
     onPlacesStatusChange?.({ ready: false, phase: 'loading', hasApiKey: true });

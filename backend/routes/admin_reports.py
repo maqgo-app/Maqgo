@@ -33,6 +33,8 @@ db = client[get_db_name()]
 
 SUBSCRIPTIONS_CONFIG_KEY = "admin_report_subscriptions"
 
+DEFAULT_ADMIN_REPORT_EMAIL = (os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", "").strip() or "tomas@maqgo.cl").strip().lower()
+
 def _parse_bool(v: str, default: bool = False) -> bool:
     if v is None:
         return default
@@ -100,6 +102,7 @@ async def _get_weekly_recipients_from_config_or_env() -> list[str]:
     raw = (
         os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_EMAILS", "").strip()
         or os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", "").strip()
+        or DEFAULT_ADMIN_REPORT_EMAIL
     )
     return _normalize_email_list(raw)
 
@@ -112,7 +115,11 @@ async def _get_monthly_recipients_from_config_or_env() -> list[str]:
             return _normalize_email_list(monthly)
     except Exception:
         pass
-    raw = os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_EMAILS", "").strip()
+    raw = (
+        os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_EMAILS", "").strip()
+        or os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", "").strip()
+        or DEFAULT_ADMIN_REPORT_EMAIL
+    )
     return _normalize_email_list(raw)
 
 
@@ -296,6 +303,213 @@ async def cron_admin_weekly_report_reports_namespace(
     return await _send_admin_weekly_report_email(force=force, dry_run=dry_run, weeks_ago=weeks_ago)
 
 
+def _shift_month(*, year: int, month: int, months_ago: int) -> tuple[int, int]:
+    total = (year * 12 + (month - 1)) - int(months_ago)
+    y = total // 12
+    m = (total % 12) + 1
+    return int(y), int(m)
+
+
+def _month_bounds_utc(*, year: int, month: int) -> tuple[datetime, datetime]:
+    start = datetime(year, month, 1, 0, 0, 0, 0)
+    if month == 12:
+        end = datetime(year + 1, 1, 1, 0, 0, 0, 0)
+    else:
+        end = datetime(year, month + 1, 1, 0, 0, 0, 0)
+    return start, end
+
+
+async def _build_monthly_finance(*, year: int, month: int) -> dict:
+    start, end = _month_bounds_utc(year=year, month=month)
+
+    services = await db.services.find({
+        "status": "paid",
+        "paid_at": {"$gte": start, "$lt": end},
+    }).to_list(5000)
+
+    sales_net = 0.0
+    sales_gross = 0.0
+    provider_payment_total = 0.0
+    iva_debito = 0.0
+    iva_credito_estimado = 0.0
+    client_commission_net = 0.0
+    provider_commission_net = 0.0
+    paid_without_invoice_count = 0
+    with_provider_invoice_count = 0
+
+    for s in services:
+        net_total = float(s.get("net_total") or 0)
+        gross_total = float(s.get("gross_total") or 0)
+        if gross_total <= 0 and net_total > 0:
+            gross_total = round(net_total * 1.19, 0)
+
+        service_fee = float(s.get("service_fee") or 0)
+        paid_without_invoice = bool(s.get("paid_without_invoice", False))
+
+        provider_paid = (
+            float(s.get("amount_paid_to_provider"))
+            if s.get("amount_paid_to_provider") is not None
+            else net_total
+        )
+
+        sales_net += net_total
+        sales_gross += gross_total
+        provider_payment_total += provider_paid
+
+        iva_servicio = max(0.0, gross_total - net_total)
+        iva_debito += iva_servicio
+
+        if paid_without_invoice:
+            paid_without_invoice_count += 1
+        else:
+            has_provider_invoice = bool(s.get("invoice_number")) or bool(s.get("invoice_uploaded_at"))
+            if has_provider_invoice:
+                iva_credito_estimado += iva_servicio
+                with_provider_invoice_count += 1
+
+        gross_sin_iva = (gross_total / 1.19) if gross_total else 0.0
+        subtotal_base = gross_sin_iva / 1.10 if gross_sin_iva else 0.0
+        client_commission_net += subtotal_base * 0.10
+        provider_commission_net += (service_fee / 1.19) if service_fee else 0.0
+
+    iva_neto_a_pagar_estimado = max(0.0, iva_debito - iva_credito_estimado)
+    contribution_margin = sales_net - provider_payment_total
+    contribution_margin_pct = (contribution_margin / sales_net * 100.0) if sales_net > 0 else 0.0
+    maqgo_operating_revenue = client_commission_net + provider_commission_net
+
+    return {
+        "periodo": {
+            "year": year,
+            "month": month,
+            "inicio": start.isoformat(),
+            "fin": end.isoformat(),
+            "label": f"{year}-{month:02d}",
+        },
+        "volume": {
+            "services_paid": len(services),
+            "with_provider_invoice": with_provider_invoice_count,
+            "paid_without_invoice": paid_without_invoice_count,
+        },
+        "sales": {
+            "net": round(sales_net, 0),
+            "gross": round(sales_gross, 0),
+        },
+        "iva": {
+            "debito": round(iva_debito, 0),
+            "credito_estimado": round(iva_credito_estimado, 0),
+            "neto_a_pagar_estimado": round(iva_neto_a_pagar_estimado, 0),
+            "warning": "Estimado contable. Validar con SII/libro compra-venta y documentos tributarios.",
+        },
+        "contribution": {
+            "sales_net": round(sales_net, 0),
+            "cost_of_sales": round(provider_payment_total, 0),
+            "margin": round(contribution_margin, 0),
+            "margin_pct": round(contribution_margin_pct, 2),
+        },
+        "maqgo_revenue": {
+            "client_commission_net": round(client_commission_net, 0),
+            "provider_commission_net": round(provider_commission_net, 0),
+            "total_net": round(maqgo_operating_revenue, 0),
+        },
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+async def _send_admin_monthly_report_email(*, force: bool, dry_run: bool, months_ago: int) -> dict:
+    enabled = _parse_bool(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_ENABLED", "false"), False)
+    tz_name = os.environ.get("MAQGO_ADMIN_REPORT_TIMEZONE", "America/Santiago").strip() or "America/Santiago"
+    day = _parse_int(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_DAY", "1"), 1)
+    hour = _parse_int(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_HOUR", "7"), 7)
+    minute = _parse_int(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_MINUTE", "5"), 5)
+    window = _parse_int(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_WINDOW_MINUTES", "90"), 90)
+    recipients = await _get_monthly_recipients_from_config_or_env()
+
+    if not recipients:
+        return {"ok": False, "reason": "missing_recipients"}
+    if not enabled and not force:
+        return {"ok": False, "reason": "disabled"}
+
+    now_local = datetime.now(ZoneInfo(tz_name))
+    in_window = _scheduled_window_allows_send(now_local, hour, minute, window)
+    if not force and not (int(now_local.day) == int(day) and in_window):
+        return {
+            "ok": False,
+            "reason": "outside_schedule_window",
+            "timezone": tz_name,
+            "now_local": now_local.isoformat(),
+        }
+
+    y, m = _shift_month(year=now_local.year, month=now_local.month, months_ago=months_ago)
+    month_key = f"{y}-{m:02d}"
+    recipients_key = ",".join(sorted(recipients))
+    existing = await db.admin_monthly_report_mailings.find_one(
+        {"kind": "monthly_report", "month_key": month_key, "recipients_key": recipients_key},
+        {"_id": 0, "sent_at": 1},
+    )
+    if existing and not force:
+        return {"ok": True, "skipped": True, "reason": "already_sent", "month_key": month_key}
+
+    report = await _build_monthly_finance(year=y, month=m)
+    subject = f"MAQGO — Informe mensual {report['periodo']['label']}"
+    text = format_monthly_finance_as_text(report)
+    html = f"<pre>{html_escape(text)}</pre>"
+
+    if dry_run:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "month_key": month_key,
+            "to": recipients,
+            "subject": subject,
+            "text_preview": text[:2000],
+        }
+
+    send_result = await _send_email(recipients, subject, text, html)
+    await db.admin_monthly_report_mailings.update_one(
+        {"kind": "monthly_report", "month_key": month_key, "recipients_key": recipients_key},
+        {
+            "$set": {
+                "kind": "monthly_report",
+                "month_key": month_key,
+                "recipients_key": recipients_key,
+                "to": recipients,
+                "timezone": tz_name,
+                "scheduled_day": day,
+                "scheduled_hour": hour,
+                "scheduled_minute": minute,
+                "months_ago": months_ago,
+                "sent_at": datetime.utcnow().isoformat(),
+                "provider": send_result.get("provider"),
+                "provider_id": send_result.get("id"),
+            }
+        },
+        upsert=True,
+    )
+    return {"ok": True, "sent": True, "month_key": month_key, "to": recipients, "provider": send_result.get("provider")}
+
+
+@cron_router.api_route("/cron/admin-monthly-report", methods=["GET", "POST"])
+async def cron_admin_monthly_report(
+    secret: Optional[str] = Query(None),
+    force: bool = Query(False),
+    dry_run: bool = Query(False),
+    months_ago: int = Query(1, ge=0, le=36),
+):
+    _cron_verify(secret)
+    return await _send_admin_monthly_report_email(force=force, dry_run=dry_run, months_ago=months_ago)
+
+
+@router.api_route("/cron/admin-monthly-report", methods=["GET", "POST"])
+async def cron_admin_monthly_report_reports_namespace(
+    secret: Optional[str] = Query(None),
+    force: bool = Query(False),
+    dry_run: bool = Query(False),
+    months_ago: int = Query(1, ge=0, le=36),
+):
+    _cron_verify(secret)
+    return await _send_admin_monthly_report_email(force=force, dry_run=dry_run, months_ago=months_ago)
+
+
 @router.get("/sms-balance")
 async def get_sms_balance(_: dict = Depends(get_current_admin_strict)):
     """
@@ -343,7 +557,7 @@ async def get_admin_report_subscriptions(_: dict = Depends(get_current_admin_str
         "updated_at": cfg.get("updated_at"),
         "source": {
             "weekly": "db" if cfg.get("weekly_emails") else "env",
-            "monthly": "db" if cfg.get("monthly_emails") else ("env" if os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_EMAILS") else "empty"),
+            "monthly": "db" if cfg.get("monthly_emails") else ("env" if (os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_EMAILS") or os.environ.get("MAQGO_ADMIN_REPORT_EMAIL")) else "default"),
         },
     }
 
@@ -640,108 +854,9 @@ async def get_monthly_finance(
     - Margen de contribución mensual (ingreso neto venta - costo de venta proveedor)
     """
     now = datetime.utcnow()
-    y = year or now.year
-    m = month or now.month
-    start = datetime(y, m, 1, 0, 0, 0, 0)
-    if m == 12:
-        end = datetime(y + 1, 1, 1, 0, 0, 0, 0)
-    else:
-        end = datetime(y, m + 1, 1, 0, 0, 0, 0)
-
-    # Conciliación sobre servicios cerrados (pagados) en el mes.
-    services = await db.services.find({
-        "status": "paid",
-        "paid_at": {"$gte": start, "$lt": end},
-    }).to_list(5000)
-
-    sales_net = 0.0
-    sales_gross = 0.0
-    provider_payment_total = 0.0
-    iva_debito = 0.0
-    iva_credito_estimado = 0.0
-    client_commission_net = 0.0
-    provider_commission_net = 0.0
-    paid_without_invoice_count = 0
-    with_provider_invoice_count = 0
-
-    for s in services:
-        net_total = float(s.get("net_total") or 0)
-        gross_total = float(s.get("gross_total") or 0)
-        if gross_total <= 0 and net_total > 0:
-            gross_total = round(net_total * 1.19, 0)
-
-        service_fee = float(s.get("service_fee") or 0)
-        paid_without_invoice = bool(s.get("paid_without_invoice", False))
-
-        provider_paid = (
-            float(s.get("amount_paid_to_provider"))
-            if s.get("amount_paid_to_provider") is not None
-            else net_total
-        )
-
-        sales_net += net_total
-        sales_gross += gross_total
-        provider_payment_total += provider_paid
-
-        iva_servicio = max(0.0, gross_total - net_total)
-        iva_debito += iva_servicio
-
-        # Crédito fiscal estimado: solo cuando hay factura proveedor (no aplica pago sin factura).
-        if paid_without_invoice:
-            paid_without_invoice_count += 1
-        else:
-            has_provider_invoice = bool(s.get("invoice_number")) or bool(s.get("invoice_uploaded_at"))
-            if has_provider_invoice:
-                iva_credito_estimado += iva_servicio
-                with_provider_invoice_count += 1
-
-        # Igual que cálculo del dashboard (mantiene consistencia entre pantallas).
-        gross_sin_iva = (gross_total / 1.19) if gross_total else 0.0
-        subtotal_base = gross_sin_iva / 1.10 if gross_sin_iva else 0.0
-        client_commission_net += subtotal_base * 0.10
-        provider_commission_net += (service_fee / 1.19) if service_fee else 0.0
-
-    iva_neto_a_pagar_estimado = max(0.0, iva_debito - iva_credito_estimado)
-    contribution_margin = sales_net - provider_payment_total
-    contribution_margin_pct = (contribution_margin / sales_net * 100.0) if sales_net > 0 else 0.0
-    maqgo_operating_revenue = client_commission_net + provider_commission_net
-
-    return {
-        "periodo": {
-            "year": y,
-            "month": m,
-            "inicio": start.isoformat(),
-            "fin": end.isoformat(),
-            "label": f"{y}-{m:02d}",
-        },
-        "volume": {
-            "services_paid": len(services),
-            "with_provider_invoice": with_provider_invoice_count,
-            "paid_without_invoice": paid_without_invoice_count,
-        },
-        "sales": {
-            "net": round(sales_net, 0),
-            "gross": round(sales_gross, 0),
-        },
-        "iva": {
-            "debito": round(iva_debito, 0),
-            "credito_estimado": round(iva_credito_estimado, 0),
-            "neto_a_pagar_estimado": round(iva_neto_a_pagar_estimado, 0),
-            "warning": "Estimado contable. Validar con SII/libro compra-venta y documentos tributarios.",
-        },
-        "contribution": {
-            "sales_net": round(sales_net, 0),
-            "cost_of_sales": round(provider_payment_total, 0),
-            "margin": round(contribution_margin, 0),
-            "margin_pct": round(contribution_margin_pct, 2),
-        },
-        "maqgo_revenue": {
-            "client_commission_net": round(client_commission_net, 0),
-            "provider_commission_net": round(provider_commission_net, 0),
-            "total_net": round(maqgo_operating_revenue, 0),
-        },
-        "generated_at": datetime.utcnow().isoformat(),
-    }
+    y = int(year or now.year)
+    m = int(month or now.month)
+    return await _build_monthly_finance(year=y, month=m)
 
 
 async def generate_alerts(db, start_date, end_date, umbral_revision_h=72):
@@ -967,13 +1082,43 @@ async def send_weekly_report_email(
     dry_run: bool = Query(False),
     _: dict = Depends(get_current_admin_strict),
 ):
-    recipients = _normalize_email_list(email or os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_EMAILS", "") or os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", ""))
+    recipients = _normalize_email_list(
+        email
+        or os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_EMAILS", "")
+        or os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", "")
+        or DEFAULT_ADMIN_REPORT_EMAIL
+    )
     if not recipients:
         raise HTTPException(status_code=400, detail="Falta destinatario email (param email o env MAQGO_ADMIN_WEEKLY_REPORT_EMAILS)")
 
     report = await _build_weekly_report(weeks_ago=weeks_ago)
     text = format_report_as_text(report)
     subject = f"MAQGO — Informe semanal {report['periodo']['semana']}"
+    html = f"<pre>{html_escape(text)}</pre>"
+
+    if dry_run:
+        return {"ok": True, "dry_run": True, "to": recipients, "subject": subject, "text_preview": text[:2000]}
+
+    result = await _send_email(recipients, subject, text, html)
+    return {"ok": True, "sent": True, "to": recipients, "provider": result.get("provider"), "provider_id": result.get("id")}
+
+
+@router.post("/monthly/send-email")
+async def send_monthly_report_email(
+    email: Optional[str] = Query(None),
+    months_ago: int = Query(1, ge=0, le=36),
+    dry_run: bool = Query(False),
+    _: dict = Depends(get_current_admin_strict),
+):
+    recipients = _normalize_email_list(email or ",".join(await _get_monthly_recipients_from_config_or_env()) or DEFAULT_ADMIN_REPORT_EMAIL)
+    if not recipients:
+        raise HTTPException(status_code=400, detail="Falta destinatario email (param email o env MAQGO_ADMIN_MONTHLY_REPORT_EMAILS)")
+
+    now = datetime.utcnow()
+    y, m = _shift_month(year=now.year, month=now.month, months_ago=months_ago)
+    report = await _build_monthly_finance(year=y, month=m)
+    text = format_monthly_finance_as_text(report)
+    subject = f"MAQGO — Informe mensual {report['periodo']['label']}"
     html = f"<pre>{html_escape(text)}</pre>"
 
     if dry_run:
@@ -1037,3 +1182,58 @@ Alineado a estados: pending_review → approved → invoiced → paid
 """
 
     return texto
+
+
+def _fmt_money(v) -> str:
+    try:
+        n = float(v or 0)
+    except Exception:
+        n = 0.0
+    return f"{round(n):,}".replace(",", ".")
+
+
+def format_monthly_finance_as_text(report: dict) -> str:
+    p = report.get("periodo") or {}
+    vol = report.get("volume") or {}
+    sales = report.get("sales") or {}
+    iva = report.get("iva") or {}
+    contr = report.get("contribution") or {}
+    rev = report.get("maqgo_revenue") or {}
+
+    label = p.get("label") or f"{p.get('year', '—')}-{int(p.get('month') or 0):02d}"
+    gen = str(report.get("generated_at") or datetime.utcnow().isoformat())[:19]
+
+    texto = f"""
+═══════════════════════════════════════════════════════════════
+                 MAQGO - INFORME MENSUAL (finanzas)
+═══════════════════════════════════════════════════════════════
+Periodo: {label}
+Generado: {gen}
+
+Servicios pagados en el mes: {vol.get('services_paid', 0)}
+Con factura proveedor: {vol.get('with_provider_invoice', 0)}
+Pagado sin factura: {vol.get('paid_without_invoice', 0)}
+
+Ventas (CLP):
+  • Neto:  {_fmt_money(sales.get('net'))}
+  • Bruto: {_fmt_money(sales.get('gross'))}
+
+IVA (estimado, CLP):
+  • Débito: {_fmt_money(iva.get('debito'))}
+  • Crédito estimado: {_fmt_money(iva.get('credito_estimado'))}
+  • Neto a pagar estimado: {_fmt_money(iva.get('neto_a_pagar_estimado'))}
+
+Margen contribución (CLP):
+  • Ventas netas: {_fmt_money(contr.get('sales_net'))}
+  • Costo venta (pago proveedor): {_fmt_money(contr.get('cost_of_sales'))}
+  • Margen: {_fmt_money(contr.get('margin'))} ({contr.get('margin_pct', 0)}%)
+
+Ingresos MAQGO (neto, CLP):
+  • Comisión cliente: {_fmt_money(rev.get('client_commission_net'))}
+  • Comisión proveedor: {_fmt_money(rev.get('provider_commission_net'))}
+  • Total: {_fmt_money(rev.get('total_net'))}
+
+Nota: {iva.get('warning', '')}
+═══════════════════════════════════════════════════════════════
+"""
+    return texto.strip() + "\n"

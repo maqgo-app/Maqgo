@@ -646,6 +646,7 @@ function AdminDashboard() {
     if (usingOfflineDemo) return;
     setReportSubsLoading(true);
     try {
+      const DEFAULT_REPORT_EMAIL = 'tomas@maqgo.cl';
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reports/subscriptions`, { method: 'GET' }, 12000);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -653,8 +654,8 @@ function AdminDashboard() {
       }
       const weekly = Array.isArray(data.weekly_emails) ? data.weekly_emails : [];
       const monthly = Array.isArray(data.monthly_emails) ? data.monthly_emails : [];
-      setWeeklyReportEmailsText(weekly.join(', '));
-      setMonthlyReportEmailsText(monthly.join(', '));
+      setWeeklyReportEmailsText((weekly.length ? weekly : [DEFAULT_REPORT_EMAIL]).join(', '));
+      setMonthlyReportEmailsText((monthly.length ? monthly : [DEFAULT_REPORT_EMAIL]).join(', '));
       setReportSubsMeta({
         updatedAt: data.updated_at || '',
         source: data.source || null,
