@@ -4,6 +4,7 @@ Algoritmo de matching basado en precio y distancia
 """
 import logging
 import math
+import os
 import time
 from typing import List, Optional
 
@@ -25,6 +26,11 @@ logger = logging.getLogger(__name__)
 
 MONGO_URL = get_mongo_url()
 DB_NAME = get_db_name()
+
+
+def _allow_demo_providers() -> bool:
+    raw = str(os.environ.get("MAQGO_DEMO_MODE", "false")).strip().lower()
+    return raw in {"1", "true", "yes", "on"}
 
 # Maquinarias que NO necesitan traslado (son vehículos con patente)
 MACHINERY_NO_TRANSPORT = ['camion_pluma', 'camion_aljibe', 'camion_tolva']
@@ -263,6 +269,7 @@ async def match_providers(
     """
     db = get_db()
     t0 = time.perf_counter()
+    allow_demo = _allow_demo_providers()
 
     try:
         # Buscar proveedores que cumplan los criterios
@@ -303,12 +310,19 @@ async def match_providers(
                 event="provider_match",
                 machinery_type=machinery_type,
                 count=0,
-                returned=3,
-                is_demo=True,
+                returned=3 if allow_demo else 0,
+                is_demo=allow_demo,
                 duration_ms=duration_ms,
                 success=True,
             )
-            # Retornar datos demo si no hay proveedores reales
+            if not allow_demo:
+                return {
+                    "providers": [],
+                    "total": 0,
+                    "is_demo": False,
+                    "tomorrow_available": False,
+                    "tomorrow_count": 0,
+                }
             return {
                 "providers": get_demo_providers(machinery_type, client_lat, client_lng),
                 "total": 3,
@@ -417,12 +431,20 @@ async def match_providers(
                 event="provider_match",
                 machinery_type=machinery_type,
                 count=0,
-                returned=3,
-                is_demo=True,
+                returned=3 if allow_demo else 0,
+                is_demo=allow_demo,
                 tomorrow_available=tomorrow_count > 0,
                 duration_ms=duration_ms,
                 success=True,
             )
+            if not allow_demo:
+                return {
+                    "providers": [],
+                    "total": 0,
+                    "is_demo": False,
+                    "tomorrow_available": tomorrow_count > 0,
+                    "tomorrow_count": tomorrow_count,
+                }
             return {
                 "providers": get_demo_providers(machinery_type, client_lat, client_lng),
                 "total": 3,
@@ -485,6 +507,15 @@ async def match_providers(
             duration_ms=duration_ms,
             error_type=type(e).__name__,
         )
+        if not allow_demo:
+            return {
+                "providers": [],
+                "total": 0,
+                "is_demo": False,
+                "tomorrow_available": False,
+                "tomorrow_count": 0,
+                "error": "match_unavailable",
+            }
         return {
             "providers": get_demo_providers(machinery_type, client_lat, client_lng),
             "total": 3,

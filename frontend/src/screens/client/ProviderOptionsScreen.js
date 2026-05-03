@@ -212,6 +212,8 @@ function ProviderOptionsScreen() {
     const clientLat = Number.isFinite(savedLat) ? savedLat : -33.4489;
     const clientLng = Number.isFinite(savedLng) ? savedLng : -70.6693;
     const needsInvoice = localStorage.getItem('needsInvoice') === 'true';
+    const allowDemoProviders =
+      import.meta.env.DEV || localStorage.getItem('oneclickDemoMode') === 'true';
 
     try {
       const response = await axios.get(`${BACKEND_URL}/api/providers/match`, {
@@ -223,6 +225,13 @@ function ProviderOptionsScreen() {
       setTomorrowCount(response.data?.tomorrow_count ?? 0);
 
       // Agregar cálculo de horas máximas y precio total a cada proveedor
+      if (response.data?.is_demo) {
+        setProviders([]);
+        setIsDemoProviders(false);
+        setEmptyState(true);
+        return;
+      }
+
       const rawProviders = sanitizeProviders(response.data?.providers || []);
       if (rawProviders.length === 0) {
         setProviders([]);
@@ -252,21 +261,32 @@ function ProviderOptionsScreen() {
       
       setProviders(providersWithData);
     } catch {
-      setIsDemoProviders(true);
       setTomorrowAvailable(false);
       setTomorrowCount(0);
+
+      if (!allowDemoProviders) {
+        setProviders([]);
+        setIsDemoProviders(false);
+        setEmptyState(true);
+        return;
+      }
+
+      setIsDemoProviders(true);
       setEmptyState(false);
       const fallbackProviders = sanitizeProviders(getDemoProvidersFallback());
-      const safeFallback = Array.isArray(fallbackProviders) && fallbackProviders.length
-        ? fallbackProviders
-        : sanitizeProviders(getDemoProviders('retroexcavadora', 5, { extended: true }));
+      const safeFallback =
+        Array.isArray(fallbackProviders) && fallbackProviders.length
+          ? fallbackProviders
+          : sanitizeProviders(getDemoProviders('retroexcavadora', 5, { extended: true }));
 
-      setProviders(safeFallback.map(p => ({
-        ...p,
-        total_price: totalConFactura(calculateTotalPrice(p, selectedMachinery)),
-        has_transport: needsTransport(),
-        max_hours: calculateMaxHours(p.closing_time || '20:00', p.eta_minutes || 40)
-      })));
+      setProviders(
+        safeFallback.map((p) => ({
+          ...p,
+          total_price: totalConFactura(calculateTotalPrice(p, selectedMachinery)),
+          has_transport: needsTransport(),
+          max_hours: calculateMaxHours(p.closing_time || '20:00', p.eta_minutes || 40),
+        }))
+      );
     } finally {
       setLoading(false);
     }
