@@ -98,7 +98,13 @@ function ServiceLocationScreen() {
   const [comunaError, setComunaError] = useState('');
   /** Tras `place_changed`, Google/React a veces disparan onChange con sufijos (", comuna, Chile"); no tratar como edición manual. */
   const locationMismatchGraceUntilRef = useRef(0);
-  const [reference, setReference] = useState('');
+  const [reference, setReference] = useState(() => {
+    try {
+      return localStorage.getItem('serviceReference') || '';
+    } catch {
+      return '';
+    }
+  });
   const [machinery, setMachinery] = useState('');
   const [hours, setHours] = useState(4);
   const [isCustomHours, setIsCustomHours] = useState(false);
@@ -153,6 +159,7 @@ function ServiceLocationScreen() {
     const savedComunaSource = localStorage.getItem('serviceComunaSource') || '';
     const savedDate = localStorage.getItem('selectedDate') || '';
     const savedDates = getArray('selectedDates', []);
+    const savedReference = localStorage.getItem('serviceReference') || '';
     const savedLat = localStorage.getItem('serviceLat');
     const savedLng = localStorage.getItem('serviceLng');
 
@@ -165,6 +172,7 @@ function ServiceLocationScreen() {
     setReservationType(savedType);
     setSelectedDate(savedDate);
     setSelectedDates(Array.isArray(savedDates) ? savedDates : []);
+    setReference(savedReference);
 
     const storedAddr = parseStoredSelectedAddress();
     const canonicalFromStorage = isSelectedAddressPlacesCanonical(storedAddr);
@@ -1018,7 +1026,15 @@ function ServiceLocationScreen() {
             id="service-reference-input"
             type="text"
             value={reference}
-            onChange={(e) => setReference(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setReference(v);
+              try {
+                localStorage.setItem('serviceReference', v || '');
+              } catch {
+                /* ignore */
+              }
+            }}
             placeholder={
               !hasApiKey || placesPhase === 'failed'
                 ? 'Obligatoria: accesos, color de portón, empresa cercana, etc.'

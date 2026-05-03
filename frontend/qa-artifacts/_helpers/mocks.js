@@ -132,6 +132,68 @@ export async function installApiMocks(context) {
       return route.fulfill(json(200, { success: true, message_id: 'm-new', created_at: new Date().toISOString() }));
     }
 
+    // --- providers/match (embudo cliente) ---
+    if (url.includes('/api/providers/match') && method === 'GET') {
+      return route.fulfill(
+        json(200, {
+          providers: [
+            {
+              id: 'prov-1',
+              eta_minutes: 25,
+              distance: 4.2,
+              rating: 4.8,
+              transport_fee: 25000,
+              price_per_hour: 45000,
+              closing_time: '20:00',
+              machineData: { primaryPhoto: null },
+            },
+            {
+              id: 'prov-2',
+              eta_minutes: 35,
+              distance: 7.8,
+              rating: 4.6,
+              transport_fee: 30000,
+              price_per_hour: 42000,
+              closing_time: '20:00',
+              machineData: { primaryPhoto: null },
+            },
+            {
+              id: 'prov-3',
+              eta_minutes: 45,
+              distance: 12.5,
+              rating: 4.7,
+              transport_fee: 20000,
+              price_per_hour: 47000,
+              closing_time: '20:00',
+              machineData: { primaryPhoto: null },
+            },
+            {
+              id: 'prov-4',
+              eta_minutes: 55,
+              distance: 18.1,
+              rating: 4.5,
+              transport_fee: 15000,
+              price_per_hour: 49000,
+              closing_time: '20:00',
+              machineData: { primaryPhoto: null },
+            },
+            {
+              id: 'prov-5',
+              eta_minutes: 65,
+              distance: 22.0,
+              rating: 4.4,
+              transport_fee: 0,
+              price_per_hour: 52000,
+              closing_time: '20:00',
+              machineData: { primaryPhoto: null },
+            },
+          ],
+          tomorrow_available: true,
+          tomorrow_count: 7,
+        })
+      );
+    }
+
     // --- Admin ---
     if (url.includes('/api/services/admin/all') && method === 'GET') {
       return route.fulfill(
@@ -256,4 +318,3 @@ export function seedAdminSession() {
   localStorage.setItem('userRole', 'admin');
   localStorage.setItem('userRoles', JSON.stringify(['admin']));
 }
-

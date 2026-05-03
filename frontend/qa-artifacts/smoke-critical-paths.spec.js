@@ -69,4 +69,99 @@ test.describe('Smoke crítico: login SMS + embudo cliente', () => {
 
     await context.close();
   });
+
+  test('embudo cliente completo + back preserva estado (ubicación → maquinaria → horas → proveedores → confirm)', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await installApiMocks(context);
+    await context.addInitScript(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+      window.__MAQGO_RUNTIME_CONFIG__ = { googleMapsApiKey: '' };
+      localStorage.setItem('token', 'test-token');
+      localStorage.setItem('authToken', 'test-token');
+      localStorage.setItem('userId', 'client-1');
+      localStorage.setItem('userRole', 'client');
+      localStorage.setItem('reservationType', 'immediate');
+      localStorage.setItem('priceType', 'hour');
+    });
+    const page = await context.newPage();
+
+    await page.goto(`${BASE_URL}/client/machinery`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.waitForLoadState('load');
+
+    await page.getByRole('button', { name: /retroexcavadora/i }).click();
+    await page.getByRole('button', { name: /^continuar$/i }).click();
+    await expect(page).toHaveURL(/\/client\/service-location\/?$/, { timeout: 15_000 });
+
+    await page.getByTestId('address-manual-input').fill('Av. Providencia 1234');
+    await page.locator('#service-comuna').fill('Provi');
+    await page.getByText('Providencia', { exact: true }).click();
+    await page.getByTestId('service-reference-input').fill('Portón verde, frente a edificio azul (entrada por calle lateral).');
+    await page.getByRole('button', { name: /^continuar$/i }).click();
+    await expect(page).toHaveURL(/\/client\/providers\/?$/, { timeout: 15_000 });
+
+    await page.getByRole('button', { name: /^seleccionar proveedor$/i }).first().click();
+    await page.getByRole('button', { name: /enviar solicitud/i }).click();
+    await expect(page).toHaveURL(/\/client\/confirm\/?$/, { timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: /revisa tu solicitud/i })).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole('button', { name: /^volver$/i }).click();
+    await expect(page).toHaveURL(/\/client\/providers\/?$/, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /^proveedor seleccionado$/i }).first()).toBeVisible();
+
+    await page.getByRole('button', { name: /^volver$/i }).click();
+    await expect(page).toHaveURL(/\/client\/service-location\/?$/, { timeout: 15_000 });
+    await expect(page.getByTestId('address-manual-input')).toHaveValue(/Av\. Providencia 1234/);
+    await expect(page.locator('#service-comuna')).toHaveValue(/Providencia/);
+    await expect(page.getByTestId('service-reference-input')).toHaveValue(/Portón verde/);
+
+    await page.getByRole('button', { name: /^continuar$/i }).click();
+    await expect(page).toHaveURL(/\/client\/providers\/?$/, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /^proveedor seleccionado$/i }).first()).toBeVisible();
+
+    await context.close();
+  });
+
+  test('embudo cliente programado: calendario → maquinaria → ubicación → proveedores → confirm (forward)', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await installApiMocks(context);
+    await context.addInitScript(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+      window.__MAQGO_RUNTIME_CONFIG__ = { googleMapsApiKey: '' };
+      localStorage.setItem('token', 'test-token');
+      localStorage.setItem('authToken', 'test-token');
+      localStorage.setItem('userId', 'client-1');
+      localStorage.setItem('userRole', 'client');
+      localStorage.setItem('reservationType', 'scheduled');
+      localStorage.setItem('priceType', 'hour');
+    });
+    const page = await context.newPage();
+
+    await page.goto(`${BASE_URL}/client/calendar`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.waitForLoadState('load');
+
+    await page.locator('div[style*="cursor: pointer"]').first().click();
+    await page.getByRole('button', { name: /siguiente/i }).click();
+    await expect(page).toHaveURL(/\/client\/(machinery|service-location)\/?$/, { timeout: 15_000 });
+
+    if ((new URL(page.url())).pathname.startsWith('/client/machinery')) {
+      await page.getByRole('button', { name: /retroexcavadora/i }).click();
+      await page.getByRole('button', { name: /^continuar$/i }).click();
+      await expect(page).toHaveURL(/\/client\/service-location\/?$/, { timeout: 15_000 });
+    }
+
+    await page.getByTestId('address-manual-input').fill('Av. Providencia 1234');
+    await page.locator('#service-comuna').fill('Provi');
+    await page.getByText('Providencia', { exact: true }).click();
+    await page.getByTestId('service-reference-input').fill('Recepción en portería, llamar al llegar.');
+    await page.getByRole('button', { name: /^continuar$/i }).click();
+    await expect(page).toHaveURL(/\/client\/providers\/?$/, { timeout: 15_000 });
+
+    await page.getByRole('button', { name: /^seleccionar proveedor$/i }).first().click();
+    await page.getByRole('button', { name: /enviar solicitud/i }).click();
+    await expect(page).toHaveURL(/\/client\/confirm\/?$/, { timeout: 15_000 });
+
+    await context.close();
+  });
 });
