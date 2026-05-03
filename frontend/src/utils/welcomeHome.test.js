@@ -61,23 +61,23 @@ describe('welcomeHome', () => {
       expect(getWelcomeAppHomePath()).toBe('/admin');
     });
 
-    it('proveedor titular incompleto sin Welcome → /provider/data', () => {
+    it('proveedor titular incompleto sin Welcome → /provider/home (hub de estado)', () => {
       installLocalStorageMock({
         userId: 'p1',
         userRole: 'provider',
         providerRole: 'super_master',
       });
-      expect(getWelcomeAppHomePath()).toBe('/provider/data');
+      expect(getWelcomeAppHomePath()).toBe('/provider/home');
     });
 
-    it('proveedor titular con Welcome → /provider/data', () => {
+    it('proveedor titular con Welcome → /provider/home (hub de estado)', () => {
       installLocalStorageMock({
         userId: 'p1',
         userRole: 'provider',
         providerRole: 'super_master',
         providerCameFromWelcome: 'true',
       });
-      expect(getWelcomeAppHomePath()).toBe('/provider/data');
+      expect(getWelcomeAppHomePath()).toBe('/provider/home');
     });
 
     it('proveedor pero desiredRole client (portada / arrendar) → /client/home', () => {
@@ -100,13 +100,13 @@ describe('welcomeHome', () => {
       expect(getWelcomeAppHomePath()).toBe('/provider/home');
     });
 
-    it('legacy userRole owner incompleto → /provider/data', () => {
+    it('legacy userRole owner incompleto → /provider/home (hub de estado)', () => {
       installLocalStorageMock({
         userId: 'p1',
         userRole: 'owner',
         providerRole: 'super_master',
       });
-      expect(getWelcomeAppHomePath()).toBe('/provider/data');
+      expect(getWelcomeAppHomePath()).toBe('/provider/home');
     });
 
     it('operador (providerRole operator) → /operator/home', () => {

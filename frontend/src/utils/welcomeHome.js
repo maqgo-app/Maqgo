@@ -1,6 +1,5 @@
 import { ROUTES } from '../constants';
 import { hasPersistedSessionCredentials } from './api';
-import { getProviderLandingPath } from './providerOnboardingStatus';
 import { getUserAuthState } from './userAuthState';
 
 function safeLocalStorage() {
@@ -48,7 +47,7 @@ export function getWelcomeAppHomePath() {
   if (token && roles.includes('client') && roles.includes('provider')) return '/welcome';
   if (userRole === 'client') return ROUTES.CLIENT_HOME;
   if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager') {
-    return getProviderLandingPath();
+    return ROUTES.PROVIDER_HOME;
   }
 
   return ROUTES.CLIENT_HOME;

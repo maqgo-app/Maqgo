@@ -7,7 +7,32 @@
  * Proveedor titular/gerente: destino por defecto según onboarding (no solo rol).
  */
 
-import { getProviderLandingPath } from './providerOnboardingStatus';
+function hasAnyProviderProgressInStorage() {
+  try {
+    const providerData = JSON.parse(globalThis.localStorage?.getItem('providerData') || '{}');
+    const machineData = JSON.parse(globalThis.localStorage?.getItem('machineData') || '{}');
+    const providerMachines = JSON.parse(globalThis.localStorage?.getItem('providerMachines') || '[]');
+    const operatorsData = JSON.parse(globalThis.localStorage?.getItem('operatorsData') || '[]');
+    const bankData = JSON.parse(globalThis.localStorage?.getItem('bankData') || '{}');
+    const companyComplete = Boolean(providerData?.businessName && providerData?.rut);
+    const machineComplete = Boolean(machineData?.machineryType && machineData?.licensePlate);
+    const hasRegisteredMachine = Array.isArray(providerMachines)
+      ? providerMachines.some((m) => Boolean(m?.machineryType && String(m?.licensePlate || '').trim()))
+      : false;
+    const hasOperators = Array.isArray(operatorsData) ? operatorsData.length > 0 : false;
+    const hasBank = Boolean(
+      bankData?.bank &&
+        bankData?.accountType &&
+        bankData?.accountNumber &&
+        bankData?.holderName &&
+        bankData?.holderRut
+    );
+    const completed = globalThis.localStorage?.getItem('providerOnboardingCompleted') === 'true';
+    return Boolean(completed || companyComplete || machineComplete || hasRegisteredMachine || hasOperators || hasBank);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Rutas “genéricas” de entrada proveedor: se resuelven al primer paso pendiente o /provider/home.
@@ -17,24 +42,37 @@ import { getProviderLandingPath } from './providerOnboardingStatus';
  */
 export function normalizeProviderPostLoginRedirect(redirectTo) {
   if (redirectTo == null || typeof redirectTo !== 'string') {
-    return getProviderLandingPath();
+    return '/provider/home';
   }
+  const normalized = redirectTo.replace(/\/$/, '') || '/';
   const legacyWizard =
-    redirectTo === '/provider/data' ||
-    redirectTo.startsWith('/provider/data/') ||
-    redirectTo === '/provider/machine-data' ||
-    redirectTo.startsWith('/provider/machine-data/') ||
-    redirectTo === '/provider/review' ||
-    redirectTo.startsWith('/provider/review/');
+    normalized === '/provider/add-machine' ||
+    normalized === '/provider/data' ||
+    normalized.startsWith('/provider/data/') ||
+    normalized === '/provider/machine-data' ||
+    normalized.startsWith('/provider/machine-data/') ||
+    normalized === '/provider/machine-photos' ||
+    normalized.startsWith('/provider/machine-photos/') ||
+    normalized === '/provider/machine-photos-pricing' ||
+    normalized.startsWith('/provider/machine-photos-pricing/') ||
+    normalized === '/provider/pricing' ||
+    normalized.startsWith('/provider/pricing/') ||
+    normalized === '/provider/operator-data' ||
+    normalized.startsWith('/provider/operator-data/') ||
+    normalized === '/provider/review' ||
+    normalized.startsWith('/provider/review/');
   const generic =
-    redirectTo === '/provider/home' || legacyWizard;
+    normalized === '/provider/home' || legacyWizard;
   if (generic) {
-    return getProviderLandingPath();
+    if (legacyWizard && !hasAnyProviderProgressInStorage()) {
+      return normalized === '/provider/home' ? '/provider/home' : normalized;
+    }
+    return '/provider/home';
   }
-  if (redirectTo.startsWith('/provider')) {
-    return redirectTo;
+  if (normalized.startsWith('/provider')) {
+    return normalized;
   }
-  return redirectTo;
+  return normalized;
 }
 
 /**
@@ -59,7 +97,7 @@ export function getPostLoginNavigation({ isAdmin, effectiveRole, redirectTo }) {
   const raw =
     redirectTo && redirectTo.startsWith('/provider')
       ? redirectTo
-      : getProviderLandingPath();
+      : '/provider/home';
   const target = normalizeProviderPostLoginRedirect(raw);
   return { kind: 'navigate', path: target };
 }

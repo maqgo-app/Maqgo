@@ -68,7 +68,7 @@ describe('getPostLoginNavigation (invariante admin)', () => {
     ).toEqual({ kind: 'navigate', path: '/client/booking' });
   });
 
-  it('proveedor sin redirect + onboarding incompleto → /provider/data', () => {
+  it('proveedor sin redirect → /provider/home (hub de estado y pendientes)', () => {
     installLocalStorageMock({ userId: 'p1' });
     expect(
       getPostLoginNavigation({
@@ -76,7 +76,7 @@ describe('getPostLoginNavigation (invariante admin)', () => {
         effectiveRole: 'provider',
         redirectTo: null,
       })
-    ).toEqual({ kind: 'navigate', path: '/provider/data' });
+    ).toEqual({ kind: 'navigate', path: '/provider/home' });
   });
 
   it('proveedor sin redirect + onboarding completo → /provider/home', () => {
