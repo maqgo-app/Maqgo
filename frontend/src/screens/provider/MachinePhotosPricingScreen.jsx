@@ -293,7 +293,7 @@ function MachinePhotosPricingScreen() {
         .maqgo-photos-pricing-grid {
           display: block;
         }
-        @media (min-width: 960px) and (hover: hover) and (pointer: fine) {
+        @media (min-width: 1100px) {
           .maqgo-photos-pricing-grid {
             display: grid;
             grid-template-columns: 0.9fr 1.1fr;
