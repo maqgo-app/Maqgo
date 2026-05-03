@@ -244,19 +244,17 @@ function ProviderHomeScreen() {
     }
 
     const newStatus = !available;
-    setAvailable(newStatus);
 
     // Desbloquear audio y feedback táctil (como en operadores)
     unlockAudio();
     playTapSound();
     vibrate(newStatus ? 'accepted' : 'tap');
 
-    // Persistir en localStorage
-    localStorage.setItem('providerAvailable', newStatus.toString());
-
     // Modo demo: IDs de fallback no existen en backend, no llamar API
     const isDemoId = userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-');
     if (isDemoId) {
+      setAvailable(newStatus);
+      localStorage.setItem('providerAvailable', newStatus.toString());
       toast.success(newStatus ? 'Te conectaste' : 'Te desconectaste', 'availability');
       setIsToggling(false);
       return;
@@ -264,6 +262,14 @@ function ProviderHomeScreen() {
 
     const machineDataLocal = getObject('machineData', {});
     const machineryType = machineDataLocal?.machineryType || machineDataLocal?.type || undefined;
+    const providerDataLocal = getObject('providerData', {});
+    const bankDataLocal = getObject('bankData', {});
+    const nextProviderData = {
+      ...(providerDataLocal && typeof providerDataLocal === 'object' ? providerDataLocal : {}),
+      bankData: bankDataLocal && typeof bankDataLocal === 'object' ? bankDataLocal : undefined,
+    };
+    if (nextProviderData.bankData == null) delete nextProviderData.bankData;
+
     const doAvailability = () => axios.put(
       `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}/availability`,
       { isAvailable: newStatus, machineryType },
@@ -271,7 +277,24 @@ function ProviderHomeScreen() {
     );
 
     try {
+      if (newStatus) {
+        try {
+          await axios.patch(
+            `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`,
+            {
+              providerData: nextProviderData,
+              machineData: machineDataLocal,
+              onboarding_completed: true,
+            },
+            { timeout: 8000 }
+          );
+        } catch {
+          void 0;
+        }
+      }
       await doAvailability();
+      setAvailable(newStatus);
+      localStorage.setItem('providerAvailable', newStatus.toString());
       toast.success(newStatus ? 'Te conectaste' : 'Te desconectaste', 'availability');
     } catch (e) {
       // Un reintento en fallo de red (producción: conexiones transitorias)
@@ -279,6 +302,8 @@ function ProviderHomeScreen() {
       if (isRetryable) {
         try {
           await doAvailability();
+          setAvailable(newStatus);
+          localStorage.setItem('providerAvailable', newStatus.toString());
           toast.success(newStatus ? 'Te conectaste' : 'Te desconectaste', 'availability');
           return;
         } catch (e2) {
@@ -291,18 +316,27 @@ function ProviderHomeScreen() {
       const isNetworkError = !e.response || e.code === 'ECONNREFUSED' || e.code === 'ERR_NETWORK' || e.code === 'ECONNABORTED' || e.message?.includes('Network Error') || e.message?.includes('timeout');
 
       if (status === 404 || (detailStr && detailStr.toLowerCase().includes('no encontrado'))) {
-        setAvailable(!newStatus);
-        localStorage.setItem('providerAvailable', (!newStatus).toString());
         toast.error('Tu sesión expiró. Cierra sesión e inicia sesión nuevamente.');
       } else if (status === 409) {
-        setAvailable(!newStatus);
-        localStorage.setItem('providerAvailable', (!newStatus).toString());
-        toast.warning('Antes de conectarte, completa tu activación (empresa, máquina, operador, banco y ubicación).');
+        const missing = [];
+        const pd = providerDataLocal && typeof providerDataLocal === 'object' ? providerDataLocal : {};
+        const hasCoords = Number.isFinite(pd.addressLat) && Number.isFinite(pd.addressLng);
+        if (!hasCoords) missing.push('ubicación de empresa');
+        if (!bankDataComplete) missing.push('datos bancarios');
+        if (!machineDataLocal?.machineryType || !machineDataLocal?.licensePlate) missing.push('maquinaria');
+        toast.warning(
+          missing.length
+            ? `Antes de conectarte, completa: ${missing.join(', ')}.`
+            : 'Antes de conectarte, completa tu activación (empresa, máquina, operador, banco y ubicación).'
+        );
+        if (!hasCoords) {
+          navigate('/provider/profile/empresa', { state: { activationEdit: true, returnTo: '/provider/home' } });
+        }
       } else if (isNetworkError) {
+        setAvailable(newStatus);
+        localStorage.setItem('providerAvailable', newStatus.toString());
         toast.success(newStatus ? 'Te conectaste. No se pudo sincronizar (sin conexión).' : 'Te desconectaste. No se pudo sincronizar (sin conexión).', 'availability');
       } else {
-        setAvailable(!newStatus);
-        localStorage.setItem('providerAvailable', (!newStatus).toString());
         toast.error('No se pudo conectar. Intenta de nuevo.');
       }
     } finally {

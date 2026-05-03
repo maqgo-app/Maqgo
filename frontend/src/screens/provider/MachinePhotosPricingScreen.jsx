@@ -159,6 +159,7 @@ function MachinePhotosPricingScreen() {
   const canContinue = needsTransport
     ? priceBaseNum >= minPrice && transportNum >= MIN_TRANSPORT
     : priceBaseNum >= minPrice;
+  const ctaReady = Boolean(hasFrontalPhoto && canContinue);
 
   const priceImpact = getPriceImpactLabel(priceBaseNum, refPrice);
 
@@ -290,6 +291,9 @@ function MachinePhotosPricingScreen() {
   return (
     <div className="maqgo-app maqgo-provider-funnel maqgo-provider-p3-wide">
       <style>{`
+        .maqgo-photos-pricing-grid > * {
+          min-width: 0;
+        }
         .maqgo-photos-pricing-grid {
           display: block;
         }
@@ -877,8 +881,8 @@ function MachinePhotosPricingScreen() {
           className="maqgo-btn-primary"
           onClick={handleContinue}
           style={{
-            opacity: canContinue ? 1 : 0.75,
-            background: canContinue ? undefined : '#5a5a5a',
+            opacity: ctaReady ? 1 : 0.75,
+            background: ctaReady ? undefined : '#5a5a5a',
             cursor: 'pointer',
           }}
           data-testid="machine-photos-pricing-continue"
