@@ -293,17 +293,8 @@ function MachinePhotosPricingScreen() {
         .maqgo-photos-pricing-grid {
           display: block;
         }
-        @media (min-width: 1100px) {
-          .maqgo-photos-pricing-grid {
-            display: grid;
-            grid-template-columns: 0.9fr 1.1fr;
-            gap: 16px;
-            align-items: start;
-          }
-          .maqgo-photos-pricing-sticky {
-            position: sticky;
-            top: calc(var(--maqgo-screen-padding-top, 0px) + 10px);
-          }
+        .maqgo-photos-pricing-sticky {
+          position: static;
         }
       `}</style>
       <div
