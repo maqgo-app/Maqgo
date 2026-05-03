@@ -262,19 +262,23 @@ function ProviderHomeScreen() {
       return;
     }
 
-    const doPatch = () => axios.patch(`${BACKEND_URL}/api/users/${userId}`, {
-      available: newStatus
-    }, { timeout: 8000 });
+    const machineDataLocal = getObject('machineData', {});
+    const machineryType = machineDataLocal?.machineryType || machineDataLocal?.type || undefined;
+    const doAvailability = () => axios.put(
+      `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}/availability`,
+      { isAvailable: newStatus, machineryType },
+      { timeout: 8000 }
+    );
 
     try {
-      await doPatch();
+      await doAvailability();
       toast.success(newStatus ? 'Te conectaste' : 'Te desconectaste', 'availability');
     } catch (e) {
       // Un reintento en fallo de red (producción: conexiones transitorias)
       const isRetryable = !e.response || e.code === 'ECONNABORTED' || e.code === 'ERR_NETWORK' || e.message?.includes('Network Error');
       if (isRetryable) {
         try {
-          await doPatch();
+          await doAvailability();
           toast.success(newStatus ? 'Te conectaste' : 'Te desconectaste', 'availability');
           return;
         } catch (e2) {
@@ -290,6 +294,10 @@ function ProviderHomeScreen() {
         setAvailable(!newStatus);
         localStorage.setItem('providerAvailable', (!newStatus).toString());
         toast.error('Tu sesión expiró. Cierra sesión e inicia sesión nuevamente.');
+      } else if (status === 409) {
+        setAvailable(!newStatus);
+        localStorage.setItem('providerAvailable', (!newStatus).toString());
+        toast.warning('Antes de conectarte, completa tu activación (empresa, máquina, operador, banco y ubicación).');
       } else if (isNetworkError) {
         toast.success(newStatus ? 'Te conectaste. No se pudo sincronizar (sin conexión).' : 'Te desconectaste. No se pudo sincronizar (sin conexión).', 'availability');
       } else {
@@ -613,7 +621,9 @@ function ProviderHomeScreen() {
           >
             <button
               type="button"
-              onClick={() => navigate('/provider/profile/banco')}
+              onClick={() =>
+                navigate('/provider/profile/banco', { state: { activationEdit: true, returnTo: '/provider/home' } })
+              }
               style={{
                 width: '100%',
                 padding: 14,
@@ -724,7 +734,7 @@ function ProviderHomeScreen() {
                 !onboardingCompleted
                   ? undefined
                   : isBlockedByBank
-                    ? () => navigate('/provider/profile/banco')
+                    ? () => navigate('/provider/profile/banco', { state: { activationEdit: true, returnTo: '/provider/home' } })
                     : toggleAvailability
               }
               disabled={!onboardingCompleted || isToggling}

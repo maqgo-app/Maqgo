@@ -288,13 +288,28 @@ function MachinePhotosPricingScreen() {
   };
 
   return (
-    <div className="maqgo-app maqgo-provider-funnel">
+    <div className="maqgo-app maqgo-provider-funnel maqgo-provider-p3-wide">
       <style>{`
         .maqgo-photos-pricing-grid {
           display: block;
         }
         .maqgo-photos-pricing-sticky {
           position: static;
+        }
+        @media (min-width: 1200px) {
+          .maqgo-app.maqgo-provider-p3-wide {
+            max-width: 980px;
+          }
+          .maqgo-photos-pricing-grid {
+            display: grid;
+            grid-template-columns: 0.85fr 1.15fr;
+            gap: 16px;
+            align-items: start;
+          }
+          .maqgo-photos-pricing-sticky {
+            position: sticky;
+            top: calc(var(--maqgo-screen-padding-top, 0px) + 10px);
+          }
         }
       `}</style>
       <div
@@ -861,11 +876,10 @@ function MachinePhotosPricingScreen() {
           type="button"
           className="maqgo-btn-primary"
           onClick={handleContinue}
-          disabled={!canContinue}
           style={{
-            opacity: canContinue ? 1 : 0.55,
+            opacity: canContinue ? 1 : 0.75,
             background: canContinue ? undefined : '#5a5a5a',
-            cursor: canContinue ? 'pointer' : 'not-allowed',
+            cursor: 'pointer',
           }}
           data-testid="machine-photos-pricing-continue"
         >
