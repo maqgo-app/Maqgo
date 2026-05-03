@@ -10,7 +10,7 @@ Si el front está en **www** y el API en **api** (split), usá **[CHECKLIST_SPLI
 2. **Build:** Dockerfile = **`Dockerfile`** en la **raíz** del repo (no `backend/Dockerfile`).
 3. Variable de **build** (marcar disponible en build): **`PUBLIC_API_BASE`** = `https://www.maqgo.cl`
 4. Variables **runtime:** `FRONTEND_URL=https://www.maqgo.cl`, `CORS_ORIGINS=https://www.maqgo.cl,https://maqgo.cl`, `TBK_RETURN_URL=https://www.maqgo.cl/api/payments/oneclick/confirm-return` (+ Mongo, etc.).
-5. **Networking:** si estás en el **límite de dominios**, **eliminá** el custom `api.maqgo.cl` (u otro que no uses).
+5. **Networking:** si estás en el **límite de dominios**, **eliminá** cualquier custom `api*.maqgo.cl` que no uses.
 6. **Add custom domain:** `www.maqgo.cl` → **Show DNS records** → copiá CNAME (y TXT si pide).
 7. **Puerto de destino del dominio:** **8080** (igual que `*.up.railway.app`).
 8. **Deploy** y esperá build verde.

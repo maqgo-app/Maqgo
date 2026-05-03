@@ -884,7 +884,7 @@ function ProviderRegisterScreen() {
       const fallbackMsg = !e.response
         ? `Sin respuesta HTTP (${e.code || 'red'}). ${e.message || ''}${
             e.PROVIDER_REGISTER_ALSO_FAILED
-              ? ' (Se probó api.maqgo.cl y mismo origen /api; revisa consola.)'
+              ? ' (Se probó api2.maqgo.cl y mismo origen /api; revisa consola.)'
               : ''
           }`.trim()
         : formatHttpErrorWithStatus(e) ||

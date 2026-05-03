@@ -2,7 +2,7 @@ import axios from 'axios';
 import { resolveBackendBaseUrl } from './apiNormalize.js';
 import { traceRedirectToLogin } from './traceLoginRedirect.js';
 
-// Base resuelta en apiNormalize (www.maqgo.cl prod → https://api.maqgo.cl salvo env api*.maqgo.cl).
+// Base resuelta en apiNormalize (www.maqgo.cl prod → https://api2.maqgo.cl salvo env api*.maqgo.cl).
 const rawBackend =
   import.meta.env.VITE_BACKEND_URL ||
   import.meta.env.REACT_APP_BACKEND_URL ||

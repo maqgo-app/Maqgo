@@ -5,8 +5,8 @@
 | | **Split (recomendado si ya tenés API en Railway)** | **Unificado (un solo contenedor)** |
 |---|---------------------------------------------------|-------------------------------------|
 | **Usuario entra** | `https://www.maqgo.cl` | `https://www.maqgo.cl` |
-| **API** | `https://api.maqgo.cl` (u otro host) | Mismo origen: `https://www.maqgo.cl/api` |
-| **Front build** | `REACT_APP_BACKEND_URL=https://api.maqgo.cl` | `REACT_APP_BACKEND_URL=https://www.maqgo.cl` |
+| **API** | `https://api2.maqgo.cl` (u otro host) | Mismo origen: `https://www.maqgo.cl/api` |
+| **Front build** | `REACT_APP_BACKEND_URL=https://api2.maqgo.cl` | `REACT_APP_BACKEND_URL=https://www.maqgo.cl` |
 | **Backend** | `FRONTEND_URL=https://www.maqgo.cl`, `CORS_ORIGINS` incluye `https://www.maqgo.cl` | Igual + `TBK_RETURN_URL` con `https://www.maqgo.cl` |
 | **Infra** | Front (ej. Vercel) + API (Railway `backend/`) | Railway con `Dockerfile` raíz + `static/` |
 

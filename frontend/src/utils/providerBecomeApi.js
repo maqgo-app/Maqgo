@@ -12,8 +12,8 @@ const JSON_POST = {
   headers: { 'Content-Type': 'application/json' },
 };
 
-/** API canónica; en www a veces falla solo directo o solo mismo origen (rewrite). */
-const MAQGO_API_ORIGIN = 'https://api.maqgo.cl';
+/** API canónica (Railway). En www se mantiene fallback a mismo origen (/api) vía rewrite. */
+const MAQGO_API_ORIGIN = 'https://api2.maqgo.cl';
 
 function becomeProviderEndpointUrl(base) {
   const b = String(base ?? '').replace(/\/+$/, '');

@@ -4,7 +4,7 @@ Objetivo: que **cualquiera del equipo** despliegue sin romper CORS, URLs ni el a
 
 **Nombre en Railway:** el **proyecto** suele llamarse p. ej. **`maqgo-prod-backend`**; el **servicio** dentro puede llamarse **Maqgo** y apuntar al repo **`maqgo-app/Maqgo`**. En el dashboard, abrí ese proyecto para variables, deploys y logs (no buscar solo la palabra “maqgo” si tu proyecto tiene otro nombre).
 
-**DNS custom (Cloudflare):** GitHub **no** publica DNS. El CNAME de `api.maqgo.cl` debe coincidir con **Networking → Show DNS records** en Railway (suele **no** ser el mismo hostname que la URL por defecto `*.up.railway.app`). Detalle: **[DNS_RAILWAY_CLOUDFLARE.md](DNS_RAILWAY_CLOUDFLARE.md)**.
+**DNS custom (Cloudflare):** GitHub **no** publica DNS. El CNAME de `api2.maqgo.cl` debe coincidir con **Networking → Show DNS records** en Railway (suele **no** ser el mismo hostname que la URL por defecto `*.up.railway.app`). Detalle: **[DNS_RAILWAY_CLOUDFLARE.md](DNS_RAILWAY_CLOUDFLARE.md)**.
 
 ---
 

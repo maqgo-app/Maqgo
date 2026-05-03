@@ -20,7 +20,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://api.maqgo.cl/api/:path*"
+      "destination": "https://api2.maqgo.cl/api/:path*"
     },
     { "source": "/(.*)", "destination": "/index.html" }
   ],

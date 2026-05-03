@@ -33,7 +33,7 @@ Si el build de producción apunta al API público (`REACT_APP_BACKEND_URL` segú
 
 - Que **Preview** de Vercel o **otra rama** tengan el mismo comportamiento (pueden apuntar a otro API o otro commit).
 - Que **localhost** o un fork sin merge sean iguales a prod.
-- Que el subdominio **API** (`api.maqgo.cl` u otro) esté en el mismo commit que el front: son **dos deploys** (Vercel + Railway); deben ser **compatibles** por contrato de API y CORS.
+- Que el subdominio **API** (`api2.maqgo.cl` u otro) esté en el mismo commit que el front: son **dos deploys** (Vercel + Railway); deben ser **compatibles** por contrato de API y CORS.
 
 ---
 

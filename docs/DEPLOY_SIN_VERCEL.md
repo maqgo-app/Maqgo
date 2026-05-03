@@ -64,7 +64,7 @@ No podemos dictar el registro exacto sin ver tu proveedor (NIC Chile, Cloudflare
 
 ## 4. Transbank OneClick
 
-Si antes **`TBK_RETURN_URL`** apuntaba a `https://api.maqgo.cl/api/payments/oneclick/confirm-return`, con todo en un solo host suele ser:
+Si antes **`TBK_RETURN_URL`** apuntaba a `https://api2.maqgo.cl/api/payments/oneclick/confirm-return`, con todo en un solo host suele ser:
 
 `https://www.maqgo.cl/api/payments/oneclick/confirm-return`
 
@@ -76,7 +76,7 @@ Actualizá **`TBK_RETURN_URL`** en Railway y lo que tengas declarado en el porta
 
 1. Verificá tráfico real en `www.maqgo.cl`.
 2. En Vercel: desconectá el dominio custom si estaba enlazado; opcionalmente **pausá o borrá** el proyecto `maqgo`.
-3. Limpiá referencias externas (Transbank, webhooks, emails) que aún citen `maqgo.vercel.app` o `api.maqgo.cl` si ya no aplican.
+3. Limpiá referencias externas (Transbank, webhooks, emails) que aún citen `maqgo.vercel.app` o `api2.maqgo.cl` si ya no aplican.
 
 ---
 
