@@ -61,7 +61,7 @@ function ConfirmServiceScreen() {
     ? (localStorage.getItem('selectedMachinerySpec') || '').trim()
     : '';
   const [provider, _setProvider] = useState(() => getObject('selectedProvider', {}));
-  const [showBreakdown, setShowBreakdown] = useState(true);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const [pricing, setPricing] = useState(null);
   const [, setPriceError] = useState(null);
   const [retryCount] = useState(0);
@@ -601,6 +601,19 @@ function ConfirmServiceScreen() {
             <>
               {priceRange && hasMultipleProviders ? (
                 <>
+                  <p
+                    style={{
+                      color: 'rgba(255,255,255,0.55)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: 0.35,
+                      textTransform: 'uppercase',
+                      margin: '0 0 6px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    Total estimado
+                  </p>
                   <div
                     role="status"
                     aria-label={`Rango estimado desde ${formatPriceLocal(priceRange.min)} hasta ${formatPriceLocal(priceRange.max)}`}
@@ -629,6 +642,19 @@ function ConfirmServiceScreen() {
                 </>
               ) : (
                 <>
+                  <p
+                    style={{
+                      color: 'rgba(255,255,255,0.55)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: 0.35,
+                      textTransform: 'uppercase',
+                      margin: '0 0 6px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    Total estimado
+                  </p>
                   <p
                     style={{
                       color: 'var(--maqgo-orange)',
@@ -734,7 +760,7 @@ function ConfirmServiceScreen() {
             onClick={() => setShowBreakdown(!showBreakdown)}
             aria-expanded={showBreakdown}
             aria-controls="price-breakdown"
-            aria-label={showBreakdown ? 'Ocultar desglose del precio' : 'Ver desglose del precio'}
+            aria-label={showBreakdown ? 'Ocultar detalle del precio' : 'Ver detalle del precio'}
             style={{
               background: showBreakdown ? 'rgba(236, 104, 25, 0.22)' : 'rgba(236, 104, 25, 0.16)',
               border: showBreakdown ? '1px solid rgba(236, 104, 25, 0.65)' : '1px solid rgba(236, 104, 25, 0.45)',
@@ -756,7 +782,7 @@ function ConfirmServiceScreen() {
                 <path d="M4 6H4.01M4 12H4.01M4 18H4.01" stroke="rgba(255,255,255,0.95)" strokeWidth="3" strokeLinecap="round"/>
               </svg>
               <span style={{ color: '#fff', fontSize: 13, fontWeight: 800, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {showBreakdown ? 'Ocultar desglose' : 'Ver desglose de precio'}
+                {showBreakdown ? 'Ocultar detalle' : 'Ver detalle'}
               </span>
             </span>
             <svg 

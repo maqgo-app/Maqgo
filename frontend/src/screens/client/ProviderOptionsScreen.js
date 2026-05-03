@@ -69,6 +69,7 @@ function ProviderOptionsScreen() {
   const [tomorrowCount, setTomorrowCount] = useState(0);
   const [isDemoProviders, setIsDemoProviders] = useState(false);
   const [emptyState, setEmptyState] = useState(false);
+  const [isWhyOpen, setIsWhyOpen] = useState(false);
   const normalizeMachinery = (m) => String(m || '').trim().toLowerCase().replace(/\s+/g, '_');
   const [selectedMachinery, setSelectedMachinery] = useState(() =>
     normalizeMachinery(localStorage.getItem('selectedMachinery') || 'retroexcavadora')
@@ -296,6 +297,15 @@ function ProviderOptionsScreen() {
     fetchProviders();
     saveBookingProgress('providers', { machinery: selectedMachinery });
   }, [fetchProviders, selectedMachinery]);
+
+  useEffect(() => {
+    if (!isWhyOpen) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setIsWhyOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isWhyOpen]);
 
   // Preload pasos 5 y 6 para evitar flash al navegar
   useEffect(() => {
@@ -632,7 +642,32 @@ function ProviderOptionsScreen() {
         >
           {bookingSummary}
         </p>
-        
+
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, lineHeight: 1.45 }}>
+            Ordenado por precio total y cercanía.
+          </span>
+          <button
+            type="button"
+            onClick={() => setIsWhyOpen(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: '#90BDD3',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textUnderlineOffset: 3
+            }}
+            aria-haspopup="dialog"
+            aria-expanded={isWhyOpen}
+          >
+            ¿Por qué?
+          </button>
+        </div>
+
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, textAlign: 'center', marginBottom: 10, lineHeight: 1.45, padding: '0 12px' }}>
           Compara precio total y tiempo estimado; luego selecciona el proveedor que prefieras.
         </p>
@@ -678,6 +713,49 @@ function ProviderOptionsScreen() {
             </div>
           ) : null;
         })()}
+
+        {isWhyOpen ? (
+          <div
+            className="maqgo-modal-overlay"
+            role="presentation"
+            onClick={() => setIsWhyOpen(false)}
+          >
+            <div
+              className="maqgo-modal-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Cómo ordenamos las opciones"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ color: '#fff', fontSize: 16, fontWeight: 800, margin: '0 0 10px' }}>
+                Cómo ordenamos las opciones
+              </h3>
+              <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 1.5 }}>
+                <li>Priorizamos el precio total (incluye traslado si aplica y Tarifa por Servicio).</li>
+                <li>También consideramos la cercanía (distancia y tiempo estimado).</li>
+                <li>Si cambias ubicación, horas o fecha, el orden puede variar.</li>
+              </ul>
+              <button
+                type="button"
+                onClick={() => setIsWhyOpen(false)}
+                style={{
+                  width: '100%',
+                  marginTop: 14,
+                  padding: 12,
+                  background: '#EC6819',
+                  border: 'none',
+                  borderRadius: 12,
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {/* Lista: sin scroll interno — el scroll es el de .maqgo-screen--scroll (evita CTA fuera de vista / doble scroll). */}
         <div style={{ paddingBottom: 8 }}>
