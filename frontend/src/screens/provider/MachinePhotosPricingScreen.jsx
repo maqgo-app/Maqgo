@@ -33,6 +33,12 @@ const MULTIPLIERS_URGENCY = {
 const MIN_PRICE_HOUR = 20000;
 const MIN_PRICE_SERVICE = 100000;
 const MIN_TRANSPORT = 15000;
+const PHOTO_SLOT_LABELS = ['Frontal', 'Lateral', 'Trasera'];
+const PHOTO_SLOT_OPTIONALITY = {
+  Frontal: 'Obligatoria',
+  Lateral: 'Opcional',
+  Trasera: 'Opcional',
+};
 
 /**
  * Orientación vs referencia MAQGO (no validación; no bloquea envío).
@@ -75,19 +81,34 @@ function MachinePhotosPricingScreen() {
   const toast = useToast();
   const backRoute = getProviderBackRoute(pathname) || '/provider/machine-data';
   const prevMachineTypeRef = useRef(null);
+  const fileInputsRef = useRef({});
 
-  const [photos, setPhotos] = useState(() => getArray('machinePhotos', []));
-  const hasFrontalPhoto =
-    Array.isArray(photos) &&
-    photos.some((p, i) => {
-      if (i === 0 && typeof p === 'string') return true;
-      if (p && typeof p === 'object') {
-        return String(p.label || '')
-          .trim()
-          .toLowerCase() === 'frontal';
-      }
-      return false;
-    });
+  const [photos, setPhotos] = useState(() => {
+    const raw = getArray('machinePhotos', []);
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+    const normalized = raw
+      .map((p, idx) => {
+        if (typeof p === 'string') {
+          return { url: p, label: PHOTO_SLOT_LABELS[idx] || `Foto ${idx + 1}` };
+        }
+        if (p && typeof p === 'object') {
+          const url = typeof p.url === 'string' ? p.url : '';
+          const label = typeof p.label === 'string' ? p.label : PHOTO_SLOT_LABELS[idx] || `Foto ${idx + 1}`;
+          if (!url) return null;
+          return { url, label };
+        }
+        return null;
+      })
+      .filter(Boolean);
+    return normalized;
+  });
+
+  const getPhotoByLabel = (label) => {
+    const target = String(label || '').trim().toLowerCase();
+    return photos.find((p) => String(p?.label || '').trim().toLowerCase() === target) || null;
+  };
+
+  const hasFrontalPhoto = Boolean(getPhotoByLabel('frontal'));
   const [priceBase, setPriceBase] = useState(() => {
     const savedPricing = getObject('machinePricing', {});
     return savedPricing.priceBase != null
@@ -144,49 +165,61 @@ function MachinePhotosPricingScreen() {
   const formatPrice = (price) =>
     new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(price);
 
-  const handleAddPhoto = (e) => {
-    if (photos.length >= MAX_PHOTOS) return;
-    const file = e?.target?.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    const photoLabels = ['Frontal', 'Lateral', 'Trasera'];
-    const label = photoLabels[photos.length] || `Foto ${photos.length + 1}`;
+  const persistPhotos = (next) => {
+    const sorted = [...next].sort((a, b) => {
+      const ia = PHOTO_SLOT_LABELS.indexOf(a.label);
+      const ib = PHOTO_SLOT_LABELS.indexOf(b.label);
+      if (ia === -1 && ib === -1) return 0;
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+    setPhotos(sorted);
+    localStorage.setItem('machinePhotos', JSON.stringify(sorted));
+  };
+
+  const upsertPhotoForLabel = async (file, label) => {
+    if (!file || !file.type?.startsWith?.('image/')) return;
+    const safeLabel = PHOTO_SLOT_LABELS.includes(label) ? label : PHOTO_SLOT_LABELS[0];
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
         const dataUrl = event.target.result;
         const compressed = await compressImage(dataUrl);
-        const newPhoto = { url: compressed, label };
-        const updated = [...photos, newPhoto];
-        setPhotos(updated);
-        localStorage.setItem('machinePhotos', JSON.stringify(updated));
-      } catch (err) {
-        console.error('Error al procesar la foto:', err);
-        const newPhoto = { url: event.target.result, label };
-        const updated = [...photos, newPhoto];
-        setPhotos(updated);
-        localStorage.setItem('machinePhotos', JSON.stringify(updated));
+        const newPhoto = { url: compressed, label: safeLabel };
+        const existingIdx = photos.findIndex(
+          (p) => String(p?.label || '').trim().toLowerCase() === String(safeLabel).toLowerCase()
+        );
+        const next =
+          existingIdx >= 0
+            ? photos.map((p, i) => (i === existingIdx ? newPhoto : p))
+            : [...photos, newPhoto].slice(0, MAX_PHOTOS);
+        persistPhotos(next);
+      } catch {
+        const newPhoto = { url: event.target.result, label: safeLabel };
+        const existingIdx = photos.findIndex(
+          (p) => String(p?.label || '').trim().toLowerCase() === String(safeLabel).toLowerCase()
+        );
+        const next =
+          existingIdx >= 0
+            ? photos.map((p, i) => (i === existingIdx ? newPhoto : p))
+            : [...photos, newPhoto].slice(0, MAX_PHOTOS);
+        persistPhotos(next);
       }
     };
     reader.readAsDataURL(file);
-    e.target.value = '';
   };
 
-  const handleRemovePhoto = (index) => {
-    const updated = photos.filter((_, i) => i !== index);
-    setPhotos(updated);
-    localStorage.setItem('machinePhotos', JSON.stringify(updated));
+  const openFilePickerForLabel = (label) => {
+    const k = String(label || '');
+    const input = fileInputsRef.current?.[k];
+    if (input && typeof input.click === 'function') input.click();
   };
 
-  const updatePhotoLabel = (index, newLabel) => {
-    setPhotos((prev) => {
-      const updated = prev.map((p, i) => {
-        if (i !== index) return p;
-        if (typeof p === 'string') return { url: p, label: newLabel };
-        return { ...p, label: newLabel };
-      });
-      localStorage.setItem('machinePhotos', JSON.stringify(updated));
-      return updated;
-    });
+  const handleRemovePhotoByLabel = (label) => {
+    const target = String(label || '').trim().toLowerCase();
+    const next = photos.filter((p) => String(p?.label || '').trim().toLowerCase() !== target);
+    persistPhotos(next);
   };
 
   const calculateImmediateExample = (hours) => {
@@ -256,6 +289,23 @@ function MachinePhotosPricingScreen() {
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
+      <style>{`
+        .maqgo-photos-pricing-grid {
+          display: block;
+        }
+        @media (min-width: 960px) {
+          .maqgo-photos-pricing-grid {
+            display: grid;
+            grid-template-columns: 0.9fr 1.1fr;
+            gap: 16px;
+            align-items: start;
+          }
+          .maqgo-photos-pricing-sticky {
+            position: sticky;
+            top: calc(var(--maqgo-screen-padding-top, 0px) + 10px);
+          }
+        }
+      `}</style>
       <div
         className="maqgo-screen"
         style={{ padding: 'var(--maqgo-screen-padding-top) 24px 140px', overflowY: 'auto' }}
@@ -315,257 +365,163 @@ function MachinePhotosPricingScreen() {
           </button>
         </p>
 
-        {/* —— Fotos —— */}
-        <div id="seccion-fotos" style={sectionCard}>
-          <h2 style={sectionTitle}>Fotos de la máquina</h2>
-          <p style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, marginBottom: 14, lineHeight: 1.45 }}>
-            Frontal obligatoria. Lateral y trasera opcionales (máx 3).
-          </p>
+        <div className="maqgo-photos-pricing-grid">
+          <div className="maqgo-photos-pricing-sticky">
+            <div id="seccion-fotos" style={sectionCard}>
+              <h2 style={sectionTitle}>Fotos de la máquina</h2>
+              <p style={{ color: 'rgba(255,255,255,0.88)', fontSize: 13, marginBottom: 12, lineHeight: 1.45 }}>
+                Frontal obligatoria. Lateral y trasera opcionales.
+              </p>
 
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-            <div
-              style={{
-                background: 'rgba(144, 189, 211, 0.2)',
-                border: '1px solid #90BDD3',
-                borderRadius: 20,
-                padding: '6px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-                <path
-                  d="M4 8L7 11L12 5"
-                  stroke="#90BDD3"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span style={{ color: '#90BDD3', fontSize: 13, fontWeight: 600 }}>
-                    {!hasFrontalPhoto
-                      ? 'Falta foto frontal'
-                      : photos.length === 0
-                        ? 'Sin fotos'
-                        : `${photos.length} foto${photos.length !== 1 ? 's' : ''}`}
-              </span>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+                <div
+                  style={{
+                    background: 'rgba(144, 189, 211, 0.2)',
+                    border: '1px solid #90BDD3',
+                    borderRadius: 20,
+                    padding: '6px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+                    <path
+                      d="M4 8L7 11L12 5"
+                      stroke="#90BDD3"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span style={{ color: '#90BDD3', fontSize: 13, fontWeight: 600 }}>
+                    {!hasFrontalPhoto ? 'Falta foto frontal' : `${photos.length} de 3 listas`}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {PHOTO_SLOT_LABELS.map((label) => {
+                  const p = getPhotoByLabel(label);
+                  const isRequired = label === 'Frontal';
+                  const optionality = PHOTO_SLOT_OPTIONALITY[label] || (isRequired ? 'Obligatoria' : 'Opcional');
+                  return (
+                    <div
+                      key={label}
+                      style={{
+                        display: 'flex',
+                        gap: 10,
+                        alignItems: 'center',
+                        padding: 10,
+                        borderRadius: 12,
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'rgba(255,255,255,0.03)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 96,
+                          height: 54,
+                          borderRadius: 10,
+                          background: '#2A2A2A',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          overflow: 'hidden',
+                          flex: '0 0 auto',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'rgba(255,255,255,0.55)',
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {p ? (
+                          <img
+                            src={p.url}
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          label
+                        )}
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+                          <div style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>{label}</div>
+                          <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>{optionality}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                          <input
+                            ref={(el) => {
+                              if (!fileInputsRef.current) fileInputsRef.current = {};
+                              fileInputsRef.current[label] = el;
+                            }}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={(e) => {
+                              const f = e?.target?.files?.[0];
+                              if (f) upsertPhotoForLabel(f, label);
+                              e.target.value = '';
+                            }}
+                            style={{ display: 'none' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => openFilePickerForLabel(label)}
+                            style={{
+                              borderRadius: 10,
+                              border: '1px solid rgba(255,255,255,0.18)',
+                              padding: '8px 10px',
+                              fontSize: 13,
+                              background: p ? 'rgba(255,255,255,0.06)' : '#EC6819',
+                              color: '#fff',
+                              cursor: 'pointer',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {p ? 'Reemplazar' : (isRequired ? 'Subir frontal' : 'Subir')}
+                          </button>
+                          {p ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePhotoByLabel(label)}
+                              style={{
+                                borderRadius: 10,
+                                border: '1px solid rgba(255,255,255,0.18)',
+                                padding: '8px 10px',
+                                fontSize: 13,
+                                background: 'rgba(255,107,107,0.18)',
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                              }}
+                            >
+                              Eliminar
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {!hasFrontalPhoto ? (
+                <div style={{ marginTop: 12, background: 'rgba(255,107,107,0.12)', border: '1px solid rgba(255,107,107,0.5)', borderRadius: 12, padding: 12 }}>
+                  <p style={{ margin: 0, color: '#ff6b6b', fontSize: 13, textAlign: 'center', fontWeight: 700 }}>
+                    Falta la foto frontal (obligatoria)
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
 
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: 12,
-            }}
+            style={{ ...sectionCard, scrollMarginTop: 72 }}
+            id="seccion-tarifas"
           >
-            {photos.map((photo, index) => {
-              const currentLabel =
-                typeof photo === 'object' ? photo.label || `Foto ${index + 1}` : `Foto ${index + 1}`;
-              const labelOptions = ['Frontal', 'Lateral', 'Trasera'];
-              return (
-                <div key={index}>
-                  <div
-                    style={{
-                      position: 'relative',
-                      background: '#363636',
-                      borderRadius: 12,
-                      overflow: 'hidden',
-                      aspectRatio: '4/3',
-                    }}
-                  >
-                    <img
-                      src={typeof photo === 'string' ? photo : photo.url}
-                      alt=""
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        background: 'rgba(0,0,0,0.7)',
-                        padding: '4px 8px',
-                        fontSize: 13,
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 6,
-                      }}
-                    >
-                      <span>{currentLabel}</span>
-                      <span style={{ color: '#90BDD3', fontWeight: 600 }}>✓ Cargada</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePhoto(index)}
-                      style={{
-                        position: 'absolute',
-                        top: 8,
-                        right: 8,
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        background: 'rgba(255,107,107,0.9)',
-                        border: 'none',
-                        color: '#fff',
-                        fontSize: 16,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {labelOptions.map((type) => {
-                      const isActive = currentLabel === type;
-                      return (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => updatePhotoLabel(index, type)}
-                          style={{
-                            borderRadius: 16,
-                            border: isActive ? '1px solid #EC6819' : '1px solid #555',
-                            padding: '4px 10px',
-                            fontSize: 13,
-                            background: isActive ? 'rgba(236, 104, 25, 0.15)' : 'transparent',
-                            color: isActive ? '#EC6819' : 'rgba(255,255,255,0.8)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {type}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-
-            {photos.length < MAX_PHOTOS && (
-              <div
-                style={{
-                  gridColumn: '1 / -1',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 10,
-                    justifyContent: 'stretch',
-                  }}
-                >
-                  {/* Cámara: capture pide lente trasera en móvil (mejor para la máquina) */}
-                  <label
-                    style={{
-                      flex: '1 1 140px',
-                      minHeight: 120,
-                      background: '#363636',
-                      border: '2px dashed #555',
-                      borderRadius: 12,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      color: '#EC6819',
-                      padding: '12px 8px',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handleAddPhoto}
-                      style={{ display: 'none' }}
-                      aria-label={
-                        photos.length === 0
-                          ? 'Tomar foto frontal con la cámara del celular'
-                          : 'Tomar foto opcional con la cámara del celular'
-                      }
-                    />
-                    <svg width="36" height="36" viewBox="0 0 40 40" fill="none" aria-hidden>
-                      <rect x="4" y="8" width="32" height="24" rx="3" stroke="#EC6819" strokeWidth="2" fill="none" />
-                      <circle cx="12" cy="16" r="3" stroke="#EC6819" strokeWidth="2" fill="none" />
-                      <path
-                        d="M8 28L14 22L18 26L26 18L32 24"
-                        stroke="#EC6819"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <circle cx="30" cy="12" r="6" fill="#2D2D2D" stroke="#EC6819" strokeWidth="2" />
-                      <path d="M30 9V15M27 12H33" stroke="#EC6819" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                    <span style={{ fontSize: 13, marginTop: 8, textAlign: 'center', fontWeight: 600 }}>
-                      Tomar foto
-                    </span>
-                  </label>
-                  <label
-                    style={{
-                      flex: '1 1 140px',
-                      minHeight: 120,
-                      background: '#363636',
-                      border: '2px dashed #555',
-                      borderRadius: 12,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      color: '#90BDD3',
-                      padding: '12px 8px',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAddPhoto}
-                      style={{ display: 'none' }}
-                      aria-label={
-                        photos.length === 0
-                          ? 'Elegir foto frontal desde galería o archivos'
-                          : 'Elegir foto opcional desde galería o archivos'
-                      }
-                    />
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden>
-                      <path
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                      <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
-                      <circle cx="8.5" cy="9.5" r="1.5" fill="currentColor" />
-                    </svg>
-                    <span style={{ fontSize: 13, marginTop: 8, textAlign: 'center', fontWeight: 600 }}>
-                      Galería
-                    </span>
-                  </label>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* —— Tarifas —— */}
-        <div
-          style={{ ...sectionCard, scrollMarginTop: 72 }}
-          id="seccion-tarifas"
-        >
           <h2 style={sectionTitle}>Define tus tarifas</h2>
           <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>
             {machineName}
@@ -905,6 +861,7 @@ function MachinePhotosPricingScreen() {
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
 
