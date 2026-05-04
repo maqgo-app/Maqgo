@@ -102,6 +102,7 @@ function AdminDashboard() {
   const [liveRequestsError, setLiveRequestsError] = useState('');
   const [liveRequestsUpdatedAt, setLiveRequestsUpdatedAt] = useState(null);
   const [showUrgentModal, setShowUrgentModal] = useState(false);
+  const [adminArea, setAdminArea] = useState('today');
 
   // Fallback si el backend no envía `finances` (versiones viejas / demo)
   const calculateFinances = useCallback((serviceList) => {
@@ -940,6 +941,68 @@ function AdminDashboard() {
                 </span>
               )}
             </button>
+            <div
+              style={{
+                display: 'flex',
+                gap: 6,
+                padding: 4,
+                borderRadius: 999,
+                border: `1px solid ${ADMIN_THEME.border}`,
+                background: 'rgba(255,255,255,0.04)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setAdminArea('today')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: adminArea === 'today' ? 'rgba(236, 104, 25, 0.22)' : 'transparent',
+                  color: adminArea === 'today' ? '#fff' : 'rgba(255,255,255,0.8)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Operación
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminArea('money')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: adminArea === 'money' ? 'rgba(126, 184, 212, 0.18)' : 'transparent',
+                  color: adminArea === 'money' ? '#fff' : 'rgba(255,255,255,0.8)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Dinero
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminArea('system')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: adminArea === 'system' ? 'rgba(102, 187, 106, 0.16)' : 'transparent',
+                  color: adminArea === 'system' ? '#fff' : 'rgba(255,255,255,0.8)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Sistema
+              </button>
+            </div>
             <button
               type="button"
               disabled={actionsLocked}
@@ -1243,6 +1306,7 @@ function AdminDashboard() {
 
       {/* Content */}
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
+        {adminArea === 'today' && (
         <div
           style={{
             marginBottom: 20,
@@ -1424,6 +1488,7 @@ function AdminDashboard() {
             </div>
           )}
         </div>
+        )}
 
         {/* Bloque: Diagnóstico de conexión / demo */}
         {usingOfflineDemo && (
@@ -1508,117 +1573,120 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* BLOQUE 1: Qué tengo que hacer hoy (acciones operativas) */}
-        <h2
-          style={{
-            color: '#ffffff',
-            fontSize: 16,
-            fontWeight: 700,
-            margin: '0 0 8px',
-            fontFamily: "'Space Grotesk', sans-serif",
-          }}
-        >
-          Qué tengo que hacer hoy
-        </h2>
-        <p
-          style={{
-            color: 'rgba(255,255,255,0.7)',
-            fontSize: 12,
-            margin: '0 0 12px',
-          }}
-        >
-          Mira primero las reservas con acción pendiente; después puedes revisar métricas y salud del sistema.
-        </p>
+        {adminArea === 'today' && (
+          <>
+            <h2
+              style={{
+                color: '#ffffff',
+                fontSize: 16,
+                fontWeight: 700,
+                margin: '0 0 8px',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}
+            >
+              Qué tengo que hacer hoy
+            </h2>
+            <p
+              style={{
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: 12,
+                margin: '0 0 12px',
+              }}
+            >
+              Mira primero las reservas con acción pendiente; después puedes revisar métricas y salud del sistema.
+            </p>
 
-        {/* Alerta: facturas por revisar y pagar (oculta en demo para evitar CTAs falsos) */}
-        {!usingOfflineDemo && (
-          (stats.maqgo_to_invoice_overdue || 0) > 0 ||
-          stats.invoiced > 0 ||
-          stats.pending_review > 0 ||
-          (stats.maqgo_to_invoice || 0) > 0
-        ) && (
-          <div
-            onClick={() => {
-              setPage(1);
-              setFilter(
-                (stats.maqgo_to_invoice_overdue || 0) > 0
-                  ? 'maqgo_to_invoice_overdue'
-                  : stats.invoiced > 0
-                    ? 'invoiced'
-                    : (stats.maqgo_to_invoice || 0) > 0
-                      ? 'maqgo_to_invoice'
-                      : 'pending_review'
-              );
-            }}
-            style={{
-              background: (stats.maqgo_to_invoice_overdue || 0) > 0
-                ? 'linear-gradient(135deg, rgba(229, 115, 115, 0.18) 0%, rgba(229, 115, 115, 0.05) 100%)'
-                : stats.invoiced > 0
-                  ? 'linear-gradient(135deg, rgba(236, 104, 25, 0.18) 0%, rgba(236, 104, 25, 0.05) 100%)'
-                  : (stats.maqgo_to_invoice || 0) > 0
-                    ? 'linear-gradient(135deg, rgba(126, 184, 212, 0.16) 0%, rgba(126, 184, 212, 0.05) 100%)'
-                    : 'linear-gradient(135deg, rgba(232, 163, 75, 0.18) 0%, rgba(232, 163, 75, 0.05) 100%)',
-              border: `1px solid ${
-                (stats.maqgo_to_invoice_overdue || 0) > 0
-                  ? 'rgba(229, 115, 115, 0.45)'
-                  : stats.invoiced > 0
-                    ? 'rgba(236, 104, 25, 0.4)'
-                    : (stats.maqgo_to_invoice || 0) > 0
-                      ? 'rgba(126, 184, 212, 0.4)'
-                      : 'rgba(232, 163, 75, 0.4)'
-              }`,
-              borderRadius: 12,
-              padding: '14px 20px',
-              marginBottom: 24,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12
-            }}
-          >
-            <span style={{ fontSize: 28 }}>
-              {(stats.maqgo_to_invoice_overdue || 0) > 0 ? '🚨' : stats.invoiced > 0 ? '📄' : (stats.maqgo_to_invoice || 0) > 0 ? '📤' : '⏳'}
-            </span>
-            <div style={{ flex: 1 }}>
-              <p style={{ color: '#fff', margin: 0, fontSize: 15, fontWeight: 600 }}>
-                {(stats.maqgo_to_invoice_overdue || 0) > 0
-                  ? `ALERTA: ${stats.maqgo_to_invoice_overdue} pago(s) de meses anteriores sin factura cliente MAQGO`
-                  : stats.invoiced > 0
-                    ? `${stats.invoiced} factura(s) subida(s) · Revisar y marcar como pagado`
-                    : (stats.maqgo_to_invoice || 0) > 0
-                      ? `MAQGO debe facturar al cliente: ${stats.maqgo_to_invoice} reserva(s) (dentro del mes)`
-                      : `${stats.pending_review} reserva(s) por aprobar`
-                }
-              </p>
-              <p style={{ color: 'rgba(255,255,255,0.75)', margin: '4px 0 0', fontSize: 12 }}>
-                Toca para ir directamente
-              </p>
-            </div>
-            <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>→</span>
-          </div>
+            {!usingOfflineDemo && (
+              (stats.maqgo_to_invoice_overdue || 0) > 0 ||
+              stats.invoiced > 0 ||
+              stats.pending_review > 0 ||
+              (stats.maqgo_to_invoice || 0) > 0
+            ) && (
+              <div
+                onClick={() => {
+                  setPage(1);
+                  setFilter(
+                    (stats.maqgo_to_invoice_overdue || 0) > 0
+                      ? 'maqgo_to_invoice_overdue'
+                      : stats.invoiced > 0
+                        ? 'invoiced'
+                        : (stats.maqgo_to_invoice || 0) > 0
+                          ? 'maqgo_to_invoice'
+                          : 'pending_review'
+                  );
+                }}
+                style={{
+                  background: (stats.maqgo_to_invoice_overdue || 0) > 0
+                    ? 'linear-gradient(135deg, rgba(229, 115, 115, 0.18) 0%, rgba(229, 115, 115, 0.05) 100%)'
+                    : stats.invoiced > 0
+                      ? 'linear-gradient(135deg, rgba(236, 104, 25, 0.18) 0%, rgba(236, 104, 25, 0.05) 100%)'
+                      : (stats.maqgo_to_invoice || 0) > 0
+                        ? 'linear-gradient(135deg, rgba(126, 184, 212, 0.16) 0%, rgba(126, 184, 212, 0.05) 100%)'
+                        : 'linear-gradient(135deg, rgba(232, 163, 75, 0.18) 0%, rgba(232, 163, 75, 0.05) 100%)',
+                  border: `1px solid ${
+                    (stats.maqgo_to_invoice_overdue || 0) > 0
+                      ? 'rgba(229, 115, 115, 0.45)'
+                      : stats.invoiced > 0
+                        ? 'rgba(236, 104, 25, 0.4)'
+                        : (stats.maqgo_to_invoice || 0) > 0
+                          ? 'rgba(126, 184, 212, 0.4)'
+                          : 'rgba(232, 163, 75, 0.4)'
+                  }`,
+                  borderRadius: 12,
+                  padding: '14px 20px',
+                  marginBottom: 24,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12
+                }}
+              >
+                <span style={{ fontSize: 28 }}>
+                  {(stats.maqgo_to_invoice_overdue || 0) > 0 ? '🚨' : stats.invoiced > 0 ? '📄' : (stats.maqgo_to_invoice || 0) > 0 ? '📤' : '⏳'}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ color: '#fff', margin: 0, fontSize: 15, fontWeight: 600 }}>
+                    {(stats.maqgo_to_invoice_overdue || 0) > 0
+                      ? `ALERTA: ${stats.maqgo_to_invoice_overdue} pago(s) de meses anteriores sin factura cliente MAQGO`
+                      : stats.invoiced > 0
+                        ? `${stats.invoiced} factura(s) subida(s) · Revisar y marcar como pagado`
+                        : (stats.maqgo_to_invoice || 0) > 0
+                          ? `MAQGO debe facturar al cliente: ${stats.maqgo_to_invoice} reserva(s) (dentro del mes)`
+                          : `${stats.pending_review} reserva(s) por aprobar`
+                    }
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.75)', margin: '4px 0 0', fontSize: 12 }}>
+                    Toca para ir directamente
+                  </p>
+                </div>
+                <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>→</span>
+              </div>
+            )}
+          </>
         )}
 
-        {/* BLOQUE 2: Dinero y riesgos (todas las métricas financieras, IVA, SMS, etc.) */}
-        <h2
-          style={{
-            color: '#ffffff',
-            fontSize: 16,
-            fontWeight: 700,
-            margin: '8px 0 8px',
-            fontFamily: "'Space Grotesk', sans-serif",
-          }}
-        >
-          Dinero y riesgos
-        </h2>
-        <p
-          style={{
-            color: 'rgba(255,255,255,0.7)',
-            fontSize: 12,
-            margin: '0 0 12px',
-          }}
-        >
-          Incluye todas las métricas claves: ventas, comisiones, IVA estimado y saldo de SMS.
-        </p>
+        {adminArea === 'money' && (
+          <>
+            <h2
+              style={{
+                color: '#ffffff',
+                fontSize: 16,
+                fontWeight: 700,
+                margin: '8px 0 8px',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}
+            >
+              Dinero y riesgos
+            </h2>
+            <p
+              style={{
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: 12,
+                margin: '0 0 12px',
+              }}
+            >
+              Incluye todas las métricas claves: ventas, comisiones, IVA estimado y saldo de SMS.
+            </p>
 
         <div style={{ 
           background: ADMIN_THEME.panelBg, 
@@ -1923,31 +1991,33 @@ function AdminDashboard() {
             </div>
           </div>
         </div>
+          </>
+        )}
 
-        {/* SLA colas + comparativa semana (API admin/all) */}
-        {/* BLOQUE 3: Salud del sistema y operación (colas, SLA, informe semanal) */}
-        <h2
-          style={{
-            color: '#ffffff',
-            fontSize: 16,
-            fontWeight: 700,
-            margin: '24px 0 8px',
-            fontFamily: "'Space Grotesk', sans-serif",
-          }}
-        >
-          Salud del sistema y operación
-        </h2>
-        <p
-          style={{
-            color: 'rgba(255,255,255,0.7)',
-            fontSize: 12,
-            margin: '0 0 10px',
-          }}
-        >
-          Aquí ves colas, tiempos de espera y el informe semanal de operación. Úsalo para anticipar problemas.
-        </p>
+        {adminArea === 'system' && (
+          <>
+            <h2
+              style={{
+                color: '#ffffff',
+                fontSize: 16,
+                fontWeight: 700,
+                margin: '24px 0 8px',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}
+            >
+              Salud del sistema y operación
+            </h2>
+            <p
+              style={{
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: 12,
+                margin: '0 0 10px',
+              }}
+            >
+              Aquí ves colas, tiempos de espera y el informe semanal de operación. Úsalo para anticipar problemas.
+            </p>
 
-        <SystemHealthPanel stats={stats} finances={finances} isDemoData={usingOfflineDemo} />
+            <SystemHealthPanel stats={stats} finances={finances} isDemoData={usingOfflineDemo} />
 
         {(sla || weekComparison) && (
           <div style={{
@@ -2394,6 +2464,8 @@ function AdminDashboard() {
             </>
           )}
         </div>
+          </>
+        )}
       </div>
 
       {/* Modal de factura */}
