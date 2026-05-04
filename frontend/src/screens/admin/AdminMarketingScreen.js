@@ -6,6 +6,23 @@ import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { formatCartolaLabel } from '../../utils/weekCartola';
 import { friendlyFetchError } from '../../utils/fetchErrors';
 
+const ADMIN_PALETTE = {
+  brand: '#EC6819',
+  info: '#8FB3C9',
+  success: '#66BB6A',
+  warning: '#D9A15A',
+  danger: '#E57373',
+};
+
+const ADMIN_THEME = {
+  appBg: '#12151B',
+  panelBg: '#1B2028',
+  panelBgSoft: '#171B22',
+  border: 'rgba(255,255,255,0.08)',
+  borderStrong: 'rgba(255,255,255,0.14)',
+  textMuted: 'rgba(255,255,255,0.72)',
+};
+
 /** Lunes ISO de la semana que contiene `isoDate` (YYYY-MM-DD), hora local mediodía para evitar DST. */
 export function mondayISOFromCalendarDate(isoDate) {
   if (!isoDate || typeof isoDate !== 'string') return '';
@@ -318,19 +335,19 @@ function AdminMarketingScreen() {
   };
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#1a1a1a', color: '#fff', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
       <div style={{
-        background: '#2A2A2A',
+        background: ADMIN_THEME.panelBg,
         padding: '20px 24px',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        borderBottom: `1px solid ${ADMIN_THEME.border}`,
       }}
       >
-        <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: '#EC6819', fontFamily: "'Space Grotesk', sans-serif" }}>
+            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: ADMIN_PALETTE.brand, fontFamily: "'Space Grotesk', sans-serif" }}>
               Marketing & CAC
             </h1>
-            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, margin: '4px 0 0', maxWidth: 620 }}>
+            <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '4px 0 0', maxWidth: 620 }}>
               Inversión semanal por canal y audiencia. Elige la semana con la fecha; el sistema usa el <strong>lunes</strong> de esa semana como clave (buena práctica para alinear con reportes de ads).
               {' '}
               <span style={{ color: 'rgba(255,255,255,0.5)' }}>
@@ -339,7 +356,7 @@ function AdminMarketingScreen() {
             </p>
           </div>
         </div>
-        <div style={{ maxWidth: 960, margin: '14px auto 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ maxWidth: 1200, margin: '14px auto 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[
             { key: 'dashboard', label: 'Operación', to: '/admin' },
             { key: 'users', label: 'Usuarios', to: '/admin/users' },
@@ -355,8 +372,8 @@ function AdminMarketingScreen() {
                 style={{
                   padding: '8px 14px',
                   borderRadius: 999,
-                  border: active ? '1px solid rgba(236, 104, 25, 0.55)' : '1px solid rgba(255,255,255,0.18)',
-                  background: active ? 'rgba(236, 104, 25, 0.18)' : 'transparent',
+                  border: active ? '1px solid rgba(236, 104, 25, 0.55)' : `1px solid ${ADMIN_THEME.borderStrong}`,
+                  background: active ? 'rgba(236, 104, 25, 0.18)' : 'rgba(255,255,255,0.04)',
                   color: active ? '#fff' : 'rgba(255,255,255,0.85)',
                   cursor: 'pointer',
                   fontSize: 13,
@@ -370,19 +387,19 @@ function AdminMarketingScreen() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
         {/* Semana: campo fecha + rango efectivo */}
         <section
           style={{
-            background: '#2A2A2A',
+            background: ADMIN_THEME.panelBg,
             borderRadius: 12,
             padding: 20,
             marginBottom: 20,
-            border: '1px solid rgba(236,104,25,0.25)',
+            border: `1px solid ${ADMIN_THEME.border}`,
           }}
           aria-labelledby="marketing-week-heading"
         >
-          <h2 id="marketing-week-heading" style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px', color: '#EC6819' }}>
+          <h2 id="marketing-week-heading" style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px', color: ADMIN_PALETTE.brand }}>
             Semana a cargar
           </h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end' }}>
@@ -397,8 +414,8 @@ function AdminMarketingScreen() {
                   style={{
                     padding: '10px 12px',
                     borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    background: '#1a1a1a',
+                    border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                    background: ADMIN_THEME.panelBgSoft,
                     color: '#fff',
                     cursor: 'pointer',
                     fontSize: 13,
@@ -415,8 +432,8 @@ function AdminMarketingScreen() {
                   style={{
                     padding: '10px 12px',
                     borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    background: '#1a1a1a',
+                    border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                    background: ADMIN_THEME.panelBgSoft,
                     color: '#fff',
                     fontSize: 15,
                     minWidth: 200,
@@ -428,8 +445,8 @@ function AdminMarketingScreen() {
                   style={{
                     padding: '10px 12px',
                     borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    background: '#1a1a1a',
+                    border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                    background: ADMIN_THEME.panelBgSoft,
                     color: '#fff',
                     cursor: 'pointer',
                     fontSize: 13,
@@ -471,7 +488,7 @@ function AdminMarketingScreen() {
         </section>
 
         {/* Tabla inversión */}
-        <section style={{ background: '#2A2A2A', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+        <section style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, padding: 20, marginBottom: 20, border: `1px solid ${ADMIN_THEME.border}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#fff' }}>Inversión semanal (CLP)</h2>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -584,9 +601,9 @@ function AdminMarketingScreen() {
                 gap: 16,
                 marginBottom: 14,
                 padding: '12px 14px',
-                background: '#1a1a1a',
+                background: ADMIN_THEME.panelBgSoft,
                 borderRadius: 8,
-                border: '1px solid rgba(255,255,255,0.08)',
+                border: `1px solid ${ADMIN_THEME.border}`,
                 fontSize: 13,
               }}
             >
@@ -618,7 +635,7 @@ function AdminMarketingScreen() {
                 </thead>
                 <tbody>
                   {lines.map((line, idx) => (
-                    <tr key={line.key} style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <tr key={line.key} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
                       <td style={{ padding: '10px 8px', verticalAlign: 'middle' }}>
                         <label className="sr-only" htmlFor={`ch-${line.key}`}>Canal</label>
                         <select
@@ -630,8 +647,8 @@ function AdminMarketingScreen() {
                             maxWidth: 280,
                             padding: '8px 10px',
                             borderRadius: 6,
-                            background: '#1a1a1a',
-                            border: '1px solid rgba(255,255,255,0.2)',
+                            background: ADMIN_THEME.panelBgSoft,
+                            border: `1px solid ${ADMIN_THEME.borderStrong}`,
                             color: '#fff',
                             fontSize: 13,
                           }}
@@ -652,8 +669,8 @@ function AdminMarketingScreen() {
                             maxWidth: 260,
                             padding: '8px 10px',
                             borderRadius: 6,
-                            background: '#1a1a1a',
-                            border: '1px solid rgba(255,255,255,0.2)',
+                            background: ADMIN_THEME.panelBgSoft,
+                            border: `1px solid ${ADMIN_THEME.borderStrong}`,
                             color: '#fff',
                             fontSize: 13,
                           }}
@@ -679,8 +696,8 @@ function AdminMarketingScreen() {
                             maxWidth: 200,
                             padding: '8px 10px',
                             borderRadius: 6,
-                            background: '#1a1a1a',
-                            border: '1px solid rgba(255,255,255,0.2)',
+                            background: ADMIN_THEME.panelBgSoft,
+                            border: `1px solid ${ADMIN_THEME.borderStrong}`,
                             color: '#fff',
                             fontSize: 14,
                           }}
@@ -713,7 +730,7 @@ function AdminMarketingScreen() {
         </section>
 
         {/* KPIs */}
-        <section style={{ background: '#2A2A2A', borderRadius: 12, padding: 20 }}>
+        <section style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, padding: 20, border: `1px solid ${ADMIN_THEME.border}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>KPIs de la misma semana</h2>
             <button
@@ -725,7 +742,7 @@ function AdminMarketingScreen() {
                 background: '#90BDD3',
                 border: 'none',
                 borderRadius: 8,
-                color: '#1a1a1a',
+                color: ADMIN_THEME.appBg,
                 cursor: loadingReport ? 'wait' : 'pointer',
                 fontWeight: 600,
                 fontSize: 13,
@@ -737,50 +754,50 @@ function AdminMarketingScreen() {
           {report && (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 10, padding: 14, border: `1px solid ${ADMIN_THEME.border}` }}>
                   <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Inversión clientes</div>
                   <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtMoney(report.inversion_clp?.clientes)}</div>
                 </div>
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 10, padding: 14, border: `1px solid ${ADMIN_THEME.border}` }}>
                   <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Inversión proveedores</div>
                   <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtMoney(report.inversion_clp?.proveedores)}</div>
                 </div>
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 10, padding: 14, border: `1px solid ${ADMIN_THEME.border}` }}>
                   <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>CAC cliente (registro)</div>
                   <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: '#90BDD3' }}>{fmtMoney(report.kpi?.CAC_cliente_registro_clp)}</div>
                 </div>
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 10, padding: 14, border: `1px solid ${ADMIN_THEME.border}` }}>
                   <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>CAC / costo adq. proveedor</div>
                   <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: '#CE93D8' }}>{fmtMoney(report.kpi?.CAC_proveedor_registro_clp)}</div>
                 </div>
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 10, padding: 14, border: `1px solid ${ADMIN_THEME.border}` }}>
                   <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Nuevos clientes</div>
                   <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtCount(report.volumen?.nuevos_clientes)}</div>
                 </div>
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 14 }}>
+                <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 10, padding: 14, border: `1px solid ${ADMIN_THEME.border}` }}>
                   <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Nuevos proveedores</div>
                   <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{fmtCount(report.volumen?.nuevos_proveedores)}</div>
                 </div>
               </div>
 
-              <div style={{ marginTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 14 }}>
+              <div style={{ marginTop: 14, borderTop: `1px solid ${ADMIN_THEME.border}`, paddingTop: 14 }}>
                 <h3 style={{ margin: '0 0 10px', fontSize: 13, color: '#90BDD3', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   Funnel semanal clientes
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                  <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 8, padding: 12, border: `1px solid ${ADMIN_THEME.border}` }}>
                     <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Registrados</div>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.clientes?.registrados)}</div>
                   </div>
-                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                  <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 8, padding: 12, border: `1px solid ${ADMIN_THEME.border}` }}>
                     <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Con tarjeta</div>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.clientes?.con_tarjeta_oneclick)}</div>
                   </div>
-                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                  <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 8, padding: 12, border: `1px solid ${ADMIN_THEME.border}` }}>
                     <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Con solicitud</div>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.clientes?.con_solicitud_servicio)}</div>
                   </div>
-                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                  <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 8, padding: 12, border: `1px solid ${ADMIN_THEME.border}` }}>
                     <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Pagados semana</div>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.clientes?.con_servicio_pagado_semana)}</div>
                   </div>
@@ -796,19 +813,19 @@ function AdminMarketingScreen() {
                   Funnel semanal proveedores
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                  <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 8, padding: 12, border: `1px solid ${ADMIN_THEME.border}` }}>
                     <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Registrados</div>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.proveedores?.registrados)}</div>
                   </div>
-                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                  <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 8, padding: 12, border: `1px solid ${ADMIN_THEME.border}` }}>
                     <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Onboarding completo</div>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.proveedores?.onboarding_completado)}</div>
                   </div>
-                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                  <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 8, padding: 12, border: `1px solid ${ADMIN_THEME.border}` }}>
                     <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Disponibles</div>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.proveedores?.disponibles)}</div>
                   </div>
-                  <div style={{ background: '#1a1a1a', borderRadius: 8, padding: 12 }}>
+                  <div style={{ background: ADMIN_THEME.panelBgSoft, borderRadius: 8, padding: 12, border: `1px solid ${ADMIN_THEME.border}` }}>
                     <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Con primer servicio</div>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtCount(report.funnel?.proveedores?.con_primer_servicio_semana)}</div>
                   </div>

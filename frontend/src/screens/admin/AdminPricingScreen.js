@@ -4,6 +4,23 @@ import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { MACHINERY_NAMES as MACHINE_NAMES } from '../../utils/machineryNames';
 
+const ADMIN_PALETTE = {
+  brand: '#EC6819',
+  info: '#8FB3C9',
+  success: '#66BB6A',
+  warning: '#D9A15A',
+  danger: '#E57373',
+};
+
+const ADMIN_THEME = {
+  appBg: '#12151B',
+  panelBg: '#1B2028',
+  panelBgSoft: '#171B22',
+  border: 'rgba(255,255,255,0.08)',
+  borderStrong: 'rgba(255,255,255,0.14)',
+  textMuted: 'rgba(255,255,255,0.72)',
+};
+
 function AdminPricingScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -97,7 +114,7 @@ function AdminPricingScreen() {
           gridTemplateColumns: '1fr 100px 100px 120px',
           gap: 12,
           padding: '12px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: `1px solid ${ADMIN_THEME.border}`,
           alignItems: 'center'
         }}
       >
@@ -109,8 +126,8 @@ function AdminPricingScreen() {
           placeholder="Mín"
           style={{
             padding: '8px 10px',
-            background: '#1a1a1a',
-            border: '1px solid rgba(255,255,255,0.2)',
+            background: ADMIN_THEME.panelBgSoft,
+            border: `1px solid ${ADMIN_THEME.borderStrong}`,
             borderRadius: 6,
             color: '#fff',
             fontSize: 13
@@ -123,8 +140,8 @@ function AdminPricingScreen() {
           placeholder="Máx"
           style={{
             padding: '8px 10px',
-            background: '#1a1a1a',
-            border: '1px solid rgba(255,255,255,0.2)',
+            background: ADMIN_THEME.panelBgSoft,
+            border: `1px solid ${ADMIN_THEME.borderStrong}`,
             borderRadius: 6,
             color: '#fff',
             fontSize: 13
@@ -137,10 +154,10 @@ function AdminPricingScreen() {
           placeholder="Sugerido"
           style={{
             padding: '8px 10px',
-            background: '#1a1a1a',
-            border: '1px solid rgba(255,255,255,0.2)',
+            background: ADMIN_THEME.panelBgSoft,
+            border: `1px solid ${ADMIN_THEME.borderStrong}`,
             borderRadius: 6,
-            color: '#EC6819',
+            color: ADMIN_PALETTE.brand,
             fontSize: 13,
             fontWeight: 600
           }}
@@ -150,18 +167,18 @@ function AdminPricingScreen() {
   };
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#1a1a1a', color: '#fff', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
       <div style={{
-        background: '#2A2A2A',
+        background: ADMIN_THEME.panelBg,
         padding: '20px 24px',
-        borderBottom: '1px solid rgba(255,255,255,0.1)'
+        borderBottom: `1px solid ${ADMIN_THEME.border}`
       }}>
-        <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: '#EC6819', fontFamily: "'Space Grotesk', sans-serif" }}>
               Precios de referencia
             </h1>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '4px 0 0' }}>
+            <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '4px 0 0' }}>
               Precios sugeridos por maquinaria (se usan al configurar tarifas)
             </p>
           </div>
@@ -171,7 +188,7 @@ function AdminPricingScreen() {
               disabled={saving}
               style={{
                 padding: '8px 16px',
-                background: '#EC6819',
+                background: ADMIN_PALETTE.brand,
                 border: 'none',
                 borderRadius: 8,
                 color: '#fff',
@@ -184,7 +201,7 @@ function AdminPricingScreen() {
             </button>
           </div>
         </div>
-        <div style={{ maxWidth: 900, margin: '14px auto 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ maxWidth: 1200, margin: '14px auto 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[
             { key: 'dashboard', label: 'Operación', to: '/admin' },
             { key: 'users', label: 'Usuarios', to: '/admin/users' },
@@ -200,8 +217,8 @@ function AdminPricingScreen() {
                 style={{
                   padding: '8px 14px',
                   borderRadius: 999,
-                  border: active ? '1px solid rgba(236, 104, 25, 0.55)' : '1px solid rgba(255,255,255,0.18)',
-                  background: active ? 'rgba(236, 104, 25, 0.18)' : 'transparent',
+                  border: active ? '1px solid rgba(236, 104, 25, 0.55)' : `1px solid ${ADMIN_THEME.borderStrong}`,
+                  background: active ? 'rgba(236, 104, 25, 0.18)' : 'rgba(255,255,255,0.04)',
                   color: active ? '#fff' : 'rgba(255,255,255,0.85)',
                   cursor: 'pointer',
                   fontSize: 13,
@@ -215,20 +232,20 @@ function AdminPricingScreen() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 40 }}>
-            <span style={{ width: 32, height: 32, border: '3px solid rgba(236,104,25,0.3)', borderTopColor: '#EC6819', borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
+            <span style={{ width: 32, height: 32, border: '3px solid rgba(236,104,25,0.25)', borderTopColor: ADMIN_PALETTE.brand, borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>Cargando precios...</p>
           </div>
         ) : (
           <>
-            <div style={{ background: '#2A2A2A', borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
+            <div style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', marginBottom: 24, border: `1px solid ${ADMIN_THEME.border}` }}>
               <div style={{
                 padding: '14px 16px',
-                background: '#1a1a1a',
+                background: ADMIN_THEME.panelBgSoft,
                 fontSize: 12,
-                color: '#EC6819',
+                color: ADMIN_PALETTE.brand,
                 fontWeight: 600,
                 textTransform: 'uppercase'
               }}>
@@ -239,7 +256,7 @@ function AdminPricingScreen() {
                 gridTemplateColumns: '1fr 100px 100px 120px',
                 gap: 12,
                 padding: '12px 16px',
-                background: '#1a1a1a',
+                background: ADMIN_THEME.panelBgSoft,
                 fontSize: 13,
                 color: 'rgba(255,255,255,0.5)',
                 textTransform: 'uppercase'
@@ -252,12 +269,12 @@ function AdminPricingScreen() {
               {Object.keys(prices.per_hour || {}).map(id => <PriceRow key={id} type="per_hour" machineId={id} />)}
             </div>
 
-            <div style={{ background: '#2A2A2A', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', border: `1px solid ${ADMIN_THEME.border}` }}>
               <div style={{
                 padding: '14px 16px',
-                background: '#1a1a1a',
+                background: ADMIN_THEME.panelBgSoft,
                 fontSize: 12,
-                color: '#EC6819',
+                color: ADMIN_PALETTE.brand,
                 fontWeight: 600,
                 textTransform: 'uppercase'
               }}>
@@ -268,7 +285,7 @@ function AdminPricingScreen() {
                 gridTemplateColumns: '1fr 100px 100px 120px',
                 gap: 12,
                 padding: '12px 16px',
-                background: '#1a1a1a',
+                background: ADMIN_THEME.panelBgSoft,
                 fontSize: 13,
                 color: 'rgba(255,255,255,0.5)',
                 textTransform: 'uppercase'

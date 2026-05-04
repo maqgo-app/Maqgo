@@ -6,6 +6,23 @@ import ConfirmModal from '../../components/ConfirmModal';
 
 import BACKEND_URL from '../../utils/api';
 
+const ADMIN_PALETTE = {
+  brand: '#EC6819',
+  info: '#8FB3C9',
+  success: '#66BB6A',
+  warning: '#D9A15A',
+  danger: '#E57373',
+};
+
+const ADMIN_THEME = {
+  appBg: '#12151B',
+  panelBg: '#1B2028',
+  panelBgSoft: '#171B22',
+  border: 'rgba(255,255,255,0.08)',
+  borderStrong: 'rgba(255,255,255,0.14)',
+  textMuted: 'rgba(255,255,255,0.72)',
+};
+
 function AdminUsersScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -195,18 +212,18 @@ function AdminUsersScreen() {
   };
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#1a1a1a', color: '#fff', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
       <div style={{
-        background: '#2A2A2A',
+        background: ADMIN_THEME.panelBg,
         padding: '20px 24px',
-        borderBottom: '1px solid rgba(255,255,255,0.1)'
+        borderBottom: `1px solid ${ADMIN_THEME.border}`
       }}>
         <div style={{ maxWidth: 1000, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: '#EC6819', fontFamily: "'Space Grotesk', sans-serif" }}>
               Usuarios registrados
             </h1>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '4px 0 0' }}>
+            <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '4px 0 0' }}>
               Clientes y proveedores en la plataforma
             </p>
           </div>
@@ -227,8 +244,8 @@ function AdminUsersScreen() {
                 style={{
                   padding: '8px 14px',
                   borderRadius: 999,
-                  border: active ? '1px solid rgba(236, 104, 25, 0.55)' : '1px solid rgba(255,255,255,0.18)',
-                  background: active ? 'rgba(236, 104, 25, 0.18)' : 'transparent',
+                  border: active ? `1px solid rgba(236, 104, 25, 0.55)` : `1px solid ${ADMIN_THEME.borderStrong}`,
+                  background: active ? 'rgba(236, 104, 25, 0.18)' : 'rgba(255,255,255,0.04)',
                   color: active ? '#fff' : 'rgba(255,255,255,0.85)',
                   cursor: 'pointer',
                   fontSize: 13,
@@ -249,7 +266,7 @@ function AdminUsersScreen() {
             onClick={() => setTab('clients')}
             style={{
               padding: '10px 20px',
-              background: tab === 'clients' ? '#EC6819' : '#363636',
+              background: tab === 'clients' ? ADMIN_PALETTE.brand : ADMIN_THEME.panelBg,
               border: 'none',
               borderRadius: 8,
               color: '#fff',
@@ -264,7 +281,7 @@ function AdminUsersScreen() {
             onClick={() => setTab('providers')}
             style={{
               padding: '10px 20px',
-              background: tab === 'providers' ? '#EC6819' : '#363636',
+              background: tab === 'providers' ? ADMIN_PALETTE.brand : ADMIN_THEME.panelBg,
               border: 'none',
               borderRadius: 8,
               color: '#fff',
@@ -278,11 +295,11 @@ function AdminUsersScreen() {
         </div>
 
         {/* Tabla */}
-        <div style={{ background: '#2A2A2A', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', border: `1px solid ${ADMIN_THEME.border}` }}>
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-              <span style={{ width: 32, height: 32, border: '3px solid rgba(236,104,25,0.3)', borderTopColor: '#EC6819', borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
-              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14 }}>Cargando usuarios...</p>
+              <span style={{ width: 32, height: 32, border: '3px solid rgba(236,104,25,0.25)', borderTopColor: ADMIN_PALETTE.brand, borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
+              <p style={{ color: ADMIN_THEME.textMuted, fontSize: 14 }}>Cargando usuarios...</p>
             </div>
           ) : users.length === 0 ? (
             <div style={{ padding: 50, textAlign: 'center' }}>
@@ -298,7 +315,7 @@ function AdminUsersScreen() {
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ background: '#1a1a1a' }}>
+                  <tr style={{ background: ADMIN_THEME.panelBgSoft }}>
                     <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Nombre</th>
                     <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
                     <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Teléfono</th>
@@ -317,7 +334,7 @@ function AdminUsersScreen() {
                 </thead>
                 <tbody>
                   {normalizedUsers.map((u, i) => (
-                    <tr key={u.id || i} style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <tr key={u.id || i} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
                       <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{u.name || '-'}</td>
                       <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.email || '-'}</td>
                       <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.phone || '-'}</td>
@@ -331,8 +348,8 @@ function AdminUsersScreen() {
                               borderRadius: 6,
                               fontSize: 13,
                               fontWeight: 600,
-                              background: u.__onboardingCompleted ? 'rgba(76, 175, 80, 0.2)' : 'rgba(255,255,255,0.1)',
-                              color: u.__onboardingCompleted ? '#4CAF50' : 'rgba(255,255,255,0.6)'
+                              background: u.__onboardingCompleted ? 'rgba(102, 187, 106, 0.16)' : 'rgba(255,255,255,0.08)',
+                              color: u.__onboardingCompleted ? ADMIN_PALETTE.success : ADMIN_THEME.textMuted
                             }}>
                               {u.__onboardingCompleted ? 'OK' : 'Pendiente'}
                             </span>
@@ -343,8 +360,8 @@ function AdminUsersScreen() {
                               borderRadius: 6,
                               fontSize: 13,
                               fontWeight: 600,
-                              background: u.isAvailable ? 'rgba(76, 175, 80, 0.2)' : 'rgba(255,255,255,0.1)',
-                              color: u.isAvailable ? '#4CAF50' : 'rgba(255,255,255,0.6)'
+                              background: u.isAvailable ? 'rgba(102, 187, 106, 0.16)' : 'rgba(255,255,255,0.08)',
+                              color: u.isAvailable ? ADMIN_PALETTE.success : ADMIN_THEME.textMuted
                             }}>
                               {u.isAvailable ? 'Sí' : 'No'}
                             </span>
@@ -363,8 +380,8 @@ function AdminUsersScreen() {
                             style={{
                               padding: '8px 12px',
                               borderRadius: 8,
-                              background: 'rgba(255,255,255,0.08)',
-                              border: '1px solid rgba(255,255,255,0.18)',
+                              background: 'rgba(255,255,255,0.06)',
+                              border: `1px solid ${ADMIN_THEME.borderStrong}`,
                               color: '#fff',
                               cursor: 'pointer',
                               fontSize: 13,
