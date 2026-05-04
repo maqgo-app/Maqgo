@@ -342,21 +342,44 @@ function AdminMarketingScreen() {
         borderBottom: `1px solid ${ADMIN_THEME.border}`,
       }}
       >
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div>
+        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              type="button"
+              onClick={() => navigate('/admin')}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 999,
+                background: 'transparent',
+                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                color: '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              aria-label="Volver a Reservas"
+              title="Volver a Reservas"
+            >
+              <BackArrowIcon size={18} style={{ display: 'block' }} />
+            </button>
             <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: ADMIN_PALETTE.brand, fontFamily: "'Space Grotesk', sans-serif" }}>
               Marketing & CAC
             </h1>
-            <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '4px 0 0', maxWidth: 620 }}>
-              Inversión semanal por canal y audiencia. Elige la semana con la fecha; el sistema usa el <strong>lunes</strong> de esa semana como clave (buena práctica para alinear con reportes de ads).
-              {' '}
-              <span style={{ color: 'rgba(255,255,255,0.5)' }}>
-                Solo carga este código al entrar aquí (lazy); no hace más lenta la app para clientes/proveedores.
-              </span>
-            </p>
           </div>
         </div>
-        <div style={{ maxWidth: 1200, margin: '14px auto 0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ maxWidth: 1400, margin: '6px auto 0' }}>
+          <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: 0, maxWidth: 820 }}>
+            Inversión semanal por canal y audiencia. Elige la semana con la fecha; el sistema usa el{' '}
+            <strong>lunes</strong> de esa semana como clave.
+            {' '}
+            <span style={{ color: 'rgba(255,255,255,0.5)' }}>
+              Solo carga este módulo al entrar aquí.
+            </span>
+          </p>
+        </div>
+        <div style={{ maxWidth: 1400, margin: '14px auto 0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: ADMIN_THEME.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' }}>
             Secciones
           </span>
@@ -390,7 +413,7 @@ function AdminMarketingScreen() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
         {/* Semana: campo fecha + rango efectivo */}
         <section
           style={{

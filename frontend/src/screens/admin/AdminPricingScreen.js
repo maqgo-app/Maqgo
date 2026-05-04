@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { MACHINERY_NAMES as MACHINE_NAMES } from '../../utils/machineryNames';
+import { BackArrowIcon } from '../../components/BackArrowIcon';
 
 const ADMIN_PALETTE = {
   brand: '#EC6819',
@@ -173,14 +174,31 @@ function AdminPricingScreen() {
         padding: '20px 24px',
         borderBottom: `1px solid ${ADMIN_THEME.border}`
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div>
+        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              type="button"
+              onClick={() => navigate('/admin')}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 999,
+                background: 'transparent',
+                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                color: '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              aria-label="Volver a Reservas"
+              title="Volver a Reservas"
+            >
+              <BackArrowIcon size={18} style={{ display: 'block' }} />
+            </button>
             <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: '#EC6819', fontFamily: "'Space Grotesk', sans-serif" }}>
               Precios de referencia
             </h1>
-            <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '4px 0 0' }}>
-              Precios sugeridos por maquinaria (se usan al configurar tarifas)
-            </p>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
             <button
@@ -201,7 +219,12 @@ function AdminPricingScreen() {
             </button>
           </div>
         </div>
-        <div style={{ maxWidth: 1200, margin: '14px auto 0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ maxWidth: 1400, margin: '6px auto 0' }}>
+          <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: 0 }}>
+            Precios sugeridos por maquinaria (se usan al configurar tarifas)
+          </p>
+        </div>
+        <div style={{ maxWidth: 1400, margin: '14px auto 0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: ADMIN_THEME.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' }}>
             Secciones
           </span>
@@ -235,7 +258,7 @@ function AdminPricingScreen() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 40 }}>
             <span style={{ width: 32, height: 32, border: '3px solid rgba(236,104,25,0.25)', borderTopColor: ADMIN_PALETTE.brand, borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />

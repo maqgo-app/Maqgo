@@ -847,13 +847,33 @@ function AdminDashboard() {
         borderBottom: `1px solid ${ADMIN_THEME.border}`
       }}>
         <div style={{ 
-          maxWidth: 1200, 
+          maxWidth: 1400, 
           margin: '0 auto',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              type="button"
+              onClick={() => navigate('/welcome', { replace: false })}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 999,
+                background: 'transparent',
+                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                color: '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              aria-label="Volver a portada"
+              title="Volver a portada"
+            >
+              <BackArrowIcon size={18} style={{ display: 'block' }} />
+            </button>
             <h1 style={{ 
               fontSize: 24, 
               fontWeight: 700, 
@@ -863,24 +883,8 @@ function AdminDashboard() {
             }}>
               MAQGO Admin
             </h1>
-            <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '4px 0 0' }}>
-              Panel interno — reservas y facturación (solo dueño MAQGO)
-            </p>
-            {usingOfflineDemo && (
-              <p
-                style={{
-                  color: '#E8A34B',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  margin: '8px 0 0',
-                  letterSpacing: 0.6,
-                  textTransform: 'uppercase',
-                }}
-              >
-                Datos de demostración — no operativo
-              </p>
-            )}
           </div>
+          <div style={{ flex: 1, minWidth: 260 }} />
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             {/* Campana de alertas urgentes */}
             <button
@@ -1180,6 +1184,25 @@ function AdminDashboard() {
             </button>
           </div>
         </div>
+        <div style={{ maxWidth: 1400, margin: '6px auto 0' }}>
+          <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: 0 }}>
+            Panel interno — reservas y facturación (solo dueño MAQGO)
+          </p>
+          {usingOfflineDemo && (
+            <p
+              style={{
+                color: '#E8A34B',
+                fontSize: 12,
+                fontWeight: 700,
+                margin: '8px 0 0',
+                letterSpacing: 0.6,
+                textTransform: 'uppercase',
+              }}
+            >
+              Datos de demostración — no operativo
+            </p>
+          )}
+        </div>
       </div>
 
       {showUrgentModal && (
@@ -1305,7 +1328,7 @@ function AdminDashboard() {
       )}
 
       {/* Content */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
         {adminArea === 'today' && (
         <div
           style={{

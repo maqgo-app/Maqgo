@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
+import { BackArrowIcon } from '../../components/BackArrowIcon';
 
 function validateNewPassword(pw) {
   if (!pw || pw.length < 8 || pw.length > 64) return 'La nueva contraseña debe tener 8-64 caracteres.';
@@ -92,6 +93,27 @@ function AdminChangePasswordScreen() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--maqgo-bg)', color: '#fff', padding: 24 }}>
       <div style={{ maxWidth: 520, margin: '0 auto' }}>
+        <button
+          type="button"
+          onClick={() => navigate('/admin')}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 999,
+            background: 'transparent',
+            border: '1px solid rgba(255,255,255,0.2)',
+            color: '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 10,
+          }}
+          aria-label="Volver"
+          title="Volver"
+        >
+          <BackArrowIcon size={18} style={{ display: 'block' }} />
+        </button>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: '12px 0 8px' }}>Cambio obligatorio de contraseña</h1>
         <p style={{ margin: 0, color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 1.5 }}>
           Para activar tu acceso al panel MAQGO, define una nueva contraseña.
