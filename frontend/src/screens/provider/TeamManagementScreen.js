@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/authHooks';
 import { useToast } from '../../components/Toast';
@@ -16,10 +16,12 @@ import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
  */
 function TeamManagementScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const screenMode = location.pathname === '/provider/managers' ? 'master' : 'operator';
   const { isSuperMaster } = useAuth();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('team'); // 'team' | 'invite'
-  const [inviteType, setInviteType] = useState('operator'); // 'operator' | 'master'
+  const [inviteType, setInviteType] = useState(screenMode); // 'operator' | 'master'
   const [team, setTeam] = useState({ masters: [], operators: [], pending_invitations: [] });
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
@@ -32,6 +34,17 @@ function TeamManagementScreen() {
   const [didAttemptInvite, setDidAttemptInvite] = useState(false);
   const GPS_FRESH_MINUTES = 10;
   const GPS_STALE_MINUTES = 120;
+
+  useEffect(() => {
+    setInviteType(screenMode);
+    setActiveTab('team');
+    setShowCode(false);
+    setInviteCode('');
+    setDidAttemptInvite(false);
+    setOperatorNombreCompleto('');
+    setOperatorRut('');
+    setOperatorPhone('');
+  }, [screenMode]);
 
   const parseIsoOrNull = (value) => {
     if (!value) return null;
@@ -100,9 +113,12 @@ function TeamManagementScreen() {
     return `+${digits}`;
   };
 
-  const buildInviteMessage = (code) => {
+  const buildInviteMessage = (code, type = inviteType) => {
     const c = String(code || '').trim().toUpperCase();
-    return `Tu código de activación MAQGO es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy operador (tengo código)”\n3) Ingresa el código\n\nVálido por 7 días.`;
+    if (type === 'master') {
+      return `Tu código de acceso MAQGO (Gerente) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy gerente”\n3) Ingresa el código\n\nVálido por 7 días.`;
+    }
+    return `Tu código de activación MAQGO (Operador) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy operador (tengo código)”\n3) Ingresa el código\n\nVálido por 7 días.`;
   };
 
   const generateInviteCode = async () => {
@@ -132,6 +148,14 @@ function TeamManagementScreen() {
           operator_phone: normalizedPhone || undefined,
           operator_rut: operatorRut.trim(),
         };
+      } else if (inviteType === 'master') {
+        const fullName = operatorNombreCompleto.trim();
+        const normalizedPhone = normalizePhoneForChannel(operatorPhone);
+        payload = {
+          owner_id: ownerId,
+          master_name: fullName || undefined,
+          master_phone: normalizedPhone || undefined,
+        };
       }
 
       const response = await axios.post(endpoint, payload);
@@ -141,6 +165,7 @@ function TeamManagementScreen() {
       // Limpiar formulario de datos de operador
       setOperatorNombreCompleto('');
       setOperatorRut('');
+      setOperatorPhone('');
       setDidAttemptInvite(false);
       loadTeam(); // Recargar para ver la invitación pendiente
     } catch (e) {
@@ -192,7 +217,7 @@ function TeamManagementScreen() {
   const shareCode = async (channel) => {
     const code = String(inviteCode || '').trim().toUpperCase();
     if (!code) return;
-    const text = buildInviteMessage(code);
+    const text = buildInviteMessage(code, inviteType);
     const phone = normalizePhoneForChannel(operatorPhone);
     if (channel === 'system') {
       if (navigator?.share) {
@@ -218,10 +243,10 @@ function TeamManagementScreen() {
     }
   };
 
-  const shareInvite = async (channel, code, phone) => {
+  const shareInvite = async (channel, code, phone, type) => {
     const c = String(code || '').trim().toUpperCase();
     if (!c) return;
-    const text = buildInviteMessage(c);
+    const text = buildInviteMessage(c, type);
     const normalized = normalizePhoneForChannel(phone);
     if (channel === 'whatsapp') {
       const base = normalized ? `https://wa.me/${normalized.replace('+', '')}` : 'https://wa.me/';
@@ -286,6 +311,36 @@ function TeamManagementScreen() {
     if (!operatorRut.trim()) missingInviteFields.push('RUT');
   }
   const isInviteFormValid = inviteType !== 'operator' || missingInviteFields.length === 0;
+  const visiblePendingInvitations = (team.pending_invitations || []).filter((inv) => {
+    const t = inv?.invite_type || 'operator';
+    return inviteType === 'master' ? t === 'master' : t !== 'master';
+  });
+
+  if (inviteType === 'master' && !isSuperMaster()) {
+    return (
+      <div className="maqgo-app maqgo-provider-funnel">
+        <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, marginTop: 10 }}>
+            <button
+              onClick={() => navigate(-1)}
+              style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 8 }}
+              data-testid="back-btn"
+            >
+              <BackArrowIcon />
+            </button>
+            <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
+              Accesos de gerentes
+            </h1>
+          </div>
+          <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 18, textAlign: 'center' }}>
+            <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 14, margin: 0, lineHeight: 1.45 }}>
+              Acceso restringido. Solo el titular de la empresa puede gestionar gerentes.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
@@ -318,7 +373,7 @@ function TeamManagementScreen() {
             margin: 0,
             fontFamily: "'Space Grotesk', sans-serif"
           }}>
-            Código de activación operadores
+            {inviteType === 'master' ? 'Accesos de gerentes' : 'Código de activación operadores'}
           </h1>
         </div>
 
@@ -343,7 +398,9 @@ function TeamManagementScreen() {
             }}
             data-testid="tab-team"
           >
-            Integrantes ({team.masters_count + team.operators_count || 0})
+            {inviteType === 'master'
+              ? `Gerentes (${team.masters?.length || 0})`
+              : `Operadores (${team.operators?.length || 0})`}
           </button>
           <button
             onClick={() => setActiveTab('invite')}
@@ -360,7 +417,7 @@ function TeamManagementScreen() {
             }}
             data-testid="tab-invite"
           >
-            Invitar
+            {inviteType === 'master' ? 'Invitar gerente' : 'Invitar operador'}
           </button>
         </div>
 
@@ -371,76 +428,91 @@ function TeamManagementScreen() {
               <p style={{ color: 'rgba(255,255,255,0.95)', textAlign: 'center' }}>Cargando...</p>
             ) : (
               <>
-                {/* Masters */}
-                {team.masters && team.masters.length > 0 && (
+                {inviteType === 'master' ? (
                   <div style={{ marginBottom: 20 }}>
-                    <p style={{ 
-                      color: 'rgba(255,255,255,0.95)', 
-                      fontSize: 12, 
-                      textTransform: 'uppercase',
-                      marginBottom: 10
-                    }}>
-                      Gerentes ({team.masters.length})
+                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
+                      Gerentes ({team.masters?.length || 0})
                     </p>
-                    {team.masters.map((member, idx) => (
-                      <div 
-                        key={member.id || idx}
-                        style={{
-                          background: '#2A2A2A',
-                          borderRadius: 12,
-                          padding: 14,
-                          marginBottom: 10,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12
-                        }}
-                      >
-                        <div style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: '50%',
-                          background: '#363636',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          <span style={{ color: '#9C27B0', fontSize: 18, fontWeight: 700 }}>
-                            {member.name?.charAt(0) || 'M'}
+                    {team.masters && team.masters.length > 0 ? (
+                      team.masters.map((member, idx) => (
+                        <div
+                          key={member.id || idx}
+                          style={{
+                            background: '#2A2A2A',
+                            borderRadius: 12,
+                            padding: 14,
+                            marginBottom: 10,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: '50%',
+                              background: '#363636',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <span style={{ color: '#9C27B0', fontSize: 18, fontWeight: 700 }}>
+                              {member.name?.charAt(0) || 'M'}
+                            </span>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
+                              {member.name}
+                            </p>
+                            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
+                              {member.phone || 'Sin celular'}
+                            </p>
+                          </div>
+                          <span
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 20,
+                              background: 'rgba(156, 39, 176, 0.2)',
+                              color: '#9C27B0',
+                              fontSize: 13,
+                              fontWeight: 600,
+                            }}
+                          >
+                            Gerente
                           </span>
                         </div>
-                        <div style={{ flex: 1 }}>
-                          <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
-                            {member.name}
-                          </p>
-                          <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
-                            {member.phone || 'Sin celular'}
-                          </p>
-                        </div>
-                        <span style={{
-                          padding: '4px 10px',
-                          borderRadius: 20,
-                          background: 'rgba(156, 39, 176, 0.2)',
-                          color: '#9C27B0',
-                          fontSize: 13,
-                          fontWeight: 600
-                        }}>
-                          Gerente
-                        </span>
+                      ))
+                    ) : (
+                      <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 30, textAlign: 'center' }}>
+                        <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, margin: 0 }}>
+                          No hay gerentes registrados
+                        </p>
+                        <button
+                          onClick={() => setActiveTab('invite')}
+                          style={{
+                            marginTop: 12,
+                            padding: '10px 20px',
+                            background: '#EC6819',
+                            border: 'none',
+                            borderRadius: 20,
+                            color: '#fff',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Invitar gerente
+                        </button>
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-
-                {/* Operadores */}
-                <div style={{ marginBottom: 20 }}>
-                  <p style={{ 
-                    color: 'rgba(255,255,255,0.95)', 
-                    fontSize: 12, 
-                    textTransform: 'uppercase',
-                    marginBottom: 10
-                  }}>
-                    Operadores ({team.operators?.length || 0})
-                  </p>
+                ) : (
+                  <div style={{ marginBottom: 20 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
+                      Operadores ({team.operators?.length || 0})
+                    </p>
                   {team.operators && team.operators.length > 0 ? (
                     team.operators.map((op, idx) => (
                       (() => {
@@ -554,9 +626,10 @@ function TeamManagementScreen() {
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Invitaciones pendientes */}
-                {team.pending_invitations && team.pending_invitations.length > 0 && (
+                {visiblePendingInvitations.length > 0 && (
                   <div>
                     <p style={{ 
                       color: 'rgba(255,255,255,0.95)', 
@@ -564,9 +637,9 @@ function TeamManagementScreen() {
                       textTransform: 'uppercase',
                       marginBottom: 10
                     }}>
-                      Invitaciones pendientes ({team.pending_invitations.length})
+                      Invitaciones pendientes ({visiblePendingInvitations.length})
                     </p>
-                    {team.pending_invitations.map((inv, idx) => (
+                    {visiblePendingInvitations.map((inv, idx) => (
                       <div 
                         key={inv.code || idx}
                         style={{
@@ -592,7 +665,12 @@ function TeamManagementScreen() {
                             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
                               {inv.invite_type === 'master' ? 'Para Gerente' : 'Para Operador'}
                             </p>
-                            {inv.operator_name && (
+                            {inv.invite_type === 'master' && inv.master_name && (
+                              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '6px 0 0' }}>
+                                {inv.master_name}{inv.master_phone ? ` · ${inv.master_phone}` : ''}
+                              </p>
+                            )}
+                            {inv.invite_type !== 'master' && inv.operator_name && (
                               <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '6px 0 0' }}>
                                 {inv.operator_name}{inv.operator_rut ? ` · RUT ${inv.operator_rut}` : ''}
                               </p>
@@ -601,7 +679,7 @@ function TeamManagementScreen() {
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             <button
                               type="button"
-                              onClick={() => shareInvite('copy', inv.code, inv.operator_phone)}
+                              onClick={() => shareInvite('copy', inv.code, inv.invite_type === 'master' ? inv.master_phone : inv.operator_phone, inv.invite_type)}
                               style={{
                                 padding: '6px 10px',
                                 background: 'rgba(255,255,255,0.08)',
@@ -617,7 +695,7 @@ function TeamManagementScreen() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => shareInvite('whatsapp', inv.code, inv.operator_phone)}
+                              onClick={() => shareInvite('whatsapp', inv.code, inv.invite_type === 'master' ? inv.master_phone : inv.operator_phone, inv.invite_type)}
                               style={{
                                 padding: '6px 10px',
                                 background: 'rgba(37, 211, 102, 0.14)',
@@ -684,17 +762,31 @@ function TeamManagementScreen() {
                     border: '1px solid rgba(255,255,255,0.12)',
                   }}
                 >
-                  <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
-                    <strong>Equipo de la empresa</strong> (esta pantalla): invitas a alguien al rol de{' '}
-                    <strong>operador de campo</strong> o de <strong>gerente</strong>. Son perfiles distintos.
-                  </p>
-                  <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
-                    Para <strong>asignar un operador a una máquina</strong> (retro, minicargador, etc.), usa{' '}
-                    <Link to="/provider/machines" style={{ color: '#EC6819', fontWeight: 600 }}>
-                      Mis máquinas
-                    </Link>
-                    . Ahí no se mezcla con el código de gerente.
-                  </p>
+                  {inviteType === 'master' ? (
+                    <>
+                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
+                        <strong>Acceso de gerentes</strong>: genera un código para que una persona se una como{' '}
+                        <strong>gerente</strong> de tu empresa (cuenta de gestión).
+                      </p>
+                      <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
+                        Este acceso es para <strong>gestión</strong> (no es operar una máquina).
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
+                        <strong>Operadores de maquinaria</strong>: genera un código para que un operador se registre y quede
+                        vinculado a tu empresa.
+                      </p>
+                      <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
+                        La <strong>asignación operador ↔ máquina</strong> se hace en{' '}
+                        <Link to="/provider/machines" style={{ color: '#EC6819', fontWeight: 600 }}>
+                          Mis máquinas
+                        </Link>
+                        .
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 <p
@@ -707,125 +799,9 @@ function TeamManagementScreen() {
                   }}
                 >
                   {inviteType === 'master'
-                    ? 'Genera un código para que una persona se una como gerente de tu empresa: cuenta proveedor con permisos amplios (no es solo operar una máquina).'
-                    : 'Genera un código para que un operador de campo se registre y quede vinculado a tu empresa.'}
+                    ? 'Genera un código y compártelo con tu gerente.'
+                    : 'Genera un código y envíaselo a tu operador.'}
                 </p>
-
-                {/* Selector de tipo */}
-                <div style={{ marginBottom: 25 }}>
-                  <p style={{ 
-                    color: 'rgba(255,255,255,0.95)', 
-                    fontSize: 12, 
-                    textTransform: 'uppercase',
-                    marginBottom: 10
-                  }}>
-                    ¿Qué quieres invitar?
-                  </p>
-                  
-                  {/* Opción Operador */}
-                  <div
-                    onClick={() => setInviteType('operator')}
-                    style={{
-                      background: inviteType === 'operator' ? 'rgba(144, 189, 211, 0.15)' : '#2A2A2A',
-                      border: inviteType === 'operator' ? '2px solid #90BDD3' : '2px solid transparent',
-                      borderRadius: 12,
-                      padding: 16,
-                      marginBottom: 10,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
-                    data-testid="invite-type-operator"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        background: '#90BDD3',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="8" r="4" stroke="#fff" strokeWidth="2"/>
-                          <path d="M4 20c0-4 4-6 8-6s8 2 8 6" stroke="#fff" strokeWidth="2"/>
-                        </svg>
-                      </div>
-                      <div>
-                        <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
-                          Operador
-                        </p>
-                        <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
-                          Servicios en terreno (rol operador de la empresa)
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Opción Master - Solo visible para Titular */}
-                  {isSuperMaster() && (
-                    <div
-                      onClick={() => setInviteType('master')}
-                      style={{
-                        background: inviteType === 'master' ? 'rgba(156, 39, 176, 0.15)' : '#2A2A2A',
-                        border: inviteType === 'master' ? '2px solid #9C27B0' : '2px solid transparent',
-                        borderRadius: 12,
-                        padding: 16,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                      }}
-                      data-testid="invite-type-master"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: '50%',
-                          background: '#9C27B0',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                            <rect x="3" y="3" width="18" height="18" rx="2" stroke="#fff" strokeWidth="2"/>
-                            <path d="M8 12h8M12 8v8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
-                          </svg>
-                        </div>
-                        <div>
-                          <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
-                            Gerente
-                          </p>
-                          <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
-                            Cuenta de gestión para tu empresa (no es operador de maquinaria)
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {inviteType === 'master' && (
-                  <div
-                    style={{
-                      marginBottom: 20,
-                      padding: 14,
-                      borderRadius: 12,
-                      background: 'rgba(156, 39, 176, 0.12)',
-                      border: '1px solid rgba(156, 39, 176, 0.4)',
-                    }}
-                  >
-                    <p style={{ color: '#E1BEE7', fontSize: 12, fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                      Invitación de gerente
-                    </p>
-                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                      Este código es el mecanismo para dar de alta a un <strong>gerente</strong>: al usarlo en la app crea una cuenta <strong>proveedor</strong> con rol gerente, vinculada a tu empresa. Es una autorización fuerte: solo compártelo con alguien de confianza. No sustituye invitar operadores de terreno ni asignar personas en{' '}
-                      <Link to="/provider/machines" style={{ color: '#CE93D8', fontWeight: 600 }}>
-                        Mis máquinas
-                      </Link>
-                      .
-                    </p>
-                  </div>
-                )}
 
                 {/* Datos del operador cuando la invitación es para operador */}
                 {inviteType === 'operator' && (

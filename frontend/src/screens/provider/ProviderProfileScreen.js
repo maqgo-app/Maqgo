@@ -181,6 +181,13 @@ function ProviderProfileScreen() {
               sublabel="Invitar y gestionar equipo"
               onClick={() => navigate('/provider/team')}
             />
+            {providerRole === 'super_master' && (
+              <MenuItem
+                label="Accesos de gerentes"
+                sublabel="Invitar y gestionar permisos"
+                onClick={() => navigate('/provider/managers')}
+              />
+            )}
 
             <SectionTitle title="Mi cuenta" />
             <MenuItem 

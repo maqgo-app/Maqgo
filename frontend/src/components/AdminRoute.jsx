@@ -66,8 +66,8 @@ function AdminRoute() {
     }
   }, [rolesRaw]);
 
-  const isAdminByStorage = Array.isArray(roles) && roles.includes('admin');
   const shouldVerifyAdmin = Boolean(userId && token);
+  const isAdminByStorage = shouldVerifyAdmin && Array.isArray(roles) && roles.includes('admin');
 
   /** Solo muestra bloqueo en la primera entrada o cuando vence el cache. */
   const [checkingAdmin, setCheckingAdmin] = useState(() => {
@@ -79,8 +79,15 @@ function AdminRoute() {
   useEffect(() => {
     let mounted = true;
     if (!shouldVerifyAdmin) {
+      if (userId && !token) {
+        clearAdminSession();
+        clearAdminVerifiedCache();
+        clearAdminDemoBypass();
+      }
       setCheckingAdmin(false);
       setStatsNetworkFailure(false);
+      setVerifiedAdmin(false);
+      setMustChangePassword(false);
       return () => {};
     }
 

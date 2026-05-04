@@ -438,6 +438,7 @@ function AppContent() {
         <Route path="/provider/tariffs" element={<TariffsScreen />} />
         <Route path="/provider/operator" element={<OperatorScreen />} />
         <Route path="/provider/team" element={<TeamManagementScreen />} />
+        <Route path="/provider/managers" element={<TeamManagementScreen />} />
         <Route path="/provider/profile/empresa" element={<EmpresaScreen />} />
         <Route
           path="/provider/profile/banco"

@@ -589,7 +589,9 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
     <ModalOverlay onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0 }}>Asignar operadores</h3>
+          <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0 }}>
+            {(machine.operators || []).length > 0 ? 'Editar operadores' : 'Asignar operadores'}
+          </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: 4 }}>✕</button>
         </div>
         <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '0 0 14px' }}>{machine.type}</p>
