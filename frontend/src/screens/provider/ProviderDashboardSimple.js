@@ -8,7 +8,6 @@ import { ProviderNavigation } from '../../components/BottomNavigation';
 import { downloadVoucherPDF } from '../../utils/voucherPdf';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
-import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
 
 /** Solo si falla la API: evita pantalla vacía en demo; siempre con banner explícito. */
 function buildDemoServices() {
@@ -222,7 +221,18 @@ function ProviderDashboardSimple() {
             marginBottom: 16,
           }}
         >
-          <MaqgoLogo size="small" />
+          <button
+            type="button"
+            onClick={() => navigate('/provider/profile')}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            aria-label="Volver"
+          >
+            <BackArrowIcon style={{ color: '#fff' }} />
+          </button>
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <MaqgoLogo size="small" />
+          </div>
+          <div style={{ width: 24 }} />
         </div>
 
         {dataMode === 'demo' && (
@@ -286,8 +296,8 @@ function ProviderDashboardSimple() {
             <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.45 }}>
               Cuando completes servicios, aparecerán aquí para facturación y seguimiento de pago.
             </p>
-            <button type="button" className="maqgo-btn-primary" onClick={() => navigate(getProviderLandingPath())}>
-              Ir al inicio
+            <button type="button" className="maqgo-btn-primary" onClick={() => navigate('/provider/profile')}>
+              Volver a Mi Empresa
             </button>
           </div>
         )}
