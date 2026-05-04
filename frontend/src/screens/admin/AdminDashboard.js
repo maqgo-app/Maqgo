@@ -103,7 +103,21 @@ function AdminDashboard() {
   const [liveRequestsError, setLiveRequestsError] = useState('');
   const [liveRequestsUpdatedAt, setLiveRequestsUpdatedAt] = useState(null);
   const [showUrgentModal, setShowUrgentModal] = useState(false);
-  const [adminArea, setAdminArea] = useState('today');
+  const [adminArea, setAdminArea] = useState(() => {
+    try {
+      return localStorage.getItem('maqgo_admin_area') || 'today';
+    } catch {
+      return 'today';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('maqgo_admin_area', adminArea);
+    } catch {
+      void 0;
+    }
+  }, [adminArea]);
 
   // Fallback si el backend no envía `finances` (versiones viejas / demo)
   const calculateFinances = useCallback((serviceList) => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { MACHINERY_NAMES as MACHINE_NAMES } from '../../utils/machineryNames';
@@ -24,11 +24,19 @@ const ADMIN_THEME = {
 
 function AdminPricingScreen() {
   const navigate = useNavigate();
-  const location = useLocation();
   const toast = useToast();
   const [prices, setPrices] = useState({ per_hour: {}, per_service: {} });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const goDashboardArea = (area) => {
+    try {
+      localStorage.setItem('maqgo_admin_area', area);
+    } catch {
+      void 0;
+    }
+    navigate('/admin');
+  };
 
   async function fetchPrices() {
     try {
@@ -169,16 +177,12 @@ function AdminPricingScreen() {
 
   return (
     <div style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
-      <div style={{
-        background: ADMIN_THEME.panelBg,
-        padding: '20px 24px',
-        borderBottom: `1px solid ${ADMIN_THEME.border}`
-      }}>
-        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ background: ADMIN_THEME.panelBg, padding: '20px 24px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
               type="button"
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate('/welcome', { replace: false })}
               style={{
                 width: 40,
                 height: 40,
@@ -191,74 +195,196 @@ function AdminPricingScreen() {
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
-              aria-label="Volver a Reservas"
-              title="Volver a Reservas"
+              aria-label="Volver a portada"
+              title="Volver a portada"
             >
               <BackArrowIcon size={18} style={{ display: 'block' }} />
             </button>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: '#EC6819', fontFamily: "'Space Grotesk', sans-serif" }}>
-              Precios de referencia
+            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "'Space Grotesk', sans-serif", color: '#EC6819' }}>
+              MAQGO Admin
             </h1>
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 260 }} />
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <button
-              onClick={handleSave}
-              disabled={saving}
+              type="button"
+              aria-label="Sin alertas urgentes"
+              disabled
+              style={{
+                position: 'relative',
+                width: 38,
+                height: 38,
+                borderRadius: '999px',
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'default',
+                opacity: 0.6,
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 3C9.79086 3 8 4.79086 8 7V8.2C8 9.09411 7.70361 9.96449 7.1577 10.7L6.44721 11.6524C5.53397 12.872 6.4022 14.6 7.92462 14.6H16.0754C17.5978 14.6 18.466 12.872 17.5528 11.6524L16.8423 10.7C16.2964 9.96449 16 9.09411 16 8.2V7C16 4.79086 14.2091 3 12 3Z"
+                  stroke="#FFFFFF"
+                  strokeWidth="1.6"
+                />
+                <path
+                  d="M10 16C10.1709 17.1652 10.9882 18 12 18C13.0118 18 13.8291 17.1652 14 16"
+                  stroke="#FFFFFF"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+            <div style={{ display: 'flex', gap: 6, padding: 4, borderRadius: 999, border: `1px solid ${ADMIN_THEME.border}`, background: 'rgba(255,255,255,0.04)' }}>
+              <button
+                type="button"
+                onClick={() => goDashboardArea('today')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'rgba(255,255,255,0.8)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Hoy
+              </button>
+              <button
+                type="button"
+                onClick={() => goDashboardArea('system')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'rgba(255,255,255,0.8)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Sistema
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => goDashboardArea('money')}
               style={{
                 padding: '8px 16px',
-                background: ADMIN_PALETTE.brand,
-                border: 'none',
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
                 borderRadius: 8,
                 color: '#fff',
                 cursor: 'pointer',
                 fontSize: 13,
-                fontWeight: 600
+                fontWeight: 800,
               }}
             >
-              {saving ? 'Guardando...' : 'Guardar'}
+              💳 Facturación y pagos
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/users')}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 8,
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              👥 Usuarios
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/pricing')}
+              style={{
+                padding: '8px 16px',
+                background: 'rgba(236, 104, 25, 0.22)',
+                border: '1px solid rgba(236, 104, 25, 0.55)',
+                borderRadius: 8,
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              💰 Precios
+            </button>
+            <button
+              type="button"
+              title="Inversión semanal por canal, audiencia y CAC"
+              onClick={() => navigate('/admin/marketing')}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(126, 184, 212, 0.45)',
+                borderRadius: 8,
+                color: ADMIN_PALETTE.info,
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              📈 Marketing & CAC
+            </button>
+            <button
+              type="button"
+              onClick={() => goDashboardArea('money')}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 8,
+                color: 'rgba(255,255,255,0.8)',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              📥 Planilla pagos
             </button>
           </div>
-        </div>
-        <div style={{ maxWidth: 1400, margin: '6px auto 0' }}>
-          <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: 0 }}>
-            Precios sugeridos por maquinaria (se usan al configurar tarifas)
-          </p>
-        </div>
-        <div style={{ maxWidth: 1400, margin: '14px auto 0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: ADMIN_THEME.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' }}>
-            Secciones
-          </span>
-          {[
-            { key: 'dashboard', label: 'Reservas', to: '/admin' },
-            { key: 'users', label: 'Usuarios', to: '/admin/users' },
-            { key: 'pricing', label: 'Precios', to: '/admin/pricing' },
-            { key: 'marketing', label: 'Marketing', to: '/admin/marketing' },
-          ].map((it) => {
-            const active = location.pathname === it.to || (it.to === '/admin' && location.pathname === '/admin');
-            return (
-              <button
-                key={it.key}
-                type="button"
-                onClick={() => navigate(it.to)}
-                style={{
-                  padding: '8px 14px',
-                  borderRadius: 999,
-                  border: active ? '1px solid rgba(236, 104, 25, 0.55)' : `1px solid ${ADMIN_THEME.borderStrong}`,
-                  background: active ? 'rgba(236, 104, 25, 0.18)' : 'rgba(255,255,255,0.04)',
-                  color: active ? '#fff' : 'rgba(255,255,255,0.85)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 800,
-                }}
-              >
-                {it.label}
-              </button>
-            );
-          })}
         </div>
       </div>
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#fff' }}>Precios de referencia</h2>
+            <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '6px 0 0' }}>
+              Precios sugeridos por maquinaria (se usan al configurar tarifas)
+            </p>
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: '10px 16px',
+              background: ADMIN_PALETTE.brand,
+              border: 'none',
+              borderRadius: 10,
+              color: '#fff',
+              cursor: saving ? 'not-allowed' : 'pointer',
+              fontSize: 13,
+              fontWeight: 800,
+              opacity: saving ? 0.7 : 1,
+            }}
+          >
+            {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 40 }}>
             <span style={{ width: 32, height: 32, border: '3px solid rgba(236,104,25,0.25)', borderTopColor: ADMIN_PALETTE.brand, borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />

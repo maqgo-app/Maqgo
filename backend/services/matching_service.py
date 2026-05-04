@@ -772,7 +772,8 @@ async def handle_rotation_round_expired(
 async def start_matching(
     db: AsyncIOMotorDatabase,
     service_request_id: str,
-    selected_provider_id: str = None
+    selected_provider_id: str = None,
+    selected_provider_ids: List[str] = None,
 ) -> dict:
     """
     Inicia el proceso de matching para una solicitud.
@@ -812,20 +813,44 @@ async def start_matching(
         excluded_ids
     )
     
-    # Si el cliente eligió proveedor, enviar a ese (si está disponible y no excluido)
-    if selected_provider_id:
-        if selected_provider_id in excluded_ids:
-            # Ya fue contactado y rechazó: buscar siguiente
-            providers = [p for p in providers if p['id'] != selected_provider_id]
-        else:
-            target = next((p for p in providers if p['id'] == selected_provider_id), None)
-            if target:
-                target_provider = target
-            else:
-                # El elegido no está disponible: buscar el mejor
-                target_provider = providers[0] if providers else None
-    else:
-        target_provider = providers[0] if providers else None
+    normalized_selected_ids = [
+        str(x).strip()
+        for x in (selected_provider_ids or [])
+        if x is not None and str(x).strip()
+    ]
+    if selected_provider_id and str(selected_provider_id).strip():
+        sid = str(selected_provider_id).strip()
+        if sid not in normalized_selected_ids:
+            normalized_selected_ids = [sid] + normalized_selected_ids
+
+    # Si el cliente eligió uno o más proveedores: enviar oferta a ese set (si están disponibles y no excluidos)
+    if normalized_selected_ids:
+        eligible = [
+            p for p in providers
+            if str(p.get('id') or '').strip() in normalized_selected_ids
+            and str(p.get('id') or '').strip() not in excluded_ids
+        ]
+        if eligible:
+            offer = await send_offers_to_providers(
+                db,
+                service_request_id,
+                [p['id'] for p in eligible],
+            )
+            return {
+                'status': 'offer_sent',
+                'provider': {
+                    'id': eligible[0]['id'],
+                    'name': eligible[0].get('name', 'Proveedor'),
+                    'rating': eligible[0].get('rating', 5.0),
+                    'distance': eligible[0].get('_distance_km', 0)
+                },
+                'offer': offer,
+                'attemptNumber': len(excluded_ids) + len(eligible),
+                'maxAttempts': MATCHING_CONFIG['max_attempts']
+            }
+        # Si ninguno de los elegidos está disponible, caer al matching normal.
+
+    target_provider = providers[0] if providers else None
     
     if not target_provider:
         await db.service_requests.update_one(
@@ -838,7 +863,7 @@ async def start_matching(
         }
 
     # Rotación por olas: 2 + (3–4) + (5); sin presión tipo 60 s por cabeza
-    if not selected_provider_id and len(providers) >= 2:
+    if not normalized_selected_ids and len(providers) >= 2:
         return await send_rotation_wave_one(db, service_request_id, providers)
 
     offer = await send_offer_to_provider(db, service_request_id, target_provider['id'])
@@ -1122,4 +1147,48 @@ async def handle_offer_expired(
     
     logger.info(f"Oferta expirada para proveedor {provider_id}")
     
+    return await start_matching(db, service_request_id)
+
+
+async def handle_parallel_offers_expired(
+    db: AsyncIOMotorDatabase,
+    service_request_id: str,
+) -> dict:
+    """
+    Maneja cuando una oferta fue enviada a varios proveedores (sin currentOfferId)
+    y la ventana expira sin un ganador.
+
+    Marca todos los matchingAttempts pending como expired, penaliza matchingOffersExpired
+    y reinicia el matching con los excluidos acumulados.
+    """
+    sr = await db.service_requests.find_one({"id": service_request_id}, {"_id": 0})
+    if not sr or sr.get("status") != "offer_sent":
+        return {"status": "skipped"}
+    if sr.get("matchingRotationMode"):
+        return {"status": "skipped_rotation"}
+    if sr.get("currentOfferId"):
+        return {"status": "skipped_single"}
+
+    attempts = list(sr.get("matchingAttempts") or [])
+    pending_ids: List[str] = []
+    changed = False
+    for a in attempts:
+        if a.get("status") == "pending":
+            a["status"] = "expired"
+            pid = a.get("providerId")
+            if pid:
+                pending_ids.append(str(pid))
+            changed = True
+    if changed:
+        await db.service_requests.update_one(
+            {"id": service_request_id},
+            {"$set": {"matchingAttempts": attempts}},
+        )
+    for pid in pending_ids:
+        try:
+            await db.users.update_one({"id": pid}, {"$inc": {"matchingOffersExpired": 1}})
+        except Exception as e:
+            logger.warning("matchingOffersExpired increment failed: %s", e)
+
+    logger.info("Oferta paralela expirada para servicio %s (pending=%s)", service_request_id, len(pending_ids))
     return await start_matching(db, service_request_id)

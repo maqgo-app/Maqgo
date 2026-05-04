@@ -868,12 +868,6 @@ function ProviderHomeScreen() {
                     ? 'Estás en línea. Recibirás una alerta cuando haya una solicitud cerca.'
                     : 'Estás desconectado. Conéctate para empezar a recibir solicitudes de arriendo.'}
           </p>
-          {canReceiveRequests && available ? (
-            <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '0 0 12px', lineHeight: 1.45 }}>
-              Te avisaremos cuando llegue tu primera solicitud
-            </p>
-          ) : null}
-
           {/* CTA explícito: evita ambigüedad del "toca para conectarte" (no competir con banner post-inscripción) */}
           {!activationPending ? (
             <button

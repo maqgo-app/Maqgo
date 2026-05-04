@@ -241,8 +241,21 @@ function RequestReceivedScreen() {
 
   const handleReject = async () => {
     try {
+      const userId = localStorage.getItem('userId');
+      const providerIdForOffer = String(
+        request?.currentOfferId ||
+          request?.providerId ||
+          request?.provider_id ||
+          localStorage.getItem('ownerId') ||
+          userId ||
+          ''
+      );
       if (request?.id && !request.id.startsWith('req-')) {
-        await axios.put(`${BACKEND_URL}/api/service-requests/${request.id}/reject`, {}, { timeout: 12000 });
+        await axios.put(
+          `${BACKEND_URL}/api/service-requests/${request.id}/reject`,
+          { providerId: providerIdForOffer },
+          { timeout: 12000 }
+        );
       }
     } catch {
       // Ya manejamos fallback de navegación aunque falle el rechazo.

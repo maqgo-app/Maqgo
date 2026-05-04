@@ -190,6 +190,15 @@ def _can_read_service_request(user: dict, req: dict) -> bool:
     oid = req.get("currentOfferId")
     if oid and _provider_matches_user(user, oid):
         return True
+    attempts = req.get("matchingAttempts") or []
+    if isinstance(attempts, list):
+        for a in attempts:
+            if not isinstance(a, dict):
+                continue
+            if a.get("status") != "pending":
+                continue
+            if _provider_matches_user(user, a.get("providerId")):
+                return True
     return False
 
 
@@ -315,10 +324,25 @@ async def create_service_request(
         doc = service_obj.model_dump()
         await db.service_requests.insert_one(doc)
 
-        chosen_id = payload.selectedProviderId
-        if not chosen_id and payload.selectedProviderIds and len(payload.selectedProviderIds) > 0:
-            chosen_id = payload.selectedProviderIds[0]
-        matching_result = await start_matching(db, service_obj.id, selected_provider_id=chosen_id)
+        chosen_ids = []
+        if payload.selectedProviderId:
+            chosen_ids.append(payload.selectedProviderId)
+        if payload.selectedProviderIds and len(payload.selectedProviderIds) > 0:
+            chosen_ids.extend(list(payload.selectedProviderIds))
+        chosen_ids = [str(x).strip() for x in chosen_ids if x is not None and str(x).strip()]
+        dedup = []
+        seen = set()
+        for cid in chosen_ids:
+            if cid not in seen:
+                seen.add(cid)
+                dedup.append(cid)
+        chosen_ids = dedup
+
+        matching_result = await start_matching(
+            db,
+            service_obj.id,
+            selected_provider_ids=chosen_ids if chosen_ids else None,
+        )
 
         try:
             if not await payment_intent_service.get_by_booking_id(booking_id):
@@ -398,7 +422,13 @@ async def get_service_requests(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Sin permiso para listar solicitudes",
                 )
-            base = {"$or": [{"providerId": ep}, {"currentOfferId": ep}]}
+            base = {
+                "$or": [
+                    {"providerId": ep},
+                    {"currentOfferId": ep},
+                    {"matchingAttempts": {"$elemMatch": {"providerId": ep, "status": "pending"}}},
+                ]
+            }
             if service_status:
                 query = {"$and": [base, {"status": service_status}]}
             else:
@@ -424,7 +454,9 @@ async def get_pending_requests_for_provider(
         query = {"status": "offer_sent"}
         if current_user.get("role") == "admin":
             if providerId:
-                query["currentOfferId"] = providerId
+                query["matchingAttempts"] = {
+                    "$elemMatch": {"providerId": providerId, "status": "pending"}
+                }
         else:
             effective_provider_id = _effective_provider_account_id(current_user)
             if not effective_provider_id:
@@ -437,8 +469,12 @@ async def get_pending_requests_for_provider(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="providerId no coincide con tu sesión",
                 )
-            query["currentOfferId"] = effective_provider_id
-        requests = await db.service_requests.find(query, {"_id": 0}).to_list(100)
+            query["matchingAttempts"] = {
+                "$elemMatch": {"providerId": effective_provider_id, "status": "pending"}
+            }
+        requests = await (
+            db.service_requests.find(query, {"_id": 0}).sort("offerSentAt", -1).to_list(100)
+        )
     except ServerSelectionTimeoutError:
         logger.warning("MongoDB no disponible en /pending")
         return []
@@ -966,7 +1002,13 @@ async def reject_service_request(
     if not request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
 
-    provider_id = body.get('providerId') or request.get('currentOfferId')
+    provider_id = body.get('providerId')
+    if current_user.get("role") != "admin":
+        effective = _effective_provider_account_id(current_user)
+        if effective:
+            provider_id = effective
+    if not provider_id:
+        provider_id = request.get('currentOfferId')
     if not provider_id:
         raise HTTPException(status_code=400, detail="providerId requerido o no hay oferta activa")
     pending_ids = [

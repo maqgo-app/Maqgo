@@ -162,12 +162,12 @@ async def get_admin_users(_: dict = Depends(get_current_admin_strict)):
     """
     try:
         clients = await db.users.find(
-            {"role": "client"},
-            {"_id": 0, "password": 0}
+            {"$or": [{"role": "client"}, {"roles": "client"}]},
+            {"_id": 0, "password": 0},
         ).to_list(1000)
         providers = await db.users.find(
-            {"role": "provider"},
-            {"_id": 0, "password": 0}
+            {"$or": [{"role": "provider"}, {"roles": "provider"}]},
+            {"_id": 0, "password": 0},
         ).to_list(1000)
         return {
             "clients": clients,

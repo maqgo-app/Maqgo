@@ -108,13 +108,13 @@ describe('providerOnboardingStatus', () => {
     expect(getProviderLandingPath()).toBe('/provider/machine-data');
   });
 
-  it('Welcome + onboarding completo en LS → /provider/machine-data (agregar rápida)', () => {
+  it('Welcome + onboarding completo en LS → /provider/home', () => {
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerOnboardingCompleted: 'true',
       ...completePayload,
     });
-    expect(getProviderLandingPath()).toBe('/provider/machine-data');
+    expect(getProviderLandingPath()).toBe('/provider/home');
   });
 
   it('tras quitar flag Welcome + onboarding completo → /provider/home', () => {

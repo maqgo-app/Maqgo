@@ -372,7 +372,11 @@ _Ingresa a "Mis Cobros" en MAQGO_"""
         Returns:
             Número de ofertas expiradas
         """
-        from services.matching_service import handle_offer_expired, handle_rotation_round_expired
+        from services.matching_service import (
+            handle_offer_expired,
+            handle_parallel_offers_expired,
+            handle_rotation_round_expired,
+        )
 
         now_m = time.monotonic()
         if (
@@ -388,7 +392,7 @@ _Ingresa a "Mis Cobros" en MAQGO_"""
         candidates = await self.db.service_requests.find(
             {
                 'status': 'offer_sent',
-                'currentOfferId': {'$exists': True, '$ne': None},
+                'offerExpiresAt': {'$exists': True, '$ne': None},
             },
             {
                 '_id': 0,
@@ -429,6 +433,10 @@ _Ingresa a "Mis Cobros" en MAQGO_"""
                 )
                 expired_count += 1
                 logger.info(f"Oferta expirada para servicio {sid}")
+            else:
+                await handle_parallel_offers_expired(self.db, sid)
+                expired_count += 1
+                logger.info("Oferta paralela expirada servicio %s", sid)
 
         return expired_count
 

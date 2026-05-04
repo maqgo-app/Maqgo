@@ -94,15 +94,15 @@ export function isProviderOnboardingCompleteFromStorage() {
  * - Sin Welcome: orden clásico (empresa → máquina → …) o `/provider/home` si onboarding completo.
  */
 export function getProviderLandingPath() {
+  if (isProviderOnboardingCompleteFromStorage()) {
+    return '/provider/home';
+  }
   if (isProviderCameFromWelcomeFlag()) {
     const machines = getArray('providerMachines', []);
     const hasRegisteredMachine = Array.isArray(machines)
       ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))
       : false;
     if (hasRegisteredMachine) return MACHINE_FIRST_ENTRY;
-  }
-  if (isProviderOnboardingCompleteFromStorage()) {
-    return '/provider/home';
   }
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});

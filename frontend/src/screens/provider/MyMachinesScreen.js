@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
@@ -545,6 +545,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [teamOperators, setTeamOperators] = useState([]);
+  const [pendingInvitations, setPendingInvitations] = useState([]);
   const [selectedIds, setSelectedIds] = useState(() => new Set((machine.operators || []).map(o => o.id)));
   const [error, setError] = useState('');
 
@@ -555,9 +556,11 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
       .then((r) => {
         const ops = (r.data?.operators || []).filter((o) => (o?.provider_role || '') === 'operator' || !o?.provider_role);
         setTeamOperators(ops);
+        setPendingInvitations(Array.isArray(r.data?.pending_invitations) ? r.data.pending_invitations : []);
       })
       .catch(() => {
         setTeamOperators([]);
+        setPendingInvitations([]);
         setError('No pudimos cargar los operadores de tu empresa.');
       })
       .finally(() => setLoading(false));
@@ -573,17 +576,60 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
   };
 
   const handleSave = () => {
-    const selected = teamOperators
-      .filter((op) => selectedIds.has(op.id))
-      .map((op) => ({
-        id: op.id,
-        name: op.name,
-        phone: op.phone || '',
-        rut: op.rut || '',
-      }));
+    const ownerId = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+    const ownerPhone = (localStorage.getItem('userPhone') || '').trim();
+    const ownerOption = ownerId
+      ? {
+          id: ownerId,
+          name: 'Tú (dueño)',
+          phone: ownerPhone,
+          rut: '',
+        }
+      : null;
+
+    const byId = new Map();
+    if (ownerOption) byId.set(ownerOption.id, ownerOption);
+    teamOperators.forEach((op) => {
+      if (op?.id) {
+        byId.set(op.id, {
+          id: op.id,
+          name: op.name,
+          phone: op.phone || '',
+          rut: op.rut || '',
+        });
+      }
+    });
+
+    const selected = Array.from(byId.values()).filter((op) => selectedIds.has(op.id));
     onSave(selected);
     toast.success('Operadores asignados');
   };
+
+  const ownerId = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+  const ownerPhone = (localStorage.getItem('userPhone') || '').trim();
+  const ownerOption = ownerId
+    ? {
+        id: ownerId,
+        name: 'Tú (dueño)',
+        phone: ownerPhone,
+        rut: '',
+      }
+    : null;
+
+  const selectableOperators = (() => {
+    const byId = new Map();
+    if (ownerOption) byId.set(ownerOption.id, ownerOption);
+    teamOperators.forEach((op) => {
+      if (!op?.id) return;
+      byId.set(op.id, { id: op.id, name: op.name, phone: op.phone || '', rut: op.rut || '' });
+    });
+    return Array.from(byId.values());
+  })();
+
+  const selectableIds = useMemo(() => new Set(selectableOperators.map((o) => o.id)), [selectableOperators]);
+  const missingAssigned = useMemo(() => {
+    return (Array.isArray(machine.operators) ? machine.operators : []).filter((op) => op?.id && !selectableIds.has(op.id));
+  }, [machine.operators, selectableIds]);
 
   return (
     <ModalOverlay onClick={onClose}>
@@ -598,7 +644,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
 
         <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 12, marginBottom: 16 }}>
           <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
-            Aquí solo aparecen <strong>operadores activos</strong>. Los operadores <strong>pendientes</strong> (código sin usar) no se muestran para asignación.
+            Para asignar un operador, debe <strong>enrolarse con su código de activación</strong> en la app. Así podemos usar su <strong>GPS</strong> durante el servicio (el cliente ve dónde viene la maquinaria y mejora la experiencia).
           </p>
         </div>
 
@@ -606,13 +652,25 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
           <div style={{ textAlign: 'center', padding: 24 }}>
             <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, margin: 0 }}>Cargando operadores…</p>
           </div>
-        ) : teamOperators.length === 0 ? (
+        ) : error ? (
           <div style={{ textAlign: 'center', padding: 20 }}>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, margin: '0 0 10px' }}>
-              No tienes operadores activos.
+              {error}
             </p>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
-              Crea un operador en <strong>Código de activación operadores</strong>, comparte el código y cuando se enrolen aparecerán aquí.
+              Revisa tu conexión y vuelve a intentar. También puedes gestionar códigos desde <strong>Código de activación operadores</strong>.
+            </p>
+            <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>
+              Ir a Código de activación
+            </button>
+          </div>
+        ) : selectableOperators.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 20 }}>
+            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, margin: '0 0 10px' }}>
+              No tienes operadores disponibles para asignar.
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
+              Genera un código, compártelo con tu operador y cuando lo use en la app aparecerá para asignación.
             </p>
             <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>
               Ir a Código de activación
@@ -620,9 +678,23 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
           </div>
         ) : (
           <>
-            {error && <p style={{ color: '#F44336', fontSize: 12, margin: '0 0 12px' }}>{error}</p>}
+            {missingAssigned.length > 0 && (
+              <div style={{ background: 'rgba(236, 104, 25, 0.1)', border: '1px solid rgba(236, 104, 25, 0.35)', borderRadius: 12, padding: 12, marginBottom: 14 }}>
+                <div style={{ color: '#EC6819', fontSize: 13, fontWeight: 800, marginBottom: 6 }}>
+                  Operadores pendientes de activación
+                </div>
+                <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, lineHeight: 1.45 }}>
+                  {missingAssigned.map((op) => op?.name).filter(Boolean).join(', ')}.
+                  {' '}
+                  Deben usar su código de activación para poder editarlos y asignarlos correctamente.
+                </div>
+                <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 12 }}>
+                  Ver códigos
+                </button>
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto', marginBottom: 16 }}>
-              {teamOperators.map((op) => (
+              {selectableOperators.map((op) => (
                 <label
                   key={op.id}
                   style={{
@@ -651,6 +723,40 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
                 </label>
               ))}
             </div>
+
+            {pendingInvitations.length > 0 && (
+              <div style={{ margin: '0 0 16px' }}>
+                <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
+                  Códigos pendientes ({pendingInvitations.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto' }}>
+                  {pendingInvitations.map((inv) => (
+                    <div
+                      key={inv.code || inv.created_at || String(Math.random())}
+                      style={{
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: 10,
+                        padding: 12,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
+                        <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                          {inv.operator_name || 'Operador'}
+                        </div>
+                        <div style={{ color: '#EC6819', fontSize: 12, fontWeight: 800 }}>
+                          {inv.code || ''}
+                        </div>
+                      </div>
+                      <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 4 }}>
+                        {(inv.operator_rut ? `RUT ${inv.operator_rut} · ` : '')}{inv.operator_phone || 'Sin celular'} · Pendiente de activación
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 12 }}>
               <button type="button" className="maqgo-btn-secondary" onClick={onClose} style={{ flex: 1 }}>Cancelar</button>
               <button onClick={handleSave} style={btnPrimary}>Guardar</button>

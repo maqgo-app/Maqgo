@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -24,9 +24,25 @@ const ADMIN_THEME = {
   textMuted: 'rgba(255,255,255,0.72)',
 };
 
+const MAQGO_PUBLIC_ID_PREFIX = '0019702204';
+const MAQGO_PUBLIC_ID_SUFFIX_MOD = 10000000n;
+const MAQGO_PUBLIC_ID_SUFFIX_LEN = 7;
+
+function maqgoPublicId(rawId, kind) {
+  if (!rawId) return '-';
+  const kindDigit = kind === 'client' ? '1' : kind === 'provider' ? '2' : kind === 'machine' ? '3' : kind === 'txn' ? '4' : '0';
+  const s = String(rawId);
+  let h = 1469598103934665603n;
+  for (let i = 0; i < s.length; i++) {
+    h ^= BigInt(s.charCodeAt(i));
+    h = (h * 1099511628211n) & ((1n << 64n) - 1n);
+  }
+  const suffix = (h % MAQGO_PUBLIC_ID_SUFFIX_MOD).toString().padStart(MAQGO_PUBLIC_ID_SUFFIX_LEN, '0');
+  return `${MAQGO_PUBLIC_ID_PREFIX}${kindDigit}${suffix}`;
+}
+
 function AdminUsersScreen() {
   const navigate = useNavigate();
-  const location = useLocation();
   const toast = useToast();
   const [data, setData] = useState({ clients: [], providers: [], total_clients: 0, total_providers: 0 });
   const [loading, setLoading] = useState(true);
@@ -36,6 +52,15 @@ function AdminUsersScreen() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [photoModalUrl, setPhotoModalUrl] = useState('');
+
+  const goDashboardArea = (area) => {
+    try {
+      localStorage.setItem('maqgo_admin_area', area);
+    } catch {
+      void 0;
+    }
+    navigate('/admin');
+  };
 
   async function fetchUsers() {
     try {
@@ -88,7 +113,14 @@ function AdminUsersScreen() {
     const providers = Array.isArray(data.providers) ? data.providers : [];
     return providers.map((u) => {
       const md = u?.machineData && typeof u.machineData === 'object' ? u.machineData : {};
-      const primaryPhoto = md?.primaryPhoto || md?.photo || md?.image || '';
+      let primaryPhoto = md?.primaryPhoto || md?.photo || md?.image || '';
+      if (!primaryPhoto) {
+        const raw = md?.machinePhotos || md?.photos || md?.images || [];
+        if (Array.isArray(raw) && raw.length > 0) {
+          const first = raw[0];
+          primaryPhoto = typeof first === 'string' ? first : (first?.url || first?.src || '');
+        }
+      }
       return {
         providerId: u?.id || '',
         providerName: u?.name || '-',
@@ -100,6 +132,7 @@ function AdminUsersScreen() {
         isAvailable: Boolean(u?.isAvailable),
         providerRole: u?.provider_role || '',
         createdAt: u?.createdAt || '',
+        machineKey: `${u?.id || ''}|${md?.licensePlate || md?.patente || md?.plate || ''}|${u?.machineryType || md?.machineryType || ''}`,
         primaryPhoto,
       };
     });
@@ -247,16 +280,12 @@ function AdminUsersScreen() {
 
   return (
     <div style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
-      <div style={{
-        background: ADMIN_THEME.panelBg,
-        padding: '20px 24px',
-        borderBottom: `1px solid ${ADMIN_THEME.border}`
-      }}>
-        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ background: ADMIN_THEME.panelBg, padding: '20px 24px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
               type="button"
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate('/welcome', { replace: false })}
               style={{
                 width: 40,
                 height: 40,
@@ -269,56 +298,175 @@ function AdminUsersScreen() {
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
-              aria-label="Volver a Reservas"
-              title="Volver a Reservas"
+              aria-label="Volver a portada"
+              title="Volver a portada"
             >
               <BackArrowIcon size={18} style={{ display: 'block' }} />
             </button>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: '#EC6819', fontFamily: "'Space Grotesk', sans-serif" }}>
-              Usuarios registrados
+            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "'Space Grotesk', sans-serif", color: '#EC6819' }}>
+              MAQGO Admin
             </h1>
           </div>
-        </div>
-        <div style={{ maxWidth: 1400, margin: '6px auto 0' }}>
-          <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: 0 }}>
-            Clientes y proveedores en la plataforma
-          </p>
-        </div>
-        <div style={{ maxWidth: 1400, margin: '14px auto 0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: ADMIN_THEME.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' }}>
-            Secciones
-          </span>
-          {[
-            { key: 'dashboard', label: 'Reservas', to: '/admin' },
-            { key: 'users', label: 'Usuarios', to: '/admin/users' },
-            { key: 'pricing', label: 'Precios', to: '/admin/pricing' },
-            { key: 'marketing', label: 'Marketing', to: '/admin/marketing' },
-          ].map((it) => {
-            const active = location.pathname === it.to || (it.to === '/admin' && location.pathname === '/admin');
-            return (
+          <div style={{ flex: 1, minWidth: 260 }} />
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              type="button"
+              aria-label="Sin alertas urgentes"
+              disabled
+              style={{
+                position: 'relative',
+                width: 38,
+                height: 38,
+                borderRadius: '999px',
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'default',
+                opacity: 0.6,
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 3C9.79086 3 8 4.79086 8 7V8.2C8 9.09411 7.70361 9.96449 7.1577 10.7L6.44721 11.6524C5.53397 12.872 6.4022 14.6 7.92462 14.6H16.0754C17.5978 14.6 18.466 12.872 17.5528 11.6524L16.8423 10.7C16.2964 9.96449 16 9.09411 16 8.2V7C16 4.79086 14.2091 3 12 3Z"
+                  stroke="#FFFFFF"
+                  strokeWidth="1.6"
+                />
+                <path
+                  d="M10 16C10.1709 17.1652 10.9882 18 12 18C13.0118 18 13.8291 17.1652 14 16"
+                  stroke="#FFFFFF"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+            <div style={{ display: 'flex', gap: 6, padding: 4, borderRadius: 999, border: `1px solid ${ADMIN_THEME.border}`, background: 'rgba(255,255,255,0.04)' }}>
               <button
-                key={it.key}
                 type="button"
-                onClick={() => navigate(it.to)}
+                onClick={() => goDashboardArea('today')}
                 style={{
-                  padding: '8px 14px',
+                  padding: '8px 12px',
                   borderRadius: 999,
-                  border: active ? `1px solid rgba(236, 104, 25, 0.55)` : `1px solid ${ADMIN_THEME.borderStrong}`,
-                  background: active ? 'rgba(236, 104, 25, 0.18)' : 'rgba(255,255,255,0.04)',
-                  color: active ? '#fff' : 'rgba(255,255,255,0.85)',
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'rgba(255,255,255,0.8)',
                   cursor: 'pointer',
                   fontSize: 13,
                   fontWeight: 800,
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {it.label}
+                Hoy
               </button>
-            );
-          })}
+              <button
+                type="button"
+                onClick={() => goDashboardArea('system')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'rgba(255,255,255,0.8)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Sistema
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => goDashboardArea('money')}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 8,
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              💳 Facturación y pagos
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/users')}
+              style={{
+                padding: '8px 16px',
+                background: 'rgba(236, 104, 25, 0.22)',
+                border: '1px solid rgba(236, 104, 25, 0.55)',
+                borderRadius: 8,
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              👥 Usuarios
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/pricing')}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 8,
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              💰 Precios
+            </button>
+            <button
+              type="button"
+              title="Inversión semanal por canal, audiencia y CAC"
+              onClick={() => navigate('/admin/marketing')}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(126, 184, 212, 0.45)',
+                borderRadius: 8,
+                color: ADMIN_PALETTE.info,
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              📈 Marketing & CAC
+            </button>
+            <button
+              type="button"
+              onClick={() => goDashboardArea('money')}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 8,
+                color: 'rgba(255,255,255,0.8)',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              📥 Planilla pagos
+            </button>
+          </div>
         </div>
       </div>
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
+        <div style={{ marginBottom: 14 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#fff' }}>Usuarios registrados</h2>
+          <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '6px 0 0' }}>Clientes y proveedores en la plataforma</p>
+        </div>
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           <button
@@ -398,6 +546,7 @@ function AdminUsersScreen() {
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Foto</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinaria</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Patente</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>ID</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Proveedor</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Onboarding</th>
@@ -437,6 +586,9 @@ function AdminUsersScreen() {
                         </td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.machineryType}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.licensePlate}</td>
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
+                          {maqgoPublicId(m.machineKey, 'machine')}
+                        </td>
                         <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{m.providerName}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{m.providerEmail}</td>
                         <td style={{ padding: 14 }}>
@@ -476,6 +628,7 @@ function AdminUsersScreen() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: ADMIN_THEME.panelBgSoft }}>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>ID</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Nombre</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Teléfono</th>
@@ -495,6 +648,9 @@ function AdminUsersScreen() {
                   <tbody>
                     {normalizedUsers.map((u, i) => (
                       <tr key={u.id || i} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
+                          {maqgoPublicId(u.id, tab === 'clients' ? 'client' : 'provider')}
+                        </td>
                         <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{u.name || '-'}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.email || '-'}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.phone || '-'}</td>
