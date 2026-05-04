@@ -75,6 +75,7 @@ function AdminDashboard() {
   const [weekComparison, setWeekComparison] = useState(null);
   /** Solo true cuando falló la red: datos demo locales; las mutaciones al API fallarían con IDs demo. */
   const [usingOfflineDemo, setUsingOfflineDemo] = useState(false);
+  const actionsLocked = usingOfflineDemo;
   const [monthlyFinance, setMonthlyFinance] = useState(null);
   const [loadingMonthlyFinance, setLoadingMonthlyFinance] = useState(false);
   const [monthlyFinanceError, setMonthlyFinanceError] = useState('');
@@ -740,7 +741,6 @@ function AdminDashboard() {
   const rangeStart = listTotal === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const rangeEnd = listTotal === 0 ? 0 : (page - 1) * PAGE_SIZE + services.length;
 
-  const actionsLocked = usingOfflineDemo;
 
   // Conteo de eventos urgentes para campana:
   // - Pagos vencidos sin factura cliente (maqgo_to_invoice_overdue)
