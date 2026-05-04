@@ -970,7 +970,7 @@ function AdminDashboard() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                Operación
+                Hoy
               </button>
               <button
                 type="button"
@@ -1683,6 +1683,36 @@ function AdminDashboard() {
                   </p>
                 </div>
                 <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>→</span>
+              </div>
+            )}
+
+            {!usingOfflineDemo && !loading && (
+              (stats.maqgo_to_invoice_overdue || 0) === 0 &&
+              (stats.invoiced || 0) === 0 &&
+              (stats.pending_review || 0) === 0 &&
+              (stats.maqgo_to_invoice || 0) === 0 &&
+              (stats.disputed || 0) === 0
+            ) && (
+              <div
+                style={{
+                  background: ADMIN_THEME.panelBg,
+                  borderRadius: 12,
+                  padding: '14px 18px',
+                  border: `1px solid ${ADMIN_THEME.border}`,
+                  marginBottom: 24,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: 800 }}>
+                  ✅ No hay acciones pendientes
+                </div>
+                <div style={{ fontSize: 12, color: ADMIN_THEME.textMuted }}>
+                  {services?.length ? `${services.length} reservas cargadas` : 'Sin reservas en la vista actual'}
+                </div>
               </div>
             )}
           </>
