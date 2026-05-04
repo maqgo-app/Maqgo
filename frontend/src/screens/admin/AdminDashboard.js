@@ -101,6 +101,7 @@ function AdminDashboard() {
   const [liveRequestsLoading, setLiveRequestsLoading] = useState(false);
   const [liveRequestsError, setLiveRequestsError] = useState('');
   const [liveRequestsUpdatedAt, setLiveRequestsUpdatedAt] = useState(null);
+  const [showUrgentModal, setShowUrgentModal] = useState(false);
 
   // Fallback si el backend no envía `finances` (versiones viejas / demo)
   const calculateFinances = useCallback((serviceList) => {
@@ -755,6 +756,38 @@ function AdminDashboard() {
     (stats.invoiced || 0);
   const urgentFromSms = smsBalance?.is_low_balance ? 1 : 0;
   const urgentCount = urgentFromStats + urgentFromSms;
+  const urgentItems = [
+    {
+      key: 'maqgo_to_invoice_overdue',
+      count: stats.maqgo_to_invoice_overdue || 0,
+      title: 'Pagos vencidos sin factura al cliente',
+      hint: 'Meses anteriores: riesgo de pérdida de caja.',
+    },
+    {
+      key: 'disputed',
+      count: stats.disputed || 0,
+      title: 'Reclamos por resolver',
+      hint: 'Servicios en disputa con cliente/proveedor.',
+    },
+    {
+      key: 'maqgo_to_invoice',
+      count: stats.maqgo_to_invoice || 0,
+      title: 'MAQGO debe facturar al cliente',
+      hint: 'Dentro del mes: emitir factura MAQGO para cobrar.',
+    },
+    {
+      key: 'invoiced',
+      count: stats.invoiced || 0,
+      title: 'Facturas subidas por pagar',
+      hint: 'Proveedor subió factura: revisar y marcar como pagado.',
+    },
+    {
+      key: 'sms_low_balance',
+      count: smsBalance?.is_low_balance ? 1 : 0,
+      title: 'Saldo SMS bajo',
+      hint: smsBalance?.provider ? `${smsBalance.provider}: ${smsBalance.remaining ?? '-'} restante` : 'Revisar saldo SMS en el panel.',
+    },
+  ].filter((it) => (it.count || 0) > 0);
 
   const fetchWeeklyReportGuarded = async (weeksAgo = 0) => {
     if (actionsLocked) {
@@ -853,21 +886,7 @@ function AdminDashboard() {
               type="button"
               aria-label={urgentCount > 0 ? `Tienes ${urgentCount} alertas urgentes` : 'Sin alertas urgentes'}
               onClick={() => {
-                // Al hacer click, llevar directo a lo más crítico disponible
-                if ((stats.maqgo_to_invoice_overdue || 0) > 0) {
-                  setPage(1);
-                  setFilter('maqgo_to_invoice_overdue');
-                } else if (stats.disputed > 0) {
-                  setPage(1);
-                  setFilter('disputed');
-                } else if ((stats.maqgo_to_invoice || 0) > 0) {
-                  setPage(1);
-                  setFilter('maqgo_to_invoice');
-                } else if ((stats.invoiced || 0) > 0) {
-                  setPage(1);
-                  setFilter('invoiced');
-                }
-                // Si solo es SMS bajo, no cambiamos filtro pero el conteo sigue visible
+                if (urgentCount > 0) setShowUrgentModal(true);
               }}
               disabled={urgentCount === 0}
               style={{
@@ -1099,6 +1118,128 @@ function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {showUrgentModal && (
+        <div className="maqgo-modal-overlay" role="dialog" aria-modal="true">
+          <div className="maqgo-modal-dialog" style={{ width: 'min(92vw, 620px)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff' }}>Alertas urgentes</h3>
+              <button
+                type="button"
+                onClick={() => setShowUrgentModal(false)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  background: 'transparent',
+                  border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                  color: 'rgba(255,255,255,0.9)',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {urgentItems.length === 0 ? (
+                <div style={{ padding: 16, borderRadius: 12, background: ADMIN_THEME.panelBgSoft, border: `1px solid ${ADMIN_THEME.border}` }}>
+                  <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.9)', fontWeight: 700 }}>Sin alertas</div>
+                  <div style={{ fontSize: 12, color: ADMIN_THEME.textMuted, marginTop: 4 }}>No hay pendientes urgentes en este momento.</div>
+                </div>
+              ) : (
+                urgentItems.map((it) => (
+                  <div
+                    key={it.key}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: 14,
+                      borderRadius: 12,
+                      background: ADMIN_THEME.panelBgSoft,
+                      border: `1px solid ${ADMIN_THEME.border}`,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minWidth: 26,
+                            height: 26,
+                            padding: '0 8px',
+                            borderRadius: 999,
+                            background: 'rgba(229,115,115,0.2)',
+                            border: '1px solid rgba(229,115,115,0.55)',
+                            color: '#fff',
+                            fontWeight: 800,
+                            fontSize: 13,
+                          }}
+                        >
+                          {it.count}
+                        </span>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {it.title}
+                        </div>
+                      </div>
+                      {it.hint && <div style={{ marginTop: 6, fontSize: 12, color: ADMIN_THEME.textMuted }}>{it.hint}</div>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      {it.key !== 'sms_low_balance' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPage(1);
+                            setFilter(it.key);
+                            setShowUrgentModal(false);
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: 10,
+                            background: ADMIN_PALETTE.brand,
+                            border: 'none',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontWeight: 800,
+                            fontSize: 13,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Ver lista
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowUrgentModal(false);
+                            fetchSmsBalance();
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: 10,
+                            background: 'rgba(255,255,255,0.08)',
+                            border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontWeight: 800,
+                            fontSize: 13,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Actualizar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>

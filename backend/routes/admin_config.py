@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from auth_dependency import get_current_admin_strict
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 import copy
 
 from db_config import get_db_name, get_mongo_url
@@ -175,6 +175,97 @@ async def get_admin_users(_: dict = Depends(get_current_admin_strict)):
             "total_clients": len(clients),
             "total_providers": len(providers)
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class AdminUserUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[str] = None
+    roles: Optional[list] = None
+    provider_role: Optional[str] = None
+    isAvailable: Optional[bool] = None
+    onboarding_completed: Optional[bool] = None
+    machineryType: Optional[str] = None
+    providerData: Optional[Dict[str, Any]] = None
+    machineData: Optional[Dict[str, Any]] = None
+
+
+@router.patch("/users/{user_id}")
+async def admin_update_user(
+    user_id: str,
+    request: AdminUserUpdateRequest,
+    _: dict = Depends(get_current_admin_strict),
+):
+    try:
+        existing = await db.users.find_one({"id": user_id})
+        if not existing:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        if existing.get("role") == "admin" or ("admin" in (existing.get("roles") or [])):
+            raise HTTPException(status_code=403, detail="No se puede editar un administrador desde este endpoint")
+
+        payload = request.model_dump(exclude_unset=True)
+        update_doc: Dict[str, Any] = {}
+
+        if "providerData" in payload:
+            current = existing.get("providerData") if isinstance(existing.get("providerData"), dict) else {}
+            incoming = payload.get("providerData") if isinstance(payload.get("providerData"), dict) else {}
+            merged = {**current, **incoming}
+            update_doc["providerData"] = merged
+
+        if "machineData" in payload:
+            current = existing.get("machineData") if isinstance(existing.get("machineData"), dict) else {}
+            incoming = payload.get("machineData") if isinstance(payload.get("machineData"), dict) else {}
+            merged = {**current, **incoming}
+            update_doc["machineData"] = merged
+
+        for k, v in payload.items():
+            if k in ("providerData", "machineData"):
+                continue
+            update_doc[k] = v
+
+        if "machineryType" in update_doc:
+            md = update_doc.get("machineData")
+            if md is None:
+                md = existing.get("machineData") if isinstance(existing.get("machineData"), dict) else {}
+            if isinstance(md, dict):
+                update_doc["machineData"] = {**md, "machineryType": update_doc["machineryType"]}
+
+        if not update_doc:
+            fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+            return {"ok": True, "user": fresh}
+
+        await db.users.update_one({"id": user_id}, {"$set": update_doc})
+        fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+        return {"ok": True, "user": fresh}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/users/{user_id}")
+async def admin_delete_user(
+    user_id: str,
+    _: dict = Depends(get_current_admin_strict),
+):
+    try:
+        existing = await db.users.find_one({"id": user_id}, {"id": 1, "role": 1, "roles": 1})
+        if not existing:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        if existing.get("role") == "admin" or ("admin" in (existing.get("roles") or [])):
+            raise HTTPException(status_code=403, detail="No se puede eliminar un administrador")
+
+        result = await db.users.delete_one({"id": user_id})
+        if result.deleted_count != 1:
+            raise HTTPException(status_code=500, detail="No se pudo eliminar el usuario")
+        return {"ok": True}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
