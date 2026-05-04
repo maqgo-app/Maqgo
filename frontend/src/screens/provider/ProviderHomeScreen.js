@@ -90,7 +90,7 @@ function ProviderHomeScreen() {
       missingHint: 'Falta operador de maquinaria asignado',
       actionLabel: 'Asignar operador',
       onClick: () =>
-        navigate('/provider/machines', { state: { activationEdit: true, returnTo: '/provider/home' } })
+        navigate('/provider/operator-data', { state: { activationEdit: true, returnTo: '/provider/home' } })
     },
     {
       label: 'Datos bancarios',
@@ -372,7 +372,7 @@ function ProviderHomeScreen() {
         } else if (!hasMachine) {
           navigate('/provider/machine-data', { state: { activationEdit: true, returnTo: '/provider/home' } });
         } else if (!hasOperators) {
-          navigate('/provider/machines', { state: { activationEdit: true, returnTo: '/provider/home' } });
+          navigate('/provider/operator-data', { state: { activationEdit: true, returnTo: '/provider/home' } });
         }
       } else if (isNetworkError) {
         setAvailable(newStatus);
