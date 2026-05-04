@@ -30,11 +30,12 @@ function AdminUsersScreen() {
   const toast = useToast();
   const [data, setData] = useState({ clients: [], providers: [], total_clients: 0, total_providers: 0 });
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('clients'); // 'clients' | 'providers'
+  const [tab, setTab] = useState('clients'); // 'clients' | 'providers' | 'machines'
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [photoModalUrl, setPhotoModalUrl] = useState('');
 
   async function fetchUsers() {
     try {
@@ -67,7 +68,11 @@ function AdminUsersScreen() {
     }
   };
 
-  const users = tab === 'clients' ? data.clients : data.providers;
+  const users = useMemo(() => {
+    if (tab === 'clients') return data.clients;
+    if (tab === 'providers') return data.providers;
+    return [];
+  }, [tab, data.clients, data.providers]);
 
   const normalizedUsers = useMemo(() => {
     return (Array.isArray(users) ? users : []).map((u) => {
@@ -79,7 +84,33 @@ function AdminUsersScreen() {
     });
   }, [users]);
 
+  const machineRows = useMemo(() => {
+    const providers = Array.isArray(data.providers) ? data.providers : [];
+    return providers.map((u) => {
+      const md = u?.machineData && typeof u.machineData === 'object' ? u.machineData : {};
+      const primaryPhoto = md?.primaryPhoto || md?.photo || md?.image || '';
+      return {
+        providerId: u?.id || '',
+        providerName: u?.name || '-',
+        providerEmail: u?.email || '-',
+        providerPhone: u?.phone || '-',
+        machineryType: u?.machineryType || md?.machineryType || '-',
+        licensePlate: md?.licensePlate || md?.patente || md?.plate || '-',
+        onboardingCompleted: Boolean(u?.onboarding_completed),
+        isAvailable: Boolean(u?.isAvailable),
+        providerRole: u?.provider_role || '',
+        createdAt: u?.createdAt || '',
+        primaryPhoto,
+      };
+    });
+  }, [data.providers]);
+
+  const machinesCount = useMemo(() => {
+    return machineRows.filter((m) => String(m.machineryType || '').trim() && m.machineryType !== '-').length;
+  }, [machineRows]);
+
   const openEdit = (u) => {
+    if (tab === 'machines') return;
     const md = u?.machineData && typeof u.machineData === 'object' ? u.machineData : {};
     setEditingUser(u);
     setEditForm({
@@ -104,6 +135,7 @@ function AdminUsersScreen() {
   };
 
   const saveEdit = async () => {
+    if (tab === 'machines') return;
     if (!editingUser?.id || !editForm || saving) return;
     setSaving(true);
     try {
@@ -184,6 +216,7 @@ function AdminUsersScreen() {
   };
 
   const doDelete = async () => {
+    if (tab === 'machines') return;
     if (!deleteTarget?.id) return;
     try {
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/users/${encodeURIComponent(deleteTarget.id)}`, {
@@ -318,6 +351,21 @@ function AdminUsersScreen() {
           >
             Proveedores ({data.total_providers})
           </button>
+          <button
+            onClick={() => setTab('machines')}
+            style={{
+              padding: '10px 20px',
+              background: tab === 'machines' ? ADMIN_PALETTE.brand : ADMIN_THEME.panelBg,
+              border: 'none',
+              borderRadius: 8,
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 600
+            }}
+          >
+            Maquinarias ({machinesCount})
+          </button>
         </div>
 
         {/* Tabla */}
@@ -327,11 +375,15 @@ function AdminUsersScreen() {
               <span style={{ width: 32, height: 32, border: '3px solid rgba(236,104,25,0.25)', borderTopColor: ADMIN_PALETTE.brand, borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
               <p style={{ color: ADMIN_THEME.textMuted, fontSize: 14 }}>Cargando usuarios...</p>
             </div>
-          ) : users.length === 0 ? (
+          ) : (tab === 'machines' ? machineRows.length === 0 : users.length === 0) ? (
             <div style={{ padding: 50, textAlign: 'center' }}>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 40, margin: '0 0 12px' }}>👥</p>
               <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, margin: 0 }}>
-                {tab === 'clients' ? 'No hay clientes registrados' : 'No hay proveedores registrados'}
+                {tab === 'clients'
+                  ? 'No hay clientes registrados'
+                  : tab === 'providers'
+                    ? 'No hay proveedores registrados'
+                    : 'No hay maquinarias registradas'}
               </p>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 8 }}>
                 Los usuarios aparecerán aquí cuando se registren desde la app
@@ -339,105 +391,198 @@ function AdminUsersScreen() {
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: ADMIN_THEME.panelBgSoft }}>
-                    <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Nombre</th>
-                    <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
-                    <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Teléfono</th>
-                    {tab === 'providers' && (
-                      <>
-                        <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinaria</th>
-                        <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Patente</th>
-                        <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Onboarding</th>
-                        <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Disponible</th>
-                        <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Rol</th>
-                      </>
-                    )}
-                    <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Registro</th>
-                    <th style={{ padding: 14, textAlign: 'right', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {normalizedUsers.map((u, i) => (
-                    <tr key={u.id || i} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
-                      <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{u.name || '-'}</td>
-                      <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.email || '-'}</td>
-                      <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.phone || '-'}</td>
+              {tab === 'machines' ? (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: ADMIN_THEME.panelBgSoft }}>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Foto</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinaria</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Patente</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Proveedor</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Onboarding</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Disponible</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Registro</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {machineRows.map((m, i) => (
+                      <tr key={`${m.providerId || 'prov'}-${i}`} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
+                        <td style={{ padding: 14 }}>
+                          {m.primaryPhoto ? (
+                            <button
+                              type="button"
+                              onClick={() => setPhotoModalUrl(m.primaryPhoto)}
+                              style={{
+                                width: 56,
+                                height: 56,
+                                borderRadius: 10,
+                                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                                padding: 0,
+                                background: 'rgba(255,255,255,0.04)',
+                                cursor: 'pointer',
+                                overflow: 'hidden',
+                              }}
+                              title="Tocar para agrandar"
+                            >
+                              <img
+                                src={m.primaryPhoto}
+                                alt=""
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                              />
+                            </button>
+                          ) : (
+                            <span style={{ color: ADMIN_THEME.textMuted, fontSize: 12 }}>—</span>
+                          )}
+                        </td>
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.machineryType}</td>
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.licensePlate}</td>
+                        <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{m.providerName}</td>
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{m.providerEmail}</td>
+                        <td style={{ padding: 14 }}>
+                          <span
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              background: m.onboardingCompleted ? 'rgba(102, 187, 106, 0.16)' : 'rgba(255,255,255,0.08)',
+                              color: m.onboardingCompleted ? ADMIN_PALETTE.success : ADMIN_THEME.textMuted,
+                            }}
+                          >
+                            {m.onboardingCompleted ? 'OK' : 'Pendiente'}
+                          </span>
+                        </td>
+                        <td style={{ padding: 14 }}>
+                          <span
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              background: m.isAvailable ? 'rgba(102, 187, 106, 0.16)' : 'rgba(255,255,255,0.08)',
+                              color: m.isAvailable ? ADMIN_PALETTE.success : ADMIN_THEME.textMuted,
+                            }}
+                          >
+                            {m.isAvailable ? 'Sí' : 'No'}
+                          </span>
+                        </td>
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{formatDate(m.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: ADMIN_THEME.panelBgSoft }}>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Nombre</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Teléfono</th>
                       {tab === 'providers' && (
                         <>
-                          <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{u.__machineryType}</td>
-                          <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{u.__licensePlate}</td>
-                          <td style={{ padding: 14 }}>
-                            <span style={{
-                              padding: '4px 8px',
-                              borderRadius: 6,
-                              fontSize: 13,
-                              fontWeight: 600,
-                              background: u.__onboardingCompleted ? 'rgba(102, 187, 106, 0.16)' : 'rgba(255,255,255,0.08)',
-                              color: u.__onboardingCompleted ? ADMIN_PALETTE.success : ADMIN_THEME.textMuted
-                            }}>
-                              {u.__onboardingCompleted ? 'OK' : 'Pendiente'}
-                            </span>
-                          </td>
-                          <td style={{ padding: 14 }}>
-                            <span style={{
-                              padding: '4px 8px',
-                              borderRadius: 6,
-                              fontSize: 13,
-                              fontWeight: 600,
-                              background: u.isAvailable ? 'rgba(102, 187, 106, 0.16)' : 'rgba(255,255,255,0.08)',
-                              color: u.isAvailable ? ADMIN_PALETTE.success : ADMIN_THEME.textMuted
-                            }}>
-                              {u.isAvailable ? 'Sí' : 'No'}
-                            </span>
-                          </td>
-                          <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-                            {u.provider_role === 'super_master' ? 'Titular' : u.provider_role === 'master' ? 'Gerente' : u.provider_role === 'operator' ? 'Operador' : u.provider_role || '-'}
-                          </td>
+                          <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinaria</th>
+                          <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Patente</th>
+                          <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Onboarding</th>
+                          <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Disponible</th>
+                          <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Rol</th>
                         </>
                       )}
-                      <td style={{ padding: 14, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{formatDate(u.createdAt)}</td>
-                      <td style={{ padding: 14, textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            onClick={() => openEdit(u)}
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              background: 'rgba(255,255,255,0.06)',
-                              border: `1px solid ${ADMIN_THEME.borderStrong}`,
-                              color: '#fff',
-                              cursor: 'pointer',
-                              fontSize: 13,
-                              fontWeight: 600
-                            }}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(u)}
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              background: 'rgba(220, 53, 69, 0.18)',
-                              border: '1px solid rgba(220, 53, 69, 0.55)',
-                              color: '#fff',
-                              cursor: 'pointer',
-                              fontSize: 13,
-                              fontWeight: 700
-                            }}
-                          >
-                            Eliminar
-                          </button>
-                        </div>
-                      </td>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Registro</th>
+                      <th style={{ padding: 14, textAlign: 'right', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Acciones</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {normalizedUsers.map((u, i) => (
+                      <tr key={u.id || i} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
+                        <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{u.name || '-'}</td>
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.email || '-'}</td>
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.phone || '-'}</td>
+                        {tab === 'providers' && (
+                          <>
+                            <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{u.__machineryType}</td>
+                            <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{u.__licensePlate}</td>
+                            <td style={{ padding: 14 }}>
+                              <span
+                                style={{
+                                  padding: '4px 8px',
+                                  borderRadius: 6,
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  background: u.__onboardingCompleted ? 'rgba(102, 187, 106, 0.16)' : 'rgba(255,255,255,0.08)',
+                                  color: u.__onboardingCompleted ? ADMIN_PALETTE.success : ADMIN_THEME.textMuted,
+                                }}
+                              >
+                                {u.__onboardingCompleted ? 'OK' : 'Pendiente'}
+                              </span>
+                            </td>
+                            <td style={{ padding: 14 }}>
+                              <span
+                                style={{
+                                  padding: '4px 8px',
+                                  borderRadius: 6,
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  background: u.isAvailable ? 'rgba(102, 187, 106, 0.16)' : 'rgba(255,255,255,0.08)',
+                                  color: u.isAvailable ? ADMIN_PALETTE.success : ADMIN_THEME.textMuted,
+                                }}
+                              >
+                                {u.isAvailable ? 'Sí' : 'No'}
+                              </span>
+                            </td>
+                            <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
+                              {u.provider_role === 'super_master'
+                                ? 'Titular'
+                                : u.provider_role === 'master'
+                                  ? 'Gerente'
+                                  : u.provider_role === 'operator'
+                                    ? 'Operador'
+                                    : u.provider_role || '-'}
+                            </td>
+                          </>
+                        )}
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{formatDate(u.createdAt)}</td>
+                        <td style={{ padding: 14, textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => openEdit(u)}
+                              style={{
+                                padding: '8px 12px',
+                                borderRadius: 8,
+                                background: 'rgba(255,255,255,0.06)',
+                                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontSize: 13,
+                                fontWeight: 600
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(u)}
+                              style={{
+                                padding: '8px 12px',
+                                borderRadius: 8,
+                                background: 'rgba(220, 53, 69, 0.18)',
+                                border: '1px solid rgba(220, 53, 69, 0.55)',
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontSize: 13,
+                                fontWeight: 700
+                              }}
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
         </div>
@@ -613,6 +758,54 @@ function AdminUsersScreen() {
           </div>
         </div>
       )}
+
+      {photoModalUrl ? (
+        <div
+          className="maqgo-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPhotoModalUrl('')}
+        >
+          <div
+            className="maqgo-modal-dialog"
+            style={{ width: 'min(94vw, 860px)', padding: 16 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#fff' }}>Foto de maquinaria</h3>
+              <button
+                type="button"
+                onClick={() => setPhotoModalUrl('')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  background: 'transparent',
+                  border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                  color: 'rgba(255,255,255,0.9)',
+                  cursor: 'pointer',
+                  fontWeight: 800,
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <img
+                src={photoModalUrl}
+                alt=""
+                style={{
+                  width: '100%',
+                  maxHeight: '72vh',
+                  objectFit: 'contain',
+                  borderRadius: 12,
+                  border: `1px solid ${ADMIN_THEME.border}`,
+                  background: 'rgba(0,0,0,0.35)',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <ConfirmModal
         open={Boolean(deleteTarget)}
