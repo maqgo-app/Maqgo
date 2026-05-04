@@ -65,10 +65,14 @@ if (import.meta.env.DEV) {
 (function enforceCanonicalHost() {
   if (typeof window === "undefined") return;
   const host = String(window.location.hostname || "").toLowerCase();
-  const isProdFlag = import.meta.env.VITE_IS_PRODUCTION === "true";
-  const isCanonicalHost = host === "www.maqgo.cl";
+  const isLocal =
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host.endsWith(".local");
+  if (isLocal) return;
+  const isMaqgoHost = host === "maqgo.cl" || host === "www.maqgo.cl";
+  if (!isMaqgoHost) return;
   const isApexHost = host === "maqgo.cl";
-  if (!isProdFlag || (!isCanonicalHost && !isApexHost)) return;
 
   const mustUseHttps = window.location.protocol !== "https:";
   const mustUseWww = isApexHost;
