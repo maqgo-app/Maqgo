@@ -36,12 +36,14 @@ function ProviderHomeScreen() {
   const inFlightRef = useRef(false);
   const errorStreakRef = useRef(0);
   const lastErrorLogAtRef = useRef(0);
+  const lastIncomingRequestIdRef = useRef(null);
   const [available, setAvailable] = useState(() => readProviderAvailableDefaultOn());
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [bootstrapped, setBootstrapped] = useState(false);
   const [bankDataComplete, setBankDataComplete] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   const [showBankWarningModal, setShowBankWarningModal] = useState(false);
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const isBlockedByBank = onboardingCompleted && !bankDataComplete && !available;
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});
@@ -165,11 +167,17 @@ function ProviderHomeScreen() {
       if (userId && available && canReceiveRequests) {
         const res = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
         if (res.data && res.data.length > 0) {
-          localStorage.setItem('incomingRequest', JSON.stringify(res.data[0]));
+          const next = res.data[0];
+          const nextId = next?.id || next?._id || next?.service_id || null;
+          localStorage.setItem('incomingRequest', JSON.stringify(next));
+          setHasPendingRequest(true);
+          if (nextId && lastIncomingRequestIdRef.current === nextId) return;
+          lastIncomingRequestIdRef.current = nextId;
           unlockAudio();
           playNewRequestSound();
           vibrate('newRequest');
-          navigate('/provider/request-received');
+        } else {
+          setHasPendingRequest(false);
         }
       }
     };
@@ -500,6 +508,45 @@ function ProviderHomeScreen() {
         }}>
           Centro de solicitudes
         </p>
+
+        {hasPendingRequest ? (
+          <div
+            role="status"
+            style={{
+              background: 'rgba(236, 104, 25, 0.12)',
+              border: '1px solid rgba(236, 104, 25, 0.55)',
+              borderRadius: 14,
+              padding: '14px 14px',
+              marginBottom: 16,
+              boxShadow: '0 10px 24px rgba(0,0,0,0.22)',
+            }}
+          >
+            <p style={{ color: '#fff', fontSize: 14, fontWeight: 800, margin: 0, lineHeight: 1.35 }}>
+              Tienes una solicitud pendiente
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.4 }}>
+              Abre la solicitud para revisar detalles y gestionar la asignación.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/provider/request-received')}
+              style={{
+                width: '100%',
+                marginTop: 12,
+                padding: 12,
+                background: '#EC6819',
+                border: 'none',
+                borderRadius: 12,
+                color: '#fff',
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              Ver solicitud
+            </button>
+          </div>
+        ) : null}
 
         {location.state?.activationCongrats ? (
           <div
