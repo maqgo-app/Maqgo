@@ -228,9 +228,12 @@ function AdminUsersScreen() {
             </p>
           </div>
         </div>
-        <div style={{ maxWidth: 1000, margin: '14px auto 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ maxWidth: 1000, margin: '14px auto 0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: ADMIN_THEME.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+            Secciones
+          </span>
           {[
-            { key: 'dashboard', label: 'Operación', to: '/admin' },
+            { key: 'dashboard', label: 'Reservas', to: '/admin' },
             { key: 'users', label: 'Usuarios', to: '/admin/users' },
             { key: 'pricing', label: 'Precios', to: '/admin/pricing' },
             { key: 'marketing', label: 'Marketing', to: '/admin/marketing' },
