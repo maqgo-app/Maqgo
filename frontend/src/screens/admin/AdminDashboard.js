@@ -80,6 +80,7 @@ function AdminDashboard() {
   const [loadingMonthlyFinance, setLoadingMonthlyFinance] = useState(false);
   const [monthlyFinanceError, setMonthlyFinanceError] = useState('');
   const monthlyFinanceManualTriggerRef = useRef(false);
+  const smsBalanceManualTriggerRef = useRef(false);
   const [monthlyFinanceUpdatedAt, setMonthlyFinanceUpdatedAt] = useState(null);
   const [smsBalance, setSmsBalance] = useState(null);
   const [loadingSmsBalance, setLoadingSmsBalance] = useState(false);
@@ -609,13 +610,21 @@ function AdminDashboard() {
       }
       setSmsBalance(data);
       setSmsBalanceError(data.success ? '' : (data.error || 'No se pudo consultar saldo SMS'));
+      if (smsBalanceManualTriggerRef.current) {
+        toast.success('Saldo SMS actualizado.', 'admin-sms-balance');
+      }
     } catch (error) {
       setSmsBalance(null);
-      setSmsBalanceError(friendlyFetchError(error, 'No se pudo cargar saldo SMS'));
+      const msg = friendlyFetchError(error, 'No se pudo cargar saldo SMS');
+      setSmsBalanceError(msg);
+      if (smsBalanceManualTriggerRef.current) {
+        toast.error(msg, 'admin-sms-balance');
+      }
     } finally {
       setLoadingSmsBalance(false);
+      smsBalanceManualTriggerRef.current = false;
     }
-  }, [usingOfflineDemo]);
+  }, [usingOfflineDemo, toast]);
 
   const downloadPlanillaPagos = async () => {
     try {
@@ -987,24 +996,7 @@ function AdminDashboard() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                Dinero
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdminArea('system')}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 999,
-                  border: 'none',
-                  background: adminArea === 'system' ? 'rgba(102, 187, 106, 0.16)' : 'transparent',
-                  color: adminArea === 'system' ? '#fff' : 'rgba(255,255,255,0.8)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Sistema
+                Facturación y pagos
               </button>
             </div>
             <button
@@ -1300,22 +1292,24 @@ function AdminDashboard() {
                         <button
                           type="button"
                           onClick={() => {
-                            setShowUrgentModal(false);
+                            smsBalanceManualTriggerRef.current = true;
                             fetchSmsBalance();
                           }}
+                          disabled={loadingSmsBalance || actionsLocked}
                           style={{
                             padding: '10px 12px',
                             borderRadius: 10,
                             background: 'rgba(255,255,255,0.08)',
                             border: `1px solid ${ADMIN_THEME.borderStrong}`,
                             color: '#fff',
-                            cursor: 'pointer',
+                            cursor: loadingSmsBalance || actionsLocked ? 'default' : 'pointer',
+                            opacity: loadingSmsBalance || actionsLocked ? 0.6 : 1,
                             fontWeight: 800,
                             fontSize: 13,
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          Actualizar
+                          {loadingSmsBalance ? 'Actualizando…' : 'Actualizar'}
                         </button>
                       )}
                     </div>
@@ -1813,7 +1807,10 @@ function AdminDashboard() {
               <button
                 type="button"
                 className="maqgo-btn-secondary"
-                onClick={fetchSmsBalance}
+                onClick={() => {
+                  smsBalanceManualTriggerRef.current = true;
+                  fetchSmsBalance();
+                }}
                 disabled={loadingSmsBalance || actionsLocked}
                 title={actionsLocked ? 'Requiere conexión al API' : 'Actualizar saldo de créditos SMS'}
                 style={{ opacity: loadingSmsBalance || actionsLocked ? 0.6 : 1 }}
@@ -2047,7 +2044,7 @@ function AdminDashboard() {
           </>
         )}
 
-        {adminArea === 'system' && (
+        {adminArea === 'money' && (
           <>
             <h2
               style={{
@@ -2058,7 +2055,7 @@ function AdminDashboard() {
                 fontFamily: "'Space Grotesk', sans-serif",
               }}
             >
-              Salud del sistema y operación
+              Operación (colas y ritmo)
             </h2>
             <p
               style={{
@@ -2067,7 +2064,7 @@ function AdminDashboard() {
                 margin: '0 0 10px',
               }}
             >
-              Aquí ves colas, tiempos de espera y el informe semanal de operación. Úsalo para anticipar problemas.
+              Colas, tiempos de espera e indicadores operativos para anticipar problemas de facturación/pagos.
             </p>
 
             <SystemHealthPanel stats={stats} finances={finances} isDemoData={usingOfflineDemo} />

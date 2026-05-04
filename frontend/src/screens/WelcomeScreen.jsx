@@ -118,7 +118,18 @@ function WelcomeScreen() {
         navigate('/admin');
         return;
       }
-      navigate(getWelcomeAppHomePath());
+      const dest = getWelcomeAppHomePath();
+      if (dest === '/welcome') {
+        const providerRole = String(localStorage.getItem('providerRole') || '').trim();
+        const userRole = String(localStorage.getItem('userRole') || '').trim();
+        if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager' || providerRole) {
+          navigate('/provider/home');
+          return;
+        }
+        navigate('/client/home');
+        return;
+      }
+      navigate(dest);
       return;
     }
     try {
@@ -424,7 +435,7 @@ function WelcomeScreen() {
           cursor: 'pointer'
         }}
       >
-        Iniciar sesión
+        {hasSession ? 'Mi cuenta' : 'Iniciar sesión'}
       </button>
     </div>
   )}

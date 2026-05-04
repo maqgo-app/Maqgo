@@ -134,6 +134,7 @@ export function AddressAutocomplete({
   helperText,
   scriptRetryKey = 0,
   syncInputOnReject = false,
+  forceManual = false,
   placeholder = 'Ej: Av. Providencia 1234',
   className = 'maqgo-input',
   style = {},
@@ -172,6 +173,13 @@ export function AddressAutocomplete({
   }, [lastMapsError]);
 
   useEffect(() => {
+    if (forceManual) {
+      setUseGooglePlaces(false);
+      setScriptLoaded(false);
+      onPlacesStatusChange?.({ ready: false, phase: 'manual', hasApiKey: Boolean(apiKey), reason: 'FORCE_MANUAL' });
+      onPlacesReadyChange?.(false);
+      return;
+    }
     if (!apiKey) {
       if (!window.__MAQGO_MAPS_KEY_WARNED__) {
         window.__MAQGO_MAPS_KEY_WARNED__ = true;
@@ -252,7 +260,7 @@ export function AddressAutocomplete({
         onPlacesStatusChange?.({ ready: false, phase: 'failed', hasApiKey: true, reason });
       });
     return () => window.removeEventListener('error', errorListener);
-  }, [apiKey, scriptRetryKey, onPlacesReadyChange, onPlacesStatusChange]);
+  }, [apiKey, scriptRetryKey, onPlacesReadyChange, onPlacesStatusChange, forceManual]);
 
   useEffect(() => {
     // Al reintentar, mostrar modo manual hasta que Places se vuelva a adjuntar.
@@ -260,6 +268,7 @@ export function AddressAutocomplete({
   }, [scriptRetryKey]);
 
   useEffect(() => {
+    if (forceManual) return;
     if (!scriptLoaded || !apiKey || !inputRef.current || !window.google?.maps?.places) return;
 
     const AutocompleteCtor = window.google?.maps?.places?.Autocomplete;
@@ -334,7 +343,7 @@ export function AddressAutocomplete({
       }
       autocompleteRef.current = null;
     };
-  }, [scriptLoaded, apiKey, scriptRetryKey]);
+  }, [scriptLoaded, apiKey, scriptRetryKey, forceManual]);
 
   // Siempre el mismo input para que el ref sea estable; Autocomplete se adjunta cuando el script carga
   return (

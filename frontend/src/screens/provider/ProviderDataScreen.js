@@ -15,6 +15,8 @@ const CLOSING_TIME_OPTIONS = Array.from({ length: 48 }, (_, idx) => {
   return `${String(hours).padStart(2, '0')}:${minutes === 0 ? '00' : '30'}`;
 });
 
+const PRESET_CLOSING_TIMES = ['17:00', '17:30', '18:00', '18:30', '19:00', '20:00', '21:00', '22:00'];
+
 /**
  * P04 - Datos del Proveedor
  * Nombre empresa, RUT, dirección comercial, hora de cierre
@@ -33,6 +35,7 @@ function ProviderDataScreen() {
   const [placesPhase, setPlacesPhase] = useState('idle');
   const [placesReason, setPlacesReason] = useState('');
   const [placeRejectCode, setPlaceRejectCode] = useState('');
+  const [manualAddressNotFound, setManualAddressNotFound] = useState(false);
   const hasMapsApiKey = !!getGoogleMapsApiKey();
   
   const [form, setForm] = useState({
@@ -48,6 +51,8 @@ function ProviderDataScreen() {
     closingTime: '21:00',
     emitsInvoice: true
   });
+
+  const [closingTimeMode, setClosingTimeMode] = useState('preset');
 
   useEffect(() => {
     const saved = getObject('providerData', {});
@@ -66,6 +71,7 @@ function ProviderDataScreen() {
         typeof closingTimeRaw === 'string'
           ? closingTimeRaw.trim().slice(0, 5)
           : closingTimeRaw;
+      setClosingTimeMode(PRESET_CLOSING_TIMES.includes(normalizedClosingTime) ? 'preset' : 'custom');
       setForm((prev) => ({
         ...prev,
         ...saved,
@@ -167,23 +173,29 @@ function ProviderDataScreen() {
     });
   };
 
-  const isEmailValid = validateEmail(form.email) === '';
+  const businessNameTrim = String(form.businessName || '').trim();
+  const emailTrim = String(form.email || '').trim();
+  const giroTrim = String(form.giro || '').trim();
+  const comunaTrim = String(form.comuna || '').trim();
+  const addressTrim = String(form.address || '').trim();
+
+  const isEmailValid = validateEmail(emailTrim) === '';
   const isValid =
-    form.businessName &&
-    form.email &&
+    businessNameTrim &&
+    emailTrim &&
     isEmailValid &&
     form.rut &&
     validateRut(form.rut) &&
-    form.giro &&
-    form.comuna &&
-    form.address;
+    giroTrim &&
+    comunaTrim &&
+    addressTrim;
   const missingFields = [];
-  if (!form.businessName) missingFields.push('Nombre propietario o empresa');
-  if (!form.email || !isEmailValid) missingFields.push('Correo electrónico válido');
+  if (!businessNameTrim) missingFields.push('Nombre propietario o empresa');
+  if (!emailTrim || !isEmailValid) missingFields.push('Correo electrónico válido');
   if (!form.rut || !validateRut(form.rut)) missingFields.push('RUT válido');
-  if (!form.comuna) missingFields.push('Comuna');
-  if (!form.giro) missingFields.push('Giro comercial');
-  if (!form.address) missingFields.push('Dirección comercial');
+  if (!comunaTrim) missingFields.push('Comuna');
+  if (!giroTrim) missingFields.push('Giro comercial');
+  if (!addressTrim) missingFields.push('Dirección comercial');
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
@@ -283,6 +295,7 @@ function ProviderDataScreen() {
             }}
             scriptRetryKey={scriptRetryKey}
             syncInputOnReject
+            forceManual={manualAddressNotFound}
             onPlaceRejected={(code) => setPlaceRejectCode(String(code || ''))}
             onSelect={({ address, comuna, lat, lng }) => {
               if (placeRejectCode) setPlaceRejectCode('');
@@ -302,6 +315,53 @@ function ProviderDataScreen() {
               </>
             }
           />
+          {hasMapsApiKey && (
+            <div style={{ marginTop: 12 }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  cursor: 'pointer',
+                  color: 'rgba(255,255,255,0.92)',
+                  fontSize: 13,
+                  lineHeight: 1.4
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={manualAddressNotFound}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setManualAddressNotFound(on);
+                    if (on) {
+                      setPlaceRejectCode('');
+                      update('addressLat', null);
+                      update('addressLng', null);
+                      update('addressSource', 'manual');
+                    }
+                  }}
+                  style={{ marginTop: 3, width: 18, height: 18, flexShrink: 0 }}
+                  aria-label="No encuentro mi dirección en las sugerencias"
+                />
+                <span>
+                  <strong>No encuentro mi dirección</strong>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontWeight: 400,
+                      fontSize: 12,
+                      color: 'rgba(255,255,255,0.62)',
+                      marginTop: 4,
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    Escribe calle y número y elige la comuna manualmente.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
           {placeRejectCode ? (
             <p style={{ color: '#ffb4b4', fontSize: 13, marginTop: 6, marginBottom: 0, lineHeight: 1.35 }}>
               {placeRejectCode === 'MISSING_STREET_NUMBER'
@@ -455,20 +515,23 @@ function ProviderDataScreen() {
             ¿Hasta qué hora trabajas?
           </label>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {['17:00', '17:30', '18:00', '18:30', '19:00', '20:00', '21:00', '22:00'].map((time) => (
+            {PRESET_CLOSING_TIMES.map((time) => (
               <button
                 key={time}
                 type="button"
-                onClick={() => update('closingTime', time)}
+                onClick={() => {
+                  setClosingTimeMode('preset');
+                  update('closingTime', time);
+                }}
                 style={{
                   flex: '1 1 45%',
                   padding: '14px 10px',
                   borderRadius: 12,
-                  border: form.closingTime === time ? '2px solid #EC6819' : '2px solid #444',
-                  background: form.closingTime === time ? 'rgba(236, 104, 25, 0.2)' : '#363636',
-                  color: form.closingTime === time ? '#EC6819' : '#fff',
+                  border: closingTimeMode === 'preset' && form.closingTime === time ? '2px solid #EC6819' : '2px solid #444',
+                  background: closingTimeMode === 'preset' && form.closingTime === time ? 'rgba(236, 104, 25, 0.2)' : '#363636',
+                  color: closingTimeMode === 'preset' && form.closingTime === time ? '#EC6819' : '#fff',
                   fontSize: 16,
-                  fontWeight: form.closingTime === time ? 600 : 400,
+                  fontWeight: closingTimeMode === 'preset' && form.closingTime === time ? 600 : 400,
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                 }}
@@ -477,7 +540,28 @@ function ProviderDataScreen() {
                 {time}
               </button>
             ))}
+            <button
+              key="custom"
+              type="button"
+              onClick={() => setClosingTimeMode('custom')}
+              style={{
+                flex: '1 1 45%',
+                padding: '14px 10px',
+                borderRadius: 12,
+                border: closingTimeMode === 'custom' ? '2px solid #EC6819' : '2px solid #444',
+                background: closingTimeMode === 'custom' ? 'rgba(236, 104, 25, 0.2)' : '#363636',
+                color: closingTimeMode === 'custom' ? '#EC6819' : '#fff',
+                fontSize: 16,
+                fontWeight: closingTimeMode === 'custom' ? 600 : 400,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              data-testid="closing-time-custom"
+            >
+              Personalizado
+            </button>
           </div>
+          {closingTimeMode === 'custom' ? (
           <div style={{ marginTop: 12 }}>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '0 0 8px', lineHeight: 1.35 }}>
               Si tu horario es distinto, elige uno personalizado:
@@ -504,6 +588,7 @@ function ProviderDataScreen() {
               ))}
             </select>
           </div>
+          ) : null}
         </div>
       </div>
 

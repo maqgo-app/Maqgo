@@ -165,7 +165,7 @@ function AdminRoute() {
     return () => {
       mounted = false;
     };
-  }, [token, shouldVerifyAdmin, isAdminByStorage, retryNonce]);
+  }, [token, userId, shouldVerifyAdmin, isAdminByStorage, retryNonce]);
 
   const isAdmin = verifiedAdmin || isAdminByStorage;
   const isChangePasswordPath = location.pathname === '/admin/change-password';

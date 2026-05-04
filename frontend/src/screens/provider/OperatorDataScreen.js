@@ -13,9 +13,29 @@ import { getObject, getArray } from '../../utils/safeStorage';
  */
 const EMPTY_OPERATOR = { nombre: '', apellido: '', rut: '', licenseType: '', photo: null };
 
+const COMPANY_SUFFIX_TOKENS = [
+  'spa', 'spA', 'SpA', 'SPA',
+  'ltda', 'LTDA', 'ltda.', 'ltda ',
+  'eirl', 'EIRL',
+  'limitada', 'Limitada',
+  's.a', 'S.A', 's.a.', 'sa.', 'sa',
+  'sociedad anonima', 'sociedad anónima',
+  'comercial', 'Comercial',
+  'empresa', 'Empresa',
+];
+
+function looksLikeCompany(businessName) {
+  const s = String(businessName || '').trim();
+  if (!s) return false;
+  const normalized = s.replace(/\s+/g, ' ');
+  const lower = normalized.toLowerCase();
+  return COMPANY_SUFFIX_TOKENS.some((t) => lower.includes(String(t).toLowerCase()));
+}
+
 function OperatorDataScreen() {
   const navigate = useNavigate();
   const providerDataSnapshot = useMemo(() => getObject('providerData', {}), []);
+  const isCompanyAccount = looksLikeCompany(providerDataSnapshot.businessName);
   const ownerRut = String(providerDataSnapshot.rut || '').trim();
   const initialFromStorage = useMemo(() => {
     const saved = getArray('operatorsData', []);
@@ -26,12 +46,16 @@ function OperatorDataScreen() {
       saved[0].rut &&
       validateRut(saved[0].rut);
     if (firstComplete) return { operators: saved, sameAsOwner: false };
-    return { operators: [{ ...EMPTY_OPERATOR }], sameAsOwner: true };
+    return { operators: [{ ...EMPTY_OPERATOR }], sameAsOwner: false };
   }, []);
   const [sameAsOwner, setSameAsOwner] = useState(initialFromStorage.sameAsOwner);
   const [ownerError, setOwnerError] = useState('');
   const [rutErrors, setRutErrors] = useState({});
   const [operators, setOperators] = useState(initialFromStorage.operators);
+
+  useEffect(() => {
+    if (isCompanyAccount && sameAsOwner) setSameAsOwner(false);
+  }, [isCompanyAccount, sameAsOwner]);
 
   // Persistir fotos y datos de operadores de inmediato para facilitar onboarding
   useEffect(() => {
@@ -86,6 +110,10 @@ function OperatorDataScreen() {
   };
 
   const handleContinue = () => {
+    if (isCompanyAccount && sameAsOwner) {
+      setOwnerError('Para empresas debes registrar al menos 1 operador (no “Yo mismo”).');
+      return;
+    }
     // Validate all RUTs before continuing
     if (!sameAsOwner) {
       const errors = {};
@@ -135,7 +163,7 @@ function OperatorDataScreen() {
   const handleBack = () => navigate('/provider/machine-photos-pricing');
 
   // Validación: todos los operadores deben tener nombre, apellido y RUT válido
-  const isValid = sameAsOwner
+  const isValid = sameAsOwner && !isCompanyAccount
     ? Boolean(ownerRut && validateRut(ownerRut))
     : operators.every(op =>
         op.nombre && op.apellido && op.rut && validateRut(op.rut)
@@ -178,10 +206,25 @@ function OperatorDataScreen() {
         }}>
           ¿Quién operará la máquina?
         </p>
+        {isCompanyAccount && (
+          <p
+            style={{
+              color: 'rgba(255,255,255,0.65)',
+              fontSize: 13,
+              textAlign: 'center',
+              marginTop: -12,
+              marginBottom: 18,
+              lineHeight: 1.35,
+            }}
+          >
+            Cuenta empresa: debes registrar al menos 1 operador.
+          </p>
+        )}
 
         {/* Opción: Yo mismo */}
         <div 
           onClick={() => {
+            if (isCompanyAccount) return;
             setSameAsOwner(true);
             if (ownerError) setOwnerError('');
           }}
@@ -191,10 +234,11 @@ function OperatorDataScreen() {
             borderRadius: 12,
             padding: 16,
             marginBottom: 12,
-            cursor: 'pointer',
+            cursor: isCompanyAccount ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: 12
+            gap: 12,
+            opacity: isCompanyAccount ? 0.55 : 1,
           }}
           data-testid="option-same-as-owner"
         >
