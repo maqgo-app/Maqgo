@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
@@ -45,6 +45,7 @@ const AUDIENCE_OPTIONS = [
 
 function AdminMarketingScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const [weekInput, setWeekInput] = useState(() => {
     const n = new Date();
@@ -337,11 +338,35 @@ function AdminMarketingScreen() {
               </span>
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button type="button" className="maqgo-btn-secondary" onClick={() => navigate('/admin')}>
-              Volver al admin
-            </button>
-          </div>
+        </div>
+        <div style={{ maxWidth: 960, margin: '14px auto 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            { key: 'dashboard', label: 'Operación', to: '/admin' },
+            { key: 'users', label: 'Usuarios', to: '/admin/users' },
+            { key: 'pricing', label: 'Precios', to: '/admin/pricing' },
+            { key: 'marketing', label: 'Marketing', to: '/admin/marketing' },
+          ].map((it) => {
+            const active = location.pathname === it.to || (it.to === '/admin' && location.pathname === '/admin');
+            return (
+              <button
+                key={it.key}
+                type="button"
+                onClick={() => navigate(it.to)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 999,
+                  border: active ? '1px solid rgba(236, 104, 25, 0.55)' : '1px solid rgba(255,255,255,0.18)',
+                  background: active ? 'rgba(236, 104, 25, 0.18)' : 'transparent',
+                  color: active ? '#fff' : 'rgba(255,255,255,0.85)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 800,
+                }}
+              >
+                {it.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

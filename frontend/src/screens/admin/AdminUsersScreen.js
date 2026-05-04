@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -8,6 +8,7 @@ import BACKEND_URL from '../../utils/api';
 
 function AdminUsersScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const [data, setData] = useState({ clients: [], providers: [], total_clients: 0, total_providers: 0 });
   const [loading, setLoading] = useState(true);
@@ -200,7 +201,7 @@ function AdminUsersScreen() {
         padding: '20px 24px',
         borderBottom: '1px solid rgba(255,255,255,0.1)'
       }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: '#EC6819', fontFamily: "'Space Grotesk', sans-serif" }}>
               Usuarios registrados
@@ -209,9 +210,35 @@ function AdminUsersScreen() {
               Clientes y proveedores en la plataforma
             </p>
           </div>
-          <button type="button" className="maqgo-btn-secondary" onClick={() => navigate('/admin')}>
-            Volver al admin
-          </button>
+        </div>
+        <div style={{ maxWidth: 1000, margin: '14px auto 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            { key: 'dashboard', label: 'Operación', to: '/admin' },
+            { key: 'users', label: 'Usuarios', to: '/admin/users' },
+            { key: 'pricing', label: 'Precios', to: '/admin/pricing' },
+            { key: 'marketing', label: 'Marketing', to: '/admin/marketing' },
+          ].map((it) => {
+            const active = location.pathname === it.to || (it.to === '/admin' && location.pathname === '/admin');
+            return (
+              <button
+                key={it.key}
+                type="button"
+                onClick={() => navigate(it.to)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 999,
+                  border: active ? '1px solid rgba(236, 104, 25, 0.55)' : '1px solid rgba(255,255,255,0.18)',
+                  background: active ? 'rgba(236, 104, 25, 0.18)' : 'transparent',
+                  color: active ? '#fff' : 'rgba(255,255,255,0.85)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 800,
+                }}
+              >
+                {it.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
