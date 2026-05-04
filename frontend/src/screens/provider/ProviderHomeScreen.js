@@ -474,6 +474,18 @@ function ProviderHomeScreen() {
   return (
     <div className="maqgo-app maqgo-provider-funnel">
       <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
+        <style>{`
+          .maqgo-provider-home-container {
+            width: 100%;
+          }
+          @media (min-width: 900px) {
+            .maqgo-provider-home-container {
+              max-width: 760px;
+              margin: 0 auto;
+            }
+          }
+        `}</style>
+        <div className="maqgo-provider-home-container">
         {/* Header - Solo logo centrado */}
         <MaqgoLogo size="medium" style={{ marginBottom: 40 }} />
 
@@ -651,8 +663,20 @@ function ProviderHomeScreen() {
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span style={{ color: item.ok ? '#4CAF50' : '#F44336', fontSize: 12, fontWeight: 700 }}>
-                    {item.ok ? '✓' : '✕ Pendiente'}
+                  <span
+                    style={{
+                      background: item.ok ? 'rgba(76, 175, 80, 0.18)' : 'rgba(255,255,255,0.08)',
+                      border: item.ok ? '1px solid rgba(76, 175, 80, 0.45)' : '1px solid rgba(255,255,255,0.16)',
+                      color: item.ok ? '#8BE28E' : 'rgba(255,255,255,0.78)',
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 800,
+                      letterSpacing: 0.2,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {item.ok ? 'Listo' : 'Pendiente'}
                   </span>
                 </div>
               </div>
@@ -879,6 +903,7 @@ function ProviderHomeScreen() {
           </button>
         )}
 
+        </div>
       </div>
       {showBankWarningModal && (
         <div
