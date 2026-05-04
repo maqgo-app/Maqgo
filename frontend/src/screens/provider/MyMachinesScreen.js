@@ -397,7 +397,7 @@ function MyMachinesScreen() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
                 }}
               >
-                Asignar operadores
+                {(machine.operators || []).length > 0 ? 'Editar operadores' : 'Asignar operadores'}
               </button>
             </div>
 

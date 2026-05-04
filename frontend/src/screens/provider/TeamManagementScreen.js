@@ -5,7 +5,7 @@ import axios from 'axios';
 import { useAuth } from '../../context/authHooks';
 import { useToast } from '../../components/Toast';
 
-import BACKEND_URL from '../../utils/api';
+import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 
 /**
  * Pantalla: Gestión de equipo (Mis operadores)
@@ -28,6 +28,7 @@ function TeamManagementScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [operatorNombreCompleto, setOperatorNombreCompleto] = useState('');
   const [operatorRut, setOperatorRut] = useState('');
+  const [operatorPhone, setOperatorPhone] = useState('');
   const [didAttemptInvite, setDidAttemptInvite] = useState(false);
   const GPS_FRESH_MINUTES = 10;
   const GPS_STALE_MINUTES = 120;
@@ -86,6 +87,24 @@ function TeamManagementScreen() {
 
   const loadTeam = () => setRefreshKey(k => k + 1);
 
+  const normalizePhoneForChannel = (raw) => {
+    const s = String(raw || '').trim();
+    if (!s) return '';
+    if (s.startsWith('+')) {
+      return `+${s.slice(1).replace(/\D/g, '')}`;
+    }
+    const digits = s.replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.startsWith('56')) return `+${digits}`;
+    if (digits.length === 9) return `+56${digits}`;
+    return `+${digits}`;
+  };
+
+  const buildInviteMessage = (code) => {
+    const c = String(code || '').trim().toUpperCase();
+    return `Tu código de activación MAQGO es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy operador (tengo código)”\n3) Ingresa el código\n\nVálido por 7 días.`;
+  };
+
   const generateInviteCode = async () => {
     setDidAttemptInvite(true);
     setInviting(true);
@@ -106,9 +125,11 @@ function TeamManagementScreen() {
           setInviting(false);
           return;
         }
+        const normalizedPhone = normalizePhoneForChannel(operatorPhone);
         payload = {
           owner_id: ownerId,
           operator_name: fullName,
+          operator_phone: normalizedPhone || undefined,
           operator_rut: operatorRut.trim(),
         };
       }
@@ -146,6 +167,105 @@ function TeamManagementScreen() {
       void 0;
     }
     toast.warning('No se pudo copiar automáticamente. Copia el código manualmente.');
+  };
+
+  const copyTextToClipboard = async (text, successMessage) => {
+    const t = String(text || '').trim();
+    if (!t) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(t);
+        toast.success(successMessage || 'Copiado');
+        return;
+      }
+    } catch {
+      void 0;
+    }
+    try {
+      window.prompt('Copia este texto:', t);
+    } catch {
+      void 0;
+    }
+    toast.warning('No se pudo copiar automáticamente. Copia el texto manualmente.');
+  };
+
+  const shareCode = async (channel) => {
+    const code = String(inviteCode || '').trim().toUpperCase();
+    if (!code) return;
+    const text = buildInviteMessage(code);
+    const phone = normalizePhoneForChannel(operatorPhone);
+    if (channel === 'system') {
+      if (navigator?.share) {
+        try {
+          await navigator.share({ text });
+          return;
+        } catch {
+          void 0;
+        }
+      }
+      toast.warning('No se pudo abrir el menú de compartir. Usa Copiar código.');
+      return;
+    }
+    if (channel === 'whatsapp') {
+      const base = phone ? `https://wa.me/${phone.replace('+', '')}` : 'https://wa.me/';
+      window.open(`${base}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    if (channel === 'sms') {
+      const target = phone ? phone : '';
+      const url = `sms:${encodeURIComponent(target)}?&body=${encodeURIComponent(text)}`;
+      window.location.href = url;
+    }
+  };
+
+  const shareInvite = async (channel, code, phone) => {
+    const c = String(code || '').trim().toUpperCase();
+    if (!c) return;
+    const text = buildInviteMessage(c);
+    const normalized = normalizePhoneForChannel(phone);
+    if (channel === 'whatsapp') {
+      const base = normalized ? `https://wa.me/${normalized.replace('+', '')}` : 'https://wa.me/';
+      window.open(`${base}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    if (channel === 'sms') {
+      const target = normalized ? normalized : '';
+      const url = `sms:${encodeURIComponent(target)}?&body=${encodeURIComponent(text)}`;
+      window.location.href = url;
+      return;
+    }
+    if (channel === 'copy') {
+      await copyTextToClipboard(c, 'Código copiado');
+    }
+  };
+
+  const deleteOperator = async (operatorId, operatorName) => {
+    const userId = localStorage.getItem('userId');
+    const ownerId = localStorage.getItem('ownerId') || userId;
+    if (!ownerId || !operatorId) return;
+    const confirmText = `¿Eliminar a ${operatorName || 'este operador'}? Esta acción no se puede deshacer.`;
+    if (!window.confirm(confirmText)) return;
+    try {
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/users/${encodeURIComponent(ownerId)}/operators/${encodeURIComponent(operatorId)}`,
+        { method: 'DELETE' },
+        15000
+      );
+      if (!res.ok) {
+        let detail = '';
+        try {
+          const data = await res.json();
+          detail = data?.detail ? String(data.detail) : '';
+        } catch {
+          void 0;
+        }
+        throw new Error(detail || 'No pudimos eliminar el operador.');
+      }
+      toast.success('Operador eliminado');
+      loadTeam();
+    } catch (e) {
+      toast.error(e?.message || 'No pudimos eliminar el operador.');
+    }
   };
 
   const cancelInvitation = async (code) => {
@@ -373,16 +493,34 @@ function TeamManagementScreen() {
                           background: gpsBadge.color,
                           boxShadow: `0 0 0 3px ${gpsBadge.color}22`
                         }} title={gpsBadge.title}></div>
-                        <span style={{
-                          padding: '4px 10px',
-                          borderRadius: 20,
-                          background: 'rgba(76, 175, 80, 0.18)',
-                          color: '#4CAF50',
-                          fontSize: 13,
-                          fontWeight: 600
-                        }}>
-                          Activo
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{
+                            padding: '4px 10px',
+                            borderRadius: 20,
+                            background: 'rgba(76, 175, 80, 0.18)',
+                            color: '#4CAF50',
+                            fontSize: 13,
+                            fontWeight: 600
+                          }}>
+                            Activo
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => deleteOperator(op.id, op.name)}
+                            style={{
+                              padding: '6px 10px',
+                              background: 'rgba(244, 67, 54, 0.18)',
+                              border: '1px solid rgba(244, 67, 54, 0.35)',
+                              borderRadius: 8,
+                              color: '#F44336',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Eliminar
+                          </button>
+                        </div>
                       </div>
                         );
                       })()
@@ -460,20 +598,55 @@ function TeamManagementScreen() {
                               </p>
                             )}
                           </div>
-                          <button
-                            onClick={() => cancelInvitation(inv.code)}
-                            style={{
-                              padding: '6px 12px',
-                              background: 'rgba(244, 67, 54, 0.2)',
-                              border: 'none',
-                              borderRadius: 6,
-                              color: '#F44336',
-                              fontSize: 12,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Cancelar
-                          </button>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => shareInvite('copy', inv.code, inv.operator_phone)}
+                              style={{
+                                padding: '6px 10px',
+                                background: 'rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: 6,
+                                color: 'rgba(255,255,255,0.92)',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 700
+                              }}
+                            >
+                              Copiar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => shareInvite('whatsapp', inv.code, inv.operator_phone)}
+                              style={{
+                                padding: '6px 10px',
+                                background: 'rgba(37, 211, 102, 0.14)',
+                                border: '1px solid rgba(37, 211, 102, 0.35)',
+                                borderRadius: 6,
+                                color: 'rgba(255,255,255,0.92)',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 700
+                              }}
+                            >
+                              WhatsApp
+                            </button>
+                            <button
+                              onClick={() => cancelInvitation(inv.code)}
+                              style={{
+                                padding: '6px 10px',
+                                background: 'rgba(244, 67, 54, 0.2)',
+                                border: '1px solid rgba(244, 67, 54, 0.35)',
+                                borderRadius: 6,
+                                color: '#F44336',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
                         </div>
                         <div style={{ marginTop: 10 }}>
                           <span style={{
@@ -708,6 +881,27 @@ function TeamManagementScreen() {
                         }}
                       />
                     </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                        Celular (opcional)
+                      </label>
+                      <input
+                        type="tel"
+                        value={operatorPhone}
+                        onChange={(e) => setOperatorPhone(e.target.value)}
+                        placeholder="+56 9 1234 5678"
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #444',
+                          background: '#1F1F1F',
+                          color: '#fff',
+                          fontSize: 14,
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
                     {didAttemptInvite && missingInviteFields.length > 0 && (
                       <p style={{ color: '#F44336', fontSize: 12, margin: '2px 0 10px' }}>
                         Falta completar: {missingInviteFields.join(', ')}.
@@ -814,6 +1008,60 @@ function TeamManagementScreen() {
                   </svg>
                   Copiar código
                 </button>
+
+                <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => shareCode('whatsapp')}
+                    style={{
+                      flex: '1 1 160px',
+                      padding: 12,
+                      background: 'rgba(37, 211, 102, 0.14)',
+                      border: '1px solid rgba(37, 211, 102, 0.35)',
+                      borderRadius: 10,
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Enviar por WhatsApp
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => shareCode('sms')}
+                    style={{
+                      flex: '1 1 160px',
+                      padding: 12,
+                      background: 'rgba(144, 189, 211, 0.14)',
+                      border: '1px solid rgba(144, 189, 211, 0.35)',
+                      borderRadius: 10,
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Enviar por SMS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => shareCode('system')}
+                    style={{
+                      flex: '1 1 160px',
+                      padding: 12,
+                      background: 'transparent',
+                      border: '1px solid rgba(255,255,255,0.22)',
+                      borderRadius: 10,
+                      color: 'rgba(255,255,255,0.92)',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Compartir…
+                  </button>
+                </div>
 
                 <div style={{
                   background: 'rgba(236, 104, 25, 0.1)',
