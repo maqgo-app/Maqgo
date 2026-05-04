@@ -184,7 +184,7 @@ function TeamManagementScreen() {
             margin: 0,
             fontFamily: "'Space Grotesk', sans-serif"
           }}>
-            Roles y accesos
+            Código de activación operadores
           </h1>
         </div>
 

@@ -610,10 +610,10 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
               No tienes operadores activos.
             </p>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
-              Crea un operador en <strong>Roles y accesos</strong>, comparte el código y cuando se enrolen aparecerán aquí.
+              Crea un operador en <strong>Código de activación operadores</strong>, comparte el código y cuando se enrolen aparecerán aquí.
             </p>
             <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>
-              Ir a Roles y accesos
+              Ir a Código de activación
             </button>
           </div>
         ) : (
