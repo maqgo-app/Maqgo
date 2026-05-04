@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
@@ -15,9 +15,6 @@ const EMPTY_OPERATOR = { nombre: '', apellido: '', rut: '', licenseType: '', pho
 
 function OperatorDataScreen() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const activationEdit = Boolean(location.state?.activationEdit);
-  const returnTo = String(location.state?.returnTo || '/provider/home');
   const providerDataSnapshot = useMemo(() => getObject('providerData', {}), []);
   const ownerRut = String(providerDataSnapshot.rut || '').trim();
   const initialFromStorage = useMemo(() => {
@@ -131,21 +128,11 @@ function OperatorDataScreen() {
     } else {
       localStorage.setItem('operatorsData', JSON.stringify(operators));
     }
-    if (activationEdit) {
-      navigate(returnTo, { replace: true });
-      return;
-    }
     localStorage.setItem('providerOnboardingStep', '6');
     navigate('/provider/review');
   };
 
-  const handleBack = () => {
-    if (activationEdit) {
-      navigate(returnTo);
-      return;
-    }
-    navigate('/provider/machine-photos-pricing');
-  };
+  const handleBack = () => navigate('/provider/machine-photos-pricing');
 
   // Validación: todos los operadores deben tener nombre, apellido y RUT válido
   const isValid = sameAsOwner
