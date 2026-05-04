@@ -129,9 +129,23 @@ function TeamManagementScreen() {
     setInviting(false);
   };
 
-  const copyCode = () => {
-    navigator.clipboard.writeText(inviteCode);
-    toast.success('Código copiado al portapapeles');
+  const copyCode = async () => {
+    try {
+      if (!inviteCode) return;
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(inviteCode);
+        toast.success('Código copiado al portapapeles');
+        return;
+      }
+    } catch {
+      void 0;
+    }
+    try {
+      window.prompt('Copia este código:', inviteCode);
+    } catch {
+      void 0;
+    }
+    toast.warning('No se pudo copiar automáticamente. Copia el código manualmente.');
   };
 
   const cancelInvitation = async (code) => {
