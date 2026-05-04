@@ -302,17 +302,7 @@ function MachinePhotosPricingScreen() {
         }
         @media (min-width: 1200px) {
           .maqgo-app.maqgo-provider-p3-wide {
-            max-width: 980px;
-          }
-          .maqgo-photos-pricing-grid {
-            display: grid;
-            grid-template-columns: 0.85fr 1.15fr;
-            gap: 16px;
-            align-items: start;
-          }
-          .maqgo-photos-pricing-sticky {
-            position: sticky;
-            top: calc(var(--maqgo-screen-padding-top, 0px) + 10px);
+            max-width: 720px;
           }
         }
       `}</style>
