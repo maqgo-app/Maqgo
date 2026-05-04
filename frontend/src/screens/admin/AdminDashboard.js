@@ -983,22 +983,41 @@ function AdminDashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => setAdminArea('money')}
+                onClick={() => setAdminArea('system')}
                 style={{
                   padding: '8px 12px',
                   borderRadius: 999,
                   border: 'none',
-                  background: adminArea === 'money' ? 'rgba(126, 184, 212, 0.18)' : 'transparent',
-                  color: adminArea === 'money' ? '#fff' : 'rgba(255,255,255,0.8)',
+                  background: adminArea === 'system' ? 'rgba(102, 187, 106, 0.16)' : 'transparent',
+                  color: adminArea === 'system' ? '#fff' : 'rgba(255,255,255,0.8)',
                   cursor: 'pointer',
                   fontSize: 13,
                   fontWeight: 800,
                   whiteSpace: 'nowrap',
                 }}
               >
-                Facturación y pagos
+                Sistema
               </button>
             </div>
+            <button
+              type="button"
+              disabled={actionsLocked}
+              title={actionsLocked ? 'Requiere conexión al API' : undefined}
+              onClick={() => !actionsLocked && setAdminArea('money')}
+              style={{
+                padding: '8px 16px',
+                background: adminArea === 'money' ? 'rgba(126, 184, 212, 0.18)' : 'transparent',
+                border: `1px solid ${adminArea === 'money' ? 'rgba(126, 184, 212, 0.55)' : 'rgba(255,255,255,0.2)'}`,
+                borderRadius: 8,
+                color: adminArea === 'money' ? '#fff' : 'rgba(255,255,255,0.85)',
+                cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+                opacity: actionsLocked ? 0.45 : 1,
+              }}
+            >
+              💳 Facturación y pagos
+            </button>
             <button
               type="button"
               disabled={actionsLocked}
@@ -1723,7 +1742,7 @@ function AdminDashboard() {
                 fontFamily: "'Space Grotesk', sans-serif",
               }}
             >
-              Dinero y riesgos
+              Facturación y pagos
             </h2>
             <p
               style={{
@@ -1732,7 +1751,7 @@ function AdminDashboard() {
                 margin: '0 0 12px',
               }}
             >
-              Incluye todas las métricas claves: ventas, comisiones, IVA estimado y saldo de SMS.
+              Ventas, comisiones, IVA estimado, planilla de pagos y saldo de SMS.
             </p>
 
         <div style={{ 
@@ -2044,7 +2063,7 @@ function AdminDashboard() {
           </>
         )}
 
-        {adminArea === 'money' && (
+        {adminArea === 'system' && (
           <>
             <h2
               style={{
@@ -2055,7 +2074,7 @@ function AdminDashboard() {
                 fontFamily: "'Space Grotesk', sans-serif",
               }}
             >
-              Operación (colas y ritmo)
+              Salud del sistema y operación
             </h2>
             <p
               style={{
@@ -2064,7 +2083,7 @@ function AdminDashboard() {
                 margin: '0 0 10px',
               }}
             >
-              Colas, tiempos de espera e indicadores operativos para anticipar problemas de facturación/pagos.
+              Colas, tiempos de espera e indicadores operativos para anticipar problemas.
             </p>
 
             <SystemHealthPanel stats={stats} finances={finances} isDemoData={usingOfflineDemo} />
