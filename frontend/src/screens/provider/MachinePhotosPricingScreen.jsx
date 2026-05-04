@@ -358,7 +358,7 @@ function MachinePhotosPricingScreen() {
               padding: 4,
             }}
           >
-            Ir a tarifas
+            Bajar a tarifas
           </button>
         </p>
 
