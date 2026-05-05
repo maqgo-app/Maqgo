@@ -1985,221 +1985,8 @@ function AdminDashboard() {
               </span>
             </div>
           </div>
-
-          {/* Acciones Pendientes */}
-          <div style={{ 
-            marginTop: 16, 
-            paddingTop: 16, 
-            borderTop: '1px solid rgba(255,255,255,0.1)' 
-          }}>
-            <h3 style={{ 
-              color: '#EC6819', 
-              fontSize: 14, 
-              fontWeight: 600, 
-              margin: '0 0 12px',
-              fontFamily: "'Space Grotesk', sans-serif"
-            }}>
-              📋 Acciones Pendientes
-            </h3>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-              {stats.pending_review > 0 && (
-                <div style={{ 
-                  background: 'rgba(255, 167, 38, 0.1)', 
-                  border: '1px solid rgba(255, 167, 38, 0.3)',
-                  borderRadius: 8, 
-                  padding: '8px 12px',
-                  fontSize: 12,
-                  color: '#FFA726'
-                }}>
-                  {stats.pending_review} reservas por revisar
-                </div>
-              )}
-              {stats.invoiced > 0 && (
-                <div style={{ 
-                  background: 'rgba(236, 104, 25, 0.12)', 
-                  border: '1px solid rgba(236, 104, 25, 0.35)',
-                  borderRadius: 8, 
-                  padding: '8px 12px',
-                  fontSize: 12,
-                  color: ADMIN_PALETTE.brand
-                }}>
-                  {stats.invoiced} facturas por cobrar
-                </div>
-              )}
-              {(stats.maqgo_to_invoice || 0) > 0 && (
-                <div style={{ 
-                  background: 'rgba(126, 184, 212, 0.12)', 
-                  border: '1px solid rgba(126, 184, 212, 0.35)',
-                  borderRadius: 8, 
-                  padding: '8px 12px',
-                  fontSize: 12,
-                  color: ADMIN_PALETTE.info
-                }}>
-                  {stats.maqgo_to_invoice} MAQGO debe facturar al cliente
-                </div>
-              )}
-              {(stats.maqgo_to_invoice_overdue || 0) > 0 && (
-                <div style={{
-                  background: 'rgba(229, 115, 115, 0.14)',
-                  border: '1px solid rgba(229, 115, 115, 0.38)',
-                  borderRadius: 8,
-                  padding: '8px 12px',
-                  fontSize: 12,
-                  color: ADMIN_PALETTE.danger
-                }}>
-                  🚨 {stats.maqgo_to_invoice_overdue} pago(s) vencido(s) sin factura cliente
-                </div>
-              )}
-              {stats.disputed > 0 && (
-                <div style={{ 
-                  background: 'rgba(229, 115, 115, 0.12)', 
-                  border: '1px solid rgba(229, 115, 115, 0.35)',
-                  borderRadius: 8, 
-                  padding: '8px 12px',
-                  fontSize: 12,
-                  color: ADMIN_PALETTE.danger
-                }}>
-                  {stats.disputed} reclamos por resolver
-                </div>
-              )}
-              {(!stats.pending_review && !stats.invoiced && !stats.disputed && !(stats.maqgo_to_invoice || 0) && !(stats.maqgo_to_invoice_overdue || 0)) && (
-                <div style={{ 
-                  color: 'rgba(255,255,255,0.95)', 
-                  fontSize: 12,
-                  fontStyle: 'italic'
-                }}>
-                  ✅ No hay acciones pendientes
-                </div>
-              )}
-            </div>
-          </div>
         </div>
-          </>
-        )}
 
-        {adminArea === 'system' && (
-          <>
-            <h2
-              style={{
-                color: '#ffffff',
-                fontSize: 16,
-                fontWeight: 700,
-                margin: '24px 0 8px',
-                fontFamily: "'Space Grotesk', sans-serif",
-              }}
-            >
-              Operación (salud y colas)
-            </h2>
-            <p
-              style={{
-                color: 'rgba(255,255,255,0.7)',
-                fontSize: 12,
-                margin: '0 0 10px',
-              }}
-            >
-              Colas, riesgos e indicadores operativos (incluye pipeline de revisión y facturación).
-            </p>
-
-            <SystemHealthPanel stats={stats} finances={finances} isDemoData={usingOfflineDemo} />
-
-        {(sla || weekComparison) && (
-          <div style={{
-            background: ADMIN_THEME.panelBg,
-            borderRadius: 12,
-            padding: 20,
-            marginBottom: 24,
-            border: `1px solid ${ADMIN_THEME.borderStrong}`
-          }}>
-            <h2 style={{
-              color: '#90BDD3',
-              fontSize: 15,
-              fontWeight: 700,
-              margin: '0 0 14px',
-              fontFamily: "'Space Grotesk', sans-serif"
-            }}>
-              ⏱ Colas y ritmo (tiempo real)
-            </h2>
-            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '0 0 14px', lineHeight: 1.45 }}>
-              Promedios de espera en el pipeline de facturación. Útil para ver cuellos antes de que exploten las colas.
-            </p>
-            {sla && (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: 12,
-                marginBottom: weekComparison ? 16 : 0
-              }}>
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
-                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>Revisión MAQGO</p>
-                  <p style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
-                    {sla.revision_horas_promedio ?? '—'} h <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>prom.</span>
-                  </p>
-                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '6px 0 0' }}>
-                    Máx {sla.revision_horas_max ?? '—'} h · {sla.en_revision ?? 0} en cola
-                  </p>
-                </div>
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
-                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>Aprobado → factura prov.</p>
-                  <p style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
-                    {sla.aprobado_sin_factura_h_promedio ?? '—'} h
-                  </p>
-                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '6px 0 0' }}>
-                    {sla.aprobado_sin_facturar ?? 0} servicio(s)
-                  </p>
-                </div>
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
-                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>Facturado → pago</p>
-                  <p style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
-                    {sla.facturado_sin_pago_h_promedio ?? '—'} h
-                  </p>
-                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '6px 0 0' }}>
-                    {sla.facturados_sin_pago ?? 0} servicio(s)
-                  </p>
-                </div>
-              </div>
-            )}
-            {weekComparison && (
-              <div style={{
-                paddingTop: 14,
-                borderTop: '1px solid rgba(255,255,255,0.08)',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: 12
-              }}>
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
-                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>Servicios creados (sem. vs ant.)</p>
-                  <p style={{ color: '#fff', fontSize: 18, fontWeight: 600, margin: 0 }}>
-                    {weekComparison.creados_esta_semana ?? '—'} <span style={{ color: 'rgba(255,255,255,0.45)' }}>vs</span> {weekComparison.creados_semana_anterior ?? '—'}
-                  </p>
-                  <p style={{
-                    color: (weekComparison.delta_creados || 0) >= 0 ? '#81C784' : '#E57373',
-                    fontSize: 13,
-                    margin: '6px 0 0',
-                    fontWeight: 600
-                  }}>
-                    Δ {weekComparison.delta_creados || 0}
-                  </p>
-                </div>
-                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
-                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>Pagados cerrados (paid_at en semana)</p>
-                  <p style={{ color: '#fff', fontSize: 18, fontWeight: 600, margin: 0 }}>
-                    {weekComparison.pagados_esta_semana ?? '—'} <span style={{ color: 'rgba(255,255,255,0.45)' }}>vs</span> {weekComparison.pagados_semana_anterior ?? '—'}
-                  </p>
-                  <p style={{
-                    color: (weekComparison.delta_pagados || 0) >= 0 ? '#81C784' : '#E57373',
-                    fontSize: 13,
-                    margin: '6px 0 0',
-                    fontWeight: 600
-                  }}>
-                    Δ {weekComparison.delta_pagados || 0}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Stats Cards - Estados de servicios */}
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
@@ -2215,11 +2002,13 @@ function AdminDashboard() {
             { key: 'maqgo_to_invoice_overdue', label: 'MAQGO Facturación Vencida', icon: '🚨' },
             { key: 'disputed', label: 'En Disputa', icon: '⚠️' }
           ].map(item => {
-            const config = STATUS_CONFIG[item.key] || (item.key === 'maqgo_to_invoice' 
-              ? { color: ADMIN_PALETTE.info, bg: 'rgba(126, 184, 212, 0.12)' }
-              : item.key === 'maqgo_to_invoice_overdue'
-                ? { color: ADMIN_PALETTE.danger, bg: 'rgba(229, 115, 115, 0.14)' }
-                : STATUS_CONFIG.disputed);
+            const config =
+              STATUS_CONFIG[item.key] ||
+              (item.key === 'maqgo_to_invoice'
+                ? { color: ADMIN_PALETTE.info, bg: 'rgba(126, 184, 212, 0.12)' }
+                : item.key === 'maqgo_to_invoice_overdue'
+                  ? { color: ADMIN_PALETTE.danger, bg: 'rgba(229, 115, 115, 0.14)' }
+                  : STATUS_CONFIG.disputed);
             return (
               <div
                 key={item.key}
@@ -2258,7 +2047,6 @@ function AdminDashboard() {
           })}
         </div>
 
-        {/* Filtro "Ver todos" */}
         <div style={{ marginBottom: 16 }}>
           <button
             type="button"
@@ -2280,7 +2068,6 @@ function AdminDashboard() {
           </button>
         </div>
 
-        {/* Tabla de servicios */}
         <div style={{
           background: ADMIN_THEME.panelBg,
           borderRadius: 12,
@@ -2307,7 +2094,6 @@ function AdminDashboard() {
             </div>
           ) : (
             <>
-              {/* Header de tabla - solo si hay datos */}
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr 1fr 120px 120px 150px',
@@ -2327,7 +2113,6 @@ function AdminDashboard() {
                 <span>Acciones</span>
               </div>
 
-              {/* Filas */}
               {services.map((service, index) => {
               const status = STATUS_CONFIG[service.status];
               return (
@@ -2342,7 +2127,6 @@ function AdminDashboard() {
                     alignItems: 'center'
                   }}
                 >
-                  {/* Cliente / Maquinaria */}
                   <div>
                     <p style={{ color: '#fff', fontSize: 14, fontWeight: 500, margin: '0 0 4px' }}>
                       {service.client_name}
@@ -2352,12 +2136,10 @@ function AdminDashboard() {
                     </p>
                   </div>
 
-                  {/* Fecha */}
                   <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>
                     {formatDate(service.created_at)}
                   </span>
 
-                  {/* Monto */}
                   <div>
                     <span style={{ 
                       color: ADMIN_PALETTE.success, 
@@ -2374,7 +2156,6 @@ function AdminDashboard() {
                     )}
                   </div>
 
-                  {/* Factura */}
                   <div>
                     {service.invoice_number || (service.status === 'invoiced' && service.invoiceFilename) ? (
                       <button
@@ -2399,7 +2180,6 @@ function AdminDashboard() {
                     )}
                   </div>
 
-                  {/* Estado */}
                   <span style={{
                     background: status.bg,
                     color: status.color,
@@ -2411,7 +2191,6 @@ function AdminDashboard() {
                     {status.label}
                   </span>
 
-                  {/* Acciones */}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {service.status === 'approved' && (
                       <button
@@ -2547,6 +2326,131 @@ function AdminDashboard() {
             </>
           )}
         </div>
+          </>
+        )}
+
+        {adminArea === 'system' && (
+          <>
+            <h2
+              style={{
+                color: '#ffffff',
+                fontSize: 16,
+                fontWeight: 700,
+                margin: '24px 0 8px',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}
+            >
+              Operación (colas del pipeline)
+            </h2>
+            <p
+              style={{
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: 12,
+                margin: '0 0 10px',
+              }}
+            >
+              Colas e indicadores del flujo operativo: revisión → facturación → pago. Para montos y conciliación, usa «Facturación y pagos».
+            </p>
+
+            <SystemHealthPanel stats={stats} finances={finances} isDemoData={usingOfflineDemo} />
+
+        {(sla || weekComparison) && (
+          <div style={{
+            background: ADMIN_THEME.panelBg,
+            borderRadius: 12,
+            padding: 20,
+            marginBottom: 24,
+            border: `1px solid ${ADMIN_THEME.borderStrong}`
+          }}>
+            <h2 style={{
+              color: '#90BDD3',
+              fontSize: 15,
+              fontWeight: 700,
+              margin: '0 0 14px',
+              fontFamily: "'Space Grotesk', sans-serif"
+            }}>
+              ⏱ Colas y ritmo (tiempo real)
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '0 0 14px', lineHeight: 1.45 }}>
+              Tiempos del flujo operativo (revisión → facturación → pago). Útil para anticipar cuellos antes de que exploten las colas.
+            </p>
+            {sla && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: 12,
+                marginBottom: weekComparison ? 16 : 0
+              }}>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>Revisión MAQGO</p>
+                  <p style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {sla.revision_horas_promedio ?? '—'} h <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>prom.</span>
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '6px 0 0' }}>
+                    Máx {sla.revision_horas_max ?? '—'} h · {sla.en_revision ?? 0} en cola
+                  </p>
+                </div>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>Aprobado → factura prov.</p>
+                  <p style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {sla.aprobado_sin_factura_h_promedio ?? '—'} h
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '6px 0 0' }}>
+                    {sla.aprobado_sin_facturar ?? 0} servicio(s)
+                  </p>
+                </div>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>Facturado → pago</p>
+                  <p style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {sla.facturado_sin_pago_h_promedio ?? '—'} h
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '6px 0 0' }}>
+                    {sla.facturados_sin_pago ?? 0} servicio(s)
+                  </p>
+                </div>
+              </div>
+            )}
+            {weekComparison && (
+              <div style={{
+                paddingTop: 14,
+                borderTop: '1px solid rgba(255,255,255,0.08)',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: 12
+              }}>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>Servicios creados (sem. vs ant.)</p>
+                  <p style={{ color: '#fff', fontSize: 18, fontWeight: 600, margin: 0 }}>
+                    {weekComparison.creados_esta_semana ?? '—'} <span style={{ color: 'rgba(255,255,255,0.45)' }}>vs</span> {weekComparison.creados_semana_anterior ?? '—'}
+                  </p>
+                  <p style={{
+                    color: (weekComparison.delta_creados || 0) >= 0 ? '#81C784' : '#E57373',
+                    fontSize: 13,
+                    margin: '6px 0 0',
+                    fontWeight: 600
+                  }}>
+                    Δ {weekComparison.delta_creados || 0}
+                  </p>
+                </div>
+                <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12 }}>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '0 0 6px', textTransform: 'uppercase' }}>Pagados cerrados (paid_at en semana)</p>
+                  <p style={{ color: '#fff', fontSize: 18, fontWeight: 600, margin: 0 }}>
+                    {weekComparison.pagados_esta_semana ?? '—'} <span style={{ color: 'rgba(255,255,255,0.45)' }}>vs</span> {weekComparison.pagados_semana_anterior ?? '—'}
+                  </p>
+                  <p style={{
+                    color: (weekComparison.delta_pagados || 0) >= 0 ? '#81C784' : '#E57373',
+                    fontSize: 13,
+                    margin: '6px 0 0',
+                    fontWeight: 600
+                  }}>
+                    Δ {weekComparison.delta_pagados || 0}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
           </>
         )}
       </div>

@@ -182,10 +182,10 @@ export default function SystemHealthPanel({ stats, finances, isDemoData = false 
             Operación MAQGO
           </h2>
           <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '6px 0 0' }}>
-            Riesgos y acciones sugeridas (derivado del estado actual del dashboard)
+            Riesgos y acciones sugeridas del pipeline (revisión, facturación y pago)
           </p>
           <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
-            Solo lectura: no hay menús ocultos. El texto de las tarjetas ya está expuesto. La etiqueta de estado (derecha) indica el nivel calculado;{' '}
+            No es salud de infraestructura: refleja colas/estados operativos del flujo. Solo lectura: no hay menús ocultos. El texto de las tarjetas ya está expuesto. La etiqueta de estado (derecha) indica el nivel calculado;{' '}
             <strong style={{ color: 'rgba(255,255,255,0.75)' }}>no es un botón</strong>.
           </p>
         </div>
