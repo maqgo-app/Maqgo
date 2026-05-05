@@ -1,6 +1,6 @@
 import React from 'react';
 import { Z_INDEX } from '../constants/zIndex';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
 import { getSessionRole, isProviderSession } from '../utils/userAuthState';
 
@@ -293,9 +293,15 @@ export function ProviderNavigation() {
  * Componente que detecta el rol y muestra la navegación correcta
  */
 function BottomNavigation() {
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const role = localStorage.getItem('userRole');
 
   if (!role) return null;
+
+  if (location.pathname === '/terms' && searchParams.get('accept') === '1') {
+    return null;
+  }
 
   // Admin no usa la barra de cliente/proveedor
   if (role === 'admin') {
