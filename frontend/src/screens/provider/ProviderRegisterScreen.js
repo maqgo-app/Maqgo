@@ -1249,17 +1249,17 @@ function ProviderRegisterScreen() {
                   onClick={() => navigate('/terms')}
                   style={{ padding: 0, border: 'none', background: 'none', font: 'inherit', cursor: 'pointer' }}
                 >
-                  Términos y condiciones
+                  Términos y Condiciones
                 </button>
                 <br />
-                y la{' '}
+                y{' '}
                 <button
                   type="button"
                   className="maqgo-link"
                   onClick={() => navigate('/privacy')}
                   style={{ padding: 0, border: 'none', background: 'none', font: 'inherit', cursor: 'pointer' }}
                 >
-                  Política de privacidad
+                  Política de Privacidad
                 </button>
               </span>
             </div>

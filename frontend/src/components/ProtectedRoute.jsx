@@ -2,12 +2,45 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import BACKEND_URL, { fetchWithAuth, hasPersistedSessionCredentials } from "../utils/api";
 
+function shouldEnforceLegalForPath(path) {
+  const p = String(path || "");
+  if (p.startsWith("/provider/")) {
+    return (
+      p === "/provider/data" ||
+      p === "/provider/machine-data" ||
+      p === "/provider/machine-photos" ||
+      p === "/provider/machine-photos-pricing" ||
+      p === "/provider/pricing" ||
+      p === "/provider/operator-data" ||
+      p === "/provider/review"
+    );
+  }
+  if (p.startsWith("/client/")) {
+    return (
+      p === "/client/booking" ||
+      p === "/client/machinery" ||
+      p === "/client/urgency" ||
+      p === "/client/calendar" ||
+      p === "/client/service-location" ||
+      p === "/client/providers" ||
+      p === "/client/confirm" ||
+      p === "/client/billing" ||
+      p === "/client/workday-confirmation" ||
+      p === "/client/card"
+    );
+  }
+  if (p === "/oneclick/complete") return true;
+  return false;
+}
+
 const ProtectedRoute = ({ children }) => {
   const location = useLocation();
   const path = location.pathname || "/";
   const fullPath = `${path}${location.search || ""}`;
   const hasSession = hasPersistedSessionCredentials();
   const [legalState, setLegalState] = useState("unknown");
+
+  const mustAcceptLegalNow = useMemo(() => shouldEnforceLegalForPath(path), [path]);
 
   const userId = useMemo(() => {
     try {
@@ -21,6 +54,10 @@ const ProtectedRoute = ({ children }) => {
     let cancelled = false;
     if (!hasSession) {
       setLegalState("unknown");
+      return () => void 0;
+    }
+    if (!mustAcceptLegalNow) {
+      setLegalState("accepted");
       return () => void 0;
     }
     const fromStorage = () => {
@@ -66,7 +103,7 @@ const ProtectedRoute = ({ children }) => {
     return () => {
       cancelled = true;
     };
-  }, [hasSession, userId]);
+  }, [hasSession, mustAcceptLegalNow, userId]);
 
   if (!hasSession) {
     const entry = path.startsWith("/provider")
@@ -84,6 +121,10 @@ const ProtectedRoute = ({ children }) => {
         }}
       />
     );
+  }
+
+  if (!mustAcceptLegalNow) {
+    return children ? children : <Outlet />;
   }
 
   if (legalState === "unknown") {

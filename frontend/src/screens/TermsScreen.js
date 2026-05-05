@@ -328,14 +328,14 @@ function TermsScreen() {
                 )}
               </div>
               <span className="maqgo-checkbox-label" style={{ lineHeight: 1.35 }}>
-                Acepto los Términos y condiciones y la{' '}
+                Acepto los Términos y Condiciones y{' '}
                 <button
                   type="button"
                   className="maqgo-link"
                   onClick={() => navigate('/privacy')}
                   style={{ padding: 0, border: 'none', background: 'none', font: 'inherit', cursor: 'pointer' }}
                 >
-                  Política de privacidad
+                  Política de Privacidad
                 </button>
               </span>
             </div>
