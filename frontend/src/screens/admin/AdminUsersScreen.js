@@ -47,10 +47,12 @@ function AdminUsersScreen() {
   const [data, setData] = useState({ clients: [], providers: [], total_clients: 0, total_providers: 0 });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('clients'); // 'clients' | 'providers' | 'machines'
+  const [editKind, setEditKind] = useState('client'); // 'client' | 'provider' | 'machine'
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteMachineTarget, setDeleteMachineTarget] = useState(null);
   const [photoModalUrl, setPhotoModalUrl] = useState('');
 
   const goDashboardArea = (area) => {
@@ -123,6 +125,7 @@ function AdminUsersScreen() {
       }
       return {
         providerId: u?.id || '',
+        providerUser: u,
         providerName: u?.name || '-',
         providerEmail: u?.email || '-',
         providerPhone: u?.phone || '-',
@@ -142,9 +145,12 @@ function AdminUsersScreen() {
     return machineRows.filter((m) => String(m.machineryType || '').trim() && m.machineryType !== '-').length;
   }, [machineRows]);
 
-  const openEdit = (u) => {
-    if (tab === 'machines') return;
+  const openEdit = (u, kindOverride = null) => {
     const md = u?.machineData && typeof u.machineData === 'object' ? u.machineData : {};
+    const kind =
+      kindOverride ||
+      (tab === 'clients' ? 'client' : tab === 'providers' ? 'provider' : 'machine');
+    setEditKind(kind);
     setEditingUser(u);
     setEditForm({
       name: u?.name || '',
@@ -164,31 +170,33 @@ function AdminUsersScreen() {
   const closeEdit = () => {
     setEditingUser(null);
     setEditForm(null);
+    setEditKind('client');
     setSaving(false);
   };
 
   const saveEdit = async () => {
-    if (tab === 'machines') return;
     if (!editingUser?.id || !editForm || saving) return;
     setSaving(true);
     try {
       const md0 = editingUser?.machineData && typeof editingUser.machineData === 'object' ? editingUser.machineData : {};
       const update = {};
 
-      const nextName = String(editForm.name || '');
-      const nextEmail = String(editForm.email || '');
-      const nextPhone = String(editForm.phone || '');
-      if (nextName !== String(editingUser.name || '')) update.name = nextName;
-      if (nextEmail !== String(editingUser.email || '')) update.email = nextEmail;
-      if (nextPhone !== String(editingUser.phone || '')) update.phone = nextPhone;
+      if (editKind !== 'machine') {
+        const nextName = String(editForm.name || '');
+        const nextEmail = String(editForm.email || '');
+        const nextPhone = String(editForm.phone || '');
+        if (nextName !== String(editingUser.name || '')) update.name = nextName;
+        if (nextEmail !== String(editingUser.email || '')) update.email = nextEmail;
+        if (nextPhone !== String(editingUser.phone || '')) update.phone = nextPhone;
+      }
 
-      if (tab === 'providers') {
+      if (tab === 'providers' || editKind === 'machine') {
         const nextRole = String(editForm.provider_role || '');
-        if (nextRole !== String(editingUser.provider_role || '')) update.provider_role = nextRole;
+        if (editKind !== 'machine' && nextRole !== String(editingUser.provider_role || '')) update.provider_role = nextRole;
 
         if (Boolean(editForm.isAvailable) !== Boolean(editingUser.isAvailable)) update.isAvailable = Boolean(editForm.isAvailable);
         if (Boolean(editForm.onboarding_completed) !== Boolean(editingUser.onboarding_completed)) {
-          update.onboarding_completed = Boolean(editForm.onboarding_completed);
+          if (editKind !== 'machine') update.onboarding_completed = Boolean(editForm.onboarding_completed);
         }
 
         const nextMachineryType = String(editForm.machineryType || '');
@@ -234,7 +242,7 @@ function AdminUsersScreen() {
       }
 
       setData((prev) => {
-        const listKey = tab === 'clients' ? 'clients' : 'providers';
+        const listKey = editKind === 'machine' ? 'providers' : (tab === 'clients' ? 'clients' : 'providers');
         const list = Array.isArray(prev[listKey]) ? prev[listKey] : [];
         const nextList = list.map((x) => (x?.id === updatedUser.id ? updatedUser : x));
         return { ...prev, [listKey]: nextList };
@@ -249,7 +257,6 @@ function AdminUsersScreen() {
   };
 
   const doDelete = async () => {
-    if (tab === 'machines') return;
     if (!deleteTarget?.id) return;
     try {
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/users/${encodeURIComponent(deleteTarget.id)}`, {
@@ -275,6 +282,35 @@ function AdminUsersScreen() {
       toast.error(e?.message || 'No se pudo eliminar.');
     } finally {
       setDeleteTarget(null);
+    }
+  };
+
+  const doDeleteMachine = async () => {
+    if (!deleteMachineTarget?.id) return;
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/users/${encodeURIComponent(deleteMachineTarget.id)}/machine`, {
+        method: 'DELETE',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof json?.detail === 'string' ? json.detail : `No se pudo eliminar (${res.status}).`);
+        return;
+      }
+      const updatedUser = json?.user || null;
+      if (updatedUser) {
+        setData((prev) => {
+          const list = Array.isArray(prev.providers) ? prev.providers : [];
+          const nextList = list.map((x) => (x?.id === updatedUser.id ? updatedUser : x));
+          return { ...prev, providers: nextList };
+        });
+      } else {
+        await fetchUsers();
+      }
+      toast.success('Maquinaria eliminada.');
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo eliminar.');
+    } finally {
+      setDeleteMachineTarget(null);
     }
   };
 
@@ -374,7 +410,7 @@ function AdminUsersScreen() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                Sistema
+                Operación
               </button>
             </div>
             <button
@@ -543,20 +579,24 @@ function AdminUsersScreen() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: ADMIN_THEME.panelBgSoft }}>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>ID</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Foto</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinaria</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Patente</th>
-                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>ID</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Proveedor</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Onboarding</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Disponible</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Registro</th>
+                      <th style={{ padding: 14, textAlign: 'right', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {machineRows.map((m, i) => (
                       <tr key={`${m.providerId || 'prov'}-${i}`} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
+                          {maqgoPublicId(m.machineKey, 'machine')}
+                        </td>
                         <td style={{ padding: 14 }}>
                           {m.primaryPhoto ? (
                             <button
@@ -586,9 +626,6 @@ function AdminUsersScreen() {
                         </td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.machineryType}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.licensePlate}</td>
-                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
-                          {maqgoPublicId(m.machineKey, 'machine')}
-                        </td>
                         <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{m.providerName}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{m.providerEmail}</td>
                         <td style={{ padding: 14 }}>
@@ -620,6 +657,48 @@ function AdminUsersScreen() {
                           </span>
                         </td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{formatDate(m.createdAt)}</td>
+                        <td style={{ padding: 14, textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!m?.providerUser?.id) return;
+                                openEdit(m.providerUser, 'machine');
+                              }}
+                              style={{
+                                padding: '8px 12px',
+                                borderRadius: 8,
+                                background: 'rgba(255,255,255,0.06)',
+                                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontSize: 13,
+                                fontWeight: 600
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!m?.providerUser?.id) return;
+                                setDeleteMachineTarget(m.providerUser);
+                              }}
+                              style={{
+                                padding: '8px 12px',
+                                borderRadius: 8,
+                                background: 'rgba(220, 53, 69, 0.18)',
+                                border: '1px solid rgba(220, 53, 69, 0.55)',
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontSize: 13,
+                                fontWeight: 700
+                              }}
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -753,54 +832,68 @@ function AdminUsersScreen() {
         <div className="maqgo-modal-overlay" role="dialog" aria-modal="true">
           <div className="maqgo-modal-dialog" style={{ width: 'min(92vw, 540px)' }}>
             <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 800, margin: '0 0 14px' }}>
-              Editar {tab === 'clients' ? 'cliente' : 'proveedor'}
+              {editKind === 'machine' ? 'Editar maquinaria' : `Editar ${tab === 'clients' ? 'cliente' : 'proveedor'}`}
             </h3>
             <div style={{ display: 'grid', gap: 12 }}>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Nombre</span>
-                <input
-                  value={editForm.name}
-                  onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
-                  className="maqgo-input"
-                  style={{ width: '100%' }}
-                />
-              </label>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Email</span>
-                <input
-                  value={editForm.email}
-                  onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))}
-                  className="maqgo-input"
-                  style={{ width: '100%' }}
-                />
-              </label>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Teléfono</span>
-                <input
-                  value={editForm.phone}
-                  onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))}
-                  className="maqgo-input"
-                  style={{ width: '100%' }}
-                />
-              </label>
+              {editKind !== 'machine' ? (
+                <>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Nombre</span>
+                    <input
+                      value={editForm.name}
+                      onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
+                      className="maqgo-input"
+                      style={{ width: '100%' }}
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Email</span>
+                    <input
+                      value={editForm.email}
+                      onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))}
+                      className="maqgo-input"
+                      style={{ width: '100%' }}
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Teléfono</span>
+                    <input
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))}
+                      className="maqgo-input"
+                      style={{ width: '100%' }}
+                    />
+                  </label>
+                </>
+              ) : (
+                <div style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 10, padding: 12 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 6 }}>Proveedor</div>
+                  <div style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>{editingUser?.name || '-'}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 2 }}>{editingUser?.email || '-'}</div>
+                </div>
+              )}
 
-              {tab === 'providers' && (
+              {(tab === 'providers' || editKind === 'machine') && (
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Rol proveedor</span>
-                      <select
-                        value={editForm.provider_role}
-                        onChange={(e) => setEditForm((p) => ({ ...p, provider_role: e.target.value }))}
-                        className="maqgo-input"
-                        style={{ width: '100%' }}
-                      >
-                        <option value="">(vacío)</option>
-                        <option value="super_master">Titular</option>
-                        <option value="master">Gerente</option>
-                        <option value="operator">Operador</option>
-                      </select>
-                    </label>
+                    {editKind !== 'machine' ? (
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Rol proveedor</span>
+                        <select
+                          value={editForm.provider_role}
+                          onChange={(e) => setEditForm((p) => ({ ...p, provider_role: e.target.value }))}
+                          className="maqgo-input"
+                          style={{ width: '100%' }}
+                        >
+                          <option value="">(vacío)</option>
+                          <option value="super_master">Titular</option>
+                          <option value="master">Gerente</option>
+                          <option value="operator">Operador</option>
+                        </select>
+                      </label>
+                    ) : (
+                      <div />
+                    )}
                     <label style={{ display: 'grid', gap: 6 }}>
                       <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Maquinaria (id)</span>
                       <input
@@ -856,14 +949,16 @@ function AdminUsersScreen() {
                     </label>
                   </div>
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                    <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(editForm.onboarding_completed)}
-                        onChange={(e) => setEditForm((p) => ({ ...p, onboarding_completed: e.target.checked }))}
-                      />
-                      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)' }}>Onboarding completo</span>
-                    </label>
+                    {editKind !== 'machine' && (
+                      <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(editForm.onboarding_completed)}
+                          onChange={(e) => setEditForm((p) => ({ ...p, onboarding_completed: e.target.checked }))}
+                        />
+                        <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)' }}>Onboarding completo</span>
+                      </label>
+                    )}
                     <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
@@ -971,6 +1066,17 @@ function AdminUsersScreen() {
         confirmLabel="Eliminar"
         cancelLabel="Cancelar"
         onConfirm={doDelete}
+        variant="danger"
+      />
+
+      <ConfirmModal
+        open={Boolean(deleteMachineTarget)}
+        onClose={() => setDeleteMachineTarget(null)}
+        title="Eliminar maquinaria"
+        message={`Eliminar la maquinaria registrada de ${deleteMachineTarget?.name || deleteMachineTarget?.email || 'este proveedor'}?`}
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        onConfirm={doDeleteMachine}
         variant="danger"
       />
     </div>

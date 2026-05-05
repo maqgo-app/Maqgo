@@ -270,6 +270,34 @@ async def admin_delete_user(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete("/users/{user_id}/machine")
+async def admin_delete_user_machine(
+    user_id: str,
+    _: dict = Depends(get_current_admin_strict),
+):
+    try:
+        existing = await db.users.find_one({"id": user_id}, {"id": 1, "role": 1, "roles": 1})
+        if not existing:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        if existing.get("role") == "admin" or ("admin" in (existing.get("roles") or [])):
+            raise HTTPException(status_code=403, detail="No se puede editar un administrador desde este endpoint")
+
+        await db.users.update_one(
+            {"id": user_id},
+            {
+                "$unset": {"machineData": "", "machineryType": ""},
+                "$set": {"isAvailable": False, "onboarding_completed": False},
+            },
+        )
+        fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+        return {"ok": True, "user": fresh}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.put("/reference-prices")
 async def update_reference_prices(request: UpdateReferencePricesRequest, _: dict = Depends(get_current_admin_strict)):
     """

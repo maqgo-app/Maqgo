@@ -1010,7 +1010,7 @@ function AdminDashboard() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                Sistema
+                Operación
               </button>
             </div>
             <button
@@ -2088,7 +2088,7 @@ function AdminDashboard() {
                 fontFamily: "'Space Grotesk', sans-serif",
               }}
             >
-              Salud del sistema y operación
+              Operación (salud y colas)
             </h2>
             <p
               style={{
@@ -2097,7 +2097,7 @@ function AdminDashboard() {
                 margin: '0 0 10px',
               }}
             >
-              Colas, tiempos de espera e indicadores operativos para anticipar problemas.
+              Colas, riesgos e indicadores operativos (incluye pipeline de revisión y facturación).
             </p>
 
             <SystemHealthPanel stats={stats} finances={finances} isDemoData={usingOfflineDemo} />

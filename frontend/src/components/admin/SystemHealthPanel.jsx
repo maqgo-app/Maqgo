@@ -179,10 +179,10 @@ export default function SystemHealthPanel({ stats, finances, isDemoData = false 
               fontFamily: "'Space Grotesk', sans-serif"
             }}
           >
-            MAQGO System Health
+            Operación MAQGO
           </h2>
           <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '6px 0 0' }}>
-            Resumen operativo y riesgos (derivado del estado actual del dashboard)
+            Riesgos y acciones sugeridas (derivado del estado actual del dashboard)
           </p>
           <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
             Solo lectura: no hay menús ocultos. El texto de las tarjetas ya está expuesto. La etiqueta de estado (derecha) indica el nivel calculado;{' '}
