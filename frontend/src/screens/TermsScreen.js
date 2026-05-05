@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { BackArrowIcon } from '../components/BackArrowIcon';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import BACKEND_URL, { fetchWithAuth, hasPersistedSessionCredentials } from '../utils/api';
 
 function Section({ title, children }) {
   return (
@@ -22,10 +23,78 @@ function Section({ title, children }) {
 
 function TermsScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const [accepted, setAccepted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  const acceptMode = searchParams.get('accept') === '1';
+  const nextPath = useMemo(() => {
+    const raw =
+      String(searchParams.get('next') || location.state?.next || '').trim() ||
+      '';
+    if (raw.startsWith('/')) return raw;
+    const role = String(localStorage.getItem('userRole') || '').trim();
+    if (role === 'provider') return '/provider/home';
+    if (role === 'operator') return '/operator/home';
+    return '/client/home';
+  }, [searchParams, location.state]);
+
+  const paddingBottom = acceptMode ? 160 : 60;
+
+  const acceptAndContinue = async () => {
+    if (saving) return;
+    setSaveError('');
+    if (!accepted) return;
+    if (!hasPersistedSessionCredentials()) {
+      navigate('/login', { replace: true, state: { redirect: nextPath, entry: 'client' } });
+      return;
+    }
+    const userId = String(localStorage.getItem('userId') || '').trim();
+    if (!userId) {
+      navigate('/login', { replace: true, state: { redirect: nextPath, entry: 'client' } });
+      return;
+    }
+    setSaving(true);
+    try {
+      const ts = new Date().toISOString();
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ legalAcceptedAt: ts }),
+        },
+        8000
+      );
+      if (!res.ok) {
+        let detail = '';
+        try {
+          const j = await res.json();
+          detail = String(j?.detail || '').trim();
+        } catch {
+          detail = '';
+        }
+        setSaveError(detail || `No pudimos guardar tu aceptación (${res.status}). Intenta nuevamente.`);
+        return;
+      }
+      try {
+        localStorage.setItem('legalAcceptedAt', ts);
+      } catch {
+        void 0;
+      }
+      navigate(nextPath, { replace: true });
+    } catch (e) {
+      setSaveError(e?.message || 'No pudimos guardar tu aceptación. Revisa tu conexión e intenta nuevamente.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="maqgo-app maqgo-client-funnel">
-      <div className="maqgo-screen maqgo-screen--scroll" style={{ padding: 24, paddingBottom: 60 }}>
+      <div className="maqgo-screen maqgo-screen--scroll" style={{ padding: 24, paddingBottom }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
           <button 
@@ -222,6 +291,73 @@ function TermsScreen() {
           Última actualización: Marzo 2026
         </p>
       </div>
+      {acceptMode && (
+        <div
+          style={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(18, 21, 27, 0.96)',
+            borderTop: '1px solid rgba(255,255,255,0.12)',
+            padding: 16,
+            zIndex: 50,
+          }}
+        >
+          <div style={{ maxWidth: 520, margin: '0 auto' }}>
+            <div className="maqgo-checkbox-row" style={{ marginBottom: 10 }}>
+              <div
+                className={`maqgo-checkbox ${accepted ? 'checked' : ''}`}
+                onClick={() => {
+                  setAccepted(!accepted);
+                  if (saveError) setSaveError('');
+                }}
+                role="checkbox"
+                aria-checked={accepted}
+              >
+                {accepted && (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                    <path
+                      d="M2 6L4.5 8.5L10 3"
+                      stroke="#fff"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+              </div>
+              <span className="maqgo-checkbox-label" style={{ lineHeight: 1.35 }}>
+                Acepto los Términos y condiciones y la{' '}
+                <button
+                  type="button"
+                  className="maqgo-link"
+                  onClick={() => navigate('/privacy')}
+                  style={{ padding: 0, border: 'none', background: 'none', font: 'inherit', cursor: 'pointer' }}
+                >
+                  Política de privacidad
+                </button>
+              </span>
+            </div>
+
+            {saveError ? (
+              <p style={{ margin: '0 0 10px', color: '#ffb182', fontSize: 12, lineHeight: 1.45 }}>
+                {saveError}
+              </p>
+            ) : null}
+
+            <button
+              type="button"
+              className="maqgo-btn-primary"
+              onClick={acceptAndContinue}
+              disabled={!accepted || saving}
+              style={{ width: '100%', opacity: !accepted || saving ? 0.6 : 1 }}
+            >
+              {saving ? 'Guardando...' : 'Aceptar y continuar'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

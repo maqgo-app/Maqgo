@@ -438,6 +438,7 @@ async def patch_user(
         'email',
         'rut',
         'razon_social',
+        'legalAcceptedAt',
     }
     update_data = {k: v for k, v in body.items() if k in allowed_fields}
 
