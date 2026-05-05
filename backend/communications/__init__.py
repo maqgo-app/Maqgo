@@ -293,6 +293,8 @@ def send_sms_otp(phone_number: str, channel: str = 'sms') -> dict:
                 'success': True,
                 'channel': result.get('channel', 'sms'),
                 'demo_mode': False,
+                'reused': bool(result.get('reused')),
+                'ttl_seconds': result.get('ttl_seconds'),
                 'log': log_message('sms', phone_number, 'otp', 'sent')
             }
         
@@ -1030,4 +1032,3 @@ async def notify_team_new_request_async(
     )
     
     return result
-

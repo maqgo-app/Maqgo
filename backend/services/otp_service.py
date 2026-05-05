@@ -241,6 +241,28 @@ def send_otp(phone_number: str, channel: str = "sms") -> dict:
             "error": "OTP service not configured (REDIS_URL required)",
         }
     
+    otp_key = f"otp:{phone}"
+    attempts_key = f"otp_attempts:{phone}"
+
+    try:
+        existing = r.get(otp_key)
+        ttl_existing = int(r.ttl(otp_key) or -1)
+        if existing and ttl_existing > 0:
+            logger.info(
+                "OTP_REUSED phone=%s ttl=%s",
+                _phone_tail(phone),
+                ttl_existing,
+            )
+            return {
+                "success": True,
+                "channel": "sms",
+                "demo_mode": False,
+                "reused": True,
+                "ttl_seconds": ttl_existing,
+            }
+    except Exception as e:
+        logger.warning("REDIS_OTP_EXISTING_CHECK_ERROR %s", e)
+
     rate_key = f"otp_rate:{phone}"
     try:
         current = r.get(rate_key) or "0"
@@ -257,8 +279,6 @@ def send_otp(phone_number: str, channel: str = "sms") -> dict:
         count = 0
 
     otp = "".join(str(random.randint(0, 9)) for _ in range(6))
-    otp_key = f"otp:{phone}"
-    attempts_key = f"otp_attempts:{phone}"
     logger.info("OTP_GENERATED phone=%s (code not logged)", _phone_tail(phone))
 
     # Guardar OTP y resetear intentos
@@ -301,6 +321,8 @@ def send_otp(phone_number: str, channel: str = "sms") -> dict:
         "success": True,
         "channel": "sms",
         "demo_mode": False,
+        "reused": False,
+        "ttl_seconds": OTP_EXPIRY_SECONDS,
     }
 
 

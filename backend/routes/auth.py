@@ -866,13 +866,22 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
         "false" if (device_norm and trusted) else "true",
         "otp_required",
     )
+    ttl_seconds = sms_result.get("ttl_seconds")
+    reused = bool(sms_result.get("reused"))
+    msg = "Te enviamos un código por SMS"
+    if reused and ttl_seconds:
+        msg = f"Tu código sigue vigente por {max(1, int(ttl_seconds) // 60)} min. Revisa tu SMS."
+    elif reused:
+        msg = "Tu código sigue vigente. Revisa tu SMS."
     return {
         "success": True,
         "userId": user_id,
         "phone": raw_phone,
-        "message": "Te enviamos un código por SMS",
+        "message": msg,
         "channel": "sms",
         "requires_otp": True,
+        "reused": reused,
+        "ttl_seconds": ttl_seconds,
     }
 
 
