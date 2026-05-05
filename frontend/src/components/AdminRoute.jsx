@@ -365,8 +365,7 @@ function AdminRoute() {
           <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, lineHeight: 1.5, margin: '0 0 8px' }}>
             No pudimos alcanzar el API en{' '}
             <strong style={{ color: '#fff' }}>{maskBackendHost(BACKEND_URL)}</strong>. Revisa DNS (sin NXDOMAIN),
-            variable <code style={{ color: '#7EB8D4' }}>REACT_APP_BACKEND_URL</code> en Vercel y que Railway esté en
-            línea.
+            variable <code style={{ color: '#7EB8D4' }}>VITE_BACKEND_URL</code> (o <code style={{ color: '#7EB8D4' }}>REACT_APP_BACKEND_URL</code> legacy) en Vercel y que Railway esté en línea.
           </p>
           <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: '0 0 24px' }}>
             CORS: el backend debe permitir el origen de tu web (ej. <code>https://www.maqgo.cl</code>) en{' '}

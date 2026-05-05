@@ -17,11 +17,25 @@ import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 function TeamManagementScreen() {
   const navigate = useNavigate();
   const location = useLocation();
-  const screenMode = location.pathname === '/provider/managers' ? 'master' : 'operator';
   const { isSuperMaster } = useAuth();
+  const isSuperMasterUser = isSuperMaster();
   const toast = useToast();
+  const requestedMode = (() => {
+    try {
+      const raw = new URLSearchParams(location.search).get('mode');
+      return raw === 'master' || raw === 'operator' ? raw : null;
+    } catch {
+      return null;
+    }
+  })();
+  const screenMode = location.pathname === '/provider/managers' ? 'master' : 'operator';
+  const resolvedMode = requestedMode || screenMode;
+  const effectiveMode =
+    resolvedMode === 'master' && !isSuperMasterUser && location.pathname !== '/provider/managers'
+      ? 'operator'
+      : resolvedMode;
   const [activeTab, setActiveTab] = useState('team'); // 'team' | 'invite'
-  const [inviteType, setInviteType] = useState(screenMode); // 'operator' | 'master'
+  const [inviteType, setInviteType] = useState(effectiveMode); // 'operator' | 'master'
   const [team, setTeam] = useState({ masters: [], operators: [], pending_invitations: [] });
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
@@ -36,7 +50,10 @@ function TeamManagementScreen() {
   const GPS_STALE_MINUTES = 120;
 
   useEffect(() => {
-    setInviteType(screenMode);
+    if (!isSuperMasterUser && requestedMode === 'master' && location.pathname !== '/provider/managers') {
+      navigate('/provider/team', { replace: true });
+    }
+    setInviteType(effectiveMode);
     setActiveTab('team');
     setShowCode(false);
     setInviteCode('');
@@ -44,7 +61,7 @@ function TeamManagementScreen() {
     setOperatorNombreCompleto('');
     setOperatorRut('');
     setOperatorPhone('');
-  }, [screenMode]);
+  }, [effectiveMode, isSuperMasterUser, requestedMode, location.pathname, navigate]);
 
   const parseIsoOrNull = (value) => {
     if (!value) return null;
@@ -316,7 +333,7 @@ function TeamManagementScreen() {
     return inviteType === 'master' ? t === 'master' : t !== 'master';
   });
 
-  if (inviteType === 'master' && !isSuperMaster()) {
+  if (inviteType === 'master' && !isSuperMasterUser) {
     return (
       <div className="maqgo-app maqgo-provider-funnel">
         <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
@@ -329,7 +346,7 @@ function TeamManagementScreen() {
               <BackArrowIcon />
             </button>
             <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
-              Accesos de gerentes
+              Crear código de activación
             </h1>
           </div>
           <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 18, textAlign: 'center' }}>
@@ -350,7 +367,7 @@ function TeamManagementScreen() {
           display: 'flex', 
           alignItems: 'center', 
           gap: 12, 
-          marginBottom: 20,
+          marginBottom: 14,
           marginTop: 10
         }}>
           <button 
@@ -373,9 +390,48 @@ function TeamManagementScreen() {
             margin: 0,
             fontFamily: "'Space Grotesk', sans-serif"
           }}>
-            {inviteType === 'master' ? 'Accesos de gerentes' : 'Código de activación operadores'}
+            Crear código de activación
           </h1>
         </div>
+
+        {isSuperMasterUser && (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+            <button
+              type="button"
+              onClick={() => navigate('/provider/team?mode=operator', { replace: true })}
+              style={{
+                flex: 1,
+                padding: 12,
+                background: inviteType === 'operator' ? '#EC6819' : '#2A2A2A',
+                border: 'none',
+                borderRadius: 10,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Operadores (Maquinaria)
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/provider/team?mode=master', { replace: true })}
+              style={{
+                flex: 1,
+                padding: 12,
+                background: inviteType === 'master' ? '#EC6819' : '#2A2A2A',
+                border: 'none',
+                borderRadius: 10,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Usuario Master (Gerentes)
+            </button>
+          </div>
+        )}
 
         {/* Tabs */}
         <div style={{
@@ -383,42 +439,47 @@ function TeamManagementScreen() {
           gap: 10,
           marginBottom: 20
         }}>
-          <button
-            onClick={() => { setActiveTab('team'); setShowCode(false); }}
-            style={{
-              flex: 1,
-              padding: 12,
-              background: activeTab === 'team' ? '#EC6819' : '#2A2A2A',
-              border: 'none',
-              borderRadius: 10,
-              color: '#fff',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-            data-testid="tab-team"
-          >
-            {inviteType === 'master'
-              ? `Gerentes (${team.masters?.length || 0})`
-              : `Operadores (${team.operators?.length || 0})`}
-          </button>
-          <button
-            onClick={() => setActiveTab('invite')}
-            style={{
-              flex: 1,
-              padding: 12,
-              background: activeTab === 'invite' ? '#EC6819' : '#2A2A2A',
-              border: 'none',
-              borderRadius: 10,
-              color: '#fff',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-            data-testid="tab-invite"
-          >
-            {inviteType === 'master' ? 'Invitar gerente' : 'Invitar operador'}
-          </button>
+          {(() => {
+            const teamCount = inviteType === 'master' ? (team.masters?.length || 0) : (team.operators?.length || 0);
+            return (
+              <>
+                <button
+                  onClick={() => { setActiveTab('team'); setShowCode(false); }}
+                  style={{
+                    flex: 1,
+                    padding: 12,
+                    background: activeTab === 'team' ? '#EC6819' : '#2A2A2A',
+                    border: 'none',
+                    borderRadius: 10,
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  data-testid="tab-team"
+                >
+                  {`Equipo (${teamCount})`}
+                </button>
+                <button
+                  onClick={() => setActiveTab('invite')}
+                  style={{
+                    flex: 1,
+                    padding: 12,
+                    background: activeTab === 'invite' ? '#EC6819' : '#2A2A2A',
+                    border: 'none',
+                    borderRadius: 10,
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  data-testid="tab-invite"
+                >
+                  Crear código
+                </button>
+              </>
+            );
+          })()}
         </div>
 
         {/* Tab: Equipo */}

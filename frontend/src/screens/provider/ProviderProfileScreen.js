@@ -177,17 +177,10 @@ function ProviderProfileScreen() {
               onClick={() => navigate('/provider/cobros')}
             />
             <MenuItem 
-              label="Código de activación operadores" 
-              sublabel="Invitar y gestionar equipo"
+              label="Crear código de activación"
+              sublabel="Operadores y gerentes"
               onClick={() => navigate('/provider/team')}
             />
-            {providerRole === 'super_master' && (
-              <MenuItem
-                label="Accesos de gerentes"
-                sublabel="Invitar y gestionar permisos"
-                onClick={() => navigate('/provider/managers')}
-              />
-            )}
 
             <SectionTitle title="Mi cuenta" />
             <MenuItem 
