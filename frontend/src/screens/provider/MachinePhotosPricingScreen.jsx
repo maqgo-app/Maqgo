@@ -289,26 +289,10 @@ function MachinePhotosPricingScreen() {
   };
 
   return (
-    <div className="maqgo-app maqgo-provider-funnel maqgo-provider-p3-wide">
-      <style>{`
-        .maqgo-photos-pricing-grid > * {
-          min-width: 0;
-        }
-        .maqgo-photos-pricing-grid {
-          display: block;
-        }
-        .maqgo-photos-pricing-sticky {
-          position: static;
-        }
-        @media (min-width: 1200px) {
-          .maqgo-app.maqgo-provider-p3-wide {
-            max-width: 720px;
-          }
-        }
-      `}</style>
+    <div className="maqgo-app maqgo-provider-funnel">
       <div
-        className="maqgo-screen"
-        style={{ padding: 'var(--maqgo-screen-padding-top) 24px 140px', overflowY: 'auto' }}
+        className="maqgo-screen maqgo-screen--scroll"
+        style={{ padding: 'var(--maqgo-screen-padding-top) 24px 140px' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 18 }}>
           <button
@@ -745,7 +729,9 @@ function MachinePhotosPricingScreen() {
                   if (e.key === 'Enter' || e.key === ' ') setShowMultiplierInfo((v) => !v);
                 }}
               >
-                <p style={{ color: '#EC6819', fontSize: 14, fontWeight: 600, margin: 0 }}>Bonificaciones</p>
+                <p style={{ color: '#EC6819', fontSize: 14, fontWeight: 600, margin: 0 }}>
+                  {isPerHour ? 'Bonificación por disponibilidad' : 'Bonificación por urgencia'}
+                </p>
                 <svg
                   width="20"
                   height="20"
@@ -824,33 +810,45 @@ function MachinePhotosPricingScreen() {
                 </p>
                 <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0 }}>Programada</p>
+                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0 }}>
+                      {isPerHour ? 'Base (programada)' : 'Base'}
+                    </p>
                     <p style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: '4px 0 0' }}>
                       {formatPrice(isPerHour ? priceBaseNum * 4 : priceBaseNum)}
                     </p>
+                    {isPerHour && (
+                      <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, margin: '6px 0 0' }}>
+                        {formatPrice(priceBaseNum)}/h × 4 h
+                      </p>
+                    )}
                   </div>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
                     <path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="#90BDD3" strokeWidth="2" strokeLinecap="round" />
                   </svg>
                   <div style={{ textAlign: 'center' }}>
                     <p style={{ color: '#90BDD3', fontSize: 13, margin: 0, fontWeight: 600 }}>
-                      {isPerHour ? 'INMEDIATA' : 'URGENTE'}
+                      {isPerHour ? 'Con bonificación (inmediata)' : 'URGENTE'}
                     </p>
                     <p style={{ color: '#EC6819', fontSize: 18, fontWeight: 700, margin: '4px 0 0' }}>
                       {formatPrice(
                         isPerHour ? calculateImmediateExample(4) : calculateUrgencyExample('urgente')
                       )}
                     </p>
+                    {isPerHour && (
+                      <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, margin: '6px 0 0' }}>
+                        × {MULTIPLIERS_HOURS[4].toFixed(2)} por disponibilidad
+                      </p>
+                    )}
                   </div>
                 </div>
                 <p style={{ color: '#90BDD3', fontSize: 13, fontWeight: 600, margin: '10px 0 0', textAlign: 'center' }}>
-                  +
+                  Bonificación:{' '}
                   {formatPrice(
                     isPerHour
                       ? calculateImmediateExample(4) - priceBaseNum * 4
                       : calculateUrgencyExample('urgente') - priceBaseNum
                   )}{' '}
-                  {isPerHour ? 'extra · disponibilidad' : 'extra · urgencia'}
+                  {isPerHour ? 'por disponibilidad inmediata' : 'por urgencia'}
                 </p>
               </div>
             </div>

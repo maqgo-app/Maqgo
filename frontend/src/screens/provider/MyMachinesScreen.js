@@ -313,19 +313,6 @@ function MyMachinesScreen() {
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 Operadores ({(machine.operators || []).length})
               </p>
-              <div
-                style={{
-                  background: 'rgba(236, 104, 25, 0.1)',
-                  border: '1px solid rgba(236, 104, 25, 0.35)',
-                  borderRadius: 8,
-                  padding: '7px 10px',
-                  marginBottom: 8
-                }}
-              >
-                <p style={{ color: '#EC6819', fontSize: 13, margin: 0, fontWeight: 700 }}>
-                  Máquina: {machine.type} · Patente {machine.licensePlate ? String(machine.licensePlate).toUpperCase() : 'SIN PATENTE'}
-                </p>
-              </div>
               {(machine.operators || []).length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(machine.operators || []).map(op => {

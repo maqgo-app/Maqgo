@@ -32,6 +32,10 @@ function looksLikeCompany(businessName) {
   return COMPANY_SUFFIX_TOKENS.some((t) => lower.includes(String(t).toLowerCase()));
 }
 
+function normalizeRutForCompare(rut) {
+  return String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+}
+
 function OperatorDataScreen() {
   const navigate = useNavigate();
   const providerDataSnapshot = useMemo(() => getObject('providerData', {}), []);
@@ -80,11 +84,26 @@ function OperatorDataScreen() {
 
   const handleRutBlur = (index) => {
     const rut = operators[index].rut;
+    const next = { ...rutErrors };
     if (rut && !validateRut(rut)) {
-      setRutErrors(prev => ({ ...prev, [index]: 'RUT inválido' }));
+      next[index] = 'RUT inválido';
     } else {
-      setRutErrors(prev => ({ ...prev, [index]: '' }));
+      next[index] = '';
     }
+    const counts = new Map();
+    operators.forEach((op) => {
+      const norm = normalizeRutForCompare(op?.rut);
+      if (!norm) return;
+      if (!validateRut(op?.rut)) return;
+      counts.set(norm, (counts.get(norm) || 0) + 1);
+    });
+    operators.forEach((op, idx) => {
+      const norm = normalizeRutForCompare(op?.rut);
+      if (!norm) return;
+      if (!validateRut(op?.rut)) return;
+      if ((counts.get(norm) || 0) > 1) next[idx] = 'RUT repetido';
+    });
+    setRutErrors(next);
   };
 
   const addOperator = () => {
@@ -102,10 +121,7 @@ function OperatorDataScreen() {
   const removeOperator = (index) => {
     if (operators.length > 1) {
       setOperators(operators.filter((_, i) => i !== index));
-      // Also remove any RUT errors for this operator
-      const newErrors = { ...rutErrors };
-      delete newErrors[index];
-      setRutErrors(newErrors);
+      setRutErrors({});
     }
   };
 
@@ -118,9 +134,22 @@ function OperatorDataScreen() {
     if (!sameAsOwner) {
       const errors = {};
       let hasErrors = false;
+      const counts = new Map();
+      operators.forEach((op) => {
+        const norm = normalizeRutForCompare(op?.rut);
+        if (!norm) return;
+        if (!validateRut(op?.rut)) return;
+        counts.set(norm, (counts.get(norm) || 0) + 1);
+      });
       operators.forEach((op, idx) => {
         if (op.rut && !validateRut(op.rut)) {
           errors[idx] = 'RUT inválido';
+          hasErrors = true;
+          return;
+        }
+        const norm = normalizeRutForCompare(op?.rut);
+        if (norm && (counts.get(norm) || 0) > 1) {
+          errors[idx] = 'RUT repetido';
           hasErrors = true;
         }
       });
