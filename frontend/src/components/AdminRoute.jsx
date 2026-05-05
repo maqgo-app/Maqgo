@@ -193,6 +193,9 @@ function AdminRoute() {
     e.preventDefault();
     if (adminLoginLoading) return;
     setAdminLoginError('');
+    setStatsNetworkFailure(false);
+    clearAdminDemoBypass();
+    setDemoBypassState(false);
     const em = String(adminEmail || '').trim().toLowerCase();
     const pw = String(adminPassword || '');
     if (!em || !pw) {
@@ -223,6 +226,9 @@ function AdminRoute() {
         return;
       }
       persistAdminSessionMetadata(data);
+      setVerifiedAdmin(true);
+      setAdminVerifiedNow();
+      setMustChangePassword(Boolean(data?.must_change_password));
       try {
         localStorage.setItem('adminRoles', JSON.stringify(roles.length ? roles : ['admin']));
       } catch {
