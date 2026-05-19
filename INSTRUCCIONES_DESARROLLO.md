@@ -70,19 +70,20 @@ TBK_DEMO_MODE=true
 
 ## 5. Credenciales de prueba (cuando quieras probar real)
 
-### Twilio (SMS real)
+### LabsMobile (OTP SMS real)
 
-1. Cuenta en [console.twilio.com](https://console.twilio.com)
+1. Credenciales en [LabsMobile](https://www.labsmobile.com) y Redis (Railway/Upstash).
 2. En `backend/.env`:
 
 ```env
 MAQGO_DEMO_MODE=false
-TWILIO_ACCOUNT_SID=ACxxxxxxxx...
-TWILIO_AUTH_TOKEN=xxxxxxxx...
-TWILIO_SMS_FROM=+18625792356
+REDIS_URL=rediss://...
+LABSMOBILE_USERNAME=tu_usuario
+LABSMOBILE_API_TOKEN=tu_token
+LABSMOBILE_SENDER=MAQGO
 ```
 
-3. En Twilio → Verified Caller IDs: agrega tu número (+56994336579)
+3. Verificar: `GET /healthz/otp-readiness` → `ready: true` (ver `docs/OTP_SNS_SETUP.md`).
 
 ### Transbank OneClick (tarjeta real en integración)
 

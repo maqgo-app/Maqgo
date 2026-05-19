@@ -2193,7 +2193,7 @@ async def debug_send_otp_test(request: Request, body: dict = Body(...)):
         }
 @limiter.limit("10/minute")
 async def verify_sms(request: Request, body: dict = Body(...)):
-    """Verificar código SMS (Twilio Verify o códigos en MongoDB)"""
+    """Verificar código SMS (OTP LabsMobile o códigos legacy en MongoDB)."""
     user_id = body.get("userId")
     code = body.get("code")
     
@@ -2207,14 +2207,19 @@ async def verify_sms(request: Request, body: dict = Body(...)):
     phone = _format_phone(user.get("phone", ""))
     is_valid = False
     
-    # 1) Twilio Verify o Demo: verificar con communications
+    # 1) OTP interno (Redis + LabsMobile)
     if phone:
         verify_result = verify_sms_otp(phone, code)
         if verify_result.get("valid"):
             is_valid = True
-        elif not verify_result.get("error", "").startswith("Twilio Verify not configured"):
-            # Error de Twilio (código inválido, etc.)
-            raise HTTPException(status_code=400, detail="Código incorrecto")
+        else:
+            try:
+                from services.otp_service import is_otp_configured
+                otp_live = is_otp_configured()
+            except ImportError:
+                otp_live = False
+            if otp_live:
+                raise HTTPException(status_code=400, detail="Código incorrecto")
     
     # 2) Fallback: verificar contra códigos guardados en MongoDB (SMS directo)
     if not is_valid:
@@ -2242,7 +2247,7 @@ async def verify_sms(request: Request, body: dict = Body(...)):
 @router.post("/resend-code")
 @limiter.limit("3/minute")
 async def resend_code(request: Request, body: dict = Body(...)):
-    """Reenviar código SMS vía Twilio"""
+    """Reenviar código SMS vía OTP (LabsMobile)."""
     user_id = body.get("userId")
     
     if not user_id:

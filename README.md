@@ -179,7 +179,7 @@ Para que el autocompletado de direcciones funcione en producción:
 
 | Servicio | Estado | Para qué |
 |----------|--------|----------|
-| Twilio | ✅ Real | SMS y WhatsApp reales (configurar credenciales en .env) |
+| LabsMobile | ✅ Real | OTP SMS (Redis + credenciales en `.env`; ver `docs/OTP_SNS_SETUP.md`) |
 | MercadoPago | 🔶 Mock | Pagos reales |
 | Google Maps | 🔶 Mock | Ubicación/mapa |
 | Firebase | ❌ | Push notifications |

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
@@ -40,12 +40,18 @@ function TeamManagementScreen() {
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
   const [showCode, setShowCode] = useState(false);
+  const [batchInvites, setBatchInvites] = useState(null);
   const [inviting, setInviting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [operatorNombreCompleto, setOperatorNombreCompleto] = useState('');
   const [operatorRut, setOperatorRut] = useState('');
   const [operatorPhone, setOperatorPhone] = useState('');
   const [didAttemptInvite, setDidAttemptInvite] = useState(false);
+  const [declaredOperators, setDeclaredOperators] = useState([]);
+  const [declaredLoading, setDeclaredLoading] = useState(false);
+  const [selectedDeclaredKeys, setSelectedDeclaredKeys] = useState(() => new Set());
+  const [inviteSearch, setInviteSearch] = useState('');
+  const [useManualInvite, setUseManualInvite] = useState(false);
   const GPS_FRESH_MINUTES = 10;
   const GPS_STALE_MINUTES = 120;
 
@@ -57,11 +63,17 @@ function TeamManagementScreen() {
     setActiveTab('team');
     setShowCode(false);
     setInviteCode('');
+    setBatchInvites(null);
     setDidAttemptInvite(false);
     setOperatorNombreCompleto('');
     setOperatorRut('');
     setOperatorPhone('');
+    setInviteSearch('');
+    setUseManualInvite(false);
+    setSelectedDeclaredKeys(new Set());
   }, [effectiveMode, isSuperMasterUser, requestedMode, location.pathname, navigate]);
+
+  const normalizeRutKey = (rut) => String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
 
   const parseIsoOrNull = (value) => {
     if (!value) return null;
@@ -115,6 +127,54 @@ function TeamManagementScreen() {
     fetchTeam();
   }, [refreshKey]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (activeTab !== 'invite' || inviteType !== 'operator') return () => void 0;
+    const userId = localStorage.getItem('userId');
+    const ownerId = localStorage.getItem('ownerId') || userId;
+    if (!ownerId) return () => void 0;
+    setDeclaredLoading(true);
+    fetchWithAuth(`${BACKEND_URL}/api/users/${encodeURIComponent(ownerId)}`, { method: 'GET' }, 8000)
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((user) => {
+        if (cancelled) return;
+        const raw = Array.isArray(user?.operators) ? user.operators : [];
+        const normalized = raw
+          .map((op, idx) => {
+            if (!op || typeof op !== 'object') return null;
+            const nombre = String(op.nombre || '').trim();
+            const apellido = String(op.apellido || '').trim();
+            const name = String(op.name || `${nombre} ${apellido}`.trim()).trim();
+            const rut = String(op.rut || '').trim();
+            const key = normalizeRutKey(rut) || `op_${idx + 1}`;
+            return { key, name, rut };
+          })
+          .filter(Boolean);
+        setDeclaredOperators(normalized);
+        if (normalized.length === 0) {
+          setUseManualInvite(true);
+          setSelectedDeclaredKeys(new Set());
+          return;
+        }
+        setUseManualInvite(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDeclaredOperators([]);
+        setUseManualInvite(true);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setDeclaredLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, inviteType, refreshKey]);
+
   const loadTeam = () => setRefreshKey(k => k + 1);
 
   const normalizePhoneForChannel = (raw) => {
@@ -144,7 +204,46 @@ function TeamManagementScreen() {
     try {
       const userId = localStorage.getItem('userId');
       const ownerId = localStorage.getItem('ownerId') || userId;
-      
+
+      if (inviteType === 'operator' && !useManualInvite) {
+        if (!ownerId) {
+          toast.error('Tu sesión expiró. Inicia sesión nuevamente.');
+          setInviting(false);
+          return;
+        }
+        const selected = declaredOperators.filter((op) => selectedDeclaredKeys.has(op.key));
+        if (selected.length === 0) {
+          toast.warning('Selecciona al menos 1 operador.');
+          setInviting(false);
+          return;
+        }
+        const batchPayload = {
+          owner_id: ownerId,
+          operators: selected.map((op) => ({
+            operator_name: op.name,
+            operator_rut: op.rut,
+          })),
+        };
+        const batchResponse = await axios.post(
+          `${BACKEND_URL}/api/operators/invite/batch`,
+          batchPayload,
+          { timeout: 8000 },
+        );
+        const items = Array.isArray(batchResponse.data?.invitations) ? batchResponse.data.invitations : [];
+        if (!items.length) {
+          toast.error('No pudimos generar códigos para tu selección.');
+          setInviting(false);
+          return;
+        }
+        setBatchInvites(items);
+        setInviteCode(items[0]?.code || '');
+        setShowCode(true);
+        setDidAttemptInvite(false);
+        loadTeam();
+        setInviting(false);
+        return;
+      }
+
       const endpoint = inviteType === 'master' 
         ? `${BACKEND_URL}/api/operators/masters/invite`
         : `${BACKEND_URL}/api/operators/invite`;
@@ -178,6 +277,7 @@ function TeamManagementScreen() {
       const response = await axios.post(endpoint, payload);
       
       setInviteCode(response.data.code);
+      setBatchInvites(null);
       setShowCode(true);
       // Limpiar formulario de datos de operador
       setOperatorNombreCompleto('');
@@ -191,6 +291,33 @@ function TeamManagementScreen() {
     }
     setInviting(false);
   };
+
+  const toggleDeclaredKey = (key) => {
+    setSelectedDeclaredKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const setAllDeclared = (on) => {
+    if (!on) {
+      setSelectedDeclaredKeys(new Set());
+      return;
+    }
+    setSelectedDeclaredKeys(new Set(declaredOperators.map((o) => o.key)));
+  };
+
+  const filteredDeclaredOperators = useMemo(() => {
+    const q = String(inviteSearch || '').trim().toLowerCase();
+    if (!q) return declaredOperators;
+    return declaredOperators.filter((op) => {
+      const name = String(op.name || '').toLowerCase();
+      const rut = String(op.rut || '').toLowerCase();
+      return name.includes(q) || rut.includes(q);
+    });
+  }, [declaredOperators, inviteSearch]);
 
   const copyCode = async () => {
     try {
@@ -327,7 +454,10 @@ function TeamManagementScreen() {
     if (!operatorNombreCompleto.trim()) missingInviteFields.push('Nombre completo');
     if (!operatorRut.trim()) missingInviteFields.push('RUT');
   }
-  const isInviteFormValid = inviteType !== 'operator' || missingInviteFields.length === 0;
+  const selectedDeclaredCount = selectedDeclaredKeys.size;
+  const isInviteFormValid =
+    inviteType !== 'operator' ||
+    (useManualInvite ? missingInviteFields.length === 0 : selectedDeclaredCount > 0);
   const visiblePendingInvitations = (team.pending_invitations || []).filter((inv) => {
     const t = inv?.invite_type || 'operator';
     return inviteType === 'master' ? t === 'master' : t !== 'master';
@@ -867,82 +997,215 @@ function TeamManagementScreen() {
                 {/* Datos del operador cuando la invitación es para operador */}
                 {inviteType === 'operator' && (
                   <div style={{ marginBottom: 20 }}>
-                    <p style={{ 
-                      color: 'rgba(255,255,255,0.95)', 
-                      fontSize: 12, 
-                      textTransform: 'uppercase',
-                      marginBottom: 10
-                    }}>
-                      Datos del operador
-                    </p>
-                    <div style={{ marginBottom: 10 }}>
-                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        Nombre completo *
-                      </label>
-                      <input
-                        type="text"
-                        value={operatorNombreCompleto}
-                        onChange={(e) => setOperatorNombreCompleto(e.target.value)}
-                        placeholder="Ej: Juan Pérez"
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          border: didAttemptInvite && !operatorNombreCompleto.trim() ? '1px solid #F44336' : '1px solid #444',
-                          background: '#1F1F1F',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-                    <div style={{ marginBottom: 10 }}>
-                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        RUT *
-                      </label>
-                      <input
-                        type="text"
-                        value={operatorRut}
-                        onChange={(e) => setOperatorRut(e.target.value)}
-                        placeholder="12.345.678-9"
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          border: didAttemptInvite && !operatorRut.trim() ? '1px solid #F44336' : '1px solid #444',
-                          background: '#1F1F1F',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none',
-                          fontFamily: "'JetBrains Mono', monospace"
-                        }}
-                      />
-                    </div>
-                    <div style={{ marginBottom: 10 }}>
-                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        Celular (opcional)
-                      </label>
-                      <input
-                        type="tel"
-                        value={operatorPhone}
-                        onChange={(e) => setOperatorPhone(e.target.value)}
-                        placeholder="+56 9 1234 5678"
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #444',
-                          background: '#1F1F1F',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-                    {didAttemptInvite && missingInviteFields.length > 0 && (
-                      <p style={{ color: '#F44336', fontSize: 12, margin: '2px 0 10px' }}>
-                        Falta completar: {missingInviteFields.join(', ')}.
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', margin: 0 }}>
+                        Operadores
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUseManualInvite((v) => !v);
+                          setDidAttemptInvite(false);
+                          setOperatorNombreCompleto('');
+                          setOperatorRut('');
+                          setOperatorPhone('');
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#90BDD3', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        {useManualInvite ? 'Usar lista' : 'Ingresar manual'}
+                      </button>
+                    </div>
+
+                    {!useManualInvite && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                          <input
+                            type="text"
+                            value={inviteSearch}
+                            onChange={(e) => setInviteSearch(e.target.value)}
+                            placeholder="Buscar por nombre o RUT"
+                            style={{
+                              flex: 1,
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #444',
+                              background: '#1F1F1F',
+                              color: '#fff',
+                              fontSize: 14,
+                              outline: 'none',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setAllDeclared(selectedDeclaredCount !== declaredOperators.length)}
+                            disabled={declaredLoading || declaredOperators.length === 0}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #444',
+                              background: '#2A2A2A',
+                              color: '#fff',
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              opacity: declaredLoading || declaredOperators.length === 0 ? 0.6 : 1,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {selectedDeclaredCount === declaredOperators.length && declaredOperators.length > 0 ? 'Ninguno' : 'Todos'}
+                          </button>
+                        </div>
+
+                        <div
+                          style={{
+                            maxHeight: 240,
+                            overflowY: 'auto',
+                            borderRadius: 12,
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            background: 'rgba(255,255,255,0.06)',
+                            padding: 10,
+                          }}
+                        >
+                          {declaredLoading ? (
+                            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: 0, textAlign: 'center', padding: 14 }}>
+                              Cargando operadores…
+                            </p>
+                          ) : filteredDeclaredOperators.length === 0 ? (
+                            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: 0, textAlign: 'center', padding: 14 }}>
+                              No hay operadores para mostrar.
+                            </p>
+                          ) : (
+                            filteredDeclaredOperators.map((op) => {
+                              const checked = selectedDeclaredKeys.has(op.key);
+                              return (
+                                <button
+                                  key={op.key}
+                                  type="button"
+                                  onClick={() => toggleDeclaredKey(op.key)}
+                                  style={{
+                                    width: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 10,
+                                    padding: '10px 10px',
+                                    borderRadius: 10,
+                                    border: '1px solid rgba(255,255,255,0.10)',
+                                    background: checked ? 'rgba(236,104,25,0.18)' : 'rgba(0,0,0,0)',
+                                    cursor: 'pointer',
+                                    marginBottom: 8,
+                                    textAlign: 'left',
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      width: 18,
+                                      height: 18,
+                                      borderRadius: 4,
+                                      border: checked ? '1px solid #EC6819' : '1px solid rgba(255,255,255,0.35)',
+                                      background: checked ? '#EC6819' : 'transparent',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {checked ? <span style={{ color: '#111', fontSize: 12, fontWeight: 900 }}>✓</span> : null}
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: 0, lineHeight: 1.2 }}>
+                                      {op.name || 'Operador'}
+                                    </p>
+                                    <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '4px 0 0', fontFamily: "'JetBrains Mono', monospace" }}>
+                                      {op.rut || 'RUT —'}
+                                    </p>
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '10px 0 0' }}>
+                          Seleccionados: <strong style={{ color: '#fff' }}>{selectedDeclaredCount}</strong>
+                        </p>
+                      </div>
+                    )}
+
+                    {useManualInvite && (
+                      <>
+                        <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
+                          Datos del operador
+                        </p>
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                            Nombre completo *
+                          </label>
+                          <input
+                            type="text"
+                            value={operatorNombreCompleto}
+                            onChange={(e) => setOperatorNombreCompleto(e.target.value)}
+                            placeholder="Ej: Juan Pérez"
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              border: didAttemptInvite && !operatorNombreCompleto.trim() ? '1px solid #F44336' : '1px solid #444',
+                              background: '#1F1F1F',
+                              color: '#fff',
+                              fontSize: 14,
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                            RUT *
+                          </label>
+                          <input
+                            type="text"
+                            value={operatorRut}
+                            onChange={(e) => setOperatorRut(e.target.value)}
+                            placeholder="12.345.678-9"
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              border: didAttemptInvite && !operatorRut.trim() ? '1px solid #F44336' : '1px solid #444',
+                              background: '#1F1F1F',
+                              color: '#fff',
+                              fontSize: 14,
+                              outline: 'none',
+                              fontFamily: "'JetBrains Mono', monospace"
+                            }}
+                          />
+                        </div>
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                            Celular (opcional)
+                          </label>
+                          <input
+                            type="tel"
+                            value={operatorPhone}
+                            onChange={(e) => setOperatorPhone(e.target.value)}
+                            placeholder="+56 9 1234 5678"
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #444',
+                              background: '#1F1F1F',
+                              color: '#fff',
+                              fontSize: 14,
+                              outline: 'none',
+                            }}
+                          />
+                        </div>
+                        {didAttemptInvite && missingInviteFields.length > 0 && (
+                          <p style={{ color: '#F44336', fontSize: 12, margin: '2px 0 10px' }}>
+                            Falta completar: {missingInviteFields.join(', ')}.
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -992,6 +1255,64 @@ function TeamManagementScreen() {
                 }}>
                   {inviteType === 'master' ? 'Para nuevo Gerente' : 'Para nuevo Operador'}
                 </p>
+
+                {Array.isArray(batchInvites) && batchInvites.length > 1 && (
+                  <div style={{
+                    background: '#2A2A2A',
+                    borderRadius: 16,
+                    padding: 16,
+                    marginBottom: 20,
+                    textAlign: 'left',
+                  }}>
+                    <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: '0 0 12px' }}>
+                      Códigos generados ({batchInvites.length})
+                    </p>
+                    {batchInvites.map((inv) => (
+                      <div
+                        key={inv.code || inv.operator_rut}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '10px 0',
+                          borderBottom: '1px solid rgba(255,255,255,0.08)',
+                        }}
+                      >
+                        <div>
+                          <p style={{ color: '#fff', fontSize: 13, fontWeight: 600, margin: 0 }}>
+                            {inv.operator_name || 'Operador'}
+                          </p>
+                          <p style={{
+                            color: '#90BDD3',
+                            fontSize: 18,
+                            fontWeight: 700,
+                            margin: '4px 0 0',
+                            fontFamily: "'JetBrains Mono', monospace",
+                            letterSpacing: 2,
+                          }}>
+                            {inv.code}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => copyTextToClipboard(inv.code, 'Código copiado')}
+                          style={{
+                            padding: '6px 10px',
+                            background: 'rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            borderRadius: 6,
+                            color: '#fff',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Código grande */}
                 <div style={{

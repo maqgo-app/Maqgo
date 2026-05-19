@@ -8,7 +8,7 @@ Flujo:
 """
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 import random
 import string
@@ -31,6 +31,15 @@ class InvitationCreate(BaseModel):
     operator_phone: Optional[str] = None
     operator_rut: Optional[str] = None
 
+class OperatorInviteItem(BaseModel):
+    operator_name: str
+    operator_rut: str
+    operator_phone: Optional[str] = None
+
+class InvitationBatchCreate(BaseModel):
+    owner_id: str
+    operators: List[OperatorInviteItem]
+
 class InvitationUse(BaseModel):
     code: str
     operator_name: Optional[str] = None
@@ -45,6 +54,24 @@ class OperatorStats(BaseModel):
 def generate_invite_code():
     """Genera código de 6 caracteres alfanumérico"""
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+def _normalize_rut(rut: str) -> str:
+    s = str(rut or "")
+    s = "".join(ch for ch in s if ch.isdigit() or ch in ("k", "K"))
+    return s.upper()
+
+async def _generate_unique_code() -> str:
+    code = generate_invite_code()
+    while await db.invitations.find_one({"code": code}):
+        code = generate_invite_code()
+    return code
+
+def _to_utc(dt):
+    if not dt:
+        return None
+    if hasattr(dt, "tzinfo") and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 @router.post("/invite")
@@ -72,14 +99,10 @@ async def create_invitation(
             detail="Debes ingresar nombre y RUT del operador para generar el código."
         )
     
-    # Generar código único
-    code = generate_invite_code()
-    
-    # Verificar que no exista
-    while await db.invitations.find_one({"code": code}):
-        code = generate_invite_code()
+    code = await _generate_unique_code()
     
     # Crear invitación
+    rut_norm = _normalize_rut(data.operator_rut)
     invitation = {
         "code": code,
         "owner_id": data.owner_id,
@@ -87,6 +110,7 @@ async def create_invitation(
         "operator_name": data.operator_name,
         "operator_phone": data.operator_phone,
         "operator_rut": data.operator_rut,
+        "operator_rut_norm": rut_norm,
         "status": "pending",  # pending, used, expired
         "created_at": datetime.now(timezone.utc),
         "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
@@ -101,6 +125,96 @@ async def create_invitation(
         "code": code,
         "expires_in_days": 7,
         "message": f"Código generado: {code}. Compártelo con tu operador."
+    }
+
+
+@router.post("/invite/batch")
+async def create_invitations_batch(
+    data: InvitationBatchCreate,
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_owner_scope(current_user, data.owner_id)
+    owner = await db.users.find_one({"id": data.owner_id}, {"_id": 0})
+    if not owner:
+        raise HTTPException(status_code=404, detail="Dueño no encontrado")
+    if owner.get("role") != "provider":
+        raise HTTPException(status_code=400, detail="Solo proveedores pueden invitar operadores")
+    if not isinstance(data.operators, list) or len(data.operators) == 0:
+        raise HTTPException(status_code=400, detail="Selecciona al menos 1 operador.")
+
+    now = datetime.now(timezone.utc)
+    out = []
+    for item in data.operators:
+        name = str(item.operator_name or "").strip()
+        rut = str(item.operator_rut or "").strip()
+        phone = str(item.operator_phone or "").strip() or None
+        if not name or not rut:
+            raise HTTPException(status_code=400, detail="Cada operador debe tener nombre y RUT.")
+        rut_norm = _normalize_rut(rut)
+        existing = await db.invitations.find_one(
+            {
+                "owner_id": data.owner_id,
+                "status": "pending",
+                "$and": [
+                    {"$or": [{"invite_type": {"$exists": False}}, {"invite_type": {"$ne": "master"}}]},
+                    {"$or": [{"operator_rut_norm": rut_norm}, {"operator_rut": rut}]},
+                ],
+            },
+            {"_id": 0},
+        )
+        if existing:
+            expires_at = _to_utc(existing.get("expires_at"))
+            if expires_at and now > expires_at:
+                await db.invitations.update_one(
+                    {"code": existing.get("code")},
+                    {"$set": {"status": "expired"}},
+                )
+            else:
+                out.append(
+                    {
+                        "code": existing.get("code"),
+                        "operator_name": existing.get("operator_name") or name,
+                        "operator_rut": existing.get("operator_rut") or rut,
+                        "operator_phone": existing.get("operator_phone") or phone,
+                        "reused": True,
+                        "expires_at": expires_at.isoformat() if expires_at else None,
+                    }
+                )
+                continue
+
+        code = await _generate_unique_code()
+        expires_at = now + timedelta(days=7)
+        invitation = {
+            "code": code,
+            "owner_id": data.owner_id,
+            "owner_name": owner.get("name", ""),
+            "operator_name": name,
+            "operator_phone": phone,
+            "operator_rut": rut,
+            "operator_rut_norm": rut_norm,
+            "status": "pending",
+            "created_at": now,
+            "expires_at": expires_at,
+            "used_at": None,
+            "used_by": None,
+        }
+        await db.invitations.insert_one(invitation)
+        out.append(
+            {
+                "code": code,
+                "operator_name": name,
+                "operator_rut": rut,
+                "operator_phone": phone,
+                "reused": False,
+                "expires_at": expires_at.isoformat(),
+            }
+        )
+
+    return {
+        "success": True,
+        "count": len(out),
+        "expires_in_days": 7,
+        "invitations": out,
     }
 
 

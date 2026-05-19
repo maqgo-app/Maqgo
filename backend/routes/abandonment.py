@@ -80,53 +80,17 @@ except Exception:
 
 
 async def send_whatsapp_reminder(phone: str, name: str, machinery: str, is_first: bool = True):
-    """Envía recordatorio por WhatsApp usando Twilio (si está configurado). Si no, solo log."""
+    """Recordatorio de abandono: solo log (WhatsApp transaccional deshabilitado en MVP)."""
     machinery_name = get_machinery_name(machinery)
-    link = f"{FRONTEND_URL}/client/home"
-    if is_first:
-        message = f"""¡Hola {name}! 👋
-
-Tu reserva de *{machinery_name}* en MAQGO quedó pendiente.
-
-🔧 Complétala ahora y asegura disponibilidad inmediata.
-
-👉 {link}
-
-_Equipo MAQGO_"""
-    else:
-        message = f"""Hola {name},
-
-¿Aún necesitas una *{machinery_name}*? 🚜
-
-Tu reserva sigue disponible. Complétala en menos de 2 minutos:
-
-👉 {link}
-
-_Si ya no la necesitas, ignora este mensaje._
-
-_Equipo MAQGO_"""
-
     formatted_phone = phone if phone.startswith("+") else f"+56{phone}"
-
-    try:
-        account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
-        auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
-        from_number = os.environ.get("TWILIO_WHATSAPP_FROM")  # ej: whatsapp:+14155238886
-        if account_sid and auth_token and from_number:
-            from twilio.rest import Client
-            client = Client(account_sid, auth_token)
-            client.messages.create(
-                from_=from_number,
-                body=message,
-                to=f"whatsapp:{formatted_phone}" if not formatted_phone.startswith("whatsapp:") else formatted_phone,
-            )
-            logger.info("WhatsApp reminder sent phone_tail=%s", formatted_phone[-4:] if len(formatted_phone) >= 4 else "?")
-        else:
-            logger.info("WhatsApp reminder skipped (no Twilio config) phone_tail=%s", formatted_phone[-4:] if len(formatted_phone) >= 4 else "?")
-        return True
-    except Exception as e:
-        logger.exception("Error sending WhatsApp abandonment reminder")
-        return False
+    tail = formatted_phone[-4:] if len(formatted_phone) >= 4 else "?"
+    logger.info(
+        "Abandonment reminder skipped (WhatsApp disabled) phone_tail=%s machinery=%s first=%s",
+        tail,
+        machinery_name,
+        is_first,
+    )
+    return True
 
 
 def _is_critical_step(step: str) -> bool:

@@ -21,7 +21,7 @@ Si el build de producción apunta al API público (`REACT_APP_BACKEND_URL` segú
 
 ### Pagos y auth
 
-- Comportamiento acorde a variables en **Railway** (`MAQGO_DEMO_MODE`, `TBK_DEMO_MODE`, Twilio, etc.). **Modo LIVE** = SMS y/o TBK reales solo si esas variables y credenciales están en producción (`PRODUCCION.md`).
+- Comportamiento acorde a variables en **Railway** (`MAQGO_DEMO_MODE`, `TBK_DEMO_MODE`, LabsMobile/Redis, etc.). **Modo LIVE** = SMS y/o TBK reales solo si esas variables y credenciales están en producción (`PRODUCCION.md`).
 
 ### Admin
 

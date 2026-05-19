@@ -36,7 +36,7 @@ Objetivo: que **cualquiera del equipo** despliegue sin romper CORS, URLs ni el a
 | `FRONTEND_URL` | Muy recomendado | URL del front en prod (`https://maqgo.vercel.app`) para redirects/emails. |
 | `MAQGO_ENV` | Recomendado | `production` cuando sea prod real (evita demos peligrosas). |
 
-El resto (Twilio, Transbank, Redis, etc.) según `backend/.env.example`. **No** subas `.env` a Git.
+El resto (LabsMobile, Transbank, Redis, etc.) según `backend/.env.example`. **No** subas `.env` a Git.
 
 ---
 
@@ -91,7 +91,7 @@ Detalle técnico: `docs/DEPLOY_LOG.md` (entrada admin performance).
 ## 8. Seguridad (no negociable)
 
 - API pública: **JWT / admin** en rutas sensibles; no exponer claves en el repo.
-- **Transbank / Twilio**: solo variables en Railway/Vercel, nunca en el cliente salvo las que sean públicas por diseño.
+- **Transbank / LabsMobile**: solo variables en Railway/Vercel, nunca en el cliente salvo las que sean públicas por diseño.
 
 ---
 

@@ -29,7 +29,7 @@ Los caminos de **correo** en recuperación de contraseña / OTP por email pueden
 
 Cuando `REACT_APP_BACKEND_URL` apunta a tu API de producción (no localhost):
 - Los botones "Simular solicitud (Demo)" se ocultan automáticamente
-- SMS reales vía Twilio (no código 123456)
+- SMS reales vía LabsMobile + Redis (no código 123456)
 - Transbank real (cobros reales si TBK_DEMO_MODE=false)
 
 ---
@@ -69,11 +69,12 @@ cp backend/.env.production.example backend/.env
 
 | Variable | Producción | Descripción |
 |----------|------------|-------------|
-| `MAQGO_DEMO_MODE` | `false` | SMS reales (Twilio) |
+| `MAQGO_DEMO_MODE` | `false` | OTP real (LabsMobile; ver `OTP_SNS_SETUP.md`) |
 | `TBK_DEMO_MODE` | `false` | Cobros Transbank reales |
-| `TWILIO_ACCOUNT_SID` | (tu valor) | Obligatorio si MAQGO_DEMO_MODE=false |
-| `TWILIO_AUTH_TOKEN` | (tu valor) | Obligatorio |
-| `TWILIO_SMS_FROM` | +56... | Número Twilio Chile |
+| `REDIS_URL` | (tu valor) | Obligatorio si MAQGO_DEMO_MODE=false |
+| `LABSMOBILE_USERNAME` | (tu valor) | Obligatorio si MAQGO_DEMO_MODE=false |
+| `LABSMOBILE_API_TOKEN` | (tu valor) | Obligatorio |
+| `LABSMOBILE_SENDER` | `MAQGO` | Remitente SMS |
 | `CORS_ORIGINS` | https://... | Dominios del frontend |
 
 ### 3. Transbank producción

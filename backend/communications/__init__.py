@@ -3,7 +3,7 @@ MAQGO – Communications Module
 
 Canales:
 - OTP SMS → LabsMobile (via services.otp_service)
-- SMS/WhatsApp notificaciones → deshabilitado (sin Twilio)
+- SMS/WhatsApp notificaciones transaccionales → deshabilitado (MVP; solo OTP activo)
 """
 
 import os
@@ -231,10 +231,6 @@ Revisa tu cuenta bancaria.
 }
 
 
-def get_twilio_client():
-    return None
-
-
 def log_message(
     channel: str,
     to: str,
@@ -395,7 +391,7 @@ def send_sms(
     
     return {
         'success': False,
-        'error': 'SMS notificaciones deshabilitado (sin Twilio)',
+        'error': 'SMS notificaciones deshabilitado',
         'log': log_message('sms', phone_number, template, 'disabled')
     }
 
@@ -407,10 +403,7 @@ def send_whatsapp(
     template: str,
     params: dict
 ) -> dict:
-    """
-    Send WhatsApp message using templates.
-    All Twilio calls must be server-side.
-    """
+    """Send WhatsApp message using templates (deshabilitado en MVP)."""
     if template not in WHATSAPP_TEMPLATES:
         return {
             'success': False,
@@ -461,7 +454,7 @@ def send_whatsapp(
     
     return {
         'success': False,
-        'error': 'WhatsApp deshabilitado (sin Twilio)',
+        'error': 'WhatsApp deshabilitado',
         'log': log_message('whatsapp', phone_number, template, 'disabled')
     }
 

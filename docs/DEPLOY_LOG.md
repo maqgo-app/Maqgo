@@ -17,6 +17,12 @@ Regla operativa: no se despliega sin quality gate en verde y validacion final.
 
 ## Historial
 
+- Fecha: 2026-05-19
+- Entorno: production (backend + frontend)
+- Cambio: eliminación Twilio (OTP solo LabsMobile+Redis); gestión equipo proveedor (invites batch, operadores).
+- Quality gate local: PASS (vitest + build + lint)
+- Resultado final: push `main` → deploy automático Vercel + Railway
+
 - Fecha: 2026-03-22
 - Entorno: repo (frontend)
 - Cambio: **UX técnico** — `getHttpErrorMessage` centralizado (`utils/httpErrors.js` + tests); Login y Forgot Password usan helper; historial sin datos demo en **producción** (demo solo `import.meta.env.DEV`); `HistoryScreen` usa `maskName`/`maskLocation` de `privacy.js`; doc `docs/UX_FEEDBACK.md` (toasts vs inline, stack Radix no usado en App).

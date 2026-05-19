@@ -1,7 +1,7 @@
 """
 MAQGO – Communications API Routes
 
-Server-side only (no frontend Twilio calls)
+Server-side only (OTP y notificaciones vía backend)
 Event-driven triggers
 """
 
@@ -650,7 +650,6 @@ async def api_communications_status():
         'demo_mode': DEMO_MODE,
         'otp_configured': otp_ready,
         'labsmobile_configured': bool(os.environ.get('LABSMOBILE_USERNAME')) and bool(os.environ.get('LABSMOBILE_API_TOKEN')),
-        'twilio_configured': bool(os.environ.get('TWILIO_ACCOUNT_SID')),
-        'whatsapp_configured': bool(os.environ.get('TWILIO_WHATSAPP_FROM')),
-        'sms_configured': bool(os.environ.get('LABSMOBILE_USERNAME')) and bool(os.environ.get('LABSMOBILE_API_TOKEN'))
+        'sms_configured': bool(os.environ.get('LABSMOBILE_USERNAME')) and bool(os.environ.get('LABSMOBILE_API_TOKEN')),
+        'whatsapp_configured': False,
     }
