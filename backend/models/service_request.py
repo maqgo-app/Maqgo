@@ -36,6 +36,8 @@ class ServiceRequest(BaseModel):
     providerId: Optional[str] = None
     providerName: Optional[str] = None  # Empresa (interno/facturas)
     providerOperatorName: Optional[str] = None  # Operador (lo que ve el cliente)
+    machineId: Optional[str] = None  # Máquina seleccionada en el inventario machines
+    machine_id: Optional[str] = None  # Alias snake_case para integraciones/admin
     operatorRut: Optional[str] = None  # RUT operador (ingreso a obra)
     operatorFirstName: Optional[str] = None
     operatorLastName: Optional[str] = None
@@ -140,6 +142,8 @@ class ServiceRequestCreate(BaseModel):
     clientEmail: Optional[str] = None  # Para crear/actualizar usuario si no existe (cobro OneClick)
     selectedProviderId: Optional[str] = None  # Un solo proveedor (compatibilidad)
     selectedProviderIds: Optional[List[str]] = None  # Varios: se notifica a todos, el primero en aceptar gana
+    machineId: Optional[str] = None  # Máquina elegida desde /api/providers/match
+    machine_id: Optional[str] = None
     location: Location
     basePrice: float = 150000  # Precio base del servicio (solo servicio, sin transporte)
     transportFee: float = 0  # Costo de transporte

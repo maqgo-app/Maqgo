@@ -173,6 +173,7 @@ function OneClickCompleteScreen() {
           clientEmail: email || undefined,
           selectedProviderId: selectedProviderId || undefined,
           selectedProviderIds: selectedProviderIds.length > 0 ? selectedProviderIds : undefined,
+          machineId: selectedProvider?.machine_id || selectedProvider?.machineId || undefined,
           location: {
             lat: Number.isFinite(serviceLat) ? serviceLat : -33.4489,
             lng: Number.isFinite(serviceLng) ? serviceLng : -70.6693,

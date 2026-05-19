@@ -304,6 +304,10 @@ async def create_service_request(
                 "needsInvoice",
             )
         }
+        selected_machine_id = create_data.get("machineId") or create_data.get("machine_id")
+        if selected_machine_id:
+            create_data["machineId"] = str(selected_machine_id)
+            create_data["machine_id"] = str(selected_machine_id)
         create_data["bookingId"] = booking_id
 
         service_obj = ServiceRequest(**create_data)
