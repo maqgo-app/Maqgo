@@ -30,6 +30,7 @@ function toMachineryId(type) {
 function MyMachinesScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const toast = useToast();
   const activationEdit = Boolean(location.state?.activationEdit);
   const returnTo = String(location.state?.returnTo || '/provider/home');
   const openOperatorForMachineId = location.state?.openOperatorForMachineId;
