@@ -38,7 +38,7 @@ ROTATION_GLOBAL_OFFER_TTL_SECONDS = 3600
 MATCHING_CONFIG = {
     'max_attempts': 5,
     'offer_timeout_seconds': 60,
-    'max_distance_km': 20,
+    'max_distance_km': 100,
     'price_weight': 0.6,
     'distance_weight': 0.4,
 }
