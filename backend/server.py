@@ -340,6 +340,7 @@ marketing_cron_router = None
 chatbot_router = None
 public_stats_router = None
 bookings_router = None
+machines_router = None
 
 try:
     from routes.users import router as users_router  # type: ignore
@@ -376,6 +377,11 @@ try:
     logger.info("ROUTER LOADED: providers")
 except Exception as e:
     logger.error(f"ROUTER FAILED: providers - {e}")
+try:
+    from routes.machines import router as machines_router  # type: ignore
+    logger.info("ROUTER LOADED: machines")
+except Exception as e:
+    logger.error(f"ROUTER FAILED: machines - {e}")
 try:
     from routes.pricing import router as pricing_router  # type: ignore
     logger.info("ROUTER LOADED: pricing")
@@ -519,6 +525,7 @@ _include_if_present(payments_router, "payments")
 _include_if_present(oneclick_router, "oneclick")
 _include_if_present(ratings_router, "ratings")
 _include_if_present(providers_router, "providers")
+_include_if_present(machines_router, "machines")
 _include_if_present(pricing_router, "pricing")
 _include_if_present(communications_router, "communications")
 _include_if_present(abandonment_router, "abandonment")

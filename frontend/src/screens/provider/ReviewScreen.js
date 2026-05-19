@@ -9,7 +9,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, getMachineryCapacityOptions, getProviderSpecLabelShort } from '../../utils/machineryNames';
 import { getObject } from '../../utils/safeStorage';
-import { upsertOnboardingMachine } from '../../utils/providerMachines';
+import { createMachineInApi, upsertOnboardingMachine } from '../../utils/providerMachines';
 import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
 import { useToast } from '../../components/Toast';
 
@@ -92,6 +92,19 @@ function ReviewScreen() {
 
       await axios.patch(`${BACKEND_URL}/api/users/${userId}`, payload, { timeout: 8000 });
 
+      const pricing = getObject('machinePricing', {});
+      const priceBase = Number(pricing?.priceBase || 0);
+      const machineForInventory = {
+        ...machinePayload,
+        operators: operatorsPayload,
+        pricePerHour: pricing?.isPerHour ? priceBase : null,
+        pricePerService: pricing?.isPerHour ? null : priceBase,
+        transportCost: Number(pricing?.transportCost || 0),
+      };
+      if (machineForInventory?.machineryType && machineForInventory?.licensePlate) {
+        await createMachineInApi(machineForInventory, userId);
+      }
+
       // Publicar al proveedor para pruebas reales: dejar disponible tras completar onboarding.
       // (La disponibilidad se puede desactivar luego desde el toggle.)
       try {
@@ -117,7 +130,6 @@ function ReviewScreen() {
       }
 
       // Sincronizar onboarding -> Mis Máquinas (fuente de UI local del proveedor)
-      const pricing = getObject('machinePricing', {});
       upsertOnboardingMachine(machineData, pricing, operatorsPayload);
 
       try {

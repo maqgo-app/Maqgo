@@ -766,7 +766,7 @@ function ProviderOptionsScreen() {
             const optionLabel = `Opción ${index + 1}`;
             return (
             <div 
-              key={provider.id}
+              key={provider.machine_id || provider.id}
               role="button"
               tabIndex={0}
               onClick={() => toggleProvider(provider.id)}

@@ -6,7 +6,7 @@ import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgr
 import PasswordField from '../../components/PasswordField';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../context/authHooks';
-import { addMachine, updateMachine, getMachineById } from '../../utils/providerMachines';
+import { createMachineInApi, updateMachine, updateMachineInApi, getMachineById } from '../../utils/providerMachines';
 import { getMachineryCapacityOptions, getProviderSpecLabel } from '../../utils/machineryNames';
 import { getArray, getObject } from '../../utils/safeStorage';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
@@ -897,9 +897,8 @@ function MachineDataScreen() {
         }
       }
 
-      const created = addMachine(next);
       const photosForStore = Array.isArray(mfPhotos) ? mfPhotos : [];
-      updateMachine(created.id, { photos: photosForStore });
+      const created = await createMachineInApi({ ...next, photos: photosForStore, machinePhotos: photosForStore });
 
       try {
         localStorage.removeItem('machineData');
@@ -1015,7 +1014,7 @@ function MachineDataScreen() {
     navigate('/welcome');
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (yearError) return;
     if (!isEditMode && !isAddMachineEntry && !hasProviderRoleInStorage() && !inlineReady) {
       toast.error('Primero crea tu cuenta proveedor con correo y contraseña arriba.');
@@ -1042,8 +1041,14 @@ function MachineDataScreen() {
         const num = raw.includes('.') ? parseFloat(raw) : parseInt(raw, 10);
         if (Number.isFinite(num)) updates[capOpts.providerField] = num;
       }
-      updateMachine(editMachine?.id || id, updates);
-      navigate('/provider/machines');
+      try {
+        const machineId = editMachine?.id || id;
+        await updateMachineInApi(machineId, updates);
+        updateMachine(machineId, updates);
+        navigate('/provider/machines');
+      } catch (e) {
+        toast.error(e?.message || 'No se pudo actualizar la maquinaria.');
+      }
     } else {
       if (activationEdit) {
         navigate(returnTo, { replace: true });

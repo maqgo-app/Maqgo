@@ -1,11 +1,13 @@
 /**
  * Utilidades para persistencia de máquinas del proveedor
- * Fuente única: providerMachines en localStorage
+ * Backend (/api/machines) es la fuente oficial.
+ * providerMachines en localStorage queda como cache UI/offline.
  * Constantes de negocio (por viaje / traslado) desde pricing.js
  */
 
 import { MACHINERY_NO_TRANSPORT, MACHINERY_PER_SERVICE } from './pricing';
 import { getObject } from './safeStorage';
+import BACKEND_URL, { fetchWithAuth } from './api';
 
 const STORAGE_KEY = 'providerMachines';
 
@@ -155,6 +157,79 @@ export function saveMachines(machines) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(machines));
 }
 
+function currentProviderId() {
+  return (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+}
+
+function normalizeMachineForCache(machine = {}) {
+  const machineryType = machine.machineryType || machine.machinery_type || 'retroexcavadora';
+  const typeName = machine.type || MACHINERY_TYPES.find(m => m.id === machineryType)?.name || 'Maquinaria';
+  return {
+    ...machine,
+    id: machine.id || machine.machine_id || `mach_${Date.now()}`,
+    provider_id: machine.provider_id,
+    machineryType,
+    type: typeName,
+    licensePlate: machine.licensePlate || machine.license_plate || '',
+    available: machine.available !== false,
+    published: machine.published !== false,
+    operators: Array.isArray(machine.operators) ? machine.operators : [],
+  };
+}
+
+function upsertMachineInCache(machine) {
+  const normalized = normalizeMachineForCache(machine);
+  const machines = getMachines();
+  const idx = machines.findIndex(m => String(m.id) === String(normalized.id));
+  const next = idx >= 0
+    ? machines.map(m => (String(m.id) === String(normalized.id) ? { ...m, ...normalized } : m))
+    : [...machines, normalized];
+  saveMachines(next);
+  return normalized;
+}
+
+export async function fetchProviderMachinesFromApi(providerId = currentProviderId()) {
+  if (!providerId) return getMachines();
+  const res = await fetchWithAuth(`${BACKEND_URL}/api/machines?provider_id=${encodeURIComponent(providerId)}`, {}, 10000);
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof json?.detail === 'string' ? json.detail : `No se pudieron cargar máquinas (${res.status})`);
+  const machines = Array.isArray(json?.machines) ? json.machines.map(normalizeMachineForCache) : [];
+  saveMachines(machines);
+  return machines;
+}
+
+export async function createMachineInApi(machine, providerId = currentProviderId()) {
+  if (!providerId) throw new Error('Sesión de proveedor no disponible');
+  const res = await fetchWithAuth(`${BACKEND_URL}/api/machines`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...machine, provider_id: providerId }),
+  }, 12000);
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof json?.detail === 'string' ? json.detail : `No se pudo guardar maquinaria (${res.status})`);
+  return upsertMachineInCache(json.machine || machine);
+}
+
+export async function updateMachineInApi(machineId, updates) {
+  const res = await fetchWithAuth(`${BACKEND_URL}/api/machines/${encodeURIComponent(machineId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  }, 12000);
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof json?.detail === 'string' ? json.detail : `No se pudo actualizar maquinaria (${res.status})`);
+  return upsertMachineInCache(json.machine || { id: machineId, ...updates });
+}
+
+export async function deleteMachineInApi(machineId) {
+  const res = await fetchWithAuth(`${BACKEND_URL}/api/machines/${encodeURIComponent(machineId)}`, {
+    method: 'DELETE',
+  }, 12000);
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof json?.detail === 'string' ? json.detail : `No se pudo eliminar maquinaria (${res.status})`);
+  return removeMachine(machineId);
+}
+
 export function getMachineById(machineId) {
   return getMachines().find(m => m.id === machineId) || null;
 }
@@ -174,7 +249,7 @@ export function addMachine(machine) {
   const typeName = MACHINERY_TYPES.find(m => m.id === machineryType)?.name || 'Retroexcavadora';
   const isPerSvc = PER_SERVICE_IDS.includes(machineryType);
   const newMachine = {
-    id: `mach_${Date.now()}`,
+    id: machine.id || `mach_${Date.now()}`,
     machineryType,
     type: typeName,
     brand: machine.brand || 'Nueva máquina',
@@ -184,7 +259,8 @@ export function addMachine(machine) {
     pricePerHour: isPerSvc ? null : (machine.pricePerHour ?? 80000),
     pricePerService: isPerSvc ? (machine.pricePerService ?? 260000) : null,
     transportCost: needsTransport(machineryType) ? (machine.transportCost ?? 25000) : 0,
-    available: true,
+    available: machine.available !== false,
+    published: machine.published !== false,
     operators: machine.operators || [],
     ...(machineryType === 'camion_tolva' && machine.capacityM3 != null && { capacityM3: Number(machine.capacityM3) }),
     ...(machineryType === 'camion_aljibe' && machine.capacityLiters != null && { capacityLiters: Number(machine.capacityLiters) }),

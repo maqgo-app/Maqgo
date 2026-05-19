@@ -4,7 +4,16 @@ import axios from 'axios';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { ProviderNavigation } from '../../components/BottomNavigation';
 import { useToast } from '../../components/Toast';
-import { getMachines, resetMachines, updateMachine, removeMachine, needsTransport, MACHINERY_TYPES } from '../../utils/providerMachines';
+import {
+  deleteMachineInApi,
+  fetchProviderMachinesFromApi,
+  getMachines,
+  resetMachines,
+  updateMachine,
+  updateMachineInApi,
+  needsTransport,
+  MACHINERY_TYPES
+} from '../../utils/providerMachines';
 import { REFERENCE_PRICES, REFERENCE_TRANSPORT, MAX_PRICE_ABOVE_MARKET_PCT, getPriceAlert, getTransportAlert } from '../../utils/pricing';
 import { vibrate } from '../../utils/uberUX';
 import BACKEND_URL from '../../utils/api';
@@ -35,6 +44,20 @@ function MyMachinesScreen() {
   const loadMachines = () => setMachines(getMachines());
 
   useEffect(() => {
+    let cancelled = false;
+    fetchProviderMachinesFromApi()
+      .then((fresh) => {
+        if (!cancelled) setMachines(fresh);
+      })
+      .catch(() => {
+        if (!cancelled) loadMachines();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!openOperatorForMachineId) return;
     const machine = getMachines().find((m) => m?.id === openOperatorForMachineId);
     if (machine) {
@@ -43,10 +66,16 @@ function MyMachinesScreen() {
     }
   }, [activationEdit, navigate, openOperatorForMachineId, location.pathname, returnTo]);
 
-  const handleResetAllMachines = () => {
-    resetMachines();
-    loadMachines();
-    setDeleteMachineConfirm(null);
+  const handleResetAllMachines = async () => {
+    try {
+      await Promise.all((machines || []).map((m) => deleteMachineInApi(m.id)));
+      resetMachines();
+      loadMachines();
+    } catch (e) {
+      toast.error(e?.message || 'No se pudieron eliminar las máquinas.');
+    } finally {
+      setDeleteMachineConfirm(null);
+    }
   };
 
 
@@ -56,13 +85,18 @@ function MyMachinesScreen() {
     localStorage.setItem(STORAGE_KEY_DEFAULT_BY_MACHINERY, JSON.stringify(updated));
   };
 
-  const savePricing = (machineId, updates) => {
-    updateMachine(machineId, updates);
-    loadMachines();
-    setEditPricingModal(null);
+  const savePricing = async (machineId, updates) => {
+    try {
+      await updateMachineInApi(machineId, updates);
+      updateMachine(machineId, updates);
+      loadMachines();
+      setEditPricingModal(null);
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo guardar el precio.');
+    }
   };
 
-  const saveMachineOperators = (machineId, operators) => {
+  const saveMachineOperators = async (machineId, operators) => {
     const machines = getMachines();
     const machine = machines.find(m => m.id === machineId);
     if (!machine) return;
@@ -73,27 +107,42 @@ function MyMachinesScreen() {
       setDefaultOperator(mid, '');
     }
 
-    updateMachine(machineId, { operators: operators || [] });
-    loadMachines();
-    setOperatorModal(null);
-    if (activationEdit) navigate(returnTo, { replace: true });
+    try {
+      await updateMachineInApi(machineId, { operators: operators || [] });
+      updateMachine(machineId, { operators: operators || [] });
+      loadMachines();
+      setOperatorModal(null);
+      if (activationEdit) navigate(returnTo, { replace: true });
+    } catch (e) {
+      toast.error(e?.message || 'No se pudieron asignar operadores.');
+    }
   };
 
-  const toggleAvailability = (machineId) => {
+  const toggleAvailability = async (machineId) => {
     const machine = machines.find(m => m.id === machineId);
     if (!machine) return;
-    updateMachine(machineId, { available: !machine.available });
-    loadMachines();
+    try {
+      await updateMachineInApi(machineId, { available: !machine.available });
+      updateMachine(machineId, { available: !machine.available });
+      loadMachines();
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo cambiar disponibilidad.');
+    }
   };
 
   const handleAddMachine = () => {
     navigate('/provider/machine-data', { state: { returnTo: '/provider/machines' } });
   };
 
-  const handleDeleteMachine = (machineId) => {
-    removeMachine(machineId);
-    loadMachines();
-    setDeleteMachineConfirm(null);
+  const handleDeleteMachine = async (machineId) => {
+    try {
+      await deleteMachineInApi(machineId);
+      loadMachines();
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo eliminar la máquina.');
+    } finally {
+      setDeleteMachineConfirm(null);
+    }
   };
 
   const formatPrice = (price) =>

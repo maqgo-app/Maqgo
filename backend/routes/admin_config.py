@@ -19,6 +19,7 @@ from pricing.constants import (
 
 from services.payment_auto_healer import run_auto_heal
 from services.payment_consistency_engine import run_consistency_check
+from services.machines_service import delete_machine, list_admin_machines, serialize_machine, update_machine
 from services.payment_rollout import get_payment_hardening_metrics_snapshot
 from services.payment_saga_recovery import recover_saga
 from services.reconciliation_service import reconcile_payment_intents
@@ -179,6 +180,15 @@ async def get_admin_users(_: dict = Depends(get_current_admin_strict)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/machines")
+async def get_admin_machines(_: dict = Depends(get_current_admin_strict)):
+    try:
+        machines = await list_admin_machines(db)
+        return {"machines": machines, "total": len(machines)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 class AdminUserUpdateRequest(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
@@ -292,6 +302,39 @@ async def admin_delete_user_machine(
         )
         fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
         return {"ok": True, "user": fresh}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/machines/{machine_id}")
+async def admin_update_machine(
+    machine_id: str,
+    request: Dict[str, Any],
+    _: dict = Depends(get_current_admin_strict),
+):
+    try:
+        machine = await update_machine(db, machine_id, request)
+        if not machine:
+            raise HTTPException(status_code=404, detail="Maquinaria no encontrada")
+        return {"ok": True, "machine": serialize_machine(machine)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/machines/{machine_id}")
+async def admin_delete_machine(
+    machine_id: str,
+    _: dict = Depends(get_current_admin_strict),
+):
+    try:
+        machine = await delete_machine(db, machine_id)
+        if not machine:
+            raise HTTPException(status_code=404, detail="Maquinaria no encontrada")
+        return {"ok": True}
     except HTTPException:
         raise
     except Exception as e:

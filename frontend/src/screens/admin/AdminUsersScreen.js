@@ -44,7 +44,7 @@ function maqgoPublicId(rawId, kind) {
 function AdminUsersScreen() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [data, setData] = useState({ clients: [], providers: [], total_clients: 0, total_providers: 0 });
+  const [data, setData] = useState({ clients: [], providers: [], machines: [], total_clients: 0, total_providers: 0 });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('clients'); // 'clients' | 'providers' | 'machines'
   const [editKind, setEditKind] = useState('client'); // 'client' | 'provider' | 'machine'
@@ -66,12 +66,16 @@ function AdminUsersScreen() {
 
   async function fetchUsers() {
     try {
-      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/users`);
-      const json = await res.json();
-      setData(json);
+      const [usersRes, machinesRes] = await Promise.all([
+        fetchWithAuth(`${BACKEND_URL}/api/admin/users`),
+        fetchWithAuth(`${BACKEND_URL}/api/admin/machines`),
+      ]);
+      const json = await usersRes.json();
+      const machinesJson = await machinesRes.json().catch(() => ({}));
+      setData({ ...json, machines: Array.isArray(machinesJson?.machines) ? machinesJson.machines : [] });
     } catch (e) {
       console.error(e);
-      setData({ clients: [], providers: [], total_clients: 0, total_providers: 0 });
+      setData({ clients: [], providers: [], machines: [], total_clients: 0, total_providers: 0 });
     }
     setLoading(false);
   }
@@ -112,41 +116,43 @@ function AdminUsersScreen() {
   }, [users]);
 
   const machineRows = useMemo(() => {
-    const providers = Array.isArray(data.providers) ? data.providers : [];
-    return providers.map((u) => {
-      const md = u?.machineData && typeof u.machineData === 'object' ? u.machineData : {};
-      let primaryPhoto = md?.primaryPhoto || md?.photo || md?.image || '';
+    const machines = Array.isArray(data.machines) ? data.machines : [];
+    return machines.map((m) => {
+      const provider = m?.provider && typeof m.provider === 'object' ? m.provider : {};
+      let primaryPhoto = m?.primaryPhoto || m?.photo || m?.image || '';
       if (!primaryPhoto) {
-        const raw = md?.machinePhotos || md?.photos || md?.images || [];
+        const raw = m?.machinePhotos || m?.photos || m?.images || [];
         if (Array.isArray(raw) && raw.length > 0) {
           const first = raw[0];
           primaryPhoto = typeof first === 'string' ? first : (first?.url || first?.src || '');
         }
       }
       return {
-        providerId: u?.id || '',
-        providerUser: u,
-        providerName: u?.name || '-',
-        providerEmail: u?.email || '-',
-        providerPhone: u?.phone || '-',
-        machineryType: u?.machineryType || md?.machineryType || '-',
-        licensePlate: md?.licensePlate || md?.patente || md?.plate || '-',
-        onboardingCompleted: Boolean(u?.onboarding_completed),
-        isAvailable: Boolean(u?.isAvailable),
-        providerRole: u?.provider_role || '',
-        createdAt: u?.createdAt || '',
-        machineKey: `${u?.id || ''}|${md?.licensePlate || md?.patente || md?.plate || ''}|${u?.machineryType || md?.machineryType || ''}`,
+        ...m,
+        providerId: m?.provider_id || '',
+        providerUser: provider,
+        providerName: m?.providerName || provider?.name || '-',
+        providerEmail: m?.providerEmail || provider?.email || '-',
+        providerPhone: m?.providerPhone || provider?.phone || '-',
+        machineryType: m?.machineryType || m?.machinery_type || '-',
+        licensePlate: m?.licensePlate || m?.license_plate || '-',
+        comuna: m?.comuna || '-',
+        onboardingCompleted: Boolean(m?.onboardingCompleted),
+        isAvailable: Boolean(m?.available) && Boolean(m?.isProviderAvailable),
+        providerRole: provider?.provider_role || '',
+        createdAt: m?.createdAt || '',
+        machineKey: m?.id || `${m?.provider_id || ''}|${m?.licensePlate || m?.license_plate || ''}|${m?.machineryType || m?.machinery_type || ''}`,
         primaryPhoto,
       };
     });
-  }, [data.providers]);
+  }, [data.machines]);
 
   const machinesCount = useMemo(() => {
     return machineRows.filter((m) => String(m.machineryType || '').trim() && m.machineryType !== '-').length;
   }, [machineRows]);
 
   const openEdit = (u, kindOverride = null) => {
-    const md = u?.machineData && typeof u.machineData === 'object' ? u.machineData : {};
+    const md = kindOverride === 'machine' ? u : (u?.machineData && typeof u.machineData === 'object' ? u.machineData : {});
     const kind =
       kindOverride ||
       (tab === 'clients' ? 'client' : tab === 'providers' ? 'provider' : 'machine');
@@ -157,7 +163,7 @@ function AdminUsersScreen() {
       email: u?.email || '',
       phone: u?.phone || '',
       provider_role: u?.provider_role || '',
-      isAvailable: Boolean(u?.isAvailable),
+      isAvailable: kindOverride === 'machine' ? Boolean(u?.available) : Boolean(u?.isAvailable),
       onboarding_completed: Boolean(u?.onboarding_completed),
       machineryType: u?.machineryType || md?.machineryType || '',
       licensePlate: md?.licensePlate || '',
@@ -178,6 +184,45 @@ function AdminUsersScreen() {
     if (!editingUser?.id || !editForm || saving) return;
     setSaving(true);
     try {
+      if (editKind === 'machine') {
+        const toNumberOrEmpty = (v) => {
+          if (v === '' || v == null) return null;
+          const n = Number(v);
+          return Number.isFinite(n) ? n : null;
+        };
+        const update = {
+          machineryType: String(editForm.machineryType || ''),
+          licensePlate: String(editForm.licensePlate || '').trim().toUpperCase(),
+          pricePerHour: toNumberOrEmpty(editForm.pricePerHour),
+          pricePerService: toNumberOrEmpty(editForm.pricePerService),
+          transportCost: toNumberOrEmpty(editForm.transportCost),
+          available: Boolean(editForm.isAvailable),
+        };
+        const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/machines/${encodeURIComponent(editingUser.id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(update),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(typeof json?.detail === 'string' ? json.detail : `No se pudo guardar (${res.status}).`);
+          return;
+        }
+        const updatedMachine = json?.machine || null;
+        if (updatedMachine) {
+          setData((prev) => {
+            const list = Array.isArray(prev.machines) ? prev.machines : [];
+            const nextList = list.map((x) => (x?.id === updatedMachine.id ? { ...x, ...updatedMachine } : x));
+            return { ...prev, machines: nextList };
+          });
+        } else {
+          await fetchUsers();
+        }
+        toast.success('Cambios guardados.');
+        closeEdit();
+        return;
+      }
+
       const md0 = editingUser?.machineData && typeof editingUser.machineData === 'object' ? editingUser.machineData : {};
       const update = {};
 
@@ -288,7 +333,7 @@ function AdminUsersScreen() {
   const doDeleteMachine = async () => {
     if (!deleteMachineTarget?.id) return;
     try {
-      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/users/${encodeURIComponent(deleteMachineTarget.id)}/machine`, {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/machines/${encodeURIComponent(deleteMachineTarget.id)}`, {
         method: 'DELETE',
       });
       const json = await res.json().catch(() => ({}));
@@ -296,16 +341,10 @@ function AdminUsersScreen() {
         toast.error(typeof json?.detail === 'string' ? json.detail : `No se pudo eliminar (${res.status}).`);
         return;
       }
-      const updatedUser = json?.user || null;
-      if (updatedUser) {
-        setData((prev) => {
-          const list = Array.isArray(prev.providers) ? prev.providers : [];
-          const nextList = list.map((x) => (x?.id === updatedUser.id ? updatedUser : x));
-          return { ...prev, providers: nextList };
-        });
-      } else {
-        await fetchUsers();
-      }
+      setData((prev) => {
+        const list = Array.isArray(prev.machines) ? prev.machines : [];
+        return { ...prev, machines: list.filter((x) => x?.id !== deleteMachineTarget.id) };
+      });
       toast.success('Maquinaria eliminada.');
     } catch (e) {
       toast.error(e?.message || 'No se pudo eliminar.');
@@ -583,6 +622,7 @@ function AdminUsersScreen() {
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Foto</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinaria</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Patente</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Comuna</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Proveedor</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Onboarding</th>
@@ -593,7 +633,7 @@ function AdminUsersScreen() {
                   </thead>
                   <tbody>
                     {machineRows.map((m, i) => (
-                      <tr key={`${m.providerId || 'prov'}-${i}`} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
+                      <tr key={m.id || `${m.providerId || 'prov'}-${i}`} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
                           {maqgoPublicId(m.machineKey, 'machine')}
                         </td>
@@ -626,6 +666,7 @@ function AdminUsersScreen() {
                         </td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.machineryType}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.licensePlate}</td>
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.comuna || '-'}</td>
                         <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{m.providerName}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{m.providerEmail}</td>
                         <td style={{ padding: 14 }}>
@@ -662,8 +703,8 @@ function AdminUsersScreen() {
                             <button
                               type="button"
                               onClick={() => {
-                                if (!m?.providerUser?.id) return;
-                                openEdit(m.providerUser, 'machine');
+                                if (!m?.id) return;
+                                openEdit(m, 'machine');
                               }}
                               style={{
                                 padding: '8px 12px',
@@ -681,8 +722,8 @@ function AdminUsersScreen() {
                             <button
                               type="button"
                               onClick={() => {
-                                if (!m?.providerUser?.id) return;
-                                setDeleteMachineTarget(m.providerUser);
+                                if (!m?.id) return;
+                                setDeleteMachineTarget(m);
                               }}
                               style={{
                                 padding: '8px 12px',
@@ -823,7 +864,7 @@ function AdminUsersScreen() {
         </div>
 
         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 20 }}>
-          Los datos se almacenan en MongoDB (colección <code style={{ background: '#333', padding: '2px 6px', borderRadius: 4 }}>users</code>).
+          Los usuarios se almacenan en MongoDB (<code style={{ background: '#333', padding: '2px 6px', borderRadius: 4 }}>users</code>) y el inventario en <code style={{ background: '#333', padding: '2px 6px', borderRadius: 4 }}>machines</code>.
           El registro se realiza desde la app (Empezar ahora / Ya tengo cuenta).
         </p>
       </div>
@@ -868,8 +909,8 @@ function AdminUsersScreen() {
               ) : (
                 <div style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 10, padding: 12 }}>
                   <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 6 }}>Proveedor</div>
-                  <div style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>{editingUser?.name || '-'}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 2 }}>{editingUser?.email || '-'}</div>
+                  <div style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>{editingUser?.providerName || editingUser?.provider?.name || '-'}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 2 }}>{editingUser?.providerEmail || editingUser?.provider?.email || '-'}</div>
                 </div>
               )}
 
@@ -1073,7 +1114,7 @@ function AdminUsersScreen() {
         open={Boolean(deleteMachineTarget)}
         onClose={() => setDeleteMachineTarget(null)}
         title="Eliminar maquinaria"
-        message={`Eliminar la maquinaria registrada de ${deleteMachineTarget?.name || deleteMachineTarget?.email || 'este proveedor'}?`}
+        message={`Eliminar ${deleteMachineTarget?.machineryType || 'esta maquinaria'} de ${deleteMachineTarget?.providerName || 'este proveedor'}?`}
         confirmLabel="Eliminar"
         cancelLabel="Cancelar"
         onConfirm={doDeleteMachine}

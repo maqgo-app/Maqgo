@@ -20,6 +20,7 @@ from services.provider_match_list import (
     calculate_match_score,
     enforce_diversity_ranked,
 )
+from services.machines_service import is_recent_machine, migrate_legacy_machine_data, serialize_machine
 
 router = APIRouter(prefix="/providers", tags=["Providers"])
 logger = logging.getLogger(__name__)
@@ -82,8 +83,16 @@ def get_db():
     return client[DB_NAME]
 
 
-def _get_operator_display_name(provider: dict) -> str:
+def _get_operator_display_name(provider: dict, machine_data: Optional[dict] = None) -> str:
     """Nombre del operador para mostrar al cliente. Nunca empresa."""
+    if isinstance(machine_data, dict):
+        mops = machine_data.get('operators')
+        if isinstance(mops, list) and len(mops) > 0:
+            first = mops[0]
+            if isinstance(first, dict) and first.get('name'):
+                return first['name']
+            if isinstance(first, str):
+                return first
     if not provider:
         return 'Operador'
     ops = provider.get('machineData', {}).get('operators', [])
@@ -228,6 +237,13 @@ def _has_any_operator(provider: dict) -> bool:
     return False
 
 
+def _has_any_operator_for_machine(provider: dict, machine_data: dict) -> bool:
+    ops = machine_data.get("operators")
+    if isinstance(ops, list) and len(ops) > 0:
+        return True
+    return _has_any_operator(provider)
+
+
 def _is_provider_activation_complete(provider: dict) -> bool:
     if provider.get("owner_id"):
         return False
@@ -240,6 +256,22 @@ def _is_provider_activation_complete(provider: dict) -> bool:
     company_ok = bool((pdata.get("businessName") or "").strip()) and bool((pdata.get("rut") or "").strip())
     machine_ok = bool((mdata.get("machineryType") or "").strip()) and bool((mdata.get("licensePlate") or "").strip())
     operator_ok = _has_any_operator(provider)
+    bank_ok = _is_bank_data_complete(provider)
+    location_ok = _has_real_provider_coords(provider)
+    return bool(company_ok and machine_ok and operator_ok and bank_ok and location_ok)
+
+
+def _is_provider_activation_complete_for_machine(provider: dict, machine_data: dict) -> bool:
+    if provider.get("owner_id"):
+        return False
+    if provider.get("provider_role") == "operator":
+        return False
+    if not bool(provider.get("onboarding_completed")):
+        return False
+    pdata = provider.get("providerData") if isinstance(provider.get("providerData"), dict) else {}
+    company_ok = bool((pdata.get("businessName") or "").strip()) and bool((pdata.get("rut") or "").strip())
+    machine_ok = bool((machine_data.get("machineryType") or "").strip()) and bool((machine_data.get("licensePlate") or "").strip())
+    operator_ok = _has_any_operator_for_machine(provider, machine_data)
     bank_ok = _is_bank_data_complete(provider)
     location_ok = _has_real_provider_coords(provider)
     return bool(company_ok and machine_ok and operator_ok and bank_ok and location_ok)
@@ -272,19 +304,20 @@ async def match_providers(
     allow_demo = _allow_demo_providers()
 
     try:
-        # Buscar proveedores que cumplan los criterios
-        query = {
-            "role": "provider",
-            # Campo de disponibilidad alineado con el resto del backend
-            "isAvailable": True,
-            "onboarding_completed": True,
-            "$and": [
-                {"$or": [{"owner_id": {"$exists": False}}, {"owner_id": None}, {"owner_id": ""}]},
-                {"$or": [{"provider_role": {"$exists": False}}, {"provider_role": None}, {"provider_role": {"$ne": "operator"}}]},
-            ],
-        }
-        
-        # Proyección: solo campos necesarios para matching y respuesta (nunca password ni datos sensibles)
+        await migrate_legacy_machine_data(db)
+
+        machines = await db.machines.find(
+            {
+                "machineryType": machinery_type,
+                "available": True,
+                "published": True,
+                "status": {"$ne": "deleted"},
+            },
+            {"_id": 0},
+        ).to_list(1000)
+
+        provider_ids = list({m.get("provider_id") for m in machines if m.get("provider_id")})
+
         match_projection = {
             "_id": 1,
             "id": 1,
@@ -299,11 +332,27 @@ async def match_providers(
             "acceptedServices": 1,
             "rejectedServices": 1,
             "responseTimeAvg": 1,
+            "onboarding_completed": 1,
+            "owner_id": 1,
+            "provider_role": 1,
+            "isAvailable": 1,
         }
-        providers_cursor = db.users.find(query, match_projection)
-        all_providers = await providers_cursor.to_list(100)
-        
-        if not all_providers:
+        providers = await db.users.find(
+            {
+                "id": {"$in": provider_ids},
+                "isAvailable": True,
+                "onboarding_completed": True,
+                "$and": [
+                    {"$or": [{"role": "provider"}, {"roles": "provider"}]},
+                    {"$or": [{"owner_id": {"$exists": False}}, {"owner_id": None}, {"owner_id": ""}]},
+                    {"$or": [{"provider_role": {"$exists": False}}, {"provider_role": None}, {"provider_role": {"$ne": "operator"}}]},
+                ],
+            },
+            match_projection,
+        ).to_list(len(provider_ids) or 1)
+        providers_by_id = {p.get("id"): p for p in providers}
+
+        if not machines or not providers_by_id:
             duration_ms = int((time.perf_counter() - t0) * 1000)
             log_ops_event(
                 logger,
@@ -330,47 +379,38 @@ async def match_providers(
                 "tomorrow_available": False,
                 "tomorrow_count": 0
             }
-        
-        # Filtrar por maquinaria compatible y distancia
-        eligible_providers = []
-        
-        for provider in all_providers:
-            if not _is_provider_activation_complete(provider):
+
+        candidate_rows = []
+        for machine in machines:
+            provider = providers_by_id.get(machine.get("provider_id"))
+            if not provider:
                 continue
-            # No filtrar por factura: cliente con factura ve a todos; el precio mostrado ya refleja con/sin IVA
-            # Verificar maquinaria compatible
-            machine_data = provider.get('machineData', {})
-            if machine_data.get('machineryType') != machinery_type:
+            if not _is_provider_activation_complete_for_machine(provider, machine):
                 continue
-            
-            # Calcular distancia
             provider_lat, provider_lng = _get_provider_coords(provider)
             distance = haversine_distance(client_lat, client_lng, provider_lat, provider_lng)
-            
-            # Filtrar por radio máximo
-            if distance > max_radius:
-                continue
-            
-            # Obtener precio: por hora (pricePerHour) o por servicio (pricePerService) según tipo de maquinaria
+
             is_per_service = machinery_type in MACHINERY_PER_SERVICE
             if is_per_service:
-                price = machine_data.get('pricePerService') or provider.get('price_per_hour') or 50000
+                price = machine.get('pricePerService') or provider.get('price_per_hour') or 50000
             else:
-                price = machine_data.get('pricePerHour') or provider.get('price_per_hour') or 50000
+                price = machine.get('pricePerHour') or provider.get('price_per_hour') or 50000
             price = int(price)
-            
-            # Determinar si necesita traslado
+
             needs_transport = machinery_type not in MACHINERY_NO_TRANSPORT
-            transport_fee = int(distance * 2000) if needs_transport else 0  # $2000 por km
-            
+            transport_configured = machine.get('transportCost')
+            transport_fee = int(transport_configured) if needs_transport and transport_configured else (int(distance * 2000) if needs_transport else 0)
+
             accepted_services = int(provider.get('acceptedServices', 0) or 0)
             rejected_services = int(provider.get('rejectedServices', 0) or 0)
             response_time_avg = provider.get('responseTimeAvg', None)
 
-            operator_name = _get_operator_display_name(provider)
+            operator_name = _get_operator_display_name(provider, machine)
             emits_invoice = provider.get('providerData', {}).get('emitsInvoice', False)
             row = {
                 "id": _provider_response_id(provider),
+                "provider_id": _provider_response_id(provider),
+                "machine_id": machine.get("id"),
                 "name": provider.get('providerData', {}).get('businessName', 'Proveedor'),
                 "operator_name": operator_name,
                 "emits_invoice": emits_invoice,
@@ -383,14 +423,17 @@ async def match_providers(
                 "needs_transport": needs_transport,
                 "accepted_services": accepted_services,
                 "rejected_services": rejected_services,
-                "response_time_avg": response_time_avg
+                "response_time_avg": response_time_avg,
+                "license_plate": machine.get("licensePlate") or machine.get("license_plate"),
+                "machineData": serialize_machine(machine),
+                "_is_new_machine": is_recent_machine(machine),
             }
             spec_info = MACHINERY_SPEC_FIELD.get(machinery_type)
             if spec_info:
                 key_out, keys_in = spec_info
                 val = None
                 for k in keys_in:
-                    val = machine_data.get(k)
+                    val = machine.get(k)
                     if val is not None and val != '':
                         break
                 if val is not None and val != '':
@@ -402,29 +445,30 @@ async def match_providers(
                     except (TypeError, ValueError):
                         pass
                     row[key_out] = val
-            eligible_providers.append(row)
-        
+            candidate_rows.append(row)
+
+        try:
+            start_radius = float(max_radius)
+        except (TypeError, ValueError):
+            start_radius = 30.0
+        if start_radius <= 0:
+            start_radius = 30.0
+        dynamic_radii = [start_radius]
+        for radius in (60.0, 100.0):
+            if radius > start_radius and radius not in dynamic_radii:
+                dynamic_radii.append(radius)
+
+        eligible_providers = []
+        selected_radius = dynamic_radii[-1]
+        for radius in dynamic_radii:
+            scoped = [p for p in candidate_rows if float(p["distance"]) <= radius]
+            eligible_providers = scoped
+            selected_radius = radius
+            if len(scoped) >= limit:
+                break
+
         if not eligible_providers:
-            # Contar proveedores para mañana (misma maquinaria, sin filtro de disponibilidad inmediata)
-            tomorrow_count = 0
-            tomorrow_cursor = db.users.find(
-                {
-                    "role": "provider",
-                    "onboarding_completed": True,
-                    "$and": [
-                        {"$or": [{"owner_id": {"$exists": False}}, {"owner_id": None}, {"owner_id": ""}]},
-                        {"$or": [{"provider_role": {"$exists": False}}, {"provider_role": None}, {"provider_role": {"$ne": "operator"}}]},
-                    ],
-                },
-                {"machineData": 1, "operators": 1, "latitude": 1, "longitude": 1, "providerData": 1, "location": 1}
-            )
-            async for p in tomorrow_cursor:
-                if not _is_provider_activation_complete(p):
-                    continue
-                if p.get('machineData', {}).get('machineryType') == machinery_type:
-                    ploc = _get_provider_coords(p)
-                    if haversine_distance(client_lat, client_lng, ploc[0], ploc[1]) <= max_radius:
-                        tomorrow_count += 1
+            tomorrow_count = len([p for p in candidate_rows if float(p["distance"]) <= selected_radius])
             duration_ms = int((time.perf_counter() - t0) * 1000)
             log_ops_event(
                 logger,
@@ -452,7 +496,7 @@ async def match_providers(
                 "tomorrow_available": tomorrow_count > 0,
                 "tomorrow_count": tomorrow_count
             }
-        
+
         # Ranking visible: match score (mayor = mejor) + diversidad suave; sin excluir oferta
         max_distance = max(float(p["distance"]) for p in eligible_providers) or 1.0
         ref_price = reference_price_for_machinery(machinery_type)
@@ -463,6 +507,8 @@ async def match_providers(
                 reference_price=ref_price,
                 max_distance=max_distance,
             )
+            if provider.get("_is_new_machine"):
+                ms += 0.08
             provider["_match_score"] = ms
 
         eligible_providers.sort(key=lambda x: x["_match_score"], reverse=True)
@@ -478,6 +524,7 @@ async def match_providers(
             p.pop('accepted_services', None)
             p.pop('rejected_services', None)
             p.pop('response_time_avg', None)
+            p.pop('_is_new_machine', None)
 
         duration_ms = int((time.perf_counter() - t0) * 1000)
         log_ops_event(
@@ -485,6 +532,7 @@ async def match_providers(
             event="provider_match",
             machinery_type=machinery_type,
             count=len(result_providers),
+            radius_km=selected_radius,
             is_demo=False,
             duration_ms=duration_ms,
             success=True,
@@ -493,7 +541,8 @@ async def match_providers(
         return {
             "providers": result_providers,
             "total": len(result_providers),
-            "is_demo": False
+            "is_demo": False,
+            "radius_km": selected_radius,
         }
 
     except Exception as e:
