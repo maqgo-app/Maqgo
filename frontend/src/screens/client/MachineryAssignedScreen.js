@@ -5,6 +5,8 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import OnTheWayMap from '../../components/OnTheWayMap';
 import { playAcceptedSound, playArrivingSound, playNotificationSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
+import axios from 'axios';
+import BACKEND_URL from '../../utils/api';
 
 /**
  * Pantalla: Tu maquinaria ha sido asignada (MVP)
@@ -119,6 +121,7 @@ function MachineryAssignedScreen() {
   const [activeIncident, setActiveIncident] = useState(null);
   const [isProtectedWindow, setIsProtectedWindow] = useState(false);
   const [protectedMinutesLeft, setProtectedMinutesLeft] = useState(0);
+  const serviceId = localStorage.getItem('currentServiceId') || '';
   
   // Estado de alerta de proximidad
   const [nearbyAlertShown, setNearbyAlertShown] = useState(false);
@@ -203,7 +206,6 @@ function MachineryAssignedScreen() {
     const interval = setInterval(() => {
       const now = new Date();
       
-      // Verificar si hay un incidente activo
       const incident = getObject('activeIncident', null);
       if (incident) {
         setActiveIncident(incident);
@@ -246,6 +248,30 @@ function MachineryAssignedScreen() {
       clearTimeout(demoTimer);
     };
   }, [etaMinutes, isProtectedWindow]);
+
+  useEffect(() => {
+    if (!serviceId || String(serviceId).startsWith('demo-')) return undefined;
+    let active = true;
+    const poll = async () => {
+      try {
+        const res = await axios.get(`${BACKEND_URL}/api/service-requests/${serviceId}`);
+        if (!active) return;
+        const inc = res?.data?.activeIncident || null;
+        if (inc) {
+          localStorage.setItem('activeIncident', JSON.stringify(inc));
+          setActiveIncident(inc);
+        }
+      } catch {
+        void 0;
+      }
+    };
+    poll();
+    const t = setInterval(poll, 10000);
+    return () => {
+      active = false;
+      clearInterval(t);
+    };
+  }, [serviceId]);
 
   const handleNoShow = () => {
     // Obtener historial de No-Shows del proveedor

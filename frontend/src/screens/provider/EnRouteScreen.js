@@ -4,6 +4,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import ChatFloatingButton from '../../components/ChatFloatingButton';
 import OpenServiceChatButton from '../../components/OpenServiceChatButton';
 import { useToast } from '../../components/Toast';
+import axios from 'axios';
 
 // Radio máximo para validar llegada (en metros)
 const ARRIVAL_RADIUS_METERS = 150;
@@ -141,7 +142,7 @@ function EnRouteScreen() {
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const operatorLat = position.coords.latitude;
         const operatorLng = position.coords.longitude;
         
@@ -156,9 +157,19 @@ function EnRouteScreen() {
 
 
         if (distance <= ARRIVAL_RADIUS_METERS) {
-          // Está dentro del radio permitido - confirmar llegada
+          const nowIso = new Date().toISOString();
+          try {
+            await axios.post(
+              `${BACKEND_URL}/api/service-requests/${serviceId}/mark-arrival`,
+              { lat: operatorLat, lng: operatorLng, source: 'gps' },
+              { headers: { 'Content-Type': 'application/json' } }
+            );
+          } catch {
+            toast.error('No se pudo registrar la llegada en MAQGO. Intentaremos continuar con respaldo local.');
+          }
+
           localStorage.setItem('providerArrived', 'true');
-          localStorage.setItem('arrivalConfirmedTime', new Date().toISOString());
+          localStorage.setItem('arrivalConfirmedTime', nowIso);
           localStorage.setItem('operatorArrivalCoords', JSON.stringify({
             lat: operatorLat,
             lng: operatorLng,
@@ -200,7 +211,7 @@ function EnRouteScreen() {
     );
   };
 
-  const handleReportIncident = () => {
+  const handleReportIncident = async () => {
     // Registrar incidente (evita bloqueo por No-Show + activa ventana protegida)
     const incidentData = {
       providerId: localStorage.getItem('userId'),
@@ -210,18 +221,50 @@ function EnRouteScreen() {
       reason: incidentReason,
       protectedWindowEnd: new Date(Date.now() + 20 * 60 * 1000).toISOString() // 20 min
     };
-    
-    const incidents = getArray('incidentEvents', []);
-    incidents.push(incidentData);
-    localStorage.setItem('incidentEvents', JSON.stringify(incidents));
-    
-    // Guardar incidente activo para que el cliente lo vea
-    localStorage.setItem('activeIncident', JSON.stringify(incidentData));
-    
-    // Cerrar modal y mostrar confirmación
-    setShowIncidentModal(false);
-    setIncidentReason('');
-    toast.success('Incidente reportado. El cliente ha sido notificado.');
+
+    try {
+      const res = await axios.post(
+        `${BACKEND_URL}/api/service-requests/${serviceId}/report-incident`,
+        { reason: incidentReason, protectedWindowMinutes: 20 },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      if (res?.data?.activeIncident) {
+        localStorage.setItem('activeIncident', JSON.stringify(res.data.activeIncident));
+      } else {
+        localStorage.setItem('activeIncident', JSON.stringify(incidentData));
+      }
+      toast.success('Incidente reportado.');
+    } catch {
+      const incidents = getArray('incidentEvents', []);
+      incidents.push(incidentData);
+      localStorage.setItem('incidentEvents', JSON.stringify(incidents));
+      localStorage.setItem('activeIncident', JSON.stringify(incidentData));
+      toast.success('Incidente reportado.');
+    } finally {
+      setShowIncidentModal(false);
+      setIncidentReason('');
+    }
+  };
+
+  const handleManualArrival = async () => {
+    setCheckingLocation(true);
+    try {
+      await axios.post(
+        `${BACKEND_URL}/api/service-requests/${serviceId}/mark-arrival`,
+        { source: 'manual' },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    } catch {
+      void 0;
+    } finally {
+      const nowIso = new Date().toISOString();
+      localStorage.setItem('providerArrived', 'true');
+      localStorage.setItem('arrivalConfirmedTime', nowIso);
+      localStorage.setItem('operatorArrivalCoords', JSON.stringify({ source: 'manual' }));
+      setCheckingLocation(false);
+      setShowLocationError(false);
+      navigate('/provider/arrival');
+    }
   };
 
   // Navegación: Waze o Google Maps - priorizar coordenadas (exactas) cuando el cliente eligió dirección con mapa
@@ -614,6 +657,15 @@ function EnRouteScreen() {
               >
                 Entendido
               </button>
+              {String(gpsError || '').toLowerCase().includes('metros de la obra') ? null : (
+                <button
+                  onClick={handleManualArrival}
+                  className="maqgo-btn-secondary"
+                  style={{ marginBottom: 10 }}
+                >
+                  Marcar llegada sin GPS
+                </button>
+              )}
               <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0 }}>
                 Acércate a la dirección indicada y vuelve a intentar
               </p>

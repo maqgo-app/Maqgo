@@ -33,7 +33,7 @@ from services.payment_rollout import (
 from utils.rbac import has_permission
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ServerSelectionTimeoutError
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from db_config import get_db_name, get_mongo_url
 import logging
@@ -1098,28 +1098,51 @@ async def mark_arrival(
 
     lat = body.get('lat')
     lng = body.get('lng')
+    source = str(body.get("source") or body.get("locationSource") or "gps").strip().lower()
+    force_manual = bool(body.get("forceManual") or body.get("force_manual") or False)
+
+    now = datetime.now(timezone.utc)
+
     if lat is None or lng is None:
-        raise HTTPException(status_code=400, detail="Se requieren lat y lng")
+        arrival_location = {
+            "capturedAt": now.isoformat(),
+            "source": "manual",
+            "verified": False,
+        }
+        arrival_event = {"type": "arrival", "at": now.isoformat(), "verified": False, "source": "manual"}
+        await db.service_requests.update_one(
+            {"id": request_id},
+            {
+                "$set": {
+                    "arrivalDetectedAt": now.isoformat(),
+                    "arrivalLocation": arrival_location,
+                },
+                "$push": {"events": arrival_event},
+            },
+        )
+        return {"success": True, "arrivalDetectedAt": now.isoformat(), "verified": False, "source": "manual"}
 
     lat = float(lat)
     lng = float(lng)
     distance_meters = haversine_meters(job_lat, job_lng, lat, lng)
 
-    if distance_meters > 500:
+    verified = distance_meters <= 500
+    if not verified and source == "gps" and not force_manual:
         raise HTTPException(
             status_code=400,
             detail=f"Ubicación fuera de rango. Distancia: {distance_meters:.0f}m (máx 500m)"
         )
 
-    now = datetime.now(timezone.utc)
     arrival_location = {
         'lat': lat,
         'lng': lng,
         'capturedAt': now.isoformat(),
         'distanceMeters': round(distance_meters, 2),
+        "source": source if source else "gps",
+        "verified": bool(verified),
     }
 
-    arrival_event = {'type': 'arrival', 'at': now.isoformat()}
+    arrival_event = {'type': 'arrival', 'at': now.isoformat(), "verified": bool(verified), "source": source if source else "gps"}
     await db.service_requests.update_one(
         {'id': request_id},
         {
@@ -1135,6 +1158,8 @@ async def mark_arrival(
         'success': True,
         'distanceMeters': round(distance_meters, 2),
         'arrivalDetectedAt': now.isoformat(),
+        "verified": bool(verified),
+        "source": source if source else "gps",
     }
 
 
@@ -1158,6 +1183,69 @@ async def start_service(
         raise HTTPException(status_code=400, detail="Servicio no disponible para iniciar")
     
     return {'message': 'Servicio iniciado', 'status': 'in_progress'}
+
+
+@router.post("/{request_id}/report-incident", response_model=dict)
+async def report_incident(
+    request_id: str,
+    body: dict = Body(default={}),
+    current_user: dict = Depends(get_current_user),
+):
+    request = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
+    if not request:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    _assert_assigned_provider(current_user, request)
+
+    reason = str(body.get("reason") or body.get("incidentReason") or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="reason requerido")
+    if len(reason) > 200:
+        reason = reason[:200]
+
+    minutes = body.get("protectedWindowMinutes") or body.get("minutes") or 20
+    try:
+        minutes_i = int(minutes)
+    except Exception:
+        minutes_i = 20
+    if minutes_i <= 0:
+        minutes_i = 20
+    if minutes_i > 120:
+        minutes_i = 120
+
+    now = datetime.now(timezone.utc)
+    role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
+    incident = {
+        "reason": reason,
+        "reportedAt": now.isoformat(),
+        "reportedByUserId": current_user.get("id"),
+        "reportedByRole": role,
+        "protectedWindowEnd": (now + timedelta(minutes=minutes_i)).isoformat(),
+    }
+    event = {"type": "incident", "at": now.isoformat(), "reason": reason, "byRole": role}
+    await db.service_requests.update_one(
+        {"id": request_id},
+        {"$set": {"activeIncident": incident}, "$push": {"events": event}},
+    )
+    return {"success": True, "activeIncident": incident}
+
+
+@router.delete("/{request_id}/incident", response_model=dict)
+async def clear_incident(
+    request_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    request = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
+    if not request:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    _assert_assigned_provider(current_user, request)
+    now = datetime.now(timezone.utc)
+    role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
+    event = {"type": "incident_cleared", "at": now.isoformat(), "byRole": role}
+    await db.service_requests.update_one(
+        {"id": request_id},
+        {"$unset": {"activeIncident": ""}, "$push": {"events": event}},
+    )
+    return {"success": True}
 
 @router.put("/{request_id}/finish", response_model=dict)
 async def finish_service(
