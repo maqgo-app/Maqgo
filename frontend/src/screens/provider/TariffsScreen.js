@@ -28,20 +28,20 @@ function TariffsScreen() {
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
-      <div style={styles.screen}>
-      {/* Header */}
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => navigate(-1)} aria-label="Volver">
-          <BackArrowIcon style={{ color: '#fff' }} />
-        </button>
-        <div style={styles.headerCenter}>
-          <MaqgoLogo size="small" />
+      <div
+        className="maqgo-screen maqgo-screen--scroll"
+        style={{ padding: 'var(--maqgo-screen-padding-top) 24px 140px' }}
+      >
+        <div style={styles.header}>
+          <button style={styles.backBtn} onClick={() => navigate(-1)} aria-label="Volver">
+            <BackArrowIcon style={{ color: '#fff' }} />
+          </button>
+          <div style={styles.headerCenter}>
+            <MaqgoLogo size="small" />
+          </div>
+          <div style={{ width: 24 }} />
         </div>
-        <div style={{width: 24}}></div>
-      </div>
 
-      {/* Contenido */}
-      <div style={styles.content}>
         <h2 style={styles.title}>Tarifas y disponibilidad</h2>
         <p style={styles.subtitle}>Define cuánto cobras y cuándo estás disponible</p>
 
@@ -50,19 +50,21 @@ function TariffsScreen() {
           <input
             style={styles.input}
             type="number"
+            inputMode="numeric"
             placeholder="Ej: 25000"
             value={form.tarifaHora}
-            onChange={e => setForm({...form, tarifaHora: e.target.value})}
+            onChange={(e) => setForm({ ...form, tarifaHora: e.target.value })}
           />
         </div>
 
         <div style={styles.field}>
           <label style={styles.label}>Días disponibles</label>
           <div style={styles.daysRow}>
-            {Object.keys(form.dias).map(day => (
+            {Object.keys(form.dias).map((day) => (
               <button
                 key={day}
-                style={{...styles.dayBtn, ...(form.dias[day] ? styles.dayBtnActive : {})}}
+                type="button"
+                style={{ ...styles.dayBtn, ...(form.dias[day] ? styles.dayBtnActive : {}) }}
                 onClick={() => toggleDay(day)}
               >
                 {day}
@@ -71,35 +73,26 @@ function TariffsScreen() {
           </div>
         </div>
 
-        {/* Resumen */}
         <div style={styles.summary}>
           <span style={styles.summaryLabel}>Tarifa por jornada (9 hrs)</span>
           <span style={styles.summaryValue}>
-            ${form.tarifaHora ? (parseInt(form.tarifaHora) * 9).toLocaleString('es-CL') : '0'} CLP
+            ${form.tarifaHora ? (parseInt(form.tarifaHora, 10) * 9).toLocaleString('es-CL') : '0'} CLP
           </span>
         </div>
-      </div>
 
-      <div style={styles.footer}>
-        <button type="button" style={styles.button} onClick={handleNext}>
-          Siguiente
-        </button>
-      </div>
+        <div className="maqgo-fixed-bottom-bar">
+          <button type="button" className="maqgo-btn-primary" onClick={handleNext}>
+            Siguiente
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 const styles = {
-  screen: {
-    flex: 1,
-    minHeight: 0,
-    background: MAQGO.colors.bgDark,
-    display: 'flex',
-    flexDirection: 'column',
-  },
   header: {
-    padding: '16px 20px',
+    padding: '0 0 12px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -120,12 +113,6 @@ const styles = {
     background: 'transparent',
     border: 'none',
     cursor: 'pointer',
-  },
-  content: {
-    flex: 1,
-    minHeight: 0,
-    overflowY: 'auto',
-    padding: '20px 24px',
   },
   title: {
     color: MAQGO.colors.white,
@@ -161,9 +148,10 @@ const styles = {
   daysRow: {
     display: 'flex',
     gap: 8,
+    flexWrap: 'wrap',
   },
   dayBtn: {
-    flex: 1,
+    flex: '1 1 60px',
     padding: 14,
     background: 'transparent',
     border: `2px solid ${MAQGO.colors.grayLight}`,
@@ -195,20 +183,6 @@ const styles = {
     color: MAQGO.colors.orange,
     fontSize: 22,
     fontWeight: 700,
-  },
-  footer: {
-    padding: '20px 24px 30px',
-  },
-  button: {
-    width: '100%',
-    padding: 18,
-    background: MAQGO.colors.orange,
-    border: 'none',
-    borderRadius: MAQGO.radius.lg,
-    color: MAQGO.colors.white,
-    fontSize: 18,
-    fontWeight: 600,
-    cursor: 'pointer',
   },
 };
 
