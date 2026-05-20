@@ -291,15 +291,71 @@ async def check_provider_has_active_service(
     """
     Verifica si el proveedor tiene un servicio activo.
     Estados activos: confirmed, in_progress, last_30
-    
+
     Returns: True si tiene servicio activo (NO disponible)
     """
-    active_service = await db.service_requests.find_one({
-        'providerId': provider_id,
-        'status': {'$in': ACTIVE_SERVICE_STATES}
-    }, {'_id': 0, 'id': 1})
-    
+    active_service = await db.service_requests.find_one(
+        {
+            "providerId": provider_id,
+            "status": {"$in": ACTIVE_SERVICE_STATES}
+        },
+        {'_id': 1}
+    )
+
     return active_service is not None
+
+
+async def validate_provider_for_wave(
+    db: AsyncIOMotorDatabase,
+    provider_id: str
+) -> dict:
+    """
+    Wave Guard: Valida que un provider pueda recibir una oferta en wave 2/3.
+
+    Returns:
+        dict con 'valid' (bool) y 'reason' (str) si no es válido
+    """
+    provider = await db.users.find_one(
+        {"id": provider_id},
+        {'_id': 0, 'id': 1, 'isAvailable': 1, 'status': 1, 'role': 1}
+    )
+
+    if not provider:
+        return {'valid': False, 'reason': 'provider_not_found'}
+
+    if provider.get('status') == 'deleted':
+        return {'valid': False, 'reason': 'provider_deleted'}
+
+    if not provider.get('isAvailable'):
+        return {'valid': False, 'reason': 'provider_not_available'}
+
+    has_active = await check_provider_has_active_service(db, provider_id)
+    if has_active:
+        return {'valid': False, 'reason': 'provider_has_active_service'}
+
+    return {'valid': True}
+
+
+async def filter_valid_providers_for_wave(
+    db: AsyncIOMotorDatabase,
+    provider_ids: List[str]
+) -> List[str]:
+    """
+    Filtra la lista de provider_ids dejando solo los válidos para recibir oferta.
+    Wave Guard aplica aquí: solo pasa providers que:
+    - Existen
+    - isAvailable = true
+    - No tienen servicio activo
+    - No están eliminados
+    """
+    valid_ids = []
+    for pid in provider_ids:
+        validation = await validate_provider_for_wave(db, pid)
+        if validation['valid']:
+            valid_ids.append(pid)
+        else:
+            logger.info(f"WAVE_GUARD: Provider {pid} filtrado - {validation['reason']}")
+    return valid_ids
 
 async def get_available_providers(
     db: AsyncIOMotorDatabase,
@@ -610,9 +666,17 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
     t0 = _parse_iso_utc(sr.get("matchingRotationStartedAt")) or now
 
     # Ola 2: índices 2 y 3 (tercero y cuarto)
+    # Wave Guard: filtrar providers que ya no son válidos
     if not sr.get("matchingWave2Applied") and len(candidate_ids) >= 3 and wave2_at and now >= wave2_at:
-        new_ids = candidate_ids[2:4]
-        if new_ids:
+        raw_ids = candidate_ids[2:4]
+        new_ids = await filter_valid_providers_for_wave(db, raw_ids)
+        if not new_ids:
+            await db.service_requests.update_one(
+                {"id": service_request_id},
+                {"$set": {"matchingWave2Applied": True, "matchingRotationStage": 2}}
+            )
+            logger.info(f"WAVE_GUARD: Wave 2 aplicada sin candidatos válidos para {service_request_id}")
+        elif new_ids:
             attempts = [
                 {
                     "providerId": pid,
@@ -660,7 +724,8 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
     )
     t0 = _parse_iso_utc(sr.get("matchingRotationStartedAt")) or now
 
-    # Ola 3: índice 4 (quinto) — requiere haber aplicado ola 2 (aunque haya 0 ids nuevos en pool pequeño)
+    # Ola 3: índice 4 (quinto) — requiere haber aplicado ola 2
+    # Wave Guard: filtrar providers que ya no son válidos
     if (
         sr.get("matchingWave2Applied")
         and not sr.get("matchingWave3Applied")
@@ -668,8 +733,15 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
         and wave3_at
         and now >= wave3_at
     ):
-        new_ids = candidate_ids[4:5]
-        if new_ids:
+        raw_ids = candidate_ids[4:5]
+        new_ids = await filter_valid_providers_for_wave(db, raw_ids)
+        if not new_ids:
+            await db.service_requests.update_one(
+                {"id": service_request_id},
+                {"$set": {"matchingWave3Applied": True, "matchingRotationStage": 3}}
+            )
+            logger.info(f"WAVE_GUARD: Wave 3 aplicada sin candidatos válidos para {service_request_id}")
+        elif new_ids:
             attempts = [
                 {
                     "providerId": pid,
