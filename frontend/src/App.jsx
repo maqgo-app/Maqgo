@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useContext, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './utils/api'; // Configura timeout global axios (evita esperas indefinidas)
 import { ROUTES } from './constants';
@@ -10,12 +10,13 @@ import ClientHome from './screens/client/ClientHome'; // Eager: primer destino p
 import BookingFlowEntry from './screens/client/BookingFlowEntry.jsx';
 import MachinerySelection from './screens/client/MachinerySelection'; // Eager: entrada típica al embudo de reserva
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen.jsx'; // Import directo: evita pantalla legacy de recuperación
-import { AuthProvider } from './context/AuthContext';
+import AuthContext, { AuthProvider } from './context/AuthContext';
 import ToastProvider from './components/Toast';
 import BottomNavigation from './components/BottomNavigation';
 import ChatBot from './components/ChatBot';
 import ScrollToTop from './components/ScrollToTop';
 import OfflineBanner from './components/OfflineBanner';
+import EnablePushBanner from './components/EnablePushBanner.jsx';
 import AdminRoute from './components/AdminRoute';
 import ProtectedRoute from './components/ProtectedRoute';
 import ProviderOnboardingGate from './components/ProviderOnboardingGate';
@@ -175,6 +176,7 @@ const PrivacyScreen = lazy(() => import('./screens/PrivacyScreen'));
 
 function AppContent() {
   const location = useLocation();
+  const auth = useContext(AuthContext);
   const [, setUserRole] = useState(() => localStorage.getItem('userRole') || null);
   const [, setUserId] = useState(() => localStorage.getItem('userId') || null);
 
@@ -223,6 +225,7 @@ function AppContent() {
       <BookingNavigationGuard>
       <div className="maqgo-app-shell-main">
       <OfflineBanner />
+      <EnablePushBanner user={auth?.user} />
       <ScrollToTop />
       <div className="maqgo-app-shell-routes">
       <Suspense fallback={<BookingFlowFallback />}>

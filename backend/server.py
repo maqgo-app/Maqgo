@@ -331,6 +331,7 @@ abandonment_router = None
 services_router = None
 invoices_router = None
 messages_router = None
+push_router = None
 admin_reports_router = None
 admin_reports_cron_router = None
 admin_config_router = None
@@ -412,6 +413,11 @@ try:
     logger.info("ROUTER LOADED: messages")
 except Exception as e:
     logger.error(f"ROUTER FAILED: messages - {e}")
+try:
+    from routes.push import router as push_router  # type: ignore
+    logger.info("ROUTER LOADED: push")
+except Exception as e:
+    logger.error(f"ROUTER FAILED: push - {e}")
 try:
     from routes.admin_reports import router as admin_reports_router, cron_router as admin_reports_cron_router  # type: ignore
     logger.info("ROUTER LOADED: admin_reports + cron")
@@ -533,6 +539,7 @@ _include_if_present(services_router, "services")
 _include_if_present(operators_router, "operators")
 _include_if_present(invoices_router, "invoices")
 _include_if_present(messages_router, "messages")
+_include_if_present(push_router, "push")
 _include_if_present(admin_reports_router, "admin_reports")
 _include_if_present(admin_reports_cron_router, "admin_reports_cron")
 _include_if_present(admin_config_router, "admin_config")

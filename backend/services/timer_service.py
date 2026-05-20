@@ -246,11 +246,13 @@ class TimerService:
                     )
                     logger.info(f"Proveedor {service['providerId']} liberado")
 
+                sr = await self.db.service_requests.find_one({'id': sid}, {'_id': 0, 'clientId': 1, 'totalAmount': 1})
+                client_id = sr.get('clientId') if isinstance(sr, dict) else None
+                total = float(sr.get('totalAmount', 0) if isinstance(sr, dict) else 0)
+
                 try:
                     from communications import send_whatsapp
 
-                    sr = await self.db.service_requests.find_one({'id': sid}, {'_id': 0, 'clientId': 1, 'totalAmount': 1})
-                    client_id = sr.get('clientId') if isinstance(sr, dict) else None
                     client = await self.db.users.find_one({'id': client_id}, {'_id': 0, 'phone': 1}) if client_id else None
                     raw_phone = client.get('phone') if isinstance(client, dict) else None
                     phone = str(raw_phone).strip() if raw_phone else ""
@@ -263,7 +265,6 @@ class TimerService:
                         else:
                             phone = f"+{digits}"
                     if phone:
-                        total = float(sr.get('totalAmount', 0) if isinstance(sr, dict) else 0)
                         amount_text = f"${int(round(total)):,}".replace(",", ".")
                         res_notify = send_whatsapp(
                             phone_number=phone,
@@ -289,6 +290,28 @@ class TimerService:
                         )
                 except Exception as e:
                     logger.warning("auto-finish WhatsApp notify error id=%s err=%s", sid, e)
+
+                try:
+                    from services.webpush_service import notify_service_event
+
+                    if client_id:
+                        res_push = await notify_service_event(self.db, str(client_id), str(sid), "finished", None)
+                        await self.db.service_requests.update_one(
+                            {'id': sid},
+                            {
+                                '$push': {
+                                    'events': {
+                                        'type': 'client_push_status',
+                                        'createdAt': now.isoformat(),
+                                        'kind': 'finished',
+                                        'sent': int(res_push.get('sent', 0) or 0),
+                                        'skipped': int(res_push.get('skipped', 0) or 0),
+                                    }
+                                }
+                            },
+                        )
+                except Exception as e:
+                    logger.warning("auto-finish push notify error id=%s err=%s", sid, e)
         
         return finished_count
     

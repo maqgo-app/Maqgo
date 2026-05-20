@@ -189,6 +189,60 @@ async def _notify_whatsapp_client_status(
         except Exception:
             pass
 
+async def _notify_push_client_event(
+    request_id: str,
+    client_id: Optional[str],
+    kind: str,
+    extra: Optional[dict] = None,
+) -> None:
+    if not client_id:
+        return
+    try:
+        from services.webpush_service import notify_service_event
+
+        res = await notify_service_event(
+            db=db,
+            client_id=str(client_id),
+            service_request_id=str(request_id),
+            kind=str(kind),
+            extra=extra,
+        )
+        now_iso = datetime.now(timezone.utc).isoformat()
+        await db.service_requests.update_one(
+            {"id": request_id},
+            {
+                "$push": {
+                    "events": {
+                        "type": "client_push_status",
+                        "createdAt": now_iso,
+                        "kind": str(kind),
+                        "sent": int(res.get("sent", 0) or 0),
+                        "skipped": int(res.get("skipped", 0) or 0),
+                    }
+                }
+            },
+        )
+    except Exception as e:
+        try:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            await db.service_requests.update_one(
+                {"id": request_id},
+                {
+                    "$push": {
+                        "events": {
+                            "type": "client_push_status",
+                            "createdAt": now_iso,
+                            "kind": str(kind),
+                            "sent": 0,
+                            "skipped": 0,
+                            "error": str(e),
+                        }
+                    }
+                },
+            )
+        except Exception:
+            pass
+
 
 router = APIRouter(prefix="/service-requests", tags=["service_requests"])
 
@@ -845,6 +899,11 @@ async def accept_service_request(
                 template="confirmation_client",
                 params={},
             )
+            await _notify_push_client_event(
+                request_id=request_id,
+                client_id=req.get("clientId"),
+                kind="confirmed",
+            )
 
             if provider_role == "operator" and current_user.get("owner_id"):
                 owner = await db.users.find_one(
@@ -1188,6 +1247,11 @@ async def mark_arrival(
             template="client_provider_arrived",
             params={},
         )
+        await _notify_push_client_event(
+            request_id=request_id,
+            client_id=request.get("clientId"),
+            kind="arrival",
+        )
         return {"success": True, "arrivalDetectedAt": now.isoformat(), "verified": False, "source": "manual"}
 
     lat = float(lat)
@@ -1228,6 +1292,11 @@ async def mark_arrival(
         template="client_provider_arrived",
         params={},
     )
+    await _notify_push_client_event(
+        request_id=request_id,
+        client_id=request.get("clientId"),
+        kind="arrival",
+    )
     return {
         'success': True,
         'distanceMeters': round(distance_meters, 2),
@@ -1264,6 +1333,11 @@ async def start_service(
         client_id=request.get("clientId"),
         template="service_started",
         params={"hours": hours},
+    )
+    await _notify_push_client_event(
+        request_id=request_id,
+        client_id=request.get("clientId"),
+        kind="started",
     )
     return {'message': 'Servicio iniciado', 'status': 'in_progress'}
 
@@ -1315,6 +1389,12 @@ async def report_incident(
         template="client_incident_reported",
         params={"reason": reason},
     )
+    await _notify_push_client_event(
+        request_id=request_id,
+        client_id=request.get("clientId"),
+        kind="incident",
+        extra={"reason": reason},
+    )
     return {"success": True, "activeIncident": incident}
 
 
@@ -1339,6 +1419,11 @@ async def clear_incident(
         client_id=request.get("clientId"),
         template="client_incident_cleared",
         params={},
+    )
+    await _notify_push_client_event(
+        request_id=request_id,
+        client_id=request.get("clientId"),
+        kind="incident_cleared",
     )
     return {"success": True}
 
@@ -1389,6 +1474,11 @@ async def finish_service(
         client_id=request.get("clientId") if request else None,
         template="service_finished",
         params={"amount": _format_clp(request.get("totalAmount", 0) if request else 0)},
+    )
+    await _notify_push_client_event(
+        request_id=request_id,
+        client_id=request.get("clientId") if request else None,
+        kind="finished",
     )
     return {
         'message': 'Servicio finalizado',

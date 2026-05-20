@@ -17,6 +17,7 @@
 
 import React, { createContext, useState, useCallback, useEffect } from 'react';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
+import { ensurePushSubscribedIfGranted } from '../utils/pushNotifications';
 
 const AuthContext = createContext(null);
 
@@ -252,6 +253,11 @@ export function AuthProvider({ children }) {
       cancelled = true;
     };
   }, [login]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    ensurePushSubscribedIfGranted();
+  }, [user?.id]);
 
   const value = {
     user,

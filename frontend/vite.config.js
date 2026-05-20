@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import { normalizeBackendBase } from './src/utils/apiNormalize.js'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 import * as esbuild from 'esbuild'
 import { E2E_PREVIEW_HOST, E2E_PREVIEW_PORT } from './scripts/e2ePreviewConstants.mjs'
 
@@ -64,7 +65,36 @@ export default defineConfig(({ mode }) => {
     esbuild: {
       drop: mode === 'production' ? ['console', 'debugger'] : [],
     },
-    plugins: [jsxInJs(), react()],
+    plugins: [
+      jsxInJs(),
+      react(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.js',
+        injectManifest: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,json,txt,woff2}'],
+        },
+        manifest: {
+          id: 'https://www.maqgo.cl/',
+          name: 'MAQGO',
+          short_name: 'MAQGO',
+          description:
+            'Arrienda maquinaria pesada con operador de forma rápida y segura. Excavadoras, retroexcavadoras y más, disponibles cuando las necesites en todo Chile.',
+          start_url: '/',
+          scope: '/',
+          display: 'standalone',
+          background_color: '#101010',
+          theme_color: '#EC6819',
+          orientation: 'portrait-primary',
+          icons: [
+            { src: '/maqgo_logo_130.svg', sizes: '130x130', type: 'image/svg+xml', purpose: 'any' },
+            { src: '/maqgo_logo_clean.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          ],
+        },
+      }),
+    ],
     test: {
       include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}'],
       exclude: ['qa-artifacts/**', 'node_modules/**', 'dist/**'],

@@ -12,8 +12,16 @@ import "@fontsource/space-grotesk/700.css";
 import "./styles/maqgo.css";
 import App from "./App.jsx";
 import { validateMaqgoEnvAtStartup } from "./runtime/validateMaqgoEnv.js";
+import { registerSW } from "virtual:pwa-register";
 
 validateMaqgoEnvAtStartup();
+
+try {
+  if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+    registerSW({ immediate: true });
+  }
+} catch {
+}
 
 /**
  * SMS duplicado legacy (/select-channel): pantalla eliminada. Redirigir antes del router para que
