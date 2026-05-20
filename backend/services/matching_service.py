@@ -206,6 +206,19 @@ def _to_float(value: Any) -> Optional[float]:
 
 
 def _provider_dispatch_location(provider: dict) -> Optional[dict]:
+    md = provider.get('machineData')
+    if isinstance(md, dict):
+        machines = md.get('machines') or []
+        if isinstance(machines, list) and len(machines) > 0:
+            m0 = machines[0]
+            if isinstance(m0, dict):
+                loc = m0.get('location')
+                if isinstance(loc, dict):
+                    lat = _to_float(loc.get('lat'))
+                    lng = _to_float(loc.get('lng'))
+                    if lat is not None and lng is not None:
+                        return {'lat': lat, 'lng': lng}
+
     loc = provider.get('location') if isinstance(provider, dict) else None
     if isinstance(loc, dict):
         lat = _to_float(loc.get('lat'))

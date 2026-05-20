@@ -116,6 +116,10 @@ def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, exis
         "status": _clean_str(payload.get("status") or existing.get("status") or "active"),
     }
 
+    loc = payload.get("location") or existing.get("location")
+    if loc and isinstance(loc, dict) and (loc.get("lat") is not None or loc.get("lng") is not None):
+        doc["location"] = {"lat": loc.get("lat"), "lng": loc.get("lng")}
+
     for key in ("pricePerHour", "pricePerService", "transportCost"):
         raw = payload[key] if key in payload else existing.get(key)
         n = _to_number_or_none(raw)
