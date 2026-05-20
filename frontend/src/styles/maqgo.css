@@ -365,6 +365,9 @@ html, body, #root {
 
 /* Desktop / trackpad: pan-y puede interferir con la rueda sobre el área tipo móvil (Chrome/Safari). */
 @media (pointer: fine) {
+  .maqgo-client-funnel > .maqgo-screen--scroll,
+  .maqgo-provider-funnel > .maqgo-screen--scroll,
+  .maqgo-app-shell-routes > .maqgo-app > .maqgo-screen,
   .maqgo-funnel-split-layout > .maqgo-funnel-split-scroll.maqgo-screen--scroll,
   .maqgo-p4-provider-layout > .maqgo-p4-provider-scroll.maqgo-screen--scroll {
     touch-action: auto;
