@@ -29,7 +29,7 @@ function isIOS() {
   }
 }
 
-export default function InstallPwaBanner() {
+export default function InstallPwaBanner({ bottomOffset = 0 }) {
   const [hidden, setHidden] = useState(true);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
@@ -111,9 +111,11 @@ export default function InstallPwaBanner() {
     <div
       style={{
         position: 'fixed',
-        left: 12,
-        right: 12,
-        bottom: 146,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 'calc(100% - 24px)',
+        maxWidth: 430,
+        bottom: 146 + (Number(bottomOffset) || 0),
         zIndex: 9999,
         background: 'rgba(16,16,16,0.92)',
         border: '1px solid rgba(236,104,25,0.35)',

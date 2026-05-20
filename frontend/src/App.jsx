@@ -180,6 +180,7 @@ function AppContent() {
   const auth = useContext(AuthContext);
   const [, setUserRole] = useState(() => localStorage.getItem('userRole') || null);
   const [, setUserId] = useState(() => localStorage.getItem('userId') || null);
+  const [fixedBottomBarHeight, setFixedBottomBarHeight] = useState(0);
 
   const path = location.pathname;
 
@@ -219,6 +220,39 @@ function AppContent() {
   const isAdminHost = hostname === 'admin.maqgo.cl' || hostname.startsWith('admin.');
   const showChatBot = !isAdminRoute && !isAdminHost;
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let ro;
+    const measure = () => {
+      try {
+        const el = document.querySelector('.maqgo-fixed-bottom-bar');
+        const h = el ? el.getBoundingClientRect().height : 0;
+        setFixedBottomBarHeight(Math.max(0, Math.round(h)));
+      } catch {
+        setFixedBottomBarHeight(0);
+      }
+    };
+    measure();
+    try {
+      const el = document.querySelector('.maqgo-fixed-bottom-bar');
+      if (el && 'ResizeObserver' in window) {
+        ro = new ResizeObserver(() => measure());
+        ro.observe(el);
+      }
+    } catch {
+      void 0;
+    }
+    window.addEventListener('resize', measure);
+    return () => {
+      try {
+        ro?.disconnect?.();
+      } catch {
+        void 0;
+      }
+      window.removeEventListener('resize', measure);
+    };
+  }, [location.pathname]);
+
   return (
     <CheckoutProvider>
     <div className={`maqgo-app-shell-inner ${showBottomNav ? 'maqgo-with-bottom-nav' : ''}`}>
@@ -226,8 +260,8 @@ function AppContent() {
       <BookingNavigationGuard>
       <div className="maqgo-app-shell-main">
       <OfflineBanner />
-      <InstallPwaBanner />
-      <EnablePushBanner user={auth?.user} />
+      <InstallPwaBanner bottomOffset={fixedBottomBarHeight} />
+      <EnablePushBanner user={auth?.user} bottomOffset={fixedBottomBarHeight} />
       <ScrollToTop />
       <div className="maqgo-app-shell-routes">
       <Suspense fallback={<BookingFlowFallback />}>

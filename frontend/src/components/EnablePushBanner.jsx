@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { requestPushPermissionAndSubscribe } from '../utils/pushNotifications';
 
-export default function EnablePushBanner({ user }) {
+export default function EnablePushBanner({ user, bottomOffset = 0 }) {
   const [hidden, setHidden] = useState(true);
   const isStandalone = useMemo(() => {
     try {
@@ -89,9 +89,11 @@ export default function EnablePushBanner({ user }) {
     <div
       style={{
         position: 'fixed',
-        left: 12,
-        right: 12,
-        bottom: 86,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 'calc(100% - 24px)',
+        maxWidth: 430,
+        bottom: 86 + (Number(bottomOffset) || 0),
         zIndex: 9999,
         background: 'rgba(16,16,16,0.92)',
         border: '1px solid rgba(236,104,25,0.35)',
