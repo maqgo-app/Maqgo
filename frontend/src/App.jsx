@@ -219,10 +219,13 @@ function AppContent() {
   const hostname = typeof window !== 'undefined' ? String(window.location.hostname || '') : '';
   const isAdminHost = hostname === 'admin.maqgo.cl' || hostname.startsWith('admin.');
   const showChatBot = !isAdminRoute && !isAdminHost;
+  const showPwaBanners = !isAdminRoute && !isAdminHost && !(path.startsWith('/provider/') && hideNav);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     let ro;
+    let mo;
+    let intervalId;
     const measure = () => {
       try {
         const el = document.querySelector('.maqgo-fixed-bottom-bar');
@@ -242,10 +245,40 @@ function AppContent() {
     } catch {
       void 0;
     }
+    try {
+      if ('MutationObserver' in window) {
+        mo = new MutationObserver(() => measure());
+        mo.observe(document.body, { childList: true, subtree: true });
+      }
+    } catch {
+      void 0;
+    }
+    try {
+      intervalId = window.setInterval(() => measure(), 250);
+      window.setTimeout(() => {
+        try {
+          if (intervalId) window.clearInterval(intervalId);
+        } catch {
+          void 0;
+        }
+      }, 3000);
+    } catch {
+      void 0;
+    }
     window.addEventListener('resize', measure);
     return () => {
       try {
         ro?.disconnect?.();
+      } catch {
+        void 0;
+      }
+      try {
+        mo?.disconnect?.();
+      } catch {
+        void 0;
+      }
+      try {
+        if (intervalId) window.clearInterval(intervalId);
       } catch {
         void 0;
       }
@@ -260,8 +293,8 @@ function AppContent() {
       <BookingNavigationGuard>
       <div className="maqgo-app-shell-main">
       <OfflineBanner />
-      <InstallPwaBanner bottomOffset={fixedBottomBarHeight} />
-      <EnablePushBanner user={auth?.user} bottomOffset={fixedBottomBarHeight} />
+      {showPwaBanners ? <InstallPwaBanner bottomOffset={fixedBottomBarHeight} /> : null}
+      {showPwaBanners ? <EnablePushBanner user={auth?.user} bottomOffset={fixedBottomBarHeight} /> : null}
       <ScrollToTop />
       <div className="maqgo-app-shell-routes">
       <Suspense fallback={<BookingFlowFallback />}>
