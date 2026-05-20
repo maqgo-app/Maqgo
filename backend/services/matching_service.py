@@ -58,6 +58,10 @@ _ROTATION_UNSET = {
 # Estados que indican que el proveedor está ocupado
 ACTIVE_SERVICE_STATES = ['confirmed', 'in_progress', 'last_30']
 
+# Frescura de ubicación (MVP-safe): solo invalida por antigüedad cuando hay timestamp explícito y source GPS.
+GPS_ONLINE_MAX_AGE_SECONDS = 15 * 60
+GPS_STALE_MAX_AGE_SECONDS = 6 * 60 * 60
+
 
 def _rotation_waiting_for_more_waves(sr: Mapping[str, Any], now: datetime) -> bool:
     """
@@ -206,32 +210,74 @@ def _to_float(value: Any) -> Optional[float]:
 
 
 def _provider_dispatch_location(provider: dict) -> Optional[dict]:
+    now = datetime.now(timezone.utc)
+
+    def _coerce_dt(raw: Any) -> Optional[datetime]:
+        if raw is None:
+            return None
+        if isinstance(raw, datetime):
+            return raw.astimezone(timezone.utc) if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+        return _parse_iso_utc(raw)
+
+    def _classify(source: str, updated_at: Optional[datetime]) -> str:
+        src = str(source or "").strip().lower()
+        if src == "depot":
+            return "depot"
+        if updated_at is None:
+            return "last_known"
+        age = (now - updated_at).total_seconds()
+        if age < 0:
+            age = 0
+        if src == "gps":
+            if age <= GPS_ONLINE_MAX_AGE_SECONDS:
+                return "gps_online"
+            if age <= GPS_STALE_MAX_AGE_SECONDS:
+                return "gps_last"
+            return "gps_stale"
+        return "last_known"
+
+    pd = provider.get('providerData') if isinstance(provider, dict) else None
+    depot_lat = depot_lng = None
+    if isinstance(pd, dict):
+        depot_lat = _to_float(pd.get('addressLat'))
+        depot_lng = _to_float(pd.get('addressLng'))
+
     md = provider.get('machineData')
     if isinstance(md, dict):
-        machines = md.get('machines') or []
-        if isinstance(machines, list) and len(machines) > 0:
-            m0 = machines[0]
-            if isinstance(m0, dict):
-                loc = m0.get('location')
-                if isinstance(loc, dict):
-                    lat = _to_float(loc.get('lat'))
-                    lng = _to_float(loc.get('lng'))
-                    if lat is not None and lng is not None:
-                        return {'lat': lat, 'lng': lng}
+        mloc = md.get('location')
+        if isinstance(mloc, dict):
+            lat = _to_float(mloc.get('lat'))
+            lng = _to_float(mloc.get('lng'))
+            if lat is not None and lng is not None:
+                upd = _coerce_dt(md.get('locationUpdatedAt') or md.get('location_updated_at'))
+                src = md.get('locationSource') or md.get('location_source') or "depot"
+                cls = _classify(str(src), upd)
+                if cls == "gps_stale" and depot_lat is not None and depot_lng is not None:
+                    pass
+                else:
+                    out = {'lat': lat, 'lng': lng, 'source': src, 'freshness': cls}
+                    if upd is not None:
+                        out['updatedAt'] = upd
+                    return out
 
     loc = provider.get('location') if isinstance(provider, dict) else None
     if isinstance(loc, dict):
         lat = _to_float(loc.get('lat'))
         lng = _to_float(loc.get('lng'))
         if lat is not None and lng is not None:
-            return {'lat': lat, 'lng': lng}
+            upd = _coerce_dt(provider.get('locationUpdatedAt') or provider.get('location_updated_at'))
+            src = provider.get('locationSource') or provider.get('location_source') or loc.get('source') or "manual"
+            cls = _classify(str(src), upd)
+            if cls == "gps_stale" and depot_lat is not None and depot_lng is not None:
+                pass
+            else:
+                out = {'lat': lat, 'lng': lng, 'source': src, 'freshness': cls}
+                if upd is not None:
+                    out['updatedAt'] = upd
+                return out
 
-    pd = provider.get('providerData') if isinstance(provider, dict) else None
-    if isinstance(pd, dict):
-        lat = _to_float(pd.get('addressLat'))
-        lng = _to_float(pd.get('addressLng'))
-        if lat is not None and lng is not None:
-            return {'lat': lat, 'lng': lng}
+    if depot_lat is not None and depot_lng is not None:
+        return {'lat': depot_lat, 'lng': depot_lng, 'source': 'depot', 'freshness': 'depot'}
 
     return None
 

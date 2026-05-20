@@ -303,6 +303,10 @@ async def update_profile(
     """Actualizar perfil del usuario"""
     allowed_fields = ['name', 'phone', 'hourlyRate', 'machinery', 'location']
     update_data = {k: v for k, v in body.items() if k in allowed_fields}
+    if "location" in update_data and isinstance(update_data.get("location"), dict):
+        update_data["locationUpdatedAt"] = datetime.now(timezone.utc)
+        src = update_data["location"].get("source") or body.get("locationSource") or body.get("location_source")
+        update_data["locationSource"] = str(src).strip() if src else "manual"
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No hay campos válidos para actualizar")

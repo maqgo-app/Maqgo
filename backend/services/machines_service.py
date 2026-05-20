@@ -116,9 +116,20 @@ def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, exis
         "status": _clean_str(payload.get("status") or existing.get("status") or "active"),
     }
 
-    loc = payload.get("location") or existing.get("location")
+    loc_in = payload.get("location")
+    loc_existing = existing.get("location")
+    loc = loc_in if loc_in is not None else loc_existing
     if loc and isinstance(loc, dict) and (loc.get("lat") is not None or loc.get("lng") is not None):
         doc["location"] = {"lat": loc.get("lat"), "lng": loc.get("lng")}
+        if loc_in is not None:
+            doc["locationUpdatedAt"] = utcnow()
+        src_in = payload.get("locationSource")
+        src_existing = existing.get("locationSource")
+        src = src_in if src_in is not None else src_existing
+        if src:
+            doc["locationSource"] = str(src).strip()
+        else:
+            doc["locationSource"] = "depot"
 
     for key in ("pricePerHour", "pricePerService", "transportCost"):
         raw = payload[key] if key in payload else existing.get(key)
@@ -161,6 +172,13 @@ def machine_to_legacy_machine_data(machine: dict) -> dict:
         "operators": machine.get("operators") if isinstance(machine.get("operators"), list) else [],
         "primaryPhoto": machine.get("primaryPhoto"),
     }
+    loc = machine.get("location")
+    if isinstance(loc, dict) and (loc.get("lat") is not None or loc.get("lng") is not None):
+        legacy["location"] = {"lat": loc.get("lat"), "lng": loc.get("lng")}
+        if machine.get("locationUpdatedAt") is not None:
+            legacy["locationUpdatedAt"] = machine.get("locationUpdatedAt")
+        if machine.get("locationSource") is not None:
+            legacy["locationSource"] = machine.get("locationSource")
     for key in CAPACITY_FIELDS:
         if key in machine:
             legacy[key] = machine.get(key)
