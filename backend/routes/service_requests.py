@@ -134,6 +134,61 @@ def _attach_client_matching_view(req: dict) -> None:
         req["clientPhase"] = "searching"
     req["matchingAttemptCount"] = len(req.get("matchingAttempts") or [])
 
+async def _notify_whatsapp_client_status(
+    request_id: str,
+    client_id: Optional[str],
+    template: str,
+    params: dict,
+) -> None:
+    if not client_id:
+        return
+    try:
+        client_doc = await db.users.find_one({"id": client_id}, {"_id": 0, "phone": 1})
+        phone = _format_cl_phone_e164(client_doc.get("phone") if isinstance(client_doc, dict) else None)
+        if not phone:
+            return
+        from communications import send_whatsapp
+
+        res = send_whatsapp(phone_number=phone, template=template, params=params or {})
+        status_val = "sent" if res.get("success") and not res.get("disabled") else "skipped"
+        err = None if res.get("success") else (res.get("error") or "send_failed")
+        now_iso = datetime.now(timezone.utc).isoformat()
+        await db.service_requests.update_one(
+            {"id": request_id},
+            {
+                "$push": {
+                    "events": {
+                        "type": "client_whatsapp_status",
+                        "createdAt": now_iso,
+                        "template": template,
+                        "to": phone,
+                        "status": status_val,
+                        "error": err,
+                    }
+                }
+            },
+        )
+    except Exception as e:
+        try:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            await db.service_requests.update_one(
+                {"id": request_id},
+                {
+                    "$push": {
+                        "events": {
+                            "type": "client_whatsapp_status",
+                            "createdAt": now_iso,
+                            "template": template,
+                            "to": "",
+                            "status": "failed",
+                            "error": str(e),
+                        }
+                    }
+                },
+            )
+        except Exception:
+            pass
+
 
 router = APIRouter(prefix="/service-requests", tags=["service_requests"])
 
@@ -784,6 +839,13 @@ async def accept_service_request(
 
             result["payment"] = payment_result
 
+            await _notify_whatsapp_client_status(
+                request_id=request_id,
+                client_id=req.get("clientId"),
+                template="confirmation_client",
+                params={},
+            )
+
             if provider_role == "operator" and current_user.get("owner_id"):
                 owner = await db.users.find_one(
                     {"id": current_user.get("owner_id")},
@@ -1120,6 +1182,12 @@ async def mark_arrival(
                 "$push": {"events": arrival_event},
             },
         )
+        await _notify_whatsapp_client_status(
+            request_id=request_id,
+            client_id=request.get("clientId"),
+            template="client_provider_arrived",
+            params={},
+        )
         return {"success": True, "arrivalDetectedAt": now.isoformat(), "verified": False, "source": "manual"}
 
     lat = float(lat)
@@ -1154,6 +1222,12 @@ async def mark_arrival(
         }
     )
 
+    await _notify_whatsapp_client_status(
+        request_id=request_id,
+        client_id=request.get("clientId"),
+        template="client_provider_arrived",
+        params={},
+    )
     return {
         'success': True,
         'distanceMeters': round(distance_meters, 2),
@@ -1181,7 +1255,16 @@ async def start_service(
     
     if result.matched_count == 0:
         raise HTTPException(status_code=400, detail="Servicio no disponible para iniciar")
-    
+
+    hours = int(request.get("workdayHours") or request.get("totalDurationHours") or 0)
+    if hours <= 0:
+        hours = 8
+    await _notify_whatsapp_client_status(
+        request_id=request_id,
+        client_id=request.get("clientId"),
+        template="service_started",
+        params={"hours": hours},
+    )
     return {'message': 'Servicio iniciado', 'status': 'in_progress'}
 
 
@@ -1226,6 +1309,12 @@ async def report_incident(
         {"id": request_id},
         {"$set": {"activeIncident": incident}, "$push": {"events": event}},
     )
+    await _notify_whatsapp_client_status(
+        request_id=request_id,
+        client_id=request.get("clientId"),
+        template="client_incident_reported",
+        params={"reason": reason},
+    )
     return {"success": True, "activeIncident": incident}
 
 
@@ -1244,6 +1333,12 @@ async def clear_incident(
     await db.service_requests.update_one(
         {"id": request_id},
         {"$unset": {"activeIncident": ""}, "$push": {"events": event}},
+    )
+    await _notify_whatsapp_client_status(
+        request_id=request_id,
+        client_id=request.get("clientId"),
+        template="client_incident_cleared",
+        params={},
     )
     return {"success": True}
 
@@ -1288,7 +1383,13 @@ async def finish_service(
             {'id': request['providerId']},
             {'$set': {'isAvailable': True}}
         )
-    
+
+    await _notify_whatsapp_client_status(
+        request_id=request_id,
+        client_id=request.get("clientId") if request else None,
+        template="service_finished",
+        params={"amount": _format_clp(request.get("totalAmount", 0) if request else 0)},
+    )
     return {
         'message': 'Servicio finalizado',
         'status': 'finished',

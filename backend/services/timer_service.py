@@ -203,6 +203,9 @@ class TimerService:
         
         finished_count = 0
         for service in services:
+            sid = service.get("id")
+            if not sid:
+                continue
             # Obtener ubicación del proveedor (si está disponible)
             provider = await self.db.users.find_one(
                 {'id': service.get('providerId')},
@@ -227,13 +230,13 @@ class TimerService:
                 update_data['finalLocation'] = final_location
 
             result = await self.db.service_requests.update_one(
-                {'id': service['id'], 'status': {'$in': ['in_progress', 'last_30']}},
+                {'id': sid, 'status': {'$in': ['in_progress', 'last_30']}},
                 {'$set': update_data, '$push': {'events': finished_event}}
             )
             
             if result.modified_count > 0:
                 finished_count += 1
-                logger.info(f"Servicio {service['id']} -> finished (cierre automático)")
+                logger.info(f"Servicio {sid} -> finished (cierre automático)")
                 
                 # Liberar al proveedor
                 if service.get('providerId'):
@@ -242,9 +245,50 @@ class TimerService:
                         {'$set': {'isAvailable': True}}
                     )
                     logger.info(f"Proveedor {service['providerId']} liberado")
-                
-                # TODO: Enviar notificación de servicio finalizado
-                # await send_finished_notification(service['clientId'], service['providerId'])
+
+                try:
+                    from communications import send_whatsapp
+
+                    sr = await self.db.service_requests.find_one({'id': sid}, {'_id': 0, 'clientId': 1, 'totalAmount': 1})
+                    client_id = sr.get('clientId') if isinstance(sr, dict) else None
+                    client = await self.db.users.find_one({'id': client_id}, {'_id': 0, 'phone': 1}) if client_id else None
+                    raw_phone = client.get('phone') if isinstance(client, dict) else None
+                    phone = str(raw_phone).strip() if raw_phone else ""
+                    if phone and not phone.startswith("+"):
+                        digits = "".join(c for c in phone if c.isdigit())
+                        if len(digits) == 9 and digits.startswith("9"):
+                            phone = f"+56{digits}"
+                        elif digits.startswith("56"):
+                            phone = f"+{digits}"
+                        else:
+                            phone = f"+{digits}"
+                    if phone:
+                        total = float(sr.get('totalAmount', 0) if isinstance(sr, dict) else 0)
+                        amount_text = f"${int(round(total)):,}".replace(",", ".")
+                        res_notify = send_whatsapp(
+                            phone_number=phone,
+                            template='service_finished',
+                            params={'amount': amount_text},
+                        )
+                        status_val = "sent" if res_notify.get("success") and not res_notify.get("disabled") else "skipped"
+                        err = None if res_notify.get("success") else (res_notify.get("error") or "send_failed")
+                        await self.db.service_requests.update_one(
+                            {'id': sid},
+                            {
+                                '$push': {
+                                    'events': {
+                                        'type': 'client_whatsapp_status',
+                                        'createdAt': now.isoformat(),
+                                        'template': 'service_finished',
+                                        'to': phone,
+                                        'status': status_val,
+                                        'error': err,
+                                    }
+                                }
+                            },
+                        )
+                except Exception as e:
+                    logger.warning("auto-finish WhatsApp notify error id=%s err=%s", sid, e)
         
         return finished_count
     
@@ -332,28 +376,22 @@ class TimerService:
                 logger.warning(f"Proveedor sin teléfono para servicio {service['_id']}")
                 return
             
-            # Monto a facturar: neto que recibe el proveedor (menos tarifa plataforma)
             invoice_amount = service.get('net_total', 0)
-            formatted_amount = f"${invoice_amount:,.0f}".replace(',', '.')
-            
-            message = f"""✅ *Servicio Aprobado - MAQGO*
+            formatted_amount = f"${float(invoice_amount or 0):,.0f}".replace(',', '.')
+            formatted_phone = str(phone).strip()
+            if not formatted_phone.startswith("+"):
+                digits = "".join(c for c in formatted_phone if c.isdigit())
+                if len(digits) == 9 and digits.startswith("9"):
+                    formatted_phone = f"+56{digits}"
+                elif digits.startswith("56"):
+                    formatted_phone = f"+{digits}"
+                else:
+                    formatted_phone = f"+{digits}"
 
-¡Tu servicio fue aprobado! Ya puedes facturar a MAQGO.
-
-📄 *Datos para facturar (a MAQGO, no al cliente):*
-• Razón Social: MAQGO SpA
-• RUT: 76.248.124-3
-• Monto: {formatted_amount} (neto, menos tarifa plataforma)
-
-👉 Sube tu factura en la app para recibir el pago.
-
-_Ingresa a "Mis Cobros" en MAQGO_"""
-
-            # Enviar WhatsApp
             result = send_whatsapp(
-                phone_number=f"+56{phone}" if not phone.startswith('+') else phone,
-                template='custom',
-                params={'message': message}
+                phone_number=formatted_phone,
+                template='service_approved_invoice',
+                params={'invoice_amount': formatted_amount}
             )
             
             if result.get('success'):

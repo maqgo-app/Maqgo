@@ -11,6 +11,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional, Literal
 
+import requests
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,6 +25,14 @@ def _phone_tail(phone: str) -> str:
 DEMO_MODE = os.environ.get('MAQGO_DEMO_MODE', 'false').lower() == 'true'
 IS_PRODUCTION = os.environ.get('MAQGO_ENV', 'development').lower() == 'production'
 DEMO_OTP_CODE = '123456'
+
+WHATSAPP_NOTIFICATIONS_ENABLED = os.environ.get("WHATSAPP_NOTIFICATIONS_ENABLED", "false").lower() == "true"
+WHATSAPP_STATUS_UPDATES_ENABLED = os.environ.get("WHATSAPP_STATUS_UPDATES_ENABLED", "false").lower() == "true"
+WHATSAPP_PROVIDER = os.environ.get("WHATSAPP_PROVIDER", "cloud_api").strip().lower()
+WHATSAPP_CLOUD_API_VERSION = os.environ.get("WHATSAPP_CLOUD_API_VERSION", "v20.0").strip()
+WHATSAPP_CLOUD_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_CLOUD_PHONE_NUMBER_ID", "").strip()
+WHATSAPP_CLOUD_ACCESS_TOKEN = os.environ.get("WHATSAPP_CLOUD_ACCESS_TOKEN", "").strip()
+WHATSAPP_CLOUD_LANGUAGE_CODE = os.environ.get("WHATSAPP_CLOUD_LANGUAGE_CODE", "es").strip()
 
 def _is_demo_allowed() -> bool:
     """
@@ -92,6 +102,13 @@ Ya puedes autorizar el inicio del servicio en la app.""",
 
     'client_provider_arriving': """MAQGO: El proveedor está llegando al lugar de acceso.
 Prepárate para recibir al operador.""",
+
+    'client_incident_reported': """MAQGO: El operador reportó una demora/incidente.
+Motivo: {reason}
+Te avisaremos cualquier cambio. Revisa el estado en la app.""",
+
+    'client_incident_cleared': """MAQGO: Incidente resuelto.
+El servicio continúa. Revisa el estado en la app.""",
 
     'client_service_reminder': """MAQGO: Recordatorio de tu servicio hoy.
 Maquinaria: {machine}
@@ -403,7 +420,7 @@ def send_whatsapp(
     template: str,
     params: dict
 ) -> dict:
-    """Send WhatsApp message using templates (deshabilitado en MVP)."""
+    """Send WhatsApp message using templates."""
     if template not in WHATSAPP_TEMPLATES:
         return {
             'success': False,
@@ -411,9 +428,6 @@ def send_whatsapp(
             'log': log_message('whatsapp', phone_number, template, 'error', 'Unknown template')
         }
 
-    # Regla MAQGO: el chat es el canal obligatorio entre cliente y proveedor.
-    # Para evitar "contacto" fuera de la app, deshabilitamos WhatsApp en eventos
-    # de coordinación cliente <-> proveedor (aunque el endpoint frontend lo llame).
     CONTACT_WHATSAPP_TEMPLATES = {
         # Cliente - coordinación
         'client_request_sent',
@@ -432,7 +446,7 @@ def send_whatsapp(
         # Operador (asignación a través de eventos externos)
         'operator_assigned',
     }
-    if template in CONTACT_WHATSAPP_TEMPLATES:
+    if template in CONTACT_WHATSAPP_TEMPLATES and not WHATSAPP_STATUS_UPDATES_ENABLED:
         logger.info(f"[WHATSAPP DISABLED][chat-only] template={template} to={phone_number}")
         return {
             'success': True,
@@ -451,12 +465,89 @@ def send_whatsapp(
             'message_preview': message_body[:100],
             'log': log_message('whatsapp', phone_number, template, 'demo')
         }
-    
-    return {
-        'success': False,
-        'error': 'WhatsApp deshabilitado',
-        'log': log_message('whatsapp', phone_number, template, 'disabled')
+
+    if not WHATSAPP_NOTIFICATIONS_ENABLED:
+        return {
+            'success': True,
+            'disabled': True,
+            'log': log_message('whatsapp', phone_number, template, 'disabled')
+        }
+
+    if WHATSAPP_PROVIDER != "cloud_api":
+        return {
+            'success': False,
+            'error': f'WhatsApp provider no soportado: {WHATSAPP_PROVIDER}',
+            'log': log_message('whatsapp', phone_number, template, 'error', 'Unsupported provider')
+        }
+
+    if not WHATSAPP_CLOUD_PHONE_NUMBER_ID or not WHATSAPP_CLOUD_ACCESS_TOKEN:
+        return {
+            'success': True,
+            'disabled': True,
+            'log': log_message('whatsapp', phone_number, template, 'disabled_not_configured')
+        }
+
+    to_digits = "".join(c for c in str(phone_number or "") if c.isdigit())
+    if to_digits.startswith("00"):
+        to_digits = to_digits[2:]
+    if to_digits.startswith("56") and len(to_digits) >= 11:
+        pass
+    elif to_digits.startswith("9") and len(to_digits) == 9:
+        to_digits = f"56{to_digits}"
+    if not to_digits or len(to_digits) < 8:
+        return {
+            'success': False,
+            'error': 'Número WhatsApp inválido',
+            'log': log_message('whatsapp', phone_number, template, 'error', 'Invalid phone')
+        }
+
+    url = f"https://graph.facebook.com/{WHATSAPP_CLOUD_API_VERSION}/{WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages"
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_digits,
+        "type": "text",
+        "text": {"body": message_body},
     }
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_CLOUD_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    try:
+        res = requests.post(url, json=payload, headers=headers, timeout=12)
+        if res.status_code not in (200, 201):
+            return {
+                'success': False,
+                'error': f'WhatsApp HTTP {res.status_code}',
+                'log': log_message('whatsapp', phone_number, template, 'failed', f'HTTP {res.status_code}')
+            }
+        try:
+            data = res.json()
+        except ValueError:
+            data = {}
+        msg_id = None
+        msgs = data.get("messages")
+        if isinstance(msgs, list) and msgs:
+            first = msgs[0]
+            if isinstance(first, dict):
+                msg_id = first.get("id")
+        return {
+            'success': True,
+            'provider': 'cloud_api',
+            'message_id': msg_id,
+            'log': log_message('whatsapp', phone_number, template, 'sent')
+        }
+    except requests.exceptions.Timeout:
+        return {
+            'success': False,
+            'error': 'Timeout enviando WhatsApp',
+            'log': log_message('whatsapp', phone_number, template, 'failed', 'timeout')
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': 'Error enviando WhatsApp',
+            'log': log_message('whatsapp', phone_number, template, 'failed', str(e))
+        }
 
 
 # ==================== EVENT-DRIVEN NOTIFICATIONS ====================
