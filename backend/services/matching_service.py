@@ -98,6 +98,38 @@ def _parse_iso_utc(raw: Any) -> Optional[datetime]:
     except Exception:
         return None
 
+
+def location_confidence_from_provider(provider: Mapping[str, Any], now: Optional[datetime] = None) -> str:
+    """
+    Observabilidad solamente: no participa en filtros, score, ranking ni rotación.
+    Regla: users.location.updatedAt <2h high, 2-24h medium, >24h/missing low.
+    """
+    loc = provider.get("location") if isinstance(provider, Mapping) else None
+    if not isinstance(loc, Mapping):
+        return "low"
+    updated_at = _parse_iso_utc(loc.get("updatedAt"))
+    if not updated_at:
+        return "low"
+    ref = now or datetime.now(timezone.utc)
+    if ref.tzinfo is None:
+        ref = ref.replace(tzinfo=timezone.utc)
+    age_seconds = max(0.0, (ref.astimezone(timezone.utc) - updated_at).total_seconds())
+    if age_seconds <= 2 * 60 * 60:
+        return "high"
+    if age_seconds <= 24 * 60 * 60:
+        return "medium"
+    return "low"
+
+
+def _provider_response(provider: Mapping[str, Any]) -> dict:
+    return {
+        'id': provider['id'],
+        'name': provider.get('name', 'Proveedor'),
+        'rating': provider.get('rating', 5.0),
+        'distance': provider.get('_distance_km', 0),
+        'locationConfidence': provider.get('locationConfidence', 'low'),
+    }
+
 def _get_operator_display_name(provider: dict) -> str:
     """Nombre del operador para mostrar al cliente. Nunca empresa."""
     if not provider:
@@ -389,6 +421,7 @@ async def get_available_providers(
         )
         provider['_matching_score'] = score
         provider['_distance_km'] = round(distance, 1)
+        provider['locationConfidence'] = location_confidence_from_provider(provider)
         scored_providers.append(provider)
     
     # Ordenar por score (menor es mejor); pool máximo TOP 5 por solicitud
@@ -566,12 +599,7 @@ async def send_rotation_wave_one(
     first = providers[0]
     return {
         "status": "offer_sent",
-        "provider": {
-            "id": first["id"],
-            "name": first.get("name", "Proveedor"),
-            "rating": first.get("rating", 5.0),
-            "distance": first.get("_distance_km", 0),
-        },
+        "provider": _provider_response(first),
         "offer": {
             "providerIds": wave1,
             "sentAt": now.isoformat(),
@@ -838,12 +866,7 @@ async def start_matching(
             )
             return {
                 'status': 'offer_sent',
-                'provider': {
-                    'id': eligible[0]['id'],
-                    'name': eligible[0].get('name', 'Proveedor'),
-                    'rating': eligible[0].get('rating', 5.0),
-                    'distance': eligible[0].get('_distance_km', 0)
-                },
+                'provider': _provider_response(eligible[0]),
                 'offer': offer,
                 'attemptNumber': len(excluded_ids) + len(eligible),
                 'maxAttempts': MATCHING_CONFIG['max_attempts']
@@ -870,12 +893,7 @@ async def start_matching(
 
     return {
         'status': 'offer_sent',
-        'provider': {
-            'id': target_provider['id'],
-            'name': target_provider.get('name', 'Proveedor'),
-            'rating': target_provider.get('rating', 5.0),
-            'distance': target_provider.get('_distance_km', 0)
-        },
+        'provider': _provider_response(target_provider),
         'offer': offer,
         'attemptNumber': len(excluded_ids) + 1,
         'maxAttempts': MATCHING_CONFIG['max_attempts']
