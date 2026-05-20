@@ -54,7 +54,11 @@
   text-align: center;
 }
 
-.skip-link:focus,
+.skip-link:focus {
+  top: -100px;
+  outline: none;
+}
+
 .skip-link:focus-visible {
   top: 24px;
   outline: 2px solid #fff;
