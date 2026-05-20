@@ -12,6 +12,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from auth_dependency import verify_user_access, get_current_user
 from security.policy import AccessPolicy
 from models.user import User, UserCreate, ProviderAvailabilityUpdate
+from services.user_location_service import location_meta_from_user, normalize_user_location, update_user_location
 from utils.rbac import has_permission
 from motor.motor_asyncio import AsyncIOMotorClient
 import bcrypt
@@ -177,6 +178,7 @@ async def get_user(
     user = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0})
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    user["locationMeta"] = location_meta_from_user(user)
     return user
 
 @router.put("/{user_id}/availability", response_model=dict)
@@ -193,29 +195,46 @@ async def update_availability(
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     desired_available = bool(body.get("isAvailable", False))
-    if desired_available and not _is_provider_activation_complete({**doc, **{"isAvailable": desired_available}}):
+    location_to_write = None
+    if body.get("location") is not None:
+        try:
+            location_to_write = normalize_user_location(body.get("location"), "availability")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    update_data = {'isAvailable': desired_available}
+    
+    if body.get('machineryType'):
+        update_data['machineryType'] = body['machineryType']
+
+    candidate_doc = {**doc, **update_data}
+    if location_to_write is not None:
+        candidate_doc["location"] = location_to_write
+    
+    if desired_available and not _is_provider_activation_complete(candidate_doc):
         raise HTTPException(
             status_code=409,
             detail="Antes de conectarte, completa tu activación (empresa, máquina, operador, banco y ubicación).",
         )
 
-    update_data = {
-        'isAvailable': desired_available
-    }
-    
-    if body.get('machineryType'):
-        update_data['machineryType'] = body['machineryType']
-    
-    result = await db.users.update_one(
-        {'id': user_id},
-        {'$set': update_data}
-    )
+    result = await db.users.update_one({'id': user_id}, {'$set': update_data})
     
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if location_to_write is not None:
+        try:
+            await update_user_location(db, user_id, body.get("location"), "availability")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except LookupError:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
+    fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
     return {
         'message': 'Disponibilidad actualizada',
+        'location': (fresh or {}).get("location"),
+        'locationMeta': location_meta_from_user(fresh),
         **update_data
     }
 
@@ -303,19 +322,34 @@ async def update_profile(
     """Actualizar perfil del usuario"""
     allowed_fields = ['name', 'phone', 'hourlyRate', 'machinery', 'location']
     update_data = {k: v for k, v in body.items() if k in allowed_fields}
+    location_payload = update_data.pop("location", None)
     
-    if not update_data:
+    if not update_data and location_payload is None:
         raise HTTPException(status_code=400, detail="No hay campos válidos para actualizar")
-    
-    result = await db.users.update_one(
-        {'id': user_id},
-        {'$set': update_data}
-    )
-    
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    return {'message': 'Perfil actualizado', **update_data}
+
+    if update_data:
+        result = await db.users.update_one(
+            {'id': user_id},
+            {'$set': update_data}
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if location_payload is not None:
+        try:
+            await update_user_location(db, user_id, location_payload, "profile_update")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except LookupError:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+    return {
+        'message': 'Perfil actualizado',
+        **update_data,
+        'location': (fresh or {}).get("location"),
+        'locationMeta': location_meta_from_user(fresh),
+    }
 
 
 @router.post("/become-provider", response_model=dict)
@@ -441,6 +475,13 @@ async def patch_user(
         'legalAcceptedAt',
     }
     update_data = {k: v for k, v in body.items() if k in allowed_fields}
+    location_payload = update_data.pop("location", None)
+    normalized_location = None
+    if location_payload is not None:
+        try:
+            normalized_location = normalize_user_location(location_payload, "profile_update")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     plain_password = body.get("password")
     add_provider = bool(body.get("add_provider"))
@@ -498,22 +539,32 @@ async def patch_user(
 
     if update_data.get("isAvailable") is True:
         candidate = {**doc, **update_data}
+        if normalized_location is not None:
+            candidate["location"] = normalized_location
         if not _is_provider_activation_complete(candidate):
             raise HTTPException(
                 status_code=409,
                 detail="Antes de conectarte, completa tu activación (empresa, máquina, operador, banco y ubicación).",
             )
 
-    if not update_data:
+    if not update_data and normalized_location is None:
         raise HTTPException(status_code=400, detail="No hay campos válidos para actualizar")
 
-    result = await db.users.update_one(
-        {'id': user_id},
-        {'$set': update_data}
-    )
+    if update_data:
+        result = await db.users.update_one(
+            {'id': user_id},
+            {'$set': update_data}
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if location_payload is not None:
+        try:
+            await update_user_location(db, user_id, location_payload, "profile_update")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except LookupError:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
     roles_out = _user_roles_list(fresh) if fresh else []
@@ -523,6 +574,7 @@ async def patch_user(
         "message": "Usuario actualizado",
         "roles": roles_out,
         "phoneVerified": bool(fresh.get("phoneVerified")) if fresh else False,
+        "locationMeta": location_meta_from_user(fresh),
         **safe,
     }
 
