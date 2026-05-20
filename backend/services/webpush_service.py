@@ -66,6 +66,33 @@ async def remove_subscription(db: AsyncIOMotorDatabase, user_id: str, endpoint: 
     return {"success": True}
 
 
+def _vapid_private_key_value() -> str:
+    k = str(WEBPUSH_VAPID_PRIVATE_KEY or "").strip()
+    if not k:
+        return ""
+    if "BEGIN" in k and "PRIVATE KEY" in k:
+        return k
+    try:
+        import base64
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives import serialization
+
+        pad = "=" * ((4 - (len(k) % 4)) % 4)
+        raw = base64.urlsafe_b64decode((k + pad).encode())
+        if len(raw) != 32:
+            return k
+        priv_int = int.from_bytes(raw, "big")
+        priv_key = ec.derive_private_key(priv_int, ec.SECP256R1())
+        pem = priv_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        return pem.decode()
+    except Exception:
+        return k
+
+
 def _send_webpush(subscription_info: dict, payload: dict) -> Tuple[bool, Optional[int], Optional[str]]:
     if not webpush_enabled():
         return True, None, None
@@ -79,7 +106,7 @@ def _send_webpush(subscription_info: dict, payload: dict) -> Tuple[bool, Optiona
         webpush(
             subscription_info=subscription_info,
             data=data,
-            vapid_private_key=WEBPUSH_VAPID_PRIVATE_KEY,
+            vapid_private_key=_vapid_private_key_value(),
             vapid_claims={"sub": WEBPUSH_VAPID_SUBJECT},
         )
         return True, 201, None
