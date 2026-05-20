@@ -3,6 +3,24 @@ import { requestPushPermissionAndSubscribe } from '../utils/pushNotifications';
 
 export default function EnablePushBanner({ user }) {
   const [hidden, setHidden] = useState(true);
+  const isStandalone = useMemo(() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
+      if (window.navigator && window.navigator.standalone) return true;
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+  const isIOS = useMemo(() => {
+    try {
+      const ua = String(navigator.userAgent || '').toLowerCase();
+      return /iphone|ipad|ipod/.test(ua);
+    } catch {
+      return false;
+    }
+  }, []);
   const canUse = useMemo(() => {
     try {
       if (typeof window === 'undefined') return false;
@@ -24,6 +42,10 @@ export default function EnablePushBanner({ user }) {
       setHidden(true);
       return;
     }
+    if (isIOS && !isStandalone) {
+      setHidden(true);
+      return;
+    }
     try {
       const dismissed = localStorage.getItem('pushBannerDismissed') === '1';
       if (dismissed) {
@@ -39,7 +61,7 @@ export default function EnablePushBanner({ user }) {
     } catch {
       setHidden(true);
     }
-  }, [user?.id, canUse]);
+  }, [user?.id, canUse, isIOS, isStandalone]);
 
   if (hidden) return null;
 
@@ -119,4 +141,3 @@ export default function EnablePushBanner({ user }) {
     </div>
   );
 }
-

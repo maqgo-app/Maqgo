@@ -80,7 +80,8 @@ function EmpresaScreen() {
       return;
     }
     
-    localStorage.setItem('providerData', JSON.stringify(data));
+    const existing = getObject('providerData', {});
+    localStorage.setItem('providerData', JSON.stringify({ ...existing, ...data }));
     setSaved(true);
     setTimeout(() => navigate('/provider/profile'), 1000);
   };
