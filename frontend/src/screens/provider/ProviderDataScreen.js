@@ -9,12 +9,6 @@ import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/Addre
 import { getObject } from '../../utils/safeStorage';
 import { getProviderBackRoute } from '../../utils/bookingFlow';
 
-const CLOSING_TIME_OPTIONS = Array.from({ length: 48 }, (_, idx) => {
-  const hours = Math.floor(idx / 2);
-  const minutes = idx % 2 === 0 ? 0 : 30;
-  return `${String(hours).padStart(2, '0')}:${minutes === 0 ? '00' : '30'}`;
-});
-
 const PRESET_CLOSING_TIMES = ['17:00', '17:30', '18:00', '18:30', '19:00', '20:00', '21:00', '22:00'];
 
 /**
@@ -566,9 +560,11 @@ function ProviderDataScreen() {
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '0 0 8px', lineHeight: 1.35 }}>
               Si tu horario es distinto, elige uno personalizado:
             </p>
-            <select
-              value={form.closingTime || ''}
-              onChange={(e) => update('closingTime', e.target.value)}
+            <input
+              type="time"
+              step="1800"
+              value={String(form.closingTime || '').slice(0, 5)}
+              onChange={(e) => update('closingTime', String(e.target.value || '').slice(0, 5))}
               style={{
                 width: '100%',
                 padding: '14px 12px',
@@ -580,13 +576,7 @@ function ProviderDataScreen() {
                 boxSizing: 'border-box',
               }}
               aria-label="Hora de cierre personalizada"
-            >
-              {CLOSING_TIME_OPTIONS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           ) : null}
         </div>
