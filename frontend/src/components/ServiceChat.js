@@ -115,8 +115,8 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
       await unlockAudio();
       playChatIncomingSound();
       showSystemNotification(
-        'Nuevo mensaje',
-        'Tienes un mensaje nuevo en MAQGO'
+        'Mensaje nuevo en tu servicio',
+        'Abre MAQGO para responder.'
       );
 
       // Evita patch/read en cada poll: sólo cuando hay mensajes nuevos del otro participante.

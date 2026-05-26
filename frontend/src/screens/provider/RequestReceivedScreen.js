@@ -891,7 +891,7 @@ function RequestReceivedScreen() {
             marginBottom: 16
           }}>
             <p style={{ color: '#ff6b6b', fontSize: 13, fontWeight: 600, margin: '0 0 10px' }}>
-              No se pudo aceptar
+              No pudimos aceptar esta solicitud
             </p>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: 0, lineHeight: 1.4 }}>
               {acceptError}
@@ -927,7 +927,7 @@ function RequestReceivedScreen() {
                 onClick={() => { setAcceptError(null); navigate(homeRoute); }}
                 style={{ flex: 1 }}
               >
-                Volver al inicio
+                Volver
               </button>
             </div>
           </div>
@@ -957,7 +957,7 @@ function RequestReceivedScreen() {
               cursor: 'pointer'
             }}
           >
-            No puedo tomarla
+            No puedo aceptar
           </button>
           <button 
             className="maqgo-btn-primary"

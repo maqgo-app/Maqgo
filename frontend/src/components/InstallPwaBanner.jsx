@@ -116,7 +116,7 @@ export default function InstallPwaBanner({ bottomOffset = 0 }) {
         width: 'calc(100% - 24px)',
         maxWidth: 430,
         bottom: 146 + (Number(bottomOffset) || 0),
-        zIndex: 9999,
+        zIndex: 'var(--maqgo-z-fixed-bar)',
         background: 'rgba(16,16,16,0.92)',
         border: '1px solid rgba(236,104,25,0.35)',
         borderRadius: 14,

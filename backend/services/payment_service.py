@@ -411,6 +411,17 @@ class PaymentService:
         """Persistencia de cobro tras autorización del proveedor (TBK o simulado)."""
         lc = ledger_context or {}
         now = datetime.now(timezone.utc)
+        booking_id = lc.get("booking_id")
+        buy_order = str(booking_id or service_request_id).strip()
+        amount_clp = int(round(amount))
+
+        logger.info(
+            "PAYMENT AUTH START service=%s booking_id=%s buy_order=%s amount_clp=%s",
+            service_request_id,
+            booking_id,
+            buy_order,
+            amount_clp,
+        )
         
         # Verificar que no se haya cobrado antes
         existing_charge = await self.db.payments.find_one({
@@ -427,6 +438,114 @@ class PaymentService:
                 "amount": existing_charge.get("amount", amount),
                 "short_circuit": True,
             }
+
+        sr_pay = await self.db.service_requests.find_one(
+            {"id": service_request_id},
+            {"_id": 0, "paymentStatus": 1, "paymentId": 1},
+        )
+        if (sr_pay or {}).get("paymentStatus") == "charged":
+            logger.info(
+                "PAYMENT AUTH SKIPPED (already charged) reason=service_request paymentStatus service=%s booking_id=%s buy_order=%s",
+                service_request_id,
+                booking_id,
+                buy_order,
+            )
+            return {
+                "success": True,
+                "status": "charged",
+                "message": "Pago ya registrado (service_request.paymentStatus=charged)",
+                "paymentId": (sr_pay or {}).get("paymentId"),
+                "amount": amount,
+                "short_circuit": True,
+                "skipped_authorize": True,
+            }
+
+        if await ledger_has_charge_success_for_service_request(self.db, service_request_id):
+            logger.info(
+                "PAYMENT AUTH SKIPPED (already charged) reason=ledger service=%s booking_id=%s buy_order=%s",
+                service_request_id,
+                booking_id,
+                buy_order,
+            )
+            paid_ledger = await self.db.payments.find_one(
+                {"serviceRequestId": service_request_id, "status": "charged"},
+                {"_id": 0, "id": 1, "amount": 1},
+            )
+            return {
+                "success": True,
+                "status": "charged",
+                "message": "Pago ya registrado (ledger)",
+                "paymentId": (paid_ledger or {}).get("id"),
+                "amount": (paid_ledger or {}).get("amount", amount),
+                "short_circuit": True,
+                "skipped_authorize": True,
+            }
+
+        if booking_id:
+            by_booking = await self.db.payments.find_one(
+                {"bookingId": booking_id, "status": "charged"},
+                {"_id": 0, "id": 1, "amount": 1},
+            )
+            if by_booking:
+                logger.info(
+                    "PAYMENT AUTH SKIPPED (already charged) reason=booking_id service=%s booking_id=%s buy_order=%s payment_id=%s",
+                    service_request_id,
+                    booking_id,
+                    buy_order,
+                    by_booking.get("id"),
+                )
+                return {
+                    "success": True,
+                    "status": "charged",
+                    "message": "Pago ya registrado (booking_id)",
+                    "paymentId": by_booking.get("id"),
+                    "amount": by_booking.get("amount", amount),
+                    "short_circuit": True,
+                    "skipped_authorize": True,
+                }
+
+        pending_finalize = await self.db.payments.find_one(
+            {"tbkBuyOrder": buy_order, "status": "authorized_pending_finalize"},
+            {"_id": 0},
+        )
+        if pending_finalize:
+            logger.warning(
+                "PAYMENT AUTH SKIPPED reason=authorized_pending_finalize service=%s booking_id=%s buy_order=%s payment_id=%s",
+                service_request_id,
+                booking_id,
+                buy_order,
+                pending_finalize.get("id"),
+            )
+            await self.db.payments.update_one(
+                {"id": pending_finalize.get("id")},
+                {
+                    "$set": {
+                        "status": "charged",
+                        "chargedAt": now.isoformat(),
+                        "type": "service_charge",
+                    }
+                },
+            )
+            await self.db.service_requests.update_one(
+                {"id": service_request_id},
+                {
+                    "$set": {
+                        "paymentId": pending_finalize.get("id"),
+                        "paymentStatus": "charged",
+                        "chargedAt": now.isoformat(),
+                        "chargedAmount": pending_finalize.get("amount", amount),
+                    }
+                },
+            )
+            return {
+                "success": True,
+                "status": "charged",
+                "message": "Pago finalizado tras recovery (authorized_pending_finalize)",
+                "paymentId": pending_finalize.get("id"),
+                "amount": pending_finalize.get("amount", amount),
+                "short_circuit": True,
+                "skipped_authorize": True,
+            }
         
         # Obtener credenciales OneClick (por email del cliente)
         client = await self.db.users.find_one({'id': client_id}, {'_id': 0, 'email': 1, 'cardLastFour': 1})
@@ -438,7 +557,6 @@ class PaymentService:
         
         # Cobro real con Transbank OneClick si hay credenciales
         tbk_response = None
-        buy_order = f"MAQ-{service_request_id[:8]}-{int(now.timestamp())}"
         if oneclick and oneclick.get('tbk_user') and oneclick.get('username'):
             try:
                 await append_event(
@@ -448,21 +566,14 @@ class PaymentService:
                         **lc,
                         "mode": "oneclick_authorize",
                         "buy_order": buy_order,
-                        "amount_clp": int(round(amount)),
+                        "amount_clp": amount_clp,
                     },
                 )
                 tbk_response = provider_oneclick_authorize(
                     username=oneclick['username'],
                     tbk_user=oneclick['tbk_user'],
                     buy_order=buy_order,
-                    amount=int(round(amount)),
-                )
-                await evidence_record_authorize(
-                    self.db,
-                    buy_order=buy_order,
-                    tbk_user=oneclick['tbk_user'],
-                    amount=int(round(amount)),
-                    result=tbk_response if isinstance(tbk_response, dict) else {},
+                    amount=amount_clp,
                 )
                 # Transbank Mall: mismo criterio que routes/oneclick authorize (response_code + status)
                 details = tbk_response.get('details') or []
@@ -474,9 +585,57 @@ class PaymentService:
                     rc = -1
                 st = d0.get('status')
                 approved = rc == 0 and st == "AUTHORIZED"
+                auth_code = d0.get("authorization_code") or d0.get("authorizationCode")
                 if approved:
+                    payment_id = str(uuid.uuid4())
+                    minimal = {
+                        "id": payment_id,
+                        "serviceRequestId": service_request_id,
+                        "bookingId": booking_id,
+                        "clientId": client_id,
+                        "amount": amount,
+                        "currency": PAYMENT_CONFIG["currency"],
+                        "provider": PAYMENT_CONFIG["provider"],
+                        "status": "authorized_pending_finalize",
+                        "createdAt": now.isoformat(),
+                        "authorizedAt": now.isoformat(),
+                        "tbkBuyOrder": buy_order,
+                        "tbkDetailBuyOrder": (
+                            (d0.get("buy_order") or d0.get("buyOrder")) if isinstance(d0, dict) else buy_order
+                        ),
+                        "authorization_code": auth_code,
+                        "response_code": rc,
+                        "raw_response": tbk_response if isinstance(tbk_response, dict) else {},
+                    }
+                    await self.db.payments.insert_one(minimal)
+                    try:
+                        await evidence_record_authorize(
+                            self.db,
+                            buy_order=buy_order,
+                            tbk_user=oneclick["tbk_user"],
+                            amount=amount_clp,
+                            result=tbk_response if isinstance(tbk_response, dict) else {},
+                        )
+                    except Exception:
+                        pass
+
+                    logger.info(
+                        "PAYMENT AUTH SUCCESS service=%s booking_id=%s buy_order=%s authorization_code=%s",
+                        service_request_id,
+                        booking_id,
+                        buy_order,
+                        auth_code,
+                    )
                     logger.info("AUTHORIZE CONSISTENT buy_order=%s", buy_order)
                 else:
+                    logger.warning(
+                        "PAYMENT AUTH FAILED service=%s booking_id=%s buy_order=%s response_code=%s status=%s",
+                        service_request_id,
+                        booking_id,
+                        buy_order,
+                        rc,
+                        st,
+                    )
                     logger.error(
                         "OneClick authorize falló: response_code=%s status=%s buy_order=%s detail=%s full=%s",
                         rc,
@@ -494,6 +653,13 @@ class PaymentService:
                         'tbk_detail': d0,
                     }
             except Exception as e:
+                logger.warning(
+                    "PAYMENT AUTH FAILED service=%s booking_id=%s buy_order=%s error=%s",
+                    service_request_id,
+                    booking_id,
+                    buy_order,
+                    type(e).__name__,
+                )
                 logger.exception("Error OneClick authorize buy_order=%s", buy_order)
                 return {
                     'success': False,
@@ -550,43 +716,66 @@ class PaymentService:
                 or main_bo
             )
 
-        # Crear registro de pago
-        payment = {
-            'id': str(uuid.uuid4()),
-            'serviceRequestId': service_request_id,
-            'clientId': client_id,
-            'amount': amount,
-            'currency': PAYMENT_CONFIG['currency'],
-            'status': 'charged',
-            'type': 'service_charge',
-            'createdAt': now.isoformat(),
-            'chargedAt': now.isoformat(),
-            'provider': PAYMENT_CONFIG['provider'],
-            'cardLastFour': (client or {}).get('cardLastFour', '****'),
-            'tbkBuyOrder': main_bo,
-            'tbkDetailBuyOrder': detail_bo,
-        }
-        
-        try:
-            await self.db.payments.insert_one(payment)
-        except DuplicateKeyError:
-            existing = await self.db.payments.find_one(
-                {'serviceRequestId': service_request_id, 'status': 'charged'},
-                {'_id': 0},
+        payment = await self.db.payments.find_one(
+            {"tbkBuyOrder": buy_order, "status": "authorized_pending_finalize"},
+            {"_id": 0},
+        )
+        if payment and payment.get("id"):
+            await self.db.payments.update_one(
+                {"id": payment["id"]},
+                {
+                    "$set": {
+                        "serviceRequestId": service_request_id,
+                        "clientId": client_id,
+                        "amount": amount,
+                        "currency": PAYMENT_CONFIG["currency"],
+                        "status": "charged",
+                        "type": "service_charge",
+                        "chargedAt": now.isoformat(),
+                        "provider": PAYMENT_CONFIG["provider"],
+                        "cardLastFour": (client or {}).get("cardLastFour", "****"),
+                        "tbkBuyOrder": main_bo,
+                        "tbkDetailBuyOrder": detail_bo,
+                    }
+                },
             )
-            if existing:
-                logger.warning(
-                    'Idempotencia cobro: servicio %s ya tenía pago charged; no se duplica TBK',
-                    service_request_id,
+        else:
+            payment = {
+                "id": str(uuid.uuid4()),
+                "serviceRequestId": service_request_id,
+                "bookingId": booking_id,
+                "clientId": client_id,
+                "amount": amount,
+                "currency": PAYMENT_CONFIG["currency"],
+                "status": "charged",
+                "type": "service_charge",
+                "createdAt": now.isoformat(),
+                "chargedAt": now.isoformat(),
+                "provider": PAYMENT_CONFIG["provider"],
+                "cardLastFour": (client or {}).get("cardLastFour", "****"),
+                "tbkBuyOrder": main_bo,
+                "tbkDetailBuyOrder": detail_bo,
+            }
+            try:
+                await self.db.payments.insert_one(payment)
+            except DuplicateKeyError:
+                existing = await self.db.payments.find_one(
+                    {"serviceRequestId": service_request_id, "status": "charged"},
+                    {"_id": 0},
                 )
-                return {
-                    'success': True,
-                    'status': 'charged',
-                    'message': 'Pago ya registrado',
-                    'paymentId': existing['id'],
-                    'amount': existing.get('amount', amount),
-                }
-            raise
+                if existing:
+                    logger.warning(
+                        "Idempotencia cobro: servicio %s ya tenía pago charged; no se duplica TBK",
+                        service_request_id,
+                    )
+                    return {
+                        "success": True,
+                        "status": "charged",
+                        "message": "Pago ya registrado",
+                        "paymentId": existing["id"],
+                        "amount": existing.get("amount", amount),
+                    }
+                raise
 
         # Actualizar estado de pago en la solicitud
         await self.db.service_requests.update_one(

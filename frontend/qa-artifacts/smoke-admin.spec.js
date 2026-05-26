@@ -17,10 +17,9 @@ test.describe('Smoke: admin', () => {
       await page.goto(`${BASE_URL}${p}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForLoadState('load');
       await expect(page.getByRole('alert')).toHaveCount(0);
-      await expect(page.locator('.maqgo-app')).toHaveCount(1);
+      await expect(page.locator('.maqgo-app-shell')).toHaveCount(1);
     }
 
     await context.close();
   });
 });
-

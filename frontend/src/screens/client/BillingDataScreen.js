@@ -9,6 +9,7 @@ import BookingProgress from '../../components/BookingProgress';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { MaqgoButton } from '../../components/base';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
+import { AddressAutocomplete } from '../../components/AddressAutocomplete';
 
 /**
  * Pantalla de Datos de Facturación (Cliente)
@@ -185,14 +186,14 @@ function BillingDataScreen() {
           <label htmlFor="billing-direccion" style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
             Dirección tributaria <span style={{ color: 'var(--maqgo-orange)' }}>*</span>
           </label>
-          <input
-            id="billing-direccion"
-            className="maqgo-input"
-            placeholder="Calle, número, comuna"
+          <AddressAutocomplete
             value={form.direccion}
-            onChange={e => update('direccion', e.target.value)}
+            onChange={(v) => update('direccion', v)}
+            onSelect={(addr) => update('direccion', String(addr?.address_full || addr?.address || addr?.address_short || '').trim())}
+            placeholder="Calle, número, comuna"
+            className="maqgo-input"
             style={{ marginBottom: 12 }}
-            data-testid="billing-direccion"
+            testId="billing-direccion"
           />
         </div>
 

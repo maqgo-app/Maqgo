@@ -55,6 +55,7 @@ test.describe('Smoke crítico: login SMS + embudo cliente', () => {
       localStorage.setItem('authToken', 'test-token');
       localStorage.setItem('userId', 'client-1');
       localStorage.setItem('userRole', 'client');
+      localStorage.setItem('legalAcceptedAt', new Date().toISOString());
       localStorage.setItem('reservationType', 'immediate');
     });
     const page = await context.newPage();
@@ -81,6 +82,7 @@ test.describe('Smoke crítico: login SMS + embudo cliente', () => {
       localStorage.setItem('authToken', 'test-token');
       localStorage.setItem('userId', 'client-1');
       localStorage.setItem('userRole', 'client');
+      localStorage.setItem('legalAcceptedAt', new Date().toISOString());
       localStorage.setItem('reservationType', 'immediate');
       localStorage.setItem('priceType', 'hour');
     });
@@ -133,6 +135,7 @@ test.describe('Smoke crítico: login SMS + embudo cliente', () => {
       localStorage.setItem('authToken', 'test-token');
       localStorage.setItem('userId', 'client-1');
       localStorage.setItem('userRole', 'client');
+      localStorage.setItem('legalAcceptedAt', new Date().toISOString());
       localStorage.setItem('reservationType', 'scheduled');
       localStorage.setItem('priceType', 'hour');
     });

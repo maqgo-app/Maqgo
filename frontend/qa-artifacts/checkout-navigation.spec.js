@@ -68,6 +68,7 @@ test.describe('Checkout navigation (guard + recovery)', () => {
       localStorage.setItem('token', 'test-token');
       localStorage.setItem('userId', 'u1');
       localStorage.setItem('userRole', 'client');
+      localStorage.setItem('legalAcceptedAt', new Date().toISOString());
     });
     const page = await context.newPage();
     const paths = attachMainFramePathTracker(page);
@@ -142,6 +143,7 @@ test.describe('Checkout navigation (guard + recovery)', () => {
       localStorage.setItem('token', 'test-token');
       localStorage.setItem('userId', 'u1');
       localStorage.setItem('userRole', 'client');
+      localStorage.setItem('legalAcceptedAt', new Date().toISOString());
     });
     const page = await context.newPage();
     const paths = attachMainFramePathTracker(page);

@@ -16,6 +16,7 @@ export function seedCheckoutEmbudoSession() {
   localStorage.setItem('token', 'test-token');
   localStorage.setItem('userId', 'client-e2e-1');
   localStorage.setItem('userRole', 'client');
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
   localStorage.setItem(
     'registerData',
     JSON.stringify({
@@ -51,6 +52,7 @@ export function seedEmbudoWithPaymentSnapshot() {
   localStorage.setItem('token', 'test-token');
   localStorage.setItem('userId', 'client-e2e-1');
   localStorage.setItem('userRole', 'client');
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
   localStorage.setItem(
     'registerData',
     JSON.stringify({
@@ -88,6 +90,7 @@ export function seedEmbudoWithBillingSnapshot() {
   localStorage.setItem('token', 'test-token');
   localStorage.setItem('userId', 'client-e2e-1');
   localStorage.setItem('userRole', 'client');
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
   localStorage.setItem(
     'registerData',
     JSON.stringify({
@@ -125,6 +128,7 @@ export function seedEmbudoForPaymentResultSuccess() {
   localStorage.setItem('token', 'test-token');
   localStorage.setItem('userId', 'client-e2e-1');
   localStorage.setItem('userRole', 'client');
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
   localStorage.setItem(
     'registerData',
     JSON.stringify({

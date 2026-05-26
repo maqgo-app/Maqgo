@@ -219,7 +219,25 @@ function AppContent() {
   const hostname = typeof window !== 'undefined' ? String(window.location.hostname || '') : '';
   const isAdminHost = hostname === 'admin.maqgo.cl' || hostname.startsWith('admin.');
   const showChatBot = !isAdminRoute && !isAdminHost;
-  const showPwaBanners = !isAdminRoute && !isAdminHost && !(path.startsWith('/provider/') && hideNav);
+  const showPwaBanners = !isAdminRoute && !isAdminHost;
+  const hasValueMoment = useMemo(() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      const currentServiceId = String(localStorage.getItem('currentServiceId') || '').trim();
+      return Boolean(currentServiceId);
+    } catch {
+      return false;
+    }
+  }, [path]);
+  const shouldShowPushPrompt =
+    showPwaBanners &&
+    Boolean(auth?.user?.id) &&
+    (path.startsWith('/chat/') || (path.startsWith('/client/') && hasValueMoment));
+  const shouldShowInstallPrompt =
+    showPwaBanners &&
+    Boolean(auth?.user?.id) &&
+    (path.startsWith('/client/') || path.startsWith('/chat/')) &&
+    !shouldShowPushPrompt;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -293,8 +311,8 @@ function AppContent() {
       <BookingNavigationGuard>
       <div className="maqgo-app-shell-main">
       <OfflineBanner />
-      {showPwaBanners ? <InstallPwaBanner bottomOffset={fixedBottomBarHeight} /> : null}
-      {showPwaBanners ? <EnablePushBanner user={auth?.user} bottomOffset={fixedBottomBarHeight} /> : null}
+      {shouldShowInstallPrompt ? <InstallPwaBanner bottomOffset={fixedBottomBarHeight} /> : null}
+      {shouldShowPushPrompt ? <EnablePushBanner user={auth?.user} bottomOffset={fixedBottomBarHeight} /> : null}
       <ScrollToTop />
       <div className="maqgo-app-shell-routes">
       <Suspense fallback={<BookingFlowFallback />}>

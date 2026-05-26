@@ -82,15 +82,13 @@ function WelcomeScreen() {
     setMounted(true);
   }, []);
 
-  /** Permitir scroll natural pero mantener limpieza visual. */
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
     const prevHtml = html.style.overflow;
     const prevBody = body.style.overflow;
-    // Quitamos 'hidden' para evitar que se rompa la UX en móviles con barras dinámicas
-    html.style.overflow = 'auto';
-    body.style.overflow = 'auto';
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
     return () => {
       html.style.overflow = prevHtml;
       body.style.overflow = prevBody;
@@ -173,7 +171,7 @@ function WelcomeScreen() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "space-between",
-          minHeight: "100vh",
+          minHeight: isDesktop ? "100%" : "100dvh",
           padding: "24px",
           margin: "0 auto",
           maxWidth: "420px",
@@ -235,7 +233,7 @@ function WelcomeScreen() {
                 textShadow: 'none',
               }}
             >
-              Arrienda maquinaria en minutos con disponibilidad en tiempo real.
+              Arrienda maquinaria en minutos y sigue tu servicio paso a paso.
             </span>
           </div>
           <div

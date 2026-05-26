@@ -376,14 +376,18 @@ async def validate_provider_for_wave(
     """
     provider = await db.users.find_one(
         {"id": provider_id},
-        {'_id': 0, 'id': 1, 'isAvailable': 1, 'status': 1, 'role': 1}
+        {'_id': 0, 'id': 1, 'isAvailable': 1, 'status': 1, 'deleted': 1, 'role': 1}
     )
 
     if not provider:
         return {'valid': False, 'reason': 'provider_not_found'}
 
-    if provider.get('status') == 'deleted':
+    if provider.get('deleted') is True or provider.get('status') == 'deleted':
         return {'valid': False, 'reason': 'provider_deleted'}
+
+    p_status = provider.get("status") or "active"
+    if p_status != "active":
+        return {"valid": False, "reason": "provider_inactive"}
 
     if not provider.get('isAvailable'):
         return {'valid': False, 'reason': 'provider_not_available'}
@@ -434,6 +438,8 @@ async def get_available_providers(
         '$or': [{'role': 'provider'}, {'roles': 'provider'}],
         'isAvailable': True,
         '$and': [
+            {'$or': [{'status': {'$exists': False}}, {'status': 'active'}]},
+            {'$or': [{'deleted': {'$exists': False}}, {'deleted': False}]},
             {'$or': [{'owner_id': {'$exists': False}}, {'owner_id': None}, {'owner_id': ''}]},
             {'$or': [{'provider_role': {'$exists': False}}, {'provider_role': None}, {'provider_role': {'$ne': 'operator'}}]},
         ],
@@ -449,6 +455,8 @@ async def get_available_providers(
             '$or': [{'role': 'provider'}, {'roles': 'provider'}],
             'isAvailable': True,
             '$and': [
+                {'$or': [{'status': {'$exists': False}}, {'status': 'active'}]},
+                {'$or': [{'deleted': {'$exists': False}}, {'deleted': False}]},
                 {'$or': [{'owner_id': {'$exists': False}}, {'owner_id': None}, {'owner_id': ''}]},
                 {'$or': [{'provider_role': {'$exists': False}}, {'provider_role': None}, {'provider_role': {'$ne': 'operator'}}]},
             ],
@@ -911,106 +919,150 @@ async def start_matching(
     Si selected_provider_id está definido, envía la oferta al proveedor elegido por el cliente.
     Si no, busca el mejor disponible por score y envía al primero.
     """
+    now = datetime.now(timezone.utc)
+    guard_filter: Dict[str, Any] = {
+        '$and': [
+            {'id': service_request_id},
+            {
+                '$or': [
+                    {'matchingLock': {'$exists': False}},
+                    {'matchingLock': False},
+                    {'matchingLockAt': {'$lte': (now - timedelta(seconds=120)).isoformat()}},
+                ]
+            },
+            {
+                '$or': [
+                    {'status': 'matching'},
+                    {
+                        'status': 'offer_sent',
+                        '$or': [
+                            {'providerId': {'$exists': False}},
+                            {'providerId': None},
+                            {'providerId': ''},
+                        ],
+                        'matchingAttempts': {'$not': {'$elemMatch': {'status': 'pending'}}},
+                    },
+                ]
+            },
+        ]
+    }
+    guard_res = await db.service_requests.update_one(
+        guard_filter,
+        {'$set': {'matchingLock': True, 'matchingLockAt': now.isoformat()}},
+    )
+    if guard_res.modified_count == 0:
+        return {'status': 'skipped', 'message': 'Matching ya en progreso o no es elegible para reinicio.'}
+
     request = await db.service_requests.find_one({'id': service_request_id}, {'_id': 0})
     if not request:
-        return {'error': 'Solicitud no encontrada'}
-    
-    # No excluir intentos con fallo de pago post-aceptación: el proveedor puede volver a recibir oferta.
-    excluded_ids = [
-        a['providerId']
-        for a in request.get('matchingAttempts', [])
-        if a.get('status') != 'payment_failed'
-    ]
-    
-    if len(excluded_ids) >= MATCHING_CONFIG['max_attempts']:
         await db.service_requests.update_one(
-            {'id': service_request_id},
-            {'$set': {'status': 'no_providers_available'}}
+            {'id': service_request_id, 'matchingLock': True},
+            {'$unset': {'matchingLock': '', 'matchingLockAt': ''}},
         )
-        return {
-            'status': 'no_providers_available',
-            'message': 'No hay proveedores disponibles en este momento. Intenta más tarde.'
-        }
-    
-    request_location = {
-        'lat': request['location']['lat'],
-        'lng': request['location']['lng']
-    }
-    
-    providers = await get_available_providers(
-        db,
-        request.get('machineryType'),
-        request_location,
-        excluded_ids
-    )
-    
-    normalized_selected_ids = [
-        str(x).strip()
-        for x in (selected_provider_ids or [])
-        if x is not None and str(x).strip()
-    ]
-    if selected_provider_id and str(selected_provider_id).strip():
-        sid = str(selected_provider_id).strip()
-        if sid not in normalized_selected_ids:
-            normalized_selected_ids = [sid] + normalized_selected_ids
+        return {'error': 'Solicitud no encontrada'}
 
-    # Si el cliente eligió uno o más proveedores: enviar oferta a ese set (si están disponibles y no excluidos)
-    if normalized_selected_ids:
-        eligible = [
-            p for p in providers
-            if str(p.get('id') or '').strip() in normalized_selected_ids
-            and str(p.get('id') or '').strip() not in excluded_ids
+    try:
+        # No excluir intentos con fallo de pago post-aceptación: el proveedor puede volver a recibir oferta.
+        excluded_ids = [
+            a['providerId']
+            for a in request.get('matchingAttempts', [])
+            if a.get('status') != 'payment_failed'
         ]
-        if eligible:
-            offer = await send_offers_to_providers(
-                db,
-                service_request_id,
-                [p['id'] for p in eligible],
+        
+        if len(excluded_ids) >= MATCHING_CONFIG['max_attempts']:
+            await db.service_requests.update_one(
+                {'id': service_request_id},
+                {'$set': {'status': 'no_providers_available'}}
             )
             return {
-                'status': 'offer_sent',
-                'provider': {
-                    'id': eligible[0]['id'],
-                    'name': eligible[0].get('name', 'Proveedor'),
-                    'rating': eligible[0].get('rating', 5.0),
-                    'distance': eligible[0].get('_distance_km', 0)
-                },
-                'offer': offer,
-                'attemptNumber': len(excluded_ids) + len(eligible),
-                'maxAttempts': MATCHING_CONFIG['max_attempts']
+                'status': 'no_providers_available',
+                'message': 'No hay proveedores disponibles en este momento. Intenta más tarde.'
             }
-        # Si ninguno de los elegidos está disponible, caer al matching normal.
-
-    target_provider = providers[0] if providers else None
-    
-    if not target_provider:
-        await db.service_requests.update_one(
-            {'id': service_request_id},
-            {'$set': {'status': 'no_providers_available'}}
-        )
-        return {
-            'status': 'no_providers_available',
-            'message': 'No hay proveedores disponibles en este momento. Intenta más tarde.'
+        
+        request_location = {
+            'lat': request['location']['lat'],
+            'lng': request['location']['lng']
         }
+        
+        providers = await get_available_providers(
+            db,
+            request.get('machineryType'),
+            request_location,
+            excluded_ids
+        )
+        
+        normalized_selected_ids = [
+            str(x).strip()
+            for x in (selected_provider_ids or [])
+            if x is not None and str(x).strip()
+        ]
+        if selected_provider_id and str(selected_provider_id).strip():
+            sid = str(selected_provider_id).strip()
+            if sid not in normalized_selected_ids:
+                normalized_selected_ids = [sid] + normalized_selected_ids
 
-    # Rotación por olas: 2 + (3–4) + (5); sin presión tipo 60 s por cabeza
-    if not normalized_selected_ids and len(providers) >= 2:
-        return await send_rotation_wave_one(db, service_request_id, providers)
+        # Si el cliente eligió uno o más proveedores: enviar oferta a ese set (si están disponibles y no excluidos)
+        if normalized_selected_ids:
+            eligible = [
+                p for p in providers
+                if str(p.get('id') or '').strip() in normalized_selected_ids
+                and str(p.get('id') or '').strip() not in excluded_ids
+            ]
+            if eligible:
+                offer = await send_offers_to_providers(
+                    db,
+                    service_request_id,
+                    [p['id'] for p in eligible],
+                )
+                return {
+                    'status': 'offer_sent',
+                    'provider': {
+                        'id': eligible[0]['id'],
+                        'name': eligible[0].get('name', 'Proveedor'),
+                        'rating': eligible[0].get('rating', 5.0),
+                        'distance': eligible[0].get('_distance_km', 0)
+                    },
+                    'offer': offer,
+                    'attemptNumber': len(excluded_ids) + len(eligible),
+                    'maxAttempts': MATCHING_CONFIG['max_attempts']
+                }
+            # Si ninguno de los elegidos está disponible, caer al matching normal.
 
-    offer = await send_offer_to_provider(db, service_request_id, target_provider['id'])
+        target_provider = providers[0] if providers else None
+        
+        if not target_provider:
+            await db.service_requests.update_one(
+                {'id': service_request_id},
+                {'$set': {'status': 'no_providers_available'}}
+            )
+            return {
+                'status': 'no_providers_available',
+                'message': 'No hay proveedores disponibles en este momento. Intenta más tarde.'
+            }
 
-    return {
-        'status': 'offer_sent',
-        'provider': {
-            'id': target_provider['id'],
-            'name': target_provider.get('name', 'Proveedor'),
-            'rating': target_provider.get('rating', 5.0),
-            'distance': target_provider.get('_distance_km', 0)
-        },
-        'offer': offer,
-        'attemptNumber': len(excluded_ids) + 1,
-        'maxAttempts': MATCHING_CONFIG['max_attempts']
-    }
+        # Rotación por olas: 2 + (3–4) + (5); sin presión tipo 60 s por cabeza
+        if not normalized_selected_ids and len(providers) >= 2:
+            return await send_rotation_wave_one(db, service_request_id, providers)
+
+        offer = await send_offer_to_provider(db, service_request_id, target_provider['id'])
+
+        return {
+            'status': 'offer_sent',
+            'provider': {
+                'id': target_provider['id'],
+                'name': target_provider.get('name', 'Proveedor'),
+                'rating': target_provider.get('rating', 5.0),
+                'distance': target_provider.get('_distance_km', 0)
+            },
+            'offer': offer,
+            'attemptNumber': len(excluded_ids) + 1,
+            'maxAttempts': MATCHING_CONFIG['max_attempts']
+        }
+    finally:
+        await db.service_requests.update_one(
+            {'id': service_request_id, 'matchingLock': True},
+            {'$unset': {'matchingLock': '', 'matchingLockAt': ''}},
+        )
 
 async def handle_offer_response(
     db: AsyncIOMotorDatabase,
@@ -1228,11 +1280,26 @@ async def revert_confirmed_offer_after_payment_failure(
         inc_total = -1 if (prov.get("totalServices") or 0) > 0 else 0
         if inc_accepted or inc_total:
             await db.users.update_one(
-                {"id": provider_id},
+                {
+                    "id": provider_id,
+                    "$and": [
+                        {"$or": [{"status": {"$exists": False}}, {"status": "active"}]},
+                        {"$or": [{"deleted": {"$exists": False}}, {"deleted": False}]},
+                    ],
+                },
                 {"$inc": {"acceptedServices": inc_accepted, "totalServices": inc_total}, "$set": {"isAvailable": True}},
             )
         else:
-            await db.users.update_one({"id": provider_id}, {"$set": {"isAvailable": True}})
+            await db.users.update_one(
+                {
+                    "id": provider_id,
+                    "$and": [
+                        {"$or": [{"status": {"$exists": False}}, {"status": "active"}]},
+                        {"$or": [{"deleted": {"$exists": False}}, {"deleted": False}]},
+                    ],
+                },
+                {"$set": {"isAvailable": True}},
+            )
     else:
         logger.warning(
             "revert_confirmed_offer_after_payment_failure: proveedor %s no encontrado al revertir stats",

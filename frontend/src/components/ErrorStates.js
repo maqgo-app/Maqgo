@@ -101,9 +101,9 @@ const IconConnection = ({ size = 60, color = '#9E9E9E' }) => (
 export const NoProvidersError = ({ onModify }) => (
   <ErrorStateContainer>
     <IconWarning size={70} />
-    <ErrorTitle>No hay proveedores disponibles en tu zona</ErrorTitle>
+    <ErrorTitle>Por ahora no hay disponibilidad en tu zona</ErrorTitle>
     <ErrorDescription>
-      No encontramos maquinaria disponible para los criterios que elegiste. Prueba:
+      Por ahora no tenemos disponibilidad para este servicio. Puedes:
     </ErrorDescription>
     <ul style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 1.8, margin: '12px 0 20px', paddingLeft: 20, textAlign: 'left' }}>
       <li>Cambiar la ubicación de la obra</li>
@@ -144,9 +144,9 @@ export const NoProvidersTryTomorrow = ({ tomorrowCount, onReserveTomorrow, onMod
 export const RequestExpiredError = ({ onViewOthers }) => (
   <ErrorStateContainer>
     <IconClock size={70} />
-    <ErrorTitle>La solicitud no fue aceptada</ErrorTitle>
+    <ErrorTitle>No se confirmó a tiempo</ErrorTitle>
     <ErrorDescription>
-      El proveedor no confirmó dentro del tiempo esperado.
+      No recibimos confirmación dentro del tiempo esperado.
     </ErrorDescription>
     <NoChargeNotice />
     <ErrorDescription style={{ marginTop: 8 }}>
@@ -162,10 +162,10 @@ export const RequestExpiredError = ({ onViewOthers }) => (
 export const ProviderRejectedError = ({ onSelectOther }) => (
   <ErrorStateContainer>
     <IconWarning size={70} color="#F44336" />
-    <ErrorTitle>El proveedor rechazó la solicitud</ErrorTitle>
+    <ErrorTitle>Esta opción ya no está disponible</ErrorTitle>
     <NoChargeNotice />
     <ErrorDescription>
-      Puedes seleccionar otro proveedor disponible.
+      Puedes elegir otra opción disponible.
     </ErrorDescription>
     <PrimaryButton onClick={onSelectOther}>Seleccionar otro proveedor</PrimaryButton>
   </ErrorStateContainer>

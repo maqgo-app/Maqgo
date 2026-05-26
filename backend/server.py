@@ -211,6 +211,7 @@ async def lifespan(app: FastAPI):
         await _db.service_requests.create_index([("id", 1)])
         await _db.service_requests.create_index([("bookingId", 1)], sparse=True, name="idx_booking_id")
         await _db.service_requests.create_index([("status", 1), ("currentOfferId", 1)])
+        await _db.service_requests.create_index([("providerId", 1), ("status", 1)])
         await _db.service_requests.create_index([("offerExpiresAt", 1)])
         await _db.payments.create_index(
             [("serviceRequestId", 1)],

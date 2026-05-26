@@ -707,7 +707,7 @@ function LoginScreen({ setUserRole, setUserId }) {
               >
                 {redirectTo === '/admin'
                   ? 'Usa el correo y la clave de tu cuenta de administración.'
-                  : 'Solo los proveedores se inscriben con SMS, correo y contraseña. Los clientes entran con celular y código (modo de abajo).'}
+                  : 'Clientes: celular y código. Proveedores: correo y contraseña.'}
               </p>
               <label
                 htmlFor="login-email"
@@ -1020,7 +1020,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                 }}
                 style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit' }}
               >
-                ¿Problemas para entrar? Borra la sesión en este dispositivo
+                ¿Problemas para entrar? Reinicia tu sesión en este dispositivo
               </button>
             </p>
           )}

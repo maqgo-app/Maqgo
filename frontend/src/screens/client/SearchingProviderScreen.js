@@ -747,7 +747,7 @@ function SearchingProviderScreen() {
               textAlign: 'center',
               marginBottom: 10
             }}>
-              No encontramos un proveedor disponible en este momento
+              No encontramos disponibilidad inmediata
             </h1>
             
             <p style={{
@@ -757,18 +757,7 @@ function SearchingProviderScreen() {
               marginBottom: 24,
               maxWidth: 280
             }}>
-              Contactamos a {maxAttempts} proveedores con tu precio garantizado pero ninguno pudo aceptar.
-            </p>
-
-            <p style={{
-              color: 'rgba(255,255,255,0.75)',
-              fontSize: 13,
-              textAlign: 'center',
-              marginBottom: 28,
-              maxWidth: 280,
-              lineHeight: 1.5
-            }}>
-              Te recomendamos programar la maquinaria para otro día o ajustar tu búsqueda.
+              Estamos activando proveedores en tu zona. Puedes intentarlo nuevamente o programar tu servicio para otro día.
             </p>
 
             {/* Opciones */}

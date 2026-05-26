@@ -244,8 +244,12 @@ function ServiceLocationScreen() {
 
   useEffect(() => {
     if (!hasApiKey && (comunaSource === 'google' || comunaSource === 'places_canonical')) {
-      setComunaSource('manual');
-      setLastGoogleAddress(null);
+      const stored = parseStoredSelectedAddress();
+      const canonical = isSelectedAddressPlacesCanonical(stored) && Boolean(storedCommune(stored));
+      if (!canonical) {
+        setComunaSource('manual');
+        setLastGoogleAddress(null);
+      }
     }
   }, [hasApiKey, comunaSource]);
 
@@ -301,7 +305,9 @@ function ServiceLocationScreen() {
    */
   const hideComunaField = useMemo(() => {
     if (manualAddressNotFound) return false;
-    if (!hasApiKey || placesPhase === 'failed') return false;
+    if (!hasApiKey || placesPhase === 'failed') {
+      return shouldHideServiceLocationComunaField(comunaSource, comuna);
+    }
     // Mientras carga Places: no mostrar comuna (aún no aplica).
     if (placesPhase === 'loading' || placesPhase === 'script_loaded') return true;
     // Places listo pero sin elegir sugerencia (sin coords): no mostrar comuna hasta "No encuentro mi dirección" o elegir fila.

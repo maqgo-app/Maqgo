@@ -316,8 +316,8 @@ html, body, #root {
   .maqgo-app.welcome-desktop {
     max-width: 520px;
     overflow: visible;
-    min-height: calc(100vh - 48px);
-    min-height: calc(100dvh - 48px);
+    min-height: calc(100vh - 56px);
+    min-height: calc(100dvh - 56px);
     margin: 28px auto;
   }
 }

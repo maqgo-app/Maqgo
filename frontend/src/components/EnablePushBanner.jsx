@@ -94,7 +94,7 @@ export default function EnablePushBanner({ user, bottomOffset = 0 }) {
         width: 'calc(100% - 24px)',
         maxWidth: 430,
         bottom: 86 + (Number(bottomOffset) || 0),
-        zIndex: 9999,
+        zIndex: 'var(--maqgo-z-fixed-bar)',
         background: 'rgba(16,16,16,0.92)',
         border: '1px solid rgba(236,104,25,0.35)',
         borderRadius: 14,
@@ -103,11 +103,11 @@ export default function EnablePushBanner({ user, bottomOffset = 0 }) {
         backdropFilter: 'blur(10px)',
       }}
       role="status"
-      aria-label="Activar avisos"
+      aria-label="Activar notificaciones"
     >
-      <div style={{ fontWeight: 700, marginBottom: 6 }}>Activa avisos en tiempo real</div>
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>Activa notificaciones de MAQGO</div>
       <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 10 }}>
-        Te avisamos al instante si cambia el estado del servicio, incluso con la app cerrada.
+        Te avisaremos si cambia el estado de tu servicio (confirmación, llegada y cierre), incluso con la app cerrada.
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
         <button
@@ -123,7 +123,7 @@ export default function EnablePushBanner({ user, bottomOffset = 0 }) {
             cursor: 'pointer',
           }}
         >
-          Activar
+          Activar notificaciones
         </button>
         <button
           onClick={onDismiss}
@@ -137,7 +137,7 @@ export default function EnablePushBanner({ user, bottomOffset = 0 }) {
             cursor: 'pointer',
           }}
         >
-          Ahora no
+          Más tarde
         </button>
       </div>
     </div>

@@ -80,6 +80,16 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    roles = user.get("roles") or []
+    is_admin = user.get("role") == "admin" or ("admin" in roles if isinstance(roles, list) else False)
+    if not is_admin:
+        u_status = user.get("status") or "active"
+        if user.get("deleted") is True or u_status != "active":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Usuario inactivo",
+            )
+
     return user
 
 
@@ -105,6 +115,13 @@ async def get_current_user_optional(
     user = await db.users.find_one({'id': user_id}, {'_id': 0, 'password': 0})
     if not user:
         return None
+
+    roles = user.get("roles") or []
+    is_admin = user.get("role") == "admin" or ("admin" in roles if isinstance(roles, list) else False)
+    if not is_admin:
+        u_status = user.get("status") or "active"
+        if user.get("deleted") is True or u_status != "active":
+            return None
 
     return user
 

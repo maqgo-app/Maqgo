@@ -7,8 +7,10 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from auth_dependency import get_current_admin_strict
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Literal
+from datetime import datetime, timezone
 import copy
+import os
 
 from db_config import get_db_name, get_mongo_url
 
@@ -23,6 +25,7 @@ from services.machines_service import delete_machine, list_admin_machines, seria
 from services.payment_rollout import get_payment_hardening_metrics_snapshot
 from services.payment_saga_recovery import recover_saga
 from services.reconciliation_service import reconcile_payment_intents
+from services.komatsu_sync import sync_komatsu_machine_locations
 
 router = APIRouter(prefix="/admin", tags=["admin-config"])
 
@@ -31,6 +34,25 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
 
 CONFIG_KEY = "reference_prices"
+
+
+def _cron_verify(secret: Optional[str]) -> None:
+    expected = os.environ.get("MAQGO_CRON_SECRET", "").strip()
+    got = (secret or "").strip()
+    if not expected:
+        raise HTTPException(status_code=500, detail="cron_secret_not_configured")
+    if got != expected:
+        raise HTTPException(status_code=403, detail="forbidden")
+
+
+@router.api_route("/cron/komatsu-sync", methods=["GET", "POST"])
+async def cron_komatsu_sync(
+    secret: Optional[str] = Query(None),
+    dry_run: bool = Query(False),
+    limit: int = Query(500, ge=1, le=5000),
+):
+    _cron_verify(secret)
+    return await sync_komatsu_machine_locations(db, limit=limit, dry_run=dry_run)
 
 
 @router.get("/payment-hardening-metrics")
@@ -195,6 +217,11 @@ class AdminUserUpdateRequest(BaseModel):
     phone: Optional[str] = None
     role: Optional[str] = None
     roles: Optional[list] = None
+    status: Optional[Literal["active", "inactive", "suspended", "test", "deleted"]] = None
+    deleted: Optional[bool] = None
+    deletedAt: Optional[str] = None
+    deletedBy: Optional[str] = None
+    deleteReason: Optional[str] = None
     provider_role: Optional[str] = None
     isAvailable: Optional[bool] = None
     onboarding_completed: Optional[bool] = None
@@ -207,7 +234,7 @@ class AdminUserUpdateRequest(BaseModel):
 async def admin_update_user(
     user_id: str,
     request: AdminUserUpdateRequest,
-    _: dict = Depends(get_current_admin_strict),
+    current_admin: dict = Depends(get_current_admin_strict),
 ):
     try:
         existing = await db.users.find_one({"id": user_id})
@@ -248,6 +275,24 @@ async def admin_update_user(
             fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
             return {"ok": True, "user": fresh}
 
+        now = datetime.now(timezone.utc).isoformat()
+        if update_doc.get("deleted") is True:
+            update_doc["status"] = "deleted"
+        if update_doc.get("status") == "deleted":
+            update_doc["deleted"] = True
+            update_doc["deletedAt"] = now
+            update_doc["deletedBy"] = current_admin.get("id")
+            if not update_doc.get("deleteReason"):
+                update_doc["deleteReason"] = "admin"
+            update_doc["isAvailable"] = False
+        if update_doc.get("deleted") is False:
+            if existing.get("deleted") is True or existing.get("status") == "deleted":
+                if "status" not in update_doc or update_doc.get("status") == "deleted":
+                    update_doc["status"] = "active"
+                update_doc["deletedAt"] = None
+                update_doc["deletedBy"] = None
+                update_doc["deleteReason"] = None
+
         await db.users.update_one({"id": user_id}, {"$set": update_doc})
         fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
         return {"ok": True, "user": fresh}
@@ -260,7 +305,8 @@ async def admin_update_user(
 @router.delete("/users/{user_id}")
 async def admin_delete_user(
     user_id: str,
-    _: dict = Depends(get_current_admin_strict),
+    reason: Optional[str] = Query(None),
+    current_admin: dict = Depends(get_current_admin_strict),
 ):
     try:
         existing = await db.users.find_one({"id": user_id}, {"id": 1, "role": 1, "roles": 1})
@@ -270,10 +316,21 @@ async def admin_delete_user(
         if existing.get("role") == "admin" or ("admin" in (existing.get("roles") or [])):
             raise HTTPException(status_code=403, detail="No se puede eliminar un administrador")
 
-        result = await db.users.delete_one({"id": user_id})
-        if result.deleted_count != 1:
-            raise HTTPException(status_code=500, detail="No se pudo eliminar el usuario")
-        return {"ok": True}
+        now = datetime.now(timezone.utc).isoformat()
+        await db.users.update_one(
+            {"id": user_id},
+            {
+                "$set": {
+                    "status": "deleted",
+                    "deleted": True,
+                    "deletedAt": now,
+                    "deletedBy": current_admin.get("id"),
+                    "deleteReason": (reason or "admin"),
+                    "isAvailable": False,
+                }
+            },
+        )
+        return {"ok": True, "soft_deleted": True}
     except HTTPException:
         raise
     except Exception as e:

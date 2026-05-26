@@ -142,14 +142,14 @@ export const showSystemNotification = async (title, body, options = {}) => {
   if (!('Notification' in window)) return false;
   
   if (Notification.permission === 'granted') {
-    new Notification(title, { body, icon: '/logo192.png', ...options });
+    new Notification(title, { body, icon: '/icons/icon-192.png', ...options });
     return true;
   }
   
   if (Notification.permission !== 'denied') {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      new Notification(title, { body, icon: '/logo192.png', ...options });
+      new Notification(title, { body, icon: '/icons/icon-192.png', ...options });
       return true;
     }
   }

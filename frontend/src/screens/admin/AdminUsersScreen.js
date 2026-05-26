@@ -47,6 +47,7 @@ function AdminUsersScreen() {
   const [data, setData] = useState({ clients: [], providers: [], machines: [], total_clients: 0, total_providers: 0 });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('clients'); // 'clients' | 'providers' | 'machines'
+  const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'inactive' | 'test' | 'deleted'
   const [editKind, setEditKind] = useState('client'); // 'client' | 'provider' | 'machine'
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState(null);
@@ -115,6 +116,74 @@ function AdminUsersScreen() {
     });
   }, [users]);
 
+  const filteredUsers = useMemo(() => {
+    if (tab === 'machines') return normalizedUsers;
+    const list = Array.isArray(normalizedUsers) ? normalizedUsers : [];
+    return list.filter((u) => {
+      const st = String(u?.status || 'active');
+      const isDeleted = Boolean(u?.deleted) || st === 'deleted';
+      if (statusFilter === 'deleted') return isDeleted;
+      if (isDeleted) return false;
+      if (statusFilter === 'test') return st === 'test';
+      if (statusFilter === 'inactive') return st === 'inactive' || st === 'suspended';
+      return st === 'active' || !u?.status;
+    });
+  }, [normalizedUsers, statusFilter, tab]);
+
+  const applyUserAdminStatus = async (u, nextStatus) => {
+    if (!u?.id) return;
+    try {
+      const patch = { status: nextStatus };
+      if (nextStatus === 'active') patch.deleted = false;
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/users/${encodeURIComponent(u.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof json?.detail === 'string' ? json.detail : `No se pudo guardar (${res.status}).`);
+        return;
+      }
+      const updatedUser = json?.user || null;
+      if (!updatedUser) {
+        await fetchUsers();
+        return;
+      }
+      setData((prev) => {
+        const listKey = tab === 'clients' ? 'clients' : 'providers';
+        const list = Array.isArray(prev[listKey]) ? prev[listKey] : [];
+        const nextList = list.map((x) => (x?.id === updatedUser.id ? updatedUser : x));
+        return { ...prev, [listKey]: nextList };
+      });
+      toast.success('Estado actualizado.');
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo guardar.');
+    }
+  };
+
+  const restoreUser = async (u) => {
+    return applyUserAdminStatus(u, 'active');
+  };
+
+  const softDeleteUser = async (u) => {
+    if (!u?.id) return;
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/users/${encodeURIComponent(u.id)}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof json?.detail === 'string' ? json.detail : `No se pudo eliminar (${res.status}).`);
+        return;
+      }
+      await fetchUsers();
+      toast.success('Usuario eliminado (soft).');
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo eliminar.');
+    }
+  };
+
   const machineRows = useMemo(() => {
     const machines = Array.isArray(data.machines) ? data.machines : [];
     return machines.map((m) => {
@@ -162,6 +231,8 @@ function AdminUsersScreen() {
       name: u?.name || '',
       email: u?.email || '',
       phone: u?.phone || '',
+      status: String(u?.status || 'active'),
+      deleted: Boolean(u?.deleted),
       provider_role: u?.provider_role || '',
       isAvailable: kindOverride === 'machine' ? Boolean(u?.available) : Boolean(u?.isAvailable),
       onboarding_completed: Boolean(u?.onboarding_completed),
@@ -233,6 +304,8 @@ function AdminUsersScreen() {
         if (nextName !== String(editingUser.name || '')) update.name = nextName;
         if (nextEmail !== String(editingUser.email || '')) update.email = nextEmail;
         if (nextPhone !== String(editingUser.phone || '')) update.phone = nextPhone;
+        if (String(editForm.status || 'active') !== String(editingUser.status || 'active')) update.status = String(editForm.status || 'active');
+        if (Boolean(editForm.deleted) !== Boolean(editingUser.deleted)) update.deleted = Boolean(editForm.deleted);
       }
 
       if (tab === 'providers' || editKind === 'machine') {
@@ -312,17 +385,8 @@ function AdminUsersScreen() {
         toast.error(typeof json?.detail === 'string' ? json.detail : `No se pudo eliminar (${res.status}).`);
         return;
       }
-      setData((prev) => {
-        const listKey = tab === 'clients' ? 'clients' : 'providers';
-        const list = Array.isArray(prev[listKey]) ? prev[listKey] : [];
-        const nextList = list.filter((x) => x?.id !== deleteTarget.id);
-        const totalsPatch =
-          tab === 'clients'
-            ? { total_clients: Math.max(0, (prev.total_clients || 0) - 1) }
-            : { total_providers: Math.max(0, (prev.total_providers || 0) - 1) };
-        return { ...prev, [listKey]: nextList, ...totalsPatch };
-      });
-      toast.success('Usuario eliminado.');
+      await fetchUsers();
+      toast.success('Usuario eliminado (soft).');
     } catch (e) {
       toast.error(e?.message || 'No se pudo eliminar.');
     } finally {
@@ -591,6 +655,75 @@ function AdminUsersScreen() {
           </button>
         </div>
 
+        {tab !== 'machines' && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('active')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 999,
+                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                background: statusFilter === 'active' ? 'rgba(102, 187, 106, 0.18)' : ADMIN_THEME.panelBg,
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              Activos
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('inactive')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 999,
+                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                background: statusFilter === 'inactive' ? 'rgba(217, 161, 90, 0.18)' : ADMIN_THEME.panelBg,
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              Inactivos
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('test')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 999,
+                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                background: statusFilter === 'test' ? 'rgba(143, 179, 201, 0.18)' : ADMIN_THEME.panelBg,
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              Test
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('deleted')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 999,
+                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                background: statusFilter === 'deleted' ? 'rgba(220, 53, 69, 0.18)' : ADMIN_THEME.panelBg,
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              Eliminados
+            </button>
+          </div>
+        )}
+
         {/* Tabla */}
         <div style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', border: `1px solid ${ADMIN_THEME.border}` }}>
           {loading ? (
@@ -752,6 +885,7 @@ function AdminUsersScreen() {
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Nombre</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Teléfono</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Estado</th>
                       {tab === 'providers' && (
                         <>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinaria</th>
@@ -766,7 +900,7 @@ function AdminUsersScreen() {
                     </tr>
                   </thead>
                   <tbody>
-                    {normalizedUsers.map((u, i) => (
+                    {filteredUsers.map((u, i) => (
                       <tr key={u.id || i} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
                           {maqgoPublicId(u.id, tab === 'clients' ? 'client' : 'provider')}
@@ -774,6 +908,20 @@ function AdminUsersScreen() {
                         <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{u.name || '-'}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.email || '-'}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.phone || '-'}</td>
+                        <td style={{ padding: 14 }}>
+                          {(() => {
+                            const st = String(u?.status || 'active');
+                            const isDel = Boolean(u?.deleted) || st === 'deleted';
+                            const label = isDel ? 'Eliminado' : st === 'test' ? 'Test' : st === 'suspended' ? 'Suspendido' : st === 'inactive' ? 'Inactivo' : 'Activo';
+                            const bg = isDel ? 'rgba(220, 53, 69, 0.18)' : st === 'test' ? 'rgba(143, 179, 201, 0.18)' : st === 'inactive' || st === 'suspended' ? 'rgba(217, 161, 90, 0.18)' : 'rgba(102, 187, 106, 0.16)';
+                            const fg = isDel ? ADMIN_PALETTE.danger : st === 'test' ? ADMIN_PALETTE.info : st === 'inactive' || st === 'suspended' ? ADMIN_PALETTE.warning : ADMIN_PALETTE.success;
+                            return (
+                              <span style={{ padding: '4px 8px', borderRadius: 6, fontSize: 13, fontWeight: 700, background: bg, color: fg }}>
+                                {label}
+                              </span>
+                            );
+                          })()}
+                        </td>
                         {tab === 'providers' && (
                           <>
                             <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{u.__machineryType}</td>
@@ -836,22 +984,116 @@ function AdminUsersScreen() {
                             >
                               Editar
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(u)}
-                              style={{
-                                padding: '8px 12px',
-                                borderRadius: 8,
-                                background: 'rgba(220, 53, 69, 0.18)',
-                                border: '1px solid rgba(220, 53, 69, 0.55)',
-                                color: '#fff',
-                                cursor: 'pointer',
-                                fontSize: 13,
-                                fontWeight: 700
-                              }}
-                            >
-                              Eliminar
-                            </button>
+                            {(() => {
+                              const st = String(u?.status || 'active');
+                              const isDel = Boolean(u?.deleted) || st === 'deleted';
+                              if (isDel) {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => restoreUser(u)}
+                                    style={{
+                                      padding: '8px 12px',
+                                      borderRadius: 8,
+                                      background: 'rgba(102, 187, 106, 0.16)',
+                                      border: '1px solid rgba(102, 187, 106, 0.45)',
+                                      color: '#fff',
+                                      cursor: 'pointer',
+                                      fontSize: 13,
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    Restaurar
+                                  </button>
+                                );
+                              }
+                              return (
+                                <>
+                                  {st !== 'active' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => applyUserAdminStatus(u, 'active')}
+                                      style={{
+                                        padding: '8px 12px',
+                                        borderRadius: 8,
+                                        background: 'rgba(102, 187, 106, 0.16)',
+                                        border: '1px solid rgba(102, 187, 106, 0.45)',
+                                        color: '#fff',
+                                        cursor: 'pointer',
+                                        fontSize: 13,
+                                        fontWeight: 800,
+                                      }}
+                                    >
+                                      Activar
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => applyUserAdminStatus(u, 'inactive')}
+                                    style={{
+                                      padding: '8px 12px',
+                                      borderRadius: 8,
+                                      background: 'rgba(217, 161, 90, 0.18)',
+                                      border: '1px solid rgba(217, 161, 90, 0.45)',
+                                      color: '#fff',
+                                      cursor: 'pointer',
+                                      fontSize: 13,
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    Desactivar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => applyUserAdminStatus(u, 'suspended')}
+                                    style={{
+                                      padding: '8px 12px',
+                                      borderRadius: 8,
+                                      background: 'rgba(217, 161, 90, 0.18)',
+                                      border: '1px solid rgba(217, 161, 90, 0.45)',
+                                      color: '#fff',
+                                      cursor: 'pointer',
+                                      fontSize: 13,
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    Suspender
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => applyUserAdminStatus(u, 'test')}
+                                    style={{
+                                      padding: '8px 12px',
+                                      borderRadius: 8,
+                                      background: 'rgba(143, 179, 201, 0.18)',
+                                      border: '1px solid rgba(143, 179, 201, 0.45)',
+                                      color: '#fff',
+                                      cursor: 'pointer',
+                                      fontSize: 13,
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    Marcar test
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget(u)}
+                                    style={{
+                                      padding: '8px 12px',
+                                      borderRadius: 8,
+                                      background: 'rgba(220, 53, 69, 0.18)',
+                                      border: '1px solid rgba(220, 53, 69, 0.55)',
+                                      color: '#fff',
+                                      cursor: 'pointer',
+                                      fontSize: 13,
+                                      fontWeight: 900,
+                                    }}
+                                  >
+                                    Eliminar
+                                  </button>
+                                </>
+                              );
+                            })()}
                           </div>
                         </td>
                       </tr>

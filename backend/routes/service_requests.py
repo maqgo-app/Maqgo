@@ -977,7 +977,6 @@ async def accept_service_request(
                 try:
                     await payment_intent_service.set_state(
                         booking_id,
-                        booking_id,
                         PI_PROVIDER_ACCEPTED,
                         last_idempotency_key=idempotency_key,
                         service_request_id=request_id,

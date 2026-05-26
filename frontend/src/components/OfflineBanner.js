@@ -42,7 +42,7 @@ function OfflineBanner() {
         boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
       }}
     >
-      Sin conexión. Revisa tu internet e intenta de nuevo.
+      Sin conexión a internet. Apenas vuelva la señal, seguimos.
     </div>
   );
 }

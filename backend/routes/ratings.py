@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
 from typing import List, Optional
 from services.rating_service import RatingService
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from db_config import get_db_name, get_mongo_url
+from auth_dependency import get_current_user
 
 router = APIRouter(prefix="/ratings", tags=["ratings"])
 
@@ -14,7 +15,7 @@ db = client[get_db_name()]
 rating_service = RatingService(db)
 
 @router.post("", response_model=dict)
-async def create_rating(body: dict = Body(...)):
+async def create_rating(body: dict = Body(...), _: dict = Depends(get_current_user)):
     """
     Crear evaluación.
     

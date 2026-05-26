@@ -192,6 +192,10 @@ async def update_availability(
     if not doc:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
+    doc_status = doc.get("status") or "active"
+    if doc.get("deleted") is True or doc_status != "active":
+        raise HTTPException(status_code=403, detail="Usuario inactivo")
+
     desired_available = bool(body.get("isAvailable", False))
     if desired_available and not _is_provider_activation_complete({**doc, **{"isAvailable": desired_available}}):
         raise HTTPException(
@@ -532,7 +536,15 @@ async def patch_user(
 
 def _provider_query(machinery_type=None, **extra):
     """Query para usuarios que son proveedores (role o roles incluye 'provider')."""
-    q = {"$or": [{"role": "provider"}, {"roles": "provider"}], "isAvailable": True, **extra}
+    q = {
+        "$or": [{"role": "provider"}, {"roles": "provider"}],
+        "isAvailable": True,
+        "$and": [
+            {"$or": [{"status": {"$exists": False}}, {"status": "active"}]},
+            {"$or": [{"deleted": {"$exists": False}}, {"deleted": False}]},
+        ],
+        **extra,
+    }
     if machinery_type:
         q["machineryType"] = machinery_type
     return q
@@ -609,7 +621,11 @@ async def get_operators(owner_id: str, current_user: dict = Depends(get_current_
     operators = await db.users.find(
         {
             'owner_id': owner_id,
-            'provider_role': 'operator'
+            'provider_role': 'operator',
+            "$and": [
+                {"$or": [{"status": {"$exists": False}}, {"status": "active"}]},
+                {"$or": [{"deleted": {"$exists": False}}, {"deleted": False}]},
+            ],
         },
         {'_id': 0, 'password': 0}
     ).to_list(100)
@@ -641,7 +657,20 @@ async def delete_operator(
     if not operator:
         raise HTTPException(status_code=404, detail="Operador no encontrado o no te pertenece")
     
-    await db.users.delete_one({'id': operator_id})
+    now = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one(
+        {"id": operator_id},
+        {
+            "$set": {
+                "status": "deleted",
+                "deleted": True,
+                "deletedAt": now,
+                "deletedBy": current_user.get("id"),
+                "deleteReason": "owner_delete_operator",
+                "isAvailable": False,
+            }
+        },
+    )
     
     return {
         'success': True,

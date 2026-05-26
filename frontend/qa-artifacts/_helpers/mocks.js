@@ -251,12 +251,14 @@ export function seedPhoneVerifiedSession() {
   localStorage.setItem('phoneVerified', 'true');
   localStorage.setItem('token', 'test-token');
   localStorage.setItem('userId', 'user-1');
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
 }
 
 export function seedClientServiceFlow() {
   localStorage.setItem('token', 'test-token');
   localStorage.setItem('userId', 'client-1');
   localStorage.setItem('userRole', 'client');
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
   localStorage.setItem('currentServiceId', 'svc-123');
   localStorage.setItem('selectedMachinery', 'retroexcavadora');
   localStorage.setItem('selectedHours', '4');
@@ -279,6 +281,8 @@ export function seedProviderSession() {
   localStorage.setItem('userId', 'provider-1');
   localStorage.setItem('userRole', 'provider');
   localStorage.setItem('providerOnboardingCompleted', 'true');
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
+  localStorage.setItem('hasPassword', '1');
   localStorage.setItem(
     'providerData',
     JSON.stringify({
@@ -304,6 +308,7 @@ export function seedOperatorSession() {
   localStorage.setItem('userRole', 'operator');
   localStorage.setItem('providerAvailable', 'true');
   localStorage.setItem('ownerId', 'provider-1');
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
   localStorage.setItem(
     'providerData',
     JSON.stringify({
@@ -317,4 +322,5 @@ export function seedAdminSession() {
   localStorage.setItem('userId', 'admin-1');
   localStorage.setItem('userRole', 'admin');
   localStorage.setItem('userRoles', JSON.stringify(['admin']));
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
 }

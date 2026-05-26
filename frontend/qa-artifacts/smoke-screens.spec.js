@@ -103,6 +103,8 @@ function seedForProvider() {
   localStorage.setItem('userId', 'provider-1');
   localStorage.setItem('userRole', 'provider');
   localStorage.setItem('providerOnboardingCompleted', 'true');
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
+  localStorage.setItem('hasPassword', '1');
   localStorage.setItem(
     'providerData',
     JSON.stringify({
@@ -210,4 +212,3 @@ test.describe('Smoke: pantallas críticas con mocks', () => {
     await context.close();
   });
 });
-

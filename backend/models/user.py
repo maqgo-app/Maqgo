@@ -18,6 +18,11 @@ class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     role: str  # 'client' | 'provider' (rol principal; si hay roles[], es el primero)
     roles: Optional[List[str]] = None  # Si está definido: usuario puede ser cliente y/o proveedor
+    status: Literal['active', 'inactive', 'suspended', 'test', 'deleted'] = 'active'
+    deleted: bool = False
+    deletedAt: Optional[str] = None
+    deletedBy: Optional[str] = None
+    deleteReason: Optional[str] = None
     # Perfil progresivo (entrada OTP): pueden ser null hasta P6 / edición de cuenta
     name: Optional[str] = None
     email: Optional[str] = None

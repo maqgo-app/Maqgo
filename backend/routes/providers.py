@@ -344,6 +344,8 @@ async def match_providers(
                 "onboarding_completed": True,
                 "$and": [
                     {"$or": [{"role": "provider"}, {"roles": "provider"}]},
+                    {"$or": [{"status": {"$exists": False}}, {"status": "active"}]},
+                    {"$or": [{"deleted": {"$exists": False}}, {"deleted": False}]},
                     {"$or": [{"owner_id": {"$exists": False}}, {"owner_id": None}, {"owner_id": ""}]},
                     {"$or": [{"provider_role": {"$exists": False}}, {"provider_role": None}, {"provider_role": {"$ne": "operator"}}]},
                 ],

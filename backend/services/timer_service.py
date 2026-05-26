@@ -21,6 +21,11 @@ def _parse_offer_expires_at_utc(raw: Any) -> Optional[datetime]:
     """Unifica Z / +00:00 / sin TZ para comparar con now UTC (evita fallos de $lte entre strings)."""
     if raw is None:
         return None
+    if isinstance(raw, datetime):
+        dt = raw
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
     s = str(raw).strip()
     if not s:
         return None
@@ -32,6 +37,7 @@ def _parse_offer_expires_at_utc(raw: Any) -> Optional[datetime]:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(timezone.utc)
     except Exception:
+        logger.warning("_parse_offer_expires_at_utc: value no parseable raw=%r", raw)
         return None
 
 # Heartbeat de logs para producción (grep: CHECK_EXPIRED_OFFERS_RUNNING)
@@ -59,25 +65,27 @@ class TimerService:
         now = datetime.now(timezone.utc)
         threshold = now - timedelta(minutes=CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES)
 
-        services = await self.db.service_requests.find({
-            'status': 'confirmed',
-            '$or': [
-                {'arrivalDetectedAt': {'$exists': False}},
-                {'arrivalDetectedAt': None}
-            ]
-        }, {'_id': 0, 'id': 1, 'confirmedAt': 1, 'createdAt': 1, 'totalAmount': 1}).to_list(100)
+        cursor = (
+            self.db.service_requests.find(
+                {
+                    'status': 'confirmed',
+                    '$or': [
+                        {'arrivalDetectedAt': {'$exists': False}},
+                        {'arrivalDetectedAt': None}
+                    ]
+                },
+                {'_id': 0, 'id': 1, 'confirmedAt': 1, 'createdAt': 1, 'totalAmount': 1},
+            )
+            .sort([('_id', 1)])
+        )
 
         refund_request_service = RefundRequestService(self.db)
         cancelled_count = 0
 
-        for service in services:
-            scheduled_str = service.get('confirmedAt') or service.get('createdAt') or now.isoformat()
-            try:
-                scheduled = datetime.fromisoformat(scheduled_str.replace('Z', '+00:00'))
-            except Exception:
-                scheduled = now
-
-            if scheduled.isoformat() > threshold.isoformat():
+        async for service in cursor:
+            scheduled_raw = service.get('confirmedAt') or service.get('createdAt')
+            scheduled_dt = _parse_offer_expires_at_utc(scheduled_raw) or now
+            if scheduled_dt > threshold:
                 continue  # Aún no pasaron 2h desde scheduled_start
 
             total_amount = float(service.get('totalAmount', 0))
@@ -120,13 +128,24 @@ class TimerService:
         now = datetime.now(timezone.utc)
         threshold = now - timedelta(minutes=30)
 
-        services = await self.db.service_requests.find({
-            'status': 'confirmed',
-            'arrivalDetectedAt': {'$exists': True, '$ne': None, '$lte': threshold.isoformat()}
-        }, {'_id': 0, 'id': 1}).to_list(100)
+        cursor = (
+            self.db.service_requests.find(
+                {
+                    'status': 'confirmed',
+                    'arrivalDetectedAt': {'$exists': True, '$ne': None},
+                },
+                {'_id': 0, 'id': 1, 'arrivalDetectedAt': 1},
+            )
+            .sort([('_id', 1)])
+        )
 
         updated_count = 0
-        for service in services:
+        async for service in cursor:
+            arrival_dt = _parse_offer_expires_at_utc(service.get('arrivalDetectedAt'))
+            if not arrival_dt:
+                continue
+            if arrival_dt > threshold:
+                continue
             auto_start_event = {
                 'type': 'auto_start',
                 'at': now.isoformat(),
@@ -158,13 +177,24 @@ class TimerService:
         threshold = now + timedelta(minutes=30)
         
         # Buscar servicios in_progress cuyo endTime está a 30 min o menos
-        services = await self.db.service_requests.find({
-            'status': 'in_progress',
-            'endTime': {'$lte': threshold.isoformat()}
-        }, {'_id': 0, 'id': 1, 'providerId': 1, 'clientId': 1}).to_list(100)
+        cursor = (
+            self.db.service_requests.find(
+                {
+                    'status': 'in_progress',
+                    'endTime': {'$exists': True, '$ne': None},
+                },
+                {'_id': 0, 'id': 1, 'providerId': 1, 'clientId': 1, 'endTime': 1},
+            )
+            .sort([('_id', 1)])
+        )
         
         updated_count = 0
-        for service in services:
+        async for service in cursor:
+            end_dt = _parse_offer_expires_at_utc(service.get('endTime'))
+            if not end_dt:
+                continue
+            if end_dt > threshold:
+                continue
             result = await self.db.service_requests.update_one(
                 {'id': service['id'], 'status': 'in_progress'},
                 {
@@ -196,15 +226,26 @@ class TimerService:
         now = datetime.now(timezone.utc)
         
         # Buscar servicios cuyo endTime ya pasó
-        services = await self.db.service_requests.find({
-            'status': {'$in': ['in_progress', 'last_30']},
-            'endTime': {'$lte': now.isoformat()}
-        }, {'_id': 0, 'id': 1, 'providerId': 1, 'clientId': 1}).to_list(100)
+        cursor = (
+            self.db.service_requests.find(
+                {
+                    'status': {'$in': ['in_progress', 'last_30']},
+                    'endTime': {'$exists': True, '$ne': None},
+                },
+                {'_id': 0, 'id': 1, 'providerId': 1, 'clientId': 1, 'endTime': 1},
+            )
+            .sort([('_id', 1)])
+        )
         
         finished_count = 0
-        for service in services:
+        async for service in cursor:
             sid = service.get("id")
             if not sid:
+                continue
+            end_dt = _parse_offer_expires_at_utc(service.get('endTime'))
+            if not end_dt:
+                continue
+            if end_dt > now:
                 continue
             # Obtener ubicación del proveedor (si está disponible)
             provider = await self.db.users.find_one(
@@ -240,11 +281,37 @@ class TimerService:
                 
                 # Liberar al proveedor
                 if service.get('providerId'):
-                    await self.db.users.update_one(
-                        {'id': service['providerId']},
-                        {'$set': {'isAvailable': True}}
+                    from services.matching_service import ACTIVE_SERVICE_STATES
+
+                    provider_id = service['providerId']
+                    other_active = await self.db.service_requests.find_one(
+                        {
+                            'providerId': provider_id,
+                            'id': {'$ne': sid},
+                            'status': {'$in': ACTIVE_SERVICE_STATES},
+                        },
+                        {'_id': 0, 'id': 1, 'status': 1},
                     )
-                    logger.info(f"Proveedor {service['providerId']} liberado")
+                    if other_active:
+                        logger.warning(
+                            "Skip provider release: active service exists providerId=%s serviceRequestId=%s otherServiceId=%s otherStatus=%s",
+                            provider_id,
+                            sid,
+                            other_active.get('id'),
+                            other_active.get('status'),
+                        )
+                    else:
+                        await self.db.users.update_one(
+                            {
+                                'id': provider_id,
+                                '$and': [
+                                    {'$or': [{'status': {'$exists': False}}, {'status': 'active'}]},
+                                    {'$or': [{'deleted': {'$exists': False}}, {'deleted': False}]},
+                                ],
+                            },
+                            {'$set': {'isAvailable': True}}
+                        )
+                        logger.info(f"Proveedor {provider_id} liberado")
 
                 sr = await self.db.service_requests.find_one({'id': sid}, {'_id': 0, 'clientId': 1, 'totalAmount': 1})
                 client_id = sr.get('clientId') if isinstance(sr, dict) else None
@@ -342,13 +409,18 @@ class TimerService:
             # Usamos la colección 'services' del módulo de facturación
             services_collection = self.db.services
             
-            pending_services = await services_collection.find({
-                'status': 'pending_review',
-                'created_at': {'$lte': threshold}
-            }).to_list(100)
+            cursor = (
+                services_collection.find(
+                    {
+                        'status': 'pending_review',
+                        'created_at': {'$lte': threshold}
+                    }
+                )
+                .sort([('created_at', 1), ('_id', 1)])
+            )
             
             approved_count = 0
-            for service in pending_services:
+            async for service in cursor:
                 # Auto-aprobar
                 result = await services_collection.update_one(
                     {'_id': service['_id'], 'status': 'pending_review'},
@@ -450,7 +522,8 @@ class TimerService:
         now = datetime.now(timezone.utc)
 
         # Candidatas: no filtrar solo por string en Mongo (Z vs +00:00 rompe $lte).
-        candidates = await self.db.service_requests.find(
+        cursor = (
+            self.db.service_requests.find(
             {
                 'status': 'offer_sent',
                 'offerExpiresAt': {'$exists': True, '$ne': None},
@@ -462,10 +535,12 @@ class TimerService:
                 'offerExpiresAt': 1,
                 'matchingRotationMode': 1,
             },
-        ).to_list(100)
+            )
+            .sort([('_id', 1)])
+        )
 
         services = []
-        for doc in candidates:
+        async for doc in cursor:
             exp_dt = _parse_offer_expires_at_utc(doc.get('offerExpiresAt'))
             if exp_dt is None:
                 logger.warning(
@@ -505,15 +580,20 @@ class TimerService:
         """Amplía olas 2 y 3 según PRIMARY/SECONDARY_RESPONSE_WINDOW (no bloquea ofertas previas)."""
         from services.matching_service import apply_matching_rotation_waves
 
-        docs = await self.db.service_requests.find(
-            {'status': 'offer_sent', 'matchingRotationMode': True},
-            {'_id': 0, 'id': 1},
-        ).to_list(200)
-        for d in docs:
+        cursor = (
+            self.db.service_requests.find(
+                {'status': 'offer_sent', 'matchingRotationMode': True},
+                {'_id': 0, 'id': 1},
+            )
+            .sort([('_id', 1)])
+        )
+        count = 0
+        async for d in cursor:
             rid = d.get('id')
             if rid:
                 await apply_matching_rotation_waves(self.db, rid)
-        return len(docs)
+                count += 1
+        return count
 
     async def run_all_checks(self) -> dict:
         """

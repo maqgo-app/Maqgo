@@ -2043,6 +2043,13 @@ async def login(request: Request, body: LoginRequest):
     if not verify_password(body.password, user.get("password", "")):
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
+    roles = _user_roles(user)
+    is_admin = "admin" in roles
+    if not is_admin:
+        u_status = user.get("status") or "active"
+        if user.get("deleted") is True or u_status != "active":
+            raise HTTPException(status_code=403, detail="Usuario inactivo")
+
     # Migración: si el hash es SHA256 legacy, actualizar a bcrypt
     stored = user.get("password", "")
     if not stored.startswith('$2'):
@@ -2060,7 +2067,6 @@ async def login(request: Request, body: LoginRequest):
         "createdAt": datetime.now(timezone.utc).isoformat()
     })
     
-    roles = _user_roles(user)
     legacy_role = user.get("role") or "client"
     effective_role = _effective_session_role(roles, legacy_role)
     pr = _provider_role_for_api(user, roles)

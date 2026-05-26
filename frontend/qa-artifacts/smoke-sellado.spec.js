@@ -10,6 +10,7 @@ function seedClientMinimal() {
   localStorage.setItem('token', 'test-token');
   localStorage.setItem('userId', 'client-1');
   localStorage.setItem('userRole', 'client');
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
   localStorage.setItem('selectedMachinery', 'retroexcavadora');
   localStorage.setItem('selectedHours', '4');
   localStorage.setItem('reservationType', 'immediate');
@@ -20,6 +21,7 @@ function seedCanonicalSelectedAddress() {
   localStorage.setItem('token', 'test-token');
   localStorage.setItem('userId', 'client-1');
   localStorage.setItem('userRole', 'client');
+  localStorage.setItem('legalAcceptedAt', new Date().toISOString());
   localStorage.setItem('selectedMachinery', 'retroexcavadora');
   localStorage.setItem('selectedHours', '4');
   localStorage.setItem('reservationType', 'immediate');
@@ -56,7 +58,7 @@ test.describe('Sellado: welcome → login + ubicación', () => {
     await expect(page.getByRole('alert')).toHaveCount(0);
     await expect(page.locator('.maqgo-app')).toHaveCount(1);
 
-    await page.getByRole('button', { name: /^Iniciar sesión$/i }).click();
+    await page.getByTestId('start-client-btn').click();
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole('alert')).toHaveCount(0);
     await expect(page.getByLabel(/Nueve dígitos del celular/i)).toBeVisible({ timeout: 15000 });
