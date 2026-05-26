@@ -247,6 +247,7 @@ function AdminRoute() {
   if (!token || !userId) {
     return (
       <div
+        className="maqgo-admin"
         style={{
           minHeight: '100vh',
           background: 'var(--maqgo-bg)',
@@ -327,6 +328,7 @@ function AdminRoute() {
   if (checkingAdmin) {
     return (
       <div
+        className="maqgo-admin"
         style={{
           minHeight: '100vh',
           background: 'var(--maqgo-bg)',
@@ -352,6 +354,7 @@ function AdminRoute() {
   if (statsNetworkFailure && isAdmin && !demoBypass) {
     return (
       <div
+        className="maqgo-admin"
         style={{
           minHeight: '100vh',
           background: 'var(--maqgo-bg)',
@@ -411,6 +414,7 @@ function AdminRoute() {
   if (!isAdmin) {
     return (
       <div
+        className="maqgo-admin"
         style={{
           minHeight: '100vh',
           background: 'var(--maqgo-bg)',
@@ -460,27 +464,29 @@ function AdminRoute() {
   }
 
   return (
-    <Suspense
-      fallback={
-        <div
-          style={{
-            minHeight: '100vh',
-            background: 'var(--maqgo-bg)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            padding: 24,
-            textAlign: 'center',
-          }}
-        >
-          <p style={{ fontSize: 16, margin: 0 }}>Cargando panel administrativo…</p>
-        </div>
-      }
-    >
-      <Outlet />
-    </Suspense>
+    <div className="maqgo-admin">
+      <Suspense
+        fallback={
+          <div
+            style={{
+              minHeight: '100vh',
+              background: 'var(--maqgo-bg)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              padding: 24,
+              textAlign: 'center',
+            }}
+          >
+            <p style={{ fontSize: 16, margin: 0 }}>Cargando panel administrativo…</p>
+          </div>
+        }
+      >
+        <Outlet />
+      </Suspense>
+    </div>
   );
 }
 

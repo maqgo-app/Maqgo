@@ -15,12 +15,12 @@ const ADMIN_PALETTE = {
 };
 
 const ADMIN_THEME = {
-  appBg: '#12151B',
-  panelBg: '#1B2028',
-  panelBgSoft: '#171B22',
+  appBg: '#070B12',
+  panelBg: '#0F172A',
+  panelBgSoft: '#0B1220',
   border: 'rgba(255,255,255,0.08)',
-  borderStrong: 'rgba(255,255,255,0.14)',
-  textMuted: 'rgba(255,255,255,0.72)',
+  borderStrong: 'rgba(255,255,255,0.16)',
+  textMuted: 'rgba(255,255,255,0.70)',
 };
 
 /** Lunes ISO de la semana que contiene `isoDate` (YYYY-MM-DD), hora local mediodía para evitar DST. */
@@ -343,8 +343,8 @@ function AdminMarketingScreen() {
   };
 
   return (
-    <div style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ background: ADMIN_THEME.panelBg, padding: '20px 24px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+    <div className="maqgo-admin-page" style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
+      <div className="maqgo-admin-topbar" style={{ background: ADMIN_THEME.panelBg, padding: '20px 24px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
         <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button

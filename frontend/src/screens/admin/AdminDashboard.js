@@ -17,12 +17,12 @@ const ADMIN_PALETTE = {
   danger: '#E57373',
 };
 const ADMIN_THEME = {
-  appBg: '#12151B',
-  panelBg: '#1B2028',
-  panelBgSoft: '#171B22',
+  appBg: '#070B12',
+  panelBg: '#0F172A',
+  panelBgSoft: '#0B1220',
   border: 'rgba(255,255,255,0.08)',
-  borderStrong: 'rgba(255,255,255,0.14)',
-  textMuted: 'rgba(255,255,255,0.72)',
+  borderStrong: 'rgba(255,255,255,0.16)',
+  textMuted: 'rgba(255,255,255,0.70)',
 };
 
 // Estados de pipeline (misma familia cromática: info = cola, brand = cobro pendiente, success = cerrado)
@@ -857,14 +857,14 @@ function AdminDashboard() {
   };
 
   return (
-    <div style={{ 
+    <div className="maqgo-admin-page" style={{ 
       minHeight: '100dvh', 
       background: ADMIN_THEME.appBg,
       color: '#fff',
       fontFamily: "'Inter', sans-serif"
     }}>
       {/* Header */}
-      <div style={{
+      <div className="maqgo-admin-topbar" style={{
         background: ADMIN_THEME.panelBg,
         padding: '20px 24px',
         borderBottom: `1px solid ${ADMIN_THEME.border}`
