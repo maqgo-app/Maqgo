@@ -166,7 +166,7 @@ function AdminUsersScreen() {
     return applyUserAdminStatus(u, 'active');
   };
 
-  const softDeleteUser = async (u) => {
+  const _softDeleteUser = async (u) => {
     if (!u?.id) return;
     try {
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/users/${encodeURIComponent(u.id)}`, {

@@ -20,7 +20,8 @@ try {
   if (typeof window !== "undefined" && "serviceWorker" in navigator) {
     registerSW({ immediate: true });
   }
-} catch {
+} catch (e) {
+  void e;
 }
 
 /**
