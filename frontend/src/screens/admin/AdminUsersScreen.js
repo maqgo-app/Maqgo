@@ -100,6 +100,27 @@ function AdminUsersScreen() {
     }
   };
 
+  const pickProviderRut = (u) => {
+    const candidates = [
+      u?.rut,
+      u?.companyRut,
+      u?.businessRut,
+      u?.rut_empresa,
+      u?.providerRut,
+      u?.provider_rut,
+      u?.company?.rut,
+      u?.business?.rut,
+      u?.providerData?.rut,
+      u?.providerData?.companyRut,
+      u?.provider_data?.rut,
+    ];
+    for (const c of candidates) {
+      const v = typeof c === 'string' ? c.trim() : '';
+      if (v) return v;
+    }
+    return '-';
+  };
+
   const users = useMemo(() => {
     if (tab === 'clients') return data.clients;
     if (tab === 'providers') return data.providers;
@@ -108,11 +129,8 @@ function AdminUsersScreen() {
 
   const normalizedUsers = useMemo(() => {
     return (Array.isArray(users) ? users : []).map((u) => {
-      const md = u?.machineData && typeof u.machineData === 'object' ? u.machineData : {};
-      const machineryType = u?.machineryType || md?.machineryType || '-';
-      const licensePlate = md?.licensePlate || md?.patente || md?.plate || '-';
       const onboardingCompleted = Boolean(u?.onboarding_completed);
-      return { ...u, __machineryType: machineryType, __licensePlate: licensePlate, __onboardingCompleted: onboardingCompleted };
+      return { ...u, __onboardingCompleted: onboardingCompleted };
     });
   }, [users]);
 
@@ -218,6 +236,18 @@ function AdminUsersScreen() {
 
   const machinesCount = useMemo(() => {
     return machineRows.filter((m) => String(m.machineryType || '').trim() && m.machineryType !== '-').length;
+  }, [machineRows]);
+
+  const providerMachineCountById = useMemo(() => {
+    const map = new Map();
+    machineRows.forEach((m) => {
+      const providerId = String(m?.providerId || '').trim();
+      if (!providerId) return;
+      const mt = String(m?.machineryType || '').trim();
+      if (!mt || mt === '-') return;
+      map.set(providerId, (map.get(providerId) || 0) + 1);
+    });
+    return map;
   }, [machineRows]);
 
   const openEdit = (u, kindOverride = null) => {
@@ -883,13 +913,15 @@ function AdminUsersScreen() {
                     <tr style={{ background: ADMIN_THEME.panelBgSoft }}>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>ID</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Nombre</th>
+                      {tab === 'providers' && (
+                        <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>RUT</th>
+                      )}
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Teléfono</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Estado</th>
                       {tab === 'providers' && (
                         <>
-                          <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinaria</th>
-                          <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Patente</th>
+                          <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinarias</th>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Onboarding</th>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Disponible</th>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Rol</th>
@@ -906,6 +938,9 @@ function AdminUsersScreen() {
                           {maqgoPublicId(u.id, tab === 'clients' ? 'client' : 'provider')}
                         </td>
                         <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{u.name || '-'}</td>
+                        {tab === 'providers' && (
+                          <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{pickProviderRut(u)}</td>
+                        )}
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.email || '-'}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.phone || '-'}</td>
                         <td style={{ padding: 14 }}>
@@ -924,8 +959,9 @@ function AdminUsersScreen() {
                         </td>
                         {tab === 'providers' && (
                           <>
-                            <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{u.__machineryType}</td>
-                            <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{u.__licensePlate}</td>
+                            <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
+                              {providerMachineCountById.get(String(u?.id || '').trim()) || 0}
+                            </td>
                             <td style={{ padding: 14 }}>
                               <span
                                 style={{
