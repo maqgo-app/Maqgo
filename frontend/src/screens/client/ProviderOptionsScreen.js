@@ -21,7 +21,7 @@ import BACKEND_URL from '../../utils/api';
 // MACHINERY_NO_TRANSPORT y REFERENCE_PRICES desde pricing.js; por-viaje: isPerTripMachineryType (machineryNames)
 import { MACHINERY_NO_TRANSPORT, REFERENCE_PRICES, getDemoProviders } from '../../utils/pricing';
 import { getPerTripDateLabel } from '../../utils/bookingDates';
-import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions, isPerTripMachineryType } from '../../utils/machineryNames';
+import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions, isPerTripMachineryType, formatMachineryCapacityChipLabel } from '../../utils/machineryNames';
 import {
   isTruckUrgencyBooking,
   getTruckPricingHoursFromUrgency,
@@ -398,6 +398,27 @@ function ProviderOptionsScreen() {
     return parts.join(' • ');
   })();
 
+  const capacityConstraintLabel = useMemo(() => {
+    const capOpts = getMachineryCapacityOptions(selectedMachinery);
+    const base = String(capOpts?.providerLabel || '').trim();
+    if (!base) return '';
+    const unit = String(capOpts?.unit || capOpts?.unitDisplay || '').trim();
+    return unit ? `${base} (${unit})` : base;
+  }, [selectedMachinery]);
+
+  const selectedCapacityLabel = useMemo(() => {
+    const capOpts = getMachineryCapacityOptions(selectedMachinery);
+    if (!capOpts?.clientStorageKey) return '';
+    const raw = getArray(capOpts.clientStorageKey, []);
+    if (!Array.isArray(raw) || raw.length === 0) return '';
+    const formatted = raw
+      .map((v) => formatMachineryCapacityChipLabel(selectedMachinery, v))
+      .map((s) => String(s || '').trim())
+      .filter(Boolean);
+    if (formatted.length === 0) return '';
+    return formatted.length === 1 ? formatted[0] : formatted.join(', ');
+  }, [selectedMachinery]);
+
   const handleReserveTomorrow = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -533,10 +554,13 @@ function ProviderOptionsScreen() {
             }}
           >
             <h2 style={{ color: '#fff', fontSize: 18, fontWeight: 600, margin: '0 0 8px', textAlign: 'center' }}>
-              Ningún proveedor coincide con tu selección
+              No encontramos equipos para tu selección
             </h2>
             <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center', margin: '0 0 14px', lineHeight: 1.45 }}>
-              No hay equipos que calzen con la capacidad o los requisitos elegidos (por ejemplo m³ en tolva o la especificación en la tarjeta). Prueba otra capacidad o vuelve más tarde.
+              Buscas {machineryLabel}
+              {selectedCapacityLabel ? ` (${selectedCapacityLabel})` : ''}
+              {machinerySpec && !selectedCapacityLabel ? ` (${machinerySpec})` : ''}
+              . Hoy no hay equipos que calcen con la capacidad o los requisitos elegidos{capacityConstraintLabel ? ` (por ejemplo ${capacityConstraintLabel})` : ''}. Prueba otra capacidad o vuelve más tarde.
             </p>
             <button
               type="button"
