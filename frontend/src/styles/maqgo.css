@@ -371,6 +371,7 @@ html, body, #root {
   .maqgo-funnel-split-layout > .maqgo-funnel-split-scroll.maqgo-screen--scroll,
   .maqgo-p4-provider-layout > .maqgo-p4-provider-scroll.maqgo-screen--scroll {
     touch-action: auto;
+    overscroll-behavior-y: auto;
   }
 }
 .maqgo-funnel-split-layout > .maqgo-funnel-split-footer,
