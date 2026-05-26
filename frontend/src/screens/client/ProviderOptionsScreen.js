@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
 import axios from 'axios';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import { getArray } from '../../utils/safeStorage';
-import { calculateClientPrice, totalConFactura } from '../../utils/pricing';
+import { buildPricingFallback, calculateClientPrice, getClientBreakdown, totalConFactura } from '../../utils/pricing';
 import { NoProvidersTryTomorrow } from '../../components/ErrorStates';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
@@ -21,7 +21,7 @@ import BACKEND_URL from '../../utils/api';
 // MACHINERY_NO_TRANSPORT y REFERENCE_PRICES desde pricing.js; por-viaje: isPerTripMachineryType (machineryNames)
 import { MACHINERY_NO_TRANSPORT, REFERENCE_PRICES, getDemoProviders } from '../../utils/pricing';
 import { getPerTripDateLabel } from '../../utils/bookingDates';
-import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions, isPerTripMachineryType } from '../../utils/machineryNames';
+import { MACHINERY_NAMES, formatMachineryCapacityChipLabel, getProviderSpecDisplay, getMachineryCapacityOptions, isPerTripMachineryType } from '../../utils/machineryNames';
 import {
   isTruckUrgencyBooking,
   getTruckPricingHoursFromUrgency,
@@ -70,13 +70,20 @@ function ProviderOptionsScreen() {
   const [isDemoProviders, setIsDemoProviders] = useState(false);
   const [emptyState, setEmptyState] = useState(false);
   const [isWhyOpen, setIsWhyOpen] = useState(false);
+  const [priceBreakdown, setPriceBreakdown] = useState(null);
   const normalizeMachinery = (m) => String(m || '').trim().toLowerCase().replace(/\s+/g, '_');
   const [selectedMachinery, setSelectedMachinery] = useState(() =>
     normalizeMachinery(localStorage.getItem('selectedMachinery') || 'retroexcavadora')
   );
-  const machinerySpec = typeof window !== 'undefined'
-    ? (localStorage.getItem('selectedMachinerySpec') || '')
-    : '';
+  const [machinerySpec, setMachinerySpec] = useState(() =>
+    typeof window !== 'undefined' ? (localStorage.getItem('selectedMachinerySpec') || '') : ''
+  );
+  const [capacitySpecNums, setCapacitySpecNums] = useState(() => {
+    const m = normalizeMachinery(localStorage.getItem('selectedMachinery') || 'retroexcavadora');
+    const cap = getMachineryCapacityOptions(m);
+    if (!cap?.clientStorageKey) return [];
+    return getArray(cap.clientStorageKey, []);
+  });
   const [hours, setHours] = useState(() => {
     const type = localStorage.getItem('reservationType') || 'immediate';
     const saved = localStorage.getItem('selectedHours');
@@ -91,7 +98,15 @@ function ProviderOptionsScreen() {
   });
 
   useEffect(() => {
-    setSelectedMachinery(normalizeMachinery(localStorage.getItem('selectedMachinery') || 'retroexcavadora'));
+    const m = normalizeMachinery(localStorage.getItem('selectedMachinery') || 'retroexcavadora');
+    setSelectedMachinery(m);
+    setMachinerySpec(localStorage.getItem('selectedMachinerySpec') || '');
+    const cap = getMachineryCapacityOptions(m);
+    if (!cap?.clientStorageKey) {
+      setCapacitySpecNums([]);
+    } else {
+      setCapacitySpecNums(getArray(cap.clientStorageKey, []));
+    }
   }, [pathname]);
 
   const filteredProviders = useMemo(() => {
@@ -102,8 +117,7 @@ function ProviderOptionsScreen() {
     let requiredList = [];
 
     if (capOpts && capOpts.providerField) {
-      const storageKey = capOpts.clientStorageKey;
-      requiredList = getArray(storageKey, []);
+      requiredList = capacitySpecNums;
       if (Array.isArray(requiredList) && requiredList.length > 0) {
         const keys = PROVIDER_FIELD_TO_KEYS[capOpts.providerField];
         if (keys) {
@@ -132,7 +146,9 @@ function ProviderOptionsScreen() {
     }
 
     return baseFiltered;
-  }, [providers, selectedMachinery, machinerySpec]);
+  }, [providers, selectedMachinery, machinerySpec, capacitySpecNums]);
+
+  const showFilteredEmptyNotice = !loading && providers.length > 0 && filteredProviders.length === 0;
 
   const sanitizeProviders = useCallback((items) => {
     if (!Array.isArray(items)) return [];
@@ -169,6 +185,29 @@ function ProviderOptionsScreen() {
       hours: hrs,
       days,
       reservationType: type
+    });
+  }, [needsTransport]);
+
+  const buildPricingPreview = useCallback((provider, machineryType) => {
+    const type = localStorage.getItem('reservationType') || 'immediate';
+    const urgencyType = localStorage.getItem('urgencyType') || '';
+    const savedHours = parseInt(localStorage.getItem('selectedHours') || '4', 10);
+    const savedDays = getArray('selectedDates', []);
+    const days = Math.max(1, savedDays.length);
+    let hrs = type === 'scheduled' ? 8 : Math.max(4, Math.min(8, savedHours));
+    if (type === 'immediate' && isTruckUrgencyBooking(machineryType)) {
+      hrs = Math.max(4, Math.min(8, getTruckPricingHoursFromUrgency(urgencyType)));
+    }
+    const transportFee = needsTransport() ? (provider.transport_fee || 0) : 0;
+    return buildPricingFallback({
+      machineryType,
+      basePrice: provider.price_per_hour || 0,
+      transportFee,
+      hours: hrs,
+      days,
+      reservationType: type,
+      isHybrid: false,
+      additionalDays: 0,
     });
   }, [needsTransport]);
 
@@ -250,11 +289,13 @@ function ProviderOptionsScreen() {
           price = Math.round(refTrip * (PROVIDER_OPTIONS_TRIP_SPREAD[Math.min(idx, 4)] || 1));
         }
         const p = { ...provider, price_per_hour: price };
+        const pricingPreview = buildPricingPreview(p, selectedMachinery);
         return {
           ...p,
           max_hours: calculateMaxHours(p.closing_time || '20:00', p.eta_minutes || 40),
           // UX: mostrar el mismo total bruto que se usa en P5 (con factura / mismo bruto).
-          total_price: totalConFactura(calculateTotalPrice(p, selectedMachinery)),
+          total_price: pricingPreview?.final_price ?? totalConFactura(calculateTotalPrice(p, selectedMachinery)),
+          pricing_preview: pricingPreview,
           has_transport: needsTransport(),
           primaryPhoto: p.machineData?.primaryPhoto || null
         };
@@ -281,17 +322,21 @@ function ProviderOptionsScreen() {
           : sanitizeProviders(getDemoProviders('retroexcavadora', 5, { extended: true }));
 
       setProviders(
-        safeFallback.map((p) => ({
-          ...p,
-          total_price: totalConFactura(calculateTotalPrice(p, selectedMachinery)),
-          has_transport: needsTransport(),
-          max_hours: calculateMaxHours(p.closing_time || '20:00', p.eta_minutes || 40),
-        }))
+        safeFallback.map((p) => {
+          const pricingPreview = buildPricingPreview(p, selectedMachinery);
+          return {
+            ...p,
+            total_price: pricingPreview?.final_price ?? totalConFactura(calculateTotalPrice(p, selectedMachinery)),
+            pricing_preview: pricingPreview,
+            has_transport: needsTransport(),
+            max_hours: calculateMaxHours(p.closing_time || '20:00', p.eta_minutes || 40),
+          };
+        })
       );
     } finally {
       setLoading(false);
     }
-  }, [selectedMachinery, needsTransport, calculateTotalPrice, getDemoProvidersFallback, sanitizeProviders]);
+  }, [selectedMachinery, needsTransport, calculateTotalPrice, buildPricingPreview, getDemoProvidersFallback, sanitizeProviders]);
 
   useEffect(() => {
     fetchProviders();
@@ -299,13 +344,16 @@ function ProviderOptionsScreen() {
   }, [fetchProviders, selectedMachinery]);
 
   useEffect(() => {
-    if (!isWhyOpen) return;
+    if (!isWhyOpen && !priceBreakdown) return;
     const onKeyDown = (e) => {
-      if (e.key === 'Escape') setIsWhyOpen(false);
+      if (e.key === 'Escape') {
+        setIsWhyOpen(false);
+        setPriceBreakdown(null);
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isWhyOpen]);
+  }, [isWhyOpen, priceBreakdown]);
 
   // Preload pasos 5 y 6 para evitar flash al navegar
   useEffect(() => {
@@ -397,6 +445,183 @@ function ProviderOptionsScreen() {
     }
     return parts.join(' • ');
   })();
+
+  const capOpts = useMemo(() => getMachineryCapacityOptions(selectedMachinery), [selectedMachinery]);
+  const capacityLabel = capOpts?.providerLabel || '';
+  const capacityStorageKey = capOpts?.clientStorageKey || '';
+  const hasProviderFilters =
+    Boolean(machinerySpec) || (Array.isArray(capacitySpecNums) && capacitySpecNums.length > 0);
+
+  const filteredEmptyAttemptsKey = useMemo(
+    () => `maqgo_filtered_empty_attempts_${selectedMachinery || 'unknown'}`,
+    [selectedMachinery]
+  );
+  const [filteredEmptyAttempts, setFilteredEmptyAttempts] = useState(0);
+  const prevShowFilteredEmptyNoticeRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(filteredEmptyAttemptsKey);
+      const n = Math.max(0, parseInt(raw || '0', 10) || 0);
+      setFilteredEmptyAttempts(n);
+    } catch {
+      setFilteredEmptyAttempts(0);
+    }
+  }, [filteredEmptyAttemptsKey]);
+
+  useEffect(() => {
+    if (showFilteredEmptyNotice && !prevShowFilteredEmptyNoticeRef.current) {
+      try {
+        const raw = localStorage.getItem(filteredEmptyAttemptsKey);
+        const current = Math.max(0, parseInt(raw || '0', 10) || 0);
+        const next = Math.min(20, current + 1);
+        localStorage.setItem(filteredEmptyAttemptsKey, String(next));
+        setFilteredEmptyAttempts(next);
+      } catch {}
+    }
+    prevShowFilteredEmptyNoticeRef.current = showFilteredEmptyNotice;
+  }, [showFilteredEmptyNotice, filteredEmptyAttemptsKey]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (filteredProviders.length > 0 && filteredEmptyAttempts > 0) {
+      try {
+        localStorage.setItem(filteredEmptyAttemptsKey, '0');
+      } catch {}
+      setFilteredEmptyAttempts(0);
+    }
+  }, [loading, filteredProviders.length, filteredEmptyAttempts, filteredEmptyAttemptsKey]);
+
+  const clearProviderFilters = useCallback(() => {
+    try {
+      localStorage.removeItem('selectedMachinerySpec');
+    } catch {}
+    setMachinerySpec('');
+    if (capacityStorageKey) {
+      try {
+        localStorage.setItem(capacityStorageKey, JSON.stringify([]));
+      } catch {}
+    }
+    setCapacitySpecNums([]);
+    try {
+      localStorage.setItem(filteredEmptyAttemptsKey, '0');
+    } catch {}
+    setFilteredEmptyAttempts(0);
+  }, [capacityStorageKey, filteredEmptyAttemptsKey]);
+
+  const toggleCapacitySpec = useCallback((value) => {
+    if (!capacityStorageKey) return;
+    setCapacitySpecNums((prev) => {
+      const next = Array.isArray(prev)
+        ? (prev.some((x) => Number(x) === Number(value))
+            ? prev.filter((x) => Number(x) !== Number(value))
+            : [...prev, value])
+        : [value];
+      try {
+        localStorage.setItem(capacityStorageKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, [capacityStorageKey]);
+
+  const setCapacitySpecList = useCallback((values) => {
+    if (!capacityStorageKey) return;
+    const next = Array.isArray(values) ? values : [];
+    try {
+      localStorage.setItem(capacityStorageKey, JSON.stringify(next));
+    } catch {}
+    setCapacitySpecNums(next);
+  }, [capacityStorageKey]);
+
+  const applyCapacitySuggestion = useCallback((value) => {
+    try {
+      localStorage.removeItem('selectedMachinerySpec');
+    } catch {}
+    setMachinerySpec('');
+    setCapacitySpecList([value]);
+  }, [setCapacitySpecList]);
+
+  const capacitySuggestions = useMemo(() => {
+    const opts = capOpts?.options;
+    if (!Array.isArray(opts) || opts.length === 0) return [];
+    const unique = Array.from(new Set(opts.map((x) => Number(x)).filter((x) => Number.isFinite(x))));
+    unique.sort((a, b) => a - b);
+
+    if (Array.isArray(capacitySpecNums) && capacitySpecNums.length === 1) {
+      const selected = Number(capacitySpecNums[0]);
+      const idx = unique.findIndex((x) => Number(x) === selected);
+      const candidates = [];
+      if (idx > 0) candidates.push(unique[idx - 1]);
+      if (idx >= 0) candidates.push(unique[idx]);
+      if (idx >= 0 && idx < unique.length - 1) candidates.push(unique[idx + 1]);
+      return Array.from(new Set(candidates)).slice(0, 3);
+    }
+
+    if (unique.length <= 3) return unique.slice(0, 3);
+    const mid = Math.floor(unique.length / 2);
+    return [unique[mid - 1], unique[mid], unique[mid + 1]].filter((x) => x != null).slice(0, 3);
+  }, [capOpts?.options, capacitySpecNums]);
+
+  const capacityHelpText = useMemo(() => {
+    if (!capacityLabel) return null;
+    const labelLower = String(capacityLabel || '').toLowerCase();
+    const providerField = capOpts?.providerField || '';
+    const machineryKey = String(selectedMachinery || '').toLowerCase();
+
+    let noun = labelLower;
+    if (providerField === 'bucketM3' || String(capOpts?.unit || '').toLowerCase().includes('balde')) {
+      noun = 'tamaño del balde/pala';
+    } else if (machineryKey === 'camion_tolva') {
+      noun = 'capacidad de carga';
+    } else if (machineryKey === 'camion_aljibe') {
+      noun = 'capacidad de estanque';
+    } else if (machineryKey === 'camion_pluma') {
+      noun = 'capacidad de pluma';
+    } else if (machineryKey === 'grua') {
+      noun = 'capacidad de izaje';
+    } else if (machineryKey === 'excavadora' || machineryKey === 'excavadora_hidraulica') {
+      noun = 'peso operativo';
+    } else if (machineryKey === 'bulldozer') {
+      noun = 'potencia';
+    } else if (machineryKey === 'motoniveladora') {
+      noun = 'ancho de hoja';
+    } else if (machineryKey === 'compactadora' || machineryKey === 'rodillo') {
+      noun = 'peso del rodillo';
+    }
+
+    const selectedSingle =
+      Array.isArray(capacitySpecNums) && capacitySpecNums.length === 1 ? Number(capacitySpecNums[0]) : null;
+    const selectedFormatted =
+      Number.isFinite(selectedSingle) ? formatMachineryCapacityChipLabel(selectedMachinery, selectedSingle) : null;
+
+    const suggestionLabels = (Array.isArray(capacitySuggestions) ? capacitySuggestions : [])
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v))
+      .filter((v) => (Number.isFinite(selectedSingle) ? v !== selectedSingle : true))
+      .map((v) => formatMachineryCapacityChipLabel(selectedMachinery, v));
+
+    const suggestionsText = suggestionLabels.length ? suggestionLabels.join(' o ') : null;
+
+    if (selectedFormatted && suggestionsText) {
+      return `Amplía el rango de ${noun}. Si elegiste ${selectedFormatted}, prueba ${suggestionsText}.`;
+    }
+    if (suggestionsText) {
+      return `Amplía el rango de ${noun}. Por ejemplo: prueba ${suggestionsText}.`;
+    }
+    return `Amplía el rango de ${noun}.`;
+  }, [capacityLabel, capOpts?.providerField, capOpts?.unit, capacitySpecNums, capacitySuggestions, selectedMachinery]);
+
+  const openPriceBreakdownFor = useCallback((provider, optionLabel) => {
+    const preview = provider?.pricing_preview || buildPricingPreview(provider, selectedMachinery);
+    setPriceBreakdown({
+      optionLabel,
+      providerId: provider?.id,
+      preview,
+      breakdown: getClientBreakdown(preview),
+      hasTransport: Boolean(needsTransport() && (provider?.transport_fee || 0) > 0),
+      isPerTrip: isPerTripMachineryType(selectedMachinery),
+    });
+  }, [buildPricingPreview, needsTransport, selectedMachinery]);
 
   const handleReserveTomorrow = () => {
     const tomorrow = new Date();
@@ -520,65 +745,6 @@ function ProviderOptionsScreen() {
     );
   }
 
-  if (!loading && providers.length > 0 && filteredProviders.length === 0) {
-    return (
-      <div className="maqgo-app maqgo-client-funnel">
-        <div className="maqgo-screen maqgo-screen--scroll" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px', justifyContent: 'center' }}>
-          <div
-            style={{
-              background: '#2A2A2A',
-              borderRadius: 16,
-              padding: 20,
-              marginBottom: 16
-            }}
-          >
-            <h2 style={{ color: '#fff', fontSize: 18, fontWeight: 600, margin: '0 0 8px', textAlign: 'center' }}>
-              Ningún proveedor coincide con tu selección
-            </h2>
-            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center', margin: '0 0 14px', lineHeight: 1.45 }}>
-              No hay equipos que calzen con la capacidad o los requisitos elegidos (por ejemplo m³ en tolva o la especificación en la tarjeta). Prueba otra capacidad o vuelve más tarde.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/client/machinery')}
-              style={{
-                width: '100%',
-                padding: 14,
-                background: '#EC6819',
-                border: 'none',
-                borderRadius: 24,
-                color: '#fff',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-                marginBottom: 10
-              }}
-            >
-              Cambiar maquinaria o capacidad
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/client/home')}
-              style={{
-                width: '100%',
-                padding: 12,
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.25)',
-                borderRadius: 24,
-                color: '#fff',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer'
-              }}
-            >
-              Volver al inicio
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="maqgo-app maqgo-client-funnel maqgo-p4-provider-layout">
       <div className="maqgo-screen maqgo-screen--scroll maqgo-p4-provider-scroll">
@@ -611,7 +777,7 @@ function ProviderOptionsScreen() {
 
         {isDemoProviders && (
           <div className="demo-banner" role="status" aria-live="polite">
-            No pudimos cargar proveedores en este momento. Estamos mostrando opciones referenciales.
+            No pudimos cargar todas las opciones en este momento. Te mostramos algunas alternativas mientras lo resolvemos.
           </div>
         )}
 
@@ -643,34 +809,192 @@ function ProviderOptionsScreen() {
           {bookingSummary}
         </p>
 
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-          <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, lineHeight: 1.45 }}>
-            Ordenado por precio total y cercanía.
-          </span>
-          <button
-            type="button"
-            onClick={() => setIsWhyOpen(true)}
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              color: '#90BDD3',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              textUnderlineOffset: 3
-            }}
-            aria-haspopup="dialog"
-            aria-expanded={isWhyOpen}
-          >
-            ¿Por qué?
-          </button>
-        </div>
+        {hasProviderFilters && (
+          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+            {machinerySpec ? (
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem('selectedMachinerySpec');
+                  } catch {}
+                  setMachinerySpec('');
+                }}
+                className="maqgo-chip maqgo-chip--selected"
+                style={{
+                  padding: '7px 10px',
+                  borderRadius: 999,
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  backgroundColor: '#EC6819',
+                  color: '#fff',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                {machinerySpec} ×
+              </button>
+            ) : null}
+            {Array.isArray(capacitySpecNums) && capacitySpecNums.length > 0 ? (
+              capacitySpecNums.map((n) => (
+                <button
+                  key={String(n)}
+                  type="button"
+                  onClick={() => toggleCapacitySpec(n)}
+                  className="maqgo-chip maqgo-chip--selected"
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: 999,
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    backgroundColor: '#EC6819',
+                    color: '#fff',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
+                  aria-label={`Quitar ${capacityLabel ? `${capacityLabel}: ` : ''}${formatMachineryCapacityChipLabel(selectedMachinery, n)}`}
+                >
+                  {formatMachineryCapacityChipLabel(selectedMachinery, n)} ×
+                </button>
+              ))
+            ) : null}
+          </div>
+        )}
 
-        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, textAlign: 'center', marginBottom: 10, lineHeight: 1.45, padding: '0 12px' }}>
-          Compara precio total y tiempo estimado; luego selecciona el proveedor que prefieras.
-        </p>
+        {!showFilteredEmptyNotice ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, lineHeight: 1.45 }}>
+                Ordenado por precio total y cercanía.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsWhyOpen(true)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: '#90BDD3',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 3
+                }}
+                aria-haspopup="dialog"
+                aria-expanded={isWhyOpen}
+              >
+                ¿Por qué?
+              </button>
+            </div>
+
+            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, textAlign: 'center', marginBottom: 10, lineHeight: 1.45, padding: '0 12px' }}>
+              Compara precio total y tiempo estimado; luego selecciona el proveedor que prefieras.
+            </p>
+          </>
+        ) : (
+          <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, padding: 14, marginBottom: 14 }}>
+            <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, textAlign: 'center', marginBottom: 6 }}>
+              No encontramos opciones para {MACHINERY_NAMES[selectedMachinery] || selectedMachinery}
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center', lineHeight: 1.45, marginBottom: 12 }}>
+              {capacityLabel
+                ? `${capacityHelpText || `Prueba cambiando la ${capacityLabel.toLowerCase()}.`} También puedes quitar filtros para ver más alternativas.`
+                : 'Prueba cambiando la maquinaria o la capacidad, o quita filtros para ver más alternativas.'}
+            </div>
+            {capacityLabel && capacitySuggestions.length > 0 ? (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, textAlign: 'center', marginBottom: 8 }}>
+                  Probar otra {capacityLabel.toLowerCase()}:
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {capacitySuggestions.map((v) => (
+                    <button
+                      key={String(v)}
+                      type="button"
+                      onClick={() => applyCapacitySuggestion(v)}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 999,
+                        border: '1px solid rgba(255,255,255,0.18)',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: '#fff',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {formatMachineryCapacityChipLabel(selectedMachinery, v)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {hasProviderFilters ? (
+              <button
+                type="button"
+                onClick={clearProviderFilters}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  background: '#EC6819',
+                  border: 'none',
+                  borderRadius: 24,
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  marginBottom: 10
+                }}
+              >
+                Quitar filtros y ver opciones
+              </button>
+            ) : null}
+            {filteredEmptyAttempts >= 2 ? (
+              <div style={{ background: 'rgba(236, 104, 25, 0.10)', border: '1px solid rgba(236, 104, 25, 0.22)', borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                <div style={{ color: '#fff', fontSize: 13, fontWeight: 700, textAlign: 'center', marginBottom: 6 }}>
+                  Propuesta rápida
+                </div>
+                <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, textAlign: 'center', lineHeight: 1.45 }}>
+                  Te conviene ver opciones disponibles sin ese filtro y afinar el detalle después.
+                </div>
+              </div>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => navigate('/client/machinery')}
+              style={{
+                width: '100%',
+                padding: 12,
+                background: hasProviderFilters ? 'transparent' : '#EC6819',
+                border: hasProviderFilters ? '1px solid rgba(255,255,255,0.25)' : 'none',
+                borderRadius: 24,
+                color: '#fff',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginBottom: 10
+              }}
+            >
+              Cambiar maquinaria o capacidad
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/client/home')}
+              style={{
+                width: '100%',
+                padding: 12,
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 24,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer'
+              }}
+            >
+              Volver al inicio
+            </button>
+          </div>
+        )}
 
         {/* Aviso: pocos proveedores por sábado */}
         {reservationType === 'scheduled' && hasSaturday && providers.length > 0 && providers.length < 3 && (
@@ -757,6 +1081,81 @@ function ProviderOptionsScreen() {
           </div>
         ) : null}
 
+        {priceBreakdown ? (
+          <div
+            className="maqgo-modal-overlay"
+            role="presentation"
+            onClick={() => setPriceBreakdown(null)}
+          >
+            <div
+              className="maqgo-modal-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Desglose de la tarifa"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ color: '#fff', fontSize: 16, fontWeight: 800, margin: '0 0 10px' }}>
+                {priceBreakdown.optionLabel}: desglose
+              </h3>
+              <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13 }}>Tarifa del proveedor</span>
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                    {formatPrice(priceBreakdown.breakdown?.service || 0)}
+                  </span>
+                </div>
+                {priceBreakdown.breakdown?.bonus ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                    <span style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13 }}>Bonificación por disponibilidad</span>
+                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                      {formatPrice(priceBreakdown.breakdown.bonus)}
+                    </span>
+                  </div>
+                ) : null}
+                {priceBreakdown.breakdown?.transport ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                    <span style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13 }}>Traslado</span>
+                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                      {formatPrice(priceBreakdown.breakdown.transport)}
+                    </span>
+                  </div>
+                ) : null}
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13 }}>Tarifa por Servicio</span>
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                    {formatPrice(priceBreakdown.breakdown?.tarifaConIva || 0)}
+                  </span>
+                </div>
+                <div style={{ height: 1, background: 'rgba(255,255,255,0.10)', margin: '10px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.92)', fontSize: 14, fontWeight: 800 }}>Total estimado</span>
+                  <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 900 }}>
+                    {formatPrice(priceBreakdown.breakdown?.total || priceBreakdown.preview?.final_price || 0)}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPriceBreakdown(null)}
+                style={{
+                  width: '100%',
+                  marginTop: 14,
+                  padding: 12,
+                  background: '#EC6819',
+                  border: 'none',
+                  borderRadius: 12,
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {/* Lista: sin scroll interno — el scroll es el de .maqgo-screen--scroll (evita CTA fuera de vista / doble scroll). */}
         <div style={{ paddingBottom: 8 }}>
           {filteredProviders.map((provider, index) => {
@@ -825,9 +1224,29 @@ function ProviderOptionsScreen() {
                       <div style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 2 }}>
                         {optionLabel}
                       </div>
-                      <span style={{ color: '#EC6819', fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          openPriceBreakdownFor(provider, optionLabel);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          color: '#EC6819',
+                          fontSize: 20,
+                          fontWeight: 700,
+                          letterSpacing: '-0.02em',
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: 3,
+                        }}
+                        aria-haspopup="dialog"
+                      >
                         {formatPrice(provider.total_price)}
-                      </span>
+                      </button>
                       {/* Subtítulo: qué incluye el precio (transparencia) */}
                       <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4, lineHeight: 1.3 }}>
                         {isPerTripMachineryType(selectedMachinery) ? (
