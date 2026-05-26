@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import BACKEND_URL, { clearAdminSession, fetchWithAuth } from '../utils/api';
 import {
@@ -459,7 +459,29 @@ function AdminRoute() {
     return <Navigate to="/admin" replace />;
   }
 
-  return <Outlet />;
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: '100vh',
+            background: 'var(--maqgo-bg)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            padding: 24,
+            textAlign: 'center',
+          }}
+        >
+          <p style={{ fontSize: 16, margin: 0 }}>Cargando panel administrativo…</p>
+        </div>
+      }
+    >
+      <Outlet />
+    </Suspense>
+  );
 }
 
 export default AdminRoute;
