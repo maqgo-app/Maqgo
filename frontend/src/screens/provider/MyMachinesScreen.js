@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { ProviderNavigation } from '../../components/BottomNavigation';
 import { useToast } from '../../components/Toast';
+import { useAuth } from '../../context/authHooks';
 import {
   deleteMachineInApi,
   fetchProviderMachinesFromApi,
@@ -30,7 +31,9 @@ function toMachineryId(type) {
 function MyMachinesScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hasPermission } = useAuth();
   const toast = useToast();
+  const canManageMachines = hasPermission('canManageMachines');
   const activationEdit = Boolean(location.state?.activationEdit);
   const returnTo = String(location.state?.returnTo || '/provider/home');
   const openOperatorForMachineId = location.state?.openOperatorForMachineId;
@@ -41,6 +44,10 @@ function MyMachinesScreen() {
   const [editPricingModal, setEditPricingModal] = useState(null);
   const [operatorModal, setOperatorModal] = useState(null);
   const [deleteMachineConfirm, setDeleteMachineConfirm] = useState(null);
+
+  if (!canManageMachines) {
+    return <Navigate to="/provider/home" replace />;
+  }
 
   const loadMachines = () => setMachines(getMachines());
 

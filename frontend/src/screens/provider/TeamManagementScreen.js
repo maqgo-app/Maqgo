@@ -46,12 +46,25 @@ function TeamManagementScreen() {
   const [operatorNombreCompleto, setOperatorNombreCompleto] = useState('');
   const [operatorRut, setOperatorRut] = useState('');
   const [operatorPhone, setOperatorPhone] = useState('');
+  const [masterInvitePermissions, setMasterInvitePermissions] = useState({
+    can_view_finance: false,
+    can_manage_machines: false,
+    can_manage_operators: false,
+    can_create_work: false,
+    can_assign_operator: false,
+    can_view_work_details: true,
+    can_edit_master_profile: false,
+    can_delete_master: false,
+  });
   const [didAttemptInvite, setDidAttemptInvite] = useState(false);
   const [declaredOperators, setDeclaredOperators] = useState([]);
   const [declaredLoading, setDeclaredLoading] = useState(false);
   const [selectedDeclaredKeys, setSelectedDeclaredKeys] = useState(() => new Set());
   const [inviteSearch, setInviteSearch] = useState('');
   const [useManualInvite, setUseManualInvite] = useState(false);
+  const [financeSummary, setFinanceSummary] = useState({ facturado: 0, porCobrar: 0, pagado: 0 });
+  const [worksByMaster, setWorksByMaster] = useState({});
+  const [dashboardLoading, setDashboardLoading] = useState(false);
   const GPS_FRESH_MINUTES = 10;
   const GPS_STALE_MINUTES = 120;
 
@@ -68,6 +81,16 @@ function TeamManagementScreen() {
     setOperatorNombreCompleto('');
     setOperatorRut('');
     setOperatorPhone('');
+    setMasterInvitePermissions({
+      can_view_finance: false,
+      can_manage_machines: false,
+      can_manage_operators: false,
+      can_create_work: false,
+      can_assign_operator: false,
+      can_view_work_details: true,
+      can_edit_master_profile: false,
+      can_delete_master: false,
+    });
     setInviteSearch('');
     setUseManualInvite(false);
     setSelectedDeclaredKeys(new Set());
@@ -190,13 +213,152 @@ function TeamManagementScreen() {
     return `+${digits}`;
   };
 
+  const base64UrlEncodeJson = (obj) => {
+    try {
+      const json = JSON.stringify(obj || {});
+      const b64 = btoa(json);
+      return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    } catch {
+      return '';
+    }
+  };
+
+  const loadMasterInvitePermissionsByCode = () => {
+    try {
+      const raw = localStorage.getItem('masterInvitePermissionsByCode') || '{}';
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const persistMasterInvitePermissionsByCode = (code, perms) => {
+    const c = String(code || '').trim().toUpperCase();
+    if (!c) return;
+    try {
+      const map = loadMasterInvitePermissionsByCode();
+      map[c] = perms;
+      localStorage.setItem('masterInvitePermissionsByCode', JSON.stringify(map));
+    } catch {
+      void 0;
+    }
+  };
+
+  const buildMasterJoinLink = (code, perms) => {
+    const c = String(code || '').trim().toUpperCase();
+    if (!c) return '';
+    const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+    const p = base64UrlEncodeJson(perms || {});
+    const qs = p ? `?code=${encodeURIComponent(c)}&p=${encodeURIComponent(p)}` : `?code=${encodeURIComponent(c)}`;
+    return `${origin}/master/join${qs}`;
+  };
+
+  const formatClp = (value) =>
+    new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(
+      Number(value || 0) || 0
+    );
+
+  const computeFinanceFromServices = (services) => {
+    const list = Array.isArray(services) ? services : [];
+    const amountReceived = (s) => {
+      if (s?.paid_without_invoice && s?.amount_paid_to_provider != null) return Number(s.amount_paid_to_provider) || 0;
+      return Number(s?.net_total) || 0;
+    };
+    let facturado = 0;
+    let porCobrar = 0;
+    let pagado = 0;
+    list.forEach((s) => {
+      const status = String(s?.status || '');
+      const amt = amountReceived(s);
+      if (status === 'paid') {
+        pagado += amt;
+        facturado += amt;
+        return;
+      }
+      if (status === 'approved' || status === 'invoiced') {
+        porCobrar += amt;
+        facturado += amt;
+      }
+    });
+    return { facturado: Math.round(facturado), porCobrar: Math.round(porCobrar), pagado: Math.round(pagado) };
+  };
+
+  const computeFinanceByMember = (services, members) => {
+    const list = Array.isArray(services) ? services : [];
+    const ids = new Set((Array.isArray(members) ? members : []).map((m) => String(m?.id || '')).filter(Boolean));
+    const out = {};
+    ids.forEach((id) => {
+      out[id] = { facturado: 0, porCobrar: 0, pagado: 0 };
+    });
+    list.forEach((svc) => {
+      const memberId = String(svc?.provider_id || svc?.providerId || '');
+      if (!memberId || !ids.has(memberId)) return;
+      out[memberId] = out[memberId] || { facturado: 0, porCobrar: 0, pagado: 0 };
+      const totals = computeFinanceFromServices([svc]);
+      out[memberId].facturado += totals.facturado;
+      out[memberId].porCobrar += totals.porCobrar;
+      out[memberId].pagado += totals.pagado;
+    });
+    return out;
+  };
+
   const buildInviteMessage = (code, type = inviteType) => {
     const c = String(code || '').trim().toUpperCase();
     if (type === 'master') {
-      return `Tu código de acceso MAQGO (Gerente) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy gerente”\n3) Ingresa el código\n\nVálido por 7 días.`;
+      const link = buildMasterJoinLink(c, masterInvitePermissions);
+      return `Tu código de acceso MAQGO (Gerente) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy gerente”\n3) Ingresa el código\n\nLink directo:\n${link}\n\nVálido por 7 días.`;
     }
     return `Tu código de activación MAQGO (Operador) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy operador (tengo código)”\n3) Ingresa el código\n\nVálido por 7 días.`;
   };
+
+  useEffect(() => {
+    if (!isSuperMasterUser) return;
+    if (activeTab !== 'team') return;
+    if (inviteType !== 'master') return;
+    const userId = localStorage.getItem('userId');
+    const ownerId = localStorage.getItem('ownerId') || userId;
+    if (!ownerId) return;
+    let cancelled = false;
+    const run = async () => {
+      setDashboardLoading(true);
+      try {
+        const servicesRes = await fetchWithAuth(`${BACKEND_URL}/api/services/provider/${ownerId}`, {}, 20000);
+        if (cancelled) return;
+        const servicesData = servicesRes.ok ? await servicesRes.json() : {};
+        const services = Array.isArray(servicesData?.services) ? servicesData.services : [];
+        setFinanceSummary(computeFinanceFromServices(services));
+        const masterIds = (Array.isArray(team.masters) ? team.masters : [])
+          .map((m) => String(m?.id || ''))
+          .filter(Boolean);
+        const masterResponses = await Promise.all(
+          masterIds.map((id) => fetchWithAuth(`${BACKEND_URL}/api/services/provider/${encodeURIComponent(id)}`, {}, 20000))
+        );
+        const allMasterServices = [];
+        for (const r of masterResponses) {
+          if (!r?.ok) continue;
+          try {
+            const d = await r.json();
+            const list = Array.isArray(d?.services) ? d.services : [];
+            allMasterServices.push(...list);
+          } catch {
+            void 0;
+          }
+        }
+        setWorksByMaster(computeFinanceByMember(allMasterServices, team.masters));
+      } catch {
+        if (cancelled) return;
+        setFinanceSummary({ facturado: 0, porCobrar: 0, pagado: 0 });
+        setWorksByMaster({});
+      } finally {
+        if (!cancelled) setDashboardLoading(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, inviteType, isSuperMasterUser, refreshKey, team.masters]);
 
   const generateInviteCode = async () => {
     setDidAttemptInvite(true);
@@ -277,6 +439,9 @@ function TeamManagementScreen() {
       const response = await axios.post(endpoint, payload);
       
       setInviteCode(response.data.code);
+      if (inviteType === 'master' && response?.data?.code) {
+        persistMasterInvitePermissionsByCode(response.data.code, masterInvitePermissions);
+      }
       setBatchInvites(null);
       setShowCode(true);
       // Limpiar formulario de datos de operador
@@ -621,6 +786,57 @@ function TeamManagementScreen() {
               <>
                 {inviteType === 'master' ? (
                   <div style={{ marginBottom: 20 }}>
+                    {isSuperMasterUser && (
+                      <div
+                        style={{
+                          background: 'rgba(255,255,255,0.06)',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          borderRadius: 14,
+                          padding: 14,
+                          marginBottom: 14,
+                        }}
+                      >
+                        <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: 0, fontWeight: 800, textTransform: 'uppercase' }}>
+                          Finanzas (Empresa)
+                        </p>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 140px', background: 'rgba(0,0,0,0.25)', borderRadius: 12, padding: 12, border: '1px solid rgba(255,255,255,0.10)' }}>
+                            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: 0 }}>Total facturado</p>
+                            <p style={{ color: '#fff', fontSize: 18, fontWeight: 800, margin: '6px 0 0' }}>{formatClp(financeSummary.facturado)}</p>
+                          </div>
+                          <div style={{ flex: '1 1 140px', background: 'rgba(0,0,0,0.25)', borderRadius: 12, padding: 12, border: '1px solid rgba(255,255,255,0.10)' }}>
+                            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: 0 }}>Por cobrar</p>
+                            <p style={{ color: '#fff', fontSize: 18, fontWeight: 800, margin: '6px 0 0' }}>{formatClp(financeSummary.porCobrar)}</p>
+                          </div>
+                          <div style={{ flex: '1 1 140px', background: 'rgba(0,0,0,0.25)', borderRadius: 12, padding: 12, border: '1px solid rgba(255,255,255,0.10)' }}>
+                            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: 0 }}>Pagado</p>
+                            <p style={{ color: '#fff', fontSize: 18, fontWeight: 800, margin: '6px 0 0' }}>{formatClp(financeSummary.pagado)}</p>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                          <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, margin: 0 }}>
+                            {dashboardLoading ? 'Actualizando…' : 'Desglose interno por gerente (WORKs aceptados)'}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/provider/cobros')}
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: 999,
+                              border: '1px solid rgba(255,255,255,0.16)',
+                              background: 'rgba(0,0,0,0.20)',
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Ver cobros
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
                       Gerentes ({team.masters?.length || 0})
                     </p>
@@ -660,6 +876,18 @@ function TeamManagementScreen() {
                             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
                               {member.phone || 'Sin celular'}
                             </p>
+                            {isSuperMasterUser && worksByMaster[String(member.id || '')] && (
+                              <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: '6px 0 0' }}>
+                                Facturado:{' '}
+                                <strong style={{ color: '#fff' }}>{formatClp(worksByMaster[String(member.id)].facturado || 0)}</strong>
+                                {' · '}
+                                Por cobrar:{' '}
+                                <strong style={{ color: '#fff' }}>{formatClp(worksByMaster[String(member.id)].porCobrar || 0)}</strong>
+                                {' · '}
+                                Pagado:{' '}
+                                <strong style={{ color: '#fff' }}>{formatClp(worksByMaster[String(member.id)].pagado || 0)}</strong>
+                              </p>
+                            )}
                           </div>
                           <span
                             style={{
@@ -1207,6 +1435,130 @@ function TeamManagementScreen() {
                         )}
                       </>
                     )}
+                  </div>
+                )}
+
+                {inviteType === 'master' && (
+                  <div style={{ marginBottom: 20 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
+                      Datos del gerente (opcional)
+                    </p>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                        Nombre
+                      </label>
+                      <input
+                        type="text"
+                        value={operatorNombreCompleto}
+                        onChange={(e) => setOperatorNombreCompleto(e.target.value)}
+                        placeholder="Ej: Juan Pérez"
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #444',
+                          background: '#1F1F1F',
+                          color: '#fff',
+                          fontSize: 14,
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                        Celular
+                      </label>
+                      <input
+                        type="tel"
+                        value={operatorPhone}
+                        onChange={(e) => setOperatorPhone(e.target.value)}
+                        placeholder="+56 9 1234 5678"
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #444',
+                          background: '#1F1F1F',
+                          color: '#fff',
+                          fontSize: 14,
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+
+                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', margin: '8px 0 10px' }}>
+                      Permisos del gerente
+                    </p>
+                    <div
+                      style={{
+                        borderRadius: 12,
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        background: 'rgba(255,255,255,0.06)',
+                        padding: 12,
+                      }}
+                    >
+                      {[
+                        { k: 'can_view_finance', label: 'Ver finanzas' },
+                        { k: 'can_manage_machines', label: 'Gestionar máquinas' },
+                        { k: 'can_manage_operators', label: 'Gestionar operadores' },
+                        { k: 'can_create_work', label: 'Crear WORK' },
+                        { k: 'can_assign_operator', label: 'Asignar operador' },
+                        { k: 'can_view_work_details', label: 'Ver detalle de WORK' },
+                        { k: 'can_edit_master_profile', label: 'Editar perfil' },
+                        { k: 'can_delete_master', label: 'Eliminar gerente' },
+                      ].map((it) => {
+                        const checked = Boolean(masterInvitePermissions?.[it.k]);
+                        return (
+                          <button
+                            key={it.k}
+                            type="button"
+                            onClick={() =>
+                              setMasterInvitePermissions((prev) => ({
+                                ...(prev || {}),
+                                [it.k]: !Boolean(prev?.[it.k]),
+                              }))
+                            }
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 12,
+                              padding: '10px 12px',
+                              borderRadius: 10,
+                              border: '1px solid rgba(255,255,255,0.10)',
+                              background: checked ? 'rgba(156, 39, 176, 0.16)' : 'rgba(0,0,0,0.12)',
+                              cursor: 'pointer',
+                              marginBottom: 8,
+                              textAlign: 'left',
+                            }}
+                          >
+                            <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{it.label}</span>
+                            <span
+                              style={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: 4,
+                                border: checked ? '1px solid #9C27B0' : '1px solid rgba(255,255,255,0.35)',
+                                background: checked ? '#9C27B0' : 'transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                color: '#fff',
+                                fontSize: 12,
+                                fontWeight: 900,
+                              }}
+                            >
+                              {checked ? '✓' : ''}
+                            </span>
+                          </button>
+                        );
+                      })}
+                      <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, margin: '6px 0 0' }}>
+                        Estos permisos se aplican en la app del gerente en este dispositivo (no se guardan en backend).
+                      </p>
+                    </div>
                   </div>
                 )}
 

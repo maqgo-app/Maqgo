@@ -21,6 +21,46 @@ import { ensurePushSubscribedIfGranted } from '../utils/pushNotifications';
 
 const AuthContext = createContext(null);
 
+function safeJsonParse(raw, fallback) {
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === 'object' ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function loadMasterPermissionsForUser(userId) {
+  if (!userId) return null;
+  try {
+    const raw = localStorage.getItem('masterPermissionsByUserId') || '{}';
+    const map = safeJsonParse(raw, {});
+    const perms = map[String(userId)];
+    return perms && typeof perms === 'object' ? perms : null;
+  } catch {
+    return null;
+  }
+}
+
+function applyMasterPermissions(mergedPerms, masterPermissions) {
+  const p = masterPermissions && typeof masterPermissions === 'object' ? masterPermissions : null;
+  if (!p) return mergedPerms;
+  const bool = (k, fallback = false) => (typeof p[k] === 'boolean' ? p[k] : fallback);
+  return {
+    ...mergedPerms,
+    canViewFinances: bool('can_view_finance', mergedPerms.canViewFinances),
+    canViewInvoices: bool('can_view_finance', mergedPerms.canViewInvoices),
+    canUploadInvoice: bool('can_view_finance', mergedPerms.canUploadInvoice),
+    canManageOperators: bool('can_manage_operators', mergedPerms.canManageOperators),
+    canManageMachines: bool('can_manage_machines', mergedPerms.canManageMachines),
+    canCreateWork: bool('can_create_work', mergedPerms.canCreateWork),
+    canAssignOperator: bool('can_assign_operator', mergedPerms.canAssignOperator),
+    canViewWorkDetails: bool('can_view_work_details', mergedPerms.canViewWorkDetails),
+    canEditMasterProfile: bool('can_edit_master_profile', mergedPerms.canEditMasterProfile),
+    canDeleteMaster: bool('can_delete_master', mergedPerms.canDeleteMaster),
+  };
+}
+
 // Permisos por defecto según rol
 const DEFAULT_PERMISSIONS = {
   super_master: {
@@ -32,18 +72,30 @@ const DEFAULT_PERMISSIONS = {
     canViewBankData: true,
     canAcceptRequests: true,
     canViewServices: true,
-    canViewDashboard: true
+    canViewDashboard: true,
+    canManageMachines: true,
+    canCreateWork: true,
+    canAssignOperator: true,
+    canViewWorkDetails: true,
+    canEditMasterProfile: true,
+    canDeleteMaster: true,
   },
   master: {
-    canViewFinances: true,
-    canViewInvoices: true,
-    canUploadInvoice: true,
-    canManageOperators: true,
+    canViewFinances: false,
+    canViewInvoices: false,
+    canUploadInvoice: false,
+    canManageOperators: false,
     canManageMasters: false,
-    canViewBankData: true,
-    canAcceptRequests: true,
+    canViewBankData: false,
+    canAcceptRequests: false,
     canViewServices: true,
-    canViewDashboard: true
+    canViewDashboard: true,
+    canManageMachines: false,
+    canCreateWork: false,
+    canAssignOperator: false,
+    canViewWorkDetails: true,
+    canEditMasterProfile: false,
+    canDeleteMaster: false,
   },
   owner: {
     canViewFinances: true,
@@ -54,7 +106,13 @@ const DEFAULT_PERMISSIONS = {
     canViewBankData: true,
     canAcceptRequests: true,
     canViewServices: true,
-    canViewDashboard: true
+    canViewDashboard: true,
+    canManageMachines: true,
+    canCreateWork: true,
+    canAssignOperator: true,
+    canViewWorkDetails: true,
+    canEditMasterProfile: true,
+    canDeleteMaster: true,
   },
   operator: {
     canViewFinances: false,
@@ -65,7 +123,13 @@ const DEFAULT_PERMISSIONS = {
     canViewBankData: false,
     canAcceptRequests: false,
     canViewServices: true,
-    canViewDashboard: false
+    canViewDashboard: false,
+    canManageMachines: false,
+    canCreateWork: false,
+    canAssignOperator: false,
+    canViewWorkDetails: false,
+    canEditMasterProfile: false,
+    canDeleteMaster: false,
   }
 };
 
@@ -118,7 +182,11 @@ export function AuthProvider({ children }) {
             if (typeof apiPerms.can_view_bank_data === 'boolean') mergedPerms.canViewBankData = apiPerms.can_view_bank_data;
             if (typeof apiPerms.can_accept_requests === 'boolean') mergedPerms.canAcceptRequests = apiPerms.can_accept_requests;
             if (typeof apiPerms.can_view_services === 'boolean') mergedPerms.canViewServices = apiPerms.can_view_services;
-            setPermissions(mergedPerms);
+            const effectivePerms =
+              role === 'master'
+                ? applyMasterPermissions(mergedPerms, loadMasterPermissionsForUser(userId))
+                : mergedPerms;
+            setPermissions(effectivePerms);
             setOwnerId(roleData.owner_id || null);
             setOwnerName(roleData.owner_name);
             localStorage.setItem('providerRole', role);
@@ -162,7 +230,12 @@ export function AuthProvider({ children }) {
     setUser({ id: userId, role: userRole });
     const permKey = userRole === 'provider' ? normalizedRole : 'super_master';
     setProviderRole(userRole === 'provider' ? normalizedRole : 'super_master');
-    setPermissions(DEFAULT_PERMISSIONS[permKey] || DEFAULT_PERMISSIONS.super_master);
+    const basePerms = DEFAULT_PERMISSIONS[permKey] || DEFAULT_PERMISSIONS.super_master;
+    const effectivePerms =
+      userRole === 'provider' && normalizedRole === 'master'
+        ? applyMasterPermissions(basePerms, loadMasterPermissionsForUser(userId))
+        : basePerms;
+    setPermissions(effectivePerms);
   }, []);
 
   const logout = useCallback(() => {
@@ -178,6 +251,27 @@ export function AuthProvider({ children }) {
   }, []);
 
   const hasPermission = useCallback((permission) => permissions[permission] === true, [permissions]);
+  const can = useCallback(
+    (permission) => {
+      const key = String(permission || '').trim();
+      if (!key) return false;
+      if (Object.prototype.hasOwnProperty.call(permissions, key)) return permissions[key] === true;
+      const map = {
+        can_view_finance: 'canViewFinances',
+        can_manage_machines: 'canManageMachines',
+        can_manage_operators: 'canManageOperators',
+        can_create_work: 'canCreateWork',
+        can_assign_operator: 'canAssignOperator',
+        can_view_work_details: 'canViewWorkDetails',
+        can_edit_master_profile: 'canEditMasterProfile',
+        can_delete_master: 'canDeleteMaster',
+      };
+      const mapped = map[key];
+      if (mapped && Object.prototype.hasOwnProperty.call(permissions, mapped)) return permissions[mapped] === true;
+      return false;
+    },
+    [permissions]
+  );
   const isOwner = useCallback(() => providerRole === 'super_master' || providerRole === 'owner', [providerRole]);
   const isSuperMaster = useCallback(() => providerRole === 'super_master' || providerRole === 'owner', [providerRole]);
   const isMaster = useCallback(() => providerRole === 'master', [providerRole]);
@@ -269,6 +363,7 @@ export function AuthProvider({ children }) {
     login,
     logout,
     hasPermission,
+    can,
     isOwner,
     isSuperMaster,
     isMaster,

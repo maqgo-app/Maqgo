@@ -162,6 +162,9 @@ const OperatorHomeScreen = lazy(() => import('./screens/operator/OperatorHomeScr
 const OperatorHistoryScreen = lazy(() => import('./screens/operator/OperatorHistoryScreen'));
 const OperatorServiceCompletedScreen = lazy(() => import('./screens/operator/OperatorServiceCompletedScreen'));
 
+// Master (Gerente)
+const MasterJoinScreen = lazy(() => import('./screens/master/MasterJoinScreen.jsx'));
+
 // Admin
 const AdminDashboard = lazy(() => import('./screens/admin/AdminDashboard'));
 const AdminPricingScreen = lazy(() => import('./screens/admin/AdminPricingScreen'));
@@ -344,6 +347,8 @@ function AppContent() {
         <Route path="/faq" element={<FAQScreen />} />
         <Route path="/terms" element={<TermsScreen />} />
         <Route path="/privacy" element={<PrivacyScreen />} />
+        <Route path="/master/join" element={<MasterJoinScreen />} />
+        <Route path="/operator/join" element={<OperatorJoinScreen />} />
 
         {/* Admin: puerta única en /admin (sin pasar por ProtectedRoute → no redirige a /login comercial). */}
         <Route path="/admin" element={<AdminRoute />}>
@@ -541,7 +546,6 @@ function AppContent() {
         <Route path="/provider/profile/maqgo-billing" element={<MaqgoBillingScreen />} />
 
         {/* Operador */}
-        <Route path="/operator/join" element={<OperatorJoinScreen />} />
         <Route path="/operator/home" element={<OperatorHomeScreen />} />
         <Route path="/operator/history" element={<OperatorHistoryScreen />} />
         <Route path="/operator/completed" element={<OperatorServiceCompletedScreen />} />

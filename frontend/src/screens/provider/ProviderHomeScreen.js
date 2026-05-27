@@ -12,6 +12,7 @@ import { traceRedirectToLogin } from '../../utils/traceLoginRedirect';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { getProviderOnboardingRoute } from '../../utils/providerOnboarding';
 import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
+import { useAuth } from '../../context/authHooks';
 
 /** Sin valor guardado → ON (optimización primera solicitud); backend/local sync pueden corregir después. */
 function readProviderAvailableDefaultOn() {
@@ -33,6 +34,7 @@ function ProviderHomeScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
+  const { can, providerRole } = useAuth();
   const inFlightRef = useRef(false);
   const errorStreakRef = useRef(0);
   const lastErrorLogAtRef = useRef(0);
@@ -69,7 +71,7 @@ function ProviderHomeScreen() {
         if (ops.length > 0) return true;
         return (idx === 0 || providerMachines.length === 1) && onboardingOperators.length > 0;
       }));
-  const activationItems = [
+  const activationItemsAll = [
     {
       label: 'Empresa',
       ok: companyComplete,
@@ -103,18 +105,34 @@ function ProviderHomeScreen() {
         navigate('/provider/profile/banco', { state: { activationEdit: true, returnTo: '/provider/home' } })
     },
   ];
+  const canEditCompany = can('canEditMasterProfile') || can('can_edit_master_profile') || providerRole === 'super_master';
+  const canManageMachines = can('canManageMachines') || can('can_manage_machines');
+  const canManageOperators = can('canManageOperators') || can('can_manage_operators');
+  const canAssignOperator = can('canAssignOperator') || can('can_assign_operator');
+  const canSeeBank = can('canViewBankData');
+
+  const activationItems = activationItemsAll.filter((item) => {
+    if (item.label === 'Empresa') return canEditCompany;
+    if (item.label === 'Maquinaria') return canManageMachines;
+    if (item.label === 'Operador asignado') return canAssignOperator || canManageOperators;
+    if (item.label === 'Datos bancarios') return canSeeBank;
+    return true;
+  });
+
   const activationCompletedCount = activationItems.filter((item) => item.ok).length;
-  const activationProgressPct = Math.round((activationCompletedCount / activationItems.length) * 100);
-  const activationAllComplete = activationCompletedCount === activationItems.length;
+  const activationProgressPct =
+    activationItems.length === 0 ? 100 : Math.round((activationCompletedCount / activationItems.length) * 100);
+  const activationAllComplete = activationItems.length === 0 ? true : activationCompletedCount === activationItems.length;
   const activationPending = onboardingCompleted && !activationAllComplete;
   const canReceiveRequests = onboardingCompleted && activationAllComplete;
   /** Solo falta banco: un único CTA principal (FASE 3). */
   const bankOnlyMissing =
     onboardingCompleted &&
+    canSeeBank &&
     !bankDataComplete &&
-    companyComplete &&
-    machineComplete &&
-    operatorComplete;
+    (!canEditCompany || companyComplete) &&
+    (!canManageMachines || machineComplete) &&
+    (!(canAssignOperator || canManageOperators) || operatorComplete);
 
   const isBankComplete = (bankData) =>
     !!bankData?.bank &&

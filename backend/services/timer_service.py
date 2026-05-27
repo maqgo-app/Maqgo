@@ -201,7 +201,13 @@ class TimerService:
                     '$set': {
                         'status': 'last_30',
                         'last30TriggeredAt': now.isoformat()
-                    }
+                    },
+                    '$push': {
+                        'events': {
+                            'type': 'last_30',
+                            'at': now.isoformat(),
+                        }
+                    },
                 }
             )
             

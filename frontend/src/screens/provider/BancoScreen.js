@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
 import { getObject } from '../../utils/safeStorage';
 import BACKEND_URL from '../../utils/api';
 import { useToast } from '../../components/Toast';
+import { useAuth } from '../../context/authHooks';
 
 /**
  * Sub-pantalla: Datos Bancarios
@@ -86,6 +87,11 @@ function BancoScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
+  const { hasPermission } = useAuth();
+  const canViewBankData = hasPermission('canViewBankData');
+  if (!canViewBankData) {
+    return <Navigate to="/provider/home" replace />;
+  }
   const [saved, setSaved] = useState(false);
   const [rutError, setRutError] = useState('');
   const [data, setData] = useState(buildBancoFormInitial);

@@ -3,6 +3,7 @@ import { Z_INDEX } from '../constants/zIndex';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
 import { getSessionRole, isProviderSession } from '../utils/userAuthState';
+import { useAuth } from '../context/authHooks';
 
 /**
  * Ítem de navegación
@@ -179,6 +180,7 @@ export function ClientNavigation() {
 export function ProviderNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { can } = useAuth();
   const providerRole = localStorage.getItem('providerRole') || 'owner';
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
   
@@ -246,6 +248,8 @@ export function ProviderNavigation() {
     ? { left: '50%', right: 'auto', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, borderRadius: '0 0 40px 40px' }
     : { left: 0, right: 0, transform: 'none', width: 'auto', maxWidth: 'none', borderRadius: 0 };
 
+  const showMachines = can('canManageMachines') || can('can_manage_machines');
+
   return (
     <div style={{
       position: 'fixed',
@@ -267,12 +271,14 @@ export function ProviderNavigation() {
         icon={Icons.home}
         isPrimary
       />
-      <NavItem
-        active={isActive(['/provider/machines', '/provider/pricing'])}
-        onClick={() => navigate('/provider/machines')}
-        label="Máquinas"
-        icon={Icons.machinery}
-      />
+      {showMachines ? (
+        <NavItem
+          active={isActive(['/provider/machines', '/provider/pricing'])}
+          onClick={() => navigate('/provider/machines')}
+          label="Máquinas"
+          icon={Icons.machinery}
+        />
+      ) : null}
       <NavItem
         active={isActive('/provider/profile')}
         onClick={() => navigate('/provider/profile')}

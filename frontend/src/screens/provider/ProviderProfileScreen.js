@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getObject } from '../../utils/safeStorage';
 import { clearAuthSessionPreservingDraft } from '../../utils/sessionCleanup';
 import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
+import { useAuth } from '../../context/authHooks';
 
 function MenuItem({ label, sublabel, onClick, showBadge }) {
   return (
@@ -73,15 +74,20 @@ function SectionTitle({ title }) {
  */
 function ProviderProfileScreen() {
   const navigate = useNavigate();
+  const { providerRole, can } = useAuth();
   const [providerData] = useState(() => getObject('providerData', {}));
   const [bankComplete] = useState(() => {
     const bank = getObject('bankData', {});
     return !!bank.bank && !!bank.accountNumber;
   });
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const providerRole = localStorage.getItem('providerRole') || 'super_master';
   const isOperator = providerRole === 'operator';
   const operatorName = localStorage.getItem('operatorName') || 'Operador';
+  const showMachines = can('canManageMachines') || can('can_manage_machines');
+  const showFinances = can('canViewFinances') || can('can_view_finance');
+  const showTeam = can('canManageMasters') || can('canManageOperators') || can('can_manage_operators');
+  const showCompanyProfile = can('canEditMasterProfile') || can('can_edit_master_profile') || providerRole === 'super_master';
+  const showBank = can('canViewBankData');
 
   const handleLogout = () => {
     clearAuthSessionPreservingDraft();
@@ -126,7 +132,7 @@ function ProviderProfileScreen() {
         {/* TITULAR/GERENTE: ve todo */}
         {!isOperator && (
           <>
-            {!bankComplete && (
+            {showBank && !bankComplete && (
               <div
                 style={{
                   background: 'rgba(236,104,25,0.12)',
@@ -166,41 +172,51 @@ function ProviderProfileScreen() {
               sublabel="Ver solicitudes y estado"
               onClick={() => navigate(getProviderLandingPath())}
             />
-            <MenuItem 
-              label="Mis máquinas" 
-              sublabel="Gestionar maquinaria registrada"
-              onClick={() => navigate('/provider/machines')}
-            />
-            <MenuItem 
-              label="Mis cobros" 
-              sublabel="Historial de pagos recibidos"
-              onClick={() => navigate('/provider/cobros')}
-            />
-            <MenuItem 
-              label="Crear código de activación"
-              sublabel="Operadores y gerentes"
-              onClick={() => navigate('/provider/team')}
-            />
+            {showMachines && (
+              <MenuItem 
+                label="Mis máquinas" 
+                sublabel="Gestionar maquinaria registrada"
+                onClick={() => navigate('/provider/machines')}
+              />
+            )}
+            {showFinances && (
+              <MenuItem 
+                label="Mis cobros" 
+                sublabel="Historial de pagos recibidos"
+                onClick={() => navigate('/provider/cobros')}
+              />
+            )}
+            {showTeam && (
+              <MenuItem 
+                label="Equipo"
+                sublabel="Operadores y gerentes"
+                onClick={() => navigate('/provider/team')}
+              />
+            )}
 
             <SectionTitle title="Mi cuenta" />
-            <MenuItem 
-              label="Datos de la empresa" 
-              sublabel={providerData.businessName || 'Sin completar'}
-              onClick={() => navigate('/provider/profile/empresa')}
-            />
-            {providerData.emitsInvoice !== false && (
+            {showCompanyProfile && (
+              <MenuItem 
+                label="Datos de la empresa" 
+                sublabel={providerData.businessName || 'Sin completar'}
+                onClick={() => navigate('/provider/profile/empresa')}
+              />
+            )}
+            {showCompanyProfile && providerData.emitsInvoice !== false && (
               <MenuItem 
                 label="Datos para facturar a MAQGO" 
                 sublabel="Razón social, RUT, giro, dirección"
                 onClick={() => navigate('/provider/profile/maqgo-billing')}
               />
             )}
-            <MenuItem 
-              label="Datos bancarios" 
-              sublabel={bankComplete ? 'Configurado' : 'Requerido para recibir pagos'}
-              onClick={() => navigate('/provider/profile/banco')}
-              showBadge={!bankComplete}
-            />
+            {showBank && (
+              <MenuItem 
+                label="Datos bancarios" 
+                sublabel={bankComplete ? 'Configurado' : 'Requerido para recibir pagos'}
+                onClick={() => navigate('/provider/profile/banco')}
+                showBadge={!bankComplete}
+              />
+            )}
           </>
         )}
 

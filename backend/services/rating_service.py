@@ -151,9 +151,10 @@ class RatingService:
         roles_rated = set(r['fromRole'] for r in ratings)
         
         if 'client' in roles_rated and 'provider' in roles_rated:
+            now = datetime.now(timezone.utc).isoformat()
             await self.db.service_requests.update_one(
                 {'id': service_request_id},
-                {'$set': {'status': 'rated'}}
+                {'$set': {'status': 'rated'}, '$push': {'events': {'type': 'rated', 'at': now}}}
             )
             logger.info(f"Servicio {service_request_id} -> rated (ambos calificaron)")
     

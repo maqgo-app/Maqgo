@@ -250,7 +250,6 @@ function AdminRoute() {
         className="maqgo-admin"
         style={{
           minHeight: '100vh',
-          background: 'var(--maqgo-bg)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -331,7 +330,6 @@ function AdminRoute() {
         className="maqgo-admin"
         style={{
           minHeight: '100vh',
-          background: 'var(--maqgo-bg)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -357,7 +355,6 @@ function AdminRoute() {
         className="maqgo-admin"
         style={{
           minHeight: '100vh',
-          background: 'var(--maqgo-bg)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -417,7 +414,6 @@ function AdminRoute() {
         className="maqgo-admin"
         style={{
           minHeight: '100vh',
-          background: 'var(--maqgo-bg)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -470,7 +466,6 @@ function AdminRoute() {
           <div
             style={{
               minHeight: '100vh',
-              background: 'var(--maqgo-bg)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',

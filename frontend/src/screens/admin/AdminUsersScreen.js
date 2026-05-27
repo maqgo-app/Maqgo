@@ -100,25 +100,9 @@ function AdminUsersScreen() {
     }
   };
 
-  const pickProviderRut = (u) => {
-    const candidates = [
-      u?.rut,
-      u?.companyRut,
-      u?.businessRut,
-      u?.rut_empresa,
-      u?.providerRut,
-      u?.provider_rut,
-      u?.company?.rut,
-      u?.business?.rut,
-      u?.providerData?.rut,
-      u?.providerData?.companyRut,
-      u?.provider_data?.rut,
-    ];
-    for (const c of candidates) {
-      const v = typeof c === 'string' ? c.trim() : '';
-      if (v) return v;
-    }
-    return '-';
+  const displayRut = (user) => {
+    const v = user?.providerData?.rut || user?.rut || '-';
+    return typeof v === 'string' ? (v.trim() || '-') : '-';
   };
 
   const users = useMemo(() => {
@@ -939,7 +923,7 @@ function AdminUsersScreen() {
                         </td>
                         <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{u.name || '-'}</td>
                         {tab === 'providers' && (
-                          <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{pickProviderRut(u)}</td>
+                          <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{displayRut(u)}</td>
                         )}
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.email || '-'}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.phone || '-'}</td>

@@ -8,6 +8,7 @@ import { ProviderNavigation } from '../../components/BottomNavigation';
 import { downloadVoucherPDF } from '../../utils/voucherPdf';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
+import { useAuth } from '../../context/authHooks';
 
 /** Solo si falla la API: evita pantalla vacía en demo; siempre con banner explícito. */
 function buildDemoServices() {
@@ -62,8 +63,10 @@ function computeTotals(list) {
  */
 function ProviderDashboardSimple() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
   const isOperator =
     typeof window !== 'undefined' && localStorage.getItem('providerRole') === 'operator';
+  const canViewFinances = hasPermission('canViewFinances');
 
   const [services, setServices] = useState([]);
   const [totals, setTotals] = useState({ pending: 0, toInvoice: 0, paid: 0 });
@@ -133,6 +136,9 @@ function ProviderDashboardSimple() {
 
   if (isOperator) {
     return <Navigate to="/operator/home" replace />;
+  }
+  if (!canViewFinances) {
+    return <Navigate to="/provider/home" replace />;
   }
 
   const formatPrice = (price) =>

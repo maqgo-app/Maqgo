@@ -91,7 +91,7 @@ function AdminChangePasswordScreen() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--maqgo-bg)', color: '#fff', padding: 24 }}>
+    <div style={{ minHeight: '100vh', color: '#fff', padding: 24 }}>
       <div style={{ maxWidth: 520, margin: '0 auto' }}>
         <button
           type="button"

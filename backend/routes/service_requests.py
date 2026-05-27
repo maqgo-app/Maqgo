@@ -419,6 +419,7 @@ async def create_service_request(
             create_data["machine_id"] = str(selected_machine_id)
         create_data["bookingId"] = booking_id
 
+        now_iso = datetime.now(timezone.utc).isoformat()
         service_obj = ServiceRequest(**create_data)
         service_obj.status = "matching"
         service_obj.paymentStatus = "validated"
@@ -432,7 +433,14 @@ async def create_service_request(
         service_obj.providerCommission = commissions["providerCommission"]
         service_obj.providerEarnings = commissions["providerEarnings"]
         service_obj.maqgoEarnings = commissions["maqgoEarnings"]
-        service_obj.events = []
+        service_obj.events = [
+            {
+                "type": "created",
+                "at": now_iso,
+                "byUserId": current_user.get("id"),
+                "byRole": current_user.get("role"),
+            }
+        ]
 
         doc = service_obj.model_dump()
         await db.service_requests.insert_one(doc)
@@ -750,6 +758,16 @@ async def provider_intent(
                 "etaConfirmedByUserId": current_user.get("id"),
                 "etaConfirmedByRole": role,
             }
+            ,
+            "$push": {
+                "events": {
+                    "type": "provider_intent",
+                    "at": now.isoformat(),
+                    "byUserId": current_user.get("id"),
+                    "byRole": role,
+                    "etaCommitMinutes": eta,
+                }
+            },
         },
     )
 
@@ -853,18 +871,40 @@ async def accept_service_request(
                     detail="Tu rol no tiene permisos para aceptar esta solicitud",
                 )
 
-        accepted_role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
+        now_iso = datetime.now(timezone.utc).isoformat()
+        accepted_role = current_user.get("provider_role") or (
+            "operator" if current_user.get("owner_id") else "super_master"
+        )
         await db.service_requests.update_one(
             {"id": request_id, "status": "offer_sent"},
             {
                 "$set": {
                     "acceptedByUserId": current_user.get("id"),
                     "acceptedByRole": accepted_role,
+                    "acceptedAt": now_iso,
                 }
+                ,
+                "$push": {
+                    "events": {
+                        "type": "accepted",
+                        "at": now_iso,
+                        "byUserId": current_user.get("id"),
+                        "byRole": accepted_role,
+                        "providerId": offered_provider_id,
+                    }
+                },
             },
         )
 
-        result = await handle_offer_response(db, request_id, offered_provider_id, accepted=True)
+        result = await handle_offer_response(
+            db,
+            request_id,
+            offered_provider_id,
+            accepted=True,
+            by_user_id=current_user.get("id"),
+            by_role=accepted_role,
+            source="api_accept",
+        )
 
         if result.get("status") == "error":
             raise HTTPException(
@@ -1049,22 +1089,35 @@ async def cancel_service_client(
     minutes_elapsed = (now - scheduled_start).total_seconds() / 60
     total_client = float(request.get('totalAmount', 0))
 
+    base_cancel_event = {
+        "at": now.isoformat(),
+        "byUserId": current_user.get("id"),
+        "byRole": current_user.get("role"),
+        "fromStatus": status,
+    }
+
     if status in ['matching', 'offer_sent']:
         new_status = 'cancelled_client'
         cancelation_fee = 0
         refund_amount = 0
-        cancel_event = None
+        cancel_event = {"type": "cancelled_client", **base_cancel_event}
     else:
         if minutes_elapsed > 90:
             cancelation_fee = int(total_client * LATE_CANCELLATION_FEE_PERCENT)
             refund_amount = total_client - cancelation_fee
             new_status = 'cancelled_with_fee'
-            cancel_event = {'type': 'cancel_with_fee', 'at': now.isoformat()}
+            cancel_event = {
+                "type": "cancel_with_fee",
+                **base_cancel_event,
+                "newStatus": new_status,
+                "lateFeeAmount": cancelation_fee,
+                "refundAmount": refund_amount,
+            }
         else:
             cancelation_fee = 0
             refund_amount = total_client
             new_status = 'cancelled_client'
-            cancel_event = None
+            cancel_event = {"type": "cancelled_client", **base_cancel_event, "newStatus": new_status}
 
     update_data = {
         'status': new_status,
@@ -1090,9 +1143,7 @@ async def cancel_service_client(
         )
         update_data["paymentStatus"] = "refund_requested"
 
-    mongo_update = {'$set': update_data}
-    if cancel_event:
-        mongo_update['$push'] = {'events': cancel_event}
+    mongo_update = {'$set': update_data, '$push': {'events': cancel_event}}
 
     await db.service_requests.update_one(
         {'id': request_id},
@@ -1145,7 +1196,21 @@ async def reject_service_request(
     if not _provider_matches_user(current_user, provider_id):
         raise HTTPException(status_code=403, detail="Solo el proveedor con oferta pendiente puede rechazar")
     
-    result = await handle_offer_response(db, request_id, provider_id, accepted=False)
+    role = current_user.get("provider_role") or (
+        "operator" if current_user.get("owner_id") else "super_master"
+    )
+    if current_user.get("role") == "admin":
+        role = "admin"
+
+    result = await handle_offer_response(
+        db,
+        request_id,
+        provider_id,
+        accepted=False,
+        by_user_id=current_user.get("id"),
+        by_role=role,
+        source="api_reject",
+    )
     
     return result
 
@@ -1188,7 +1253,19 @@ async def patch_assigned_operator(
     if not update:
         return {"success": True, "message": "Sin cambios"}
 
-    await db.service_requests.update_one({"id": request_id}, {"$set": update})
+    now = datetime.now(timezone.utc)
+    role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
+    event = {
+        "type": "assigned_operator_updated",
+        "at": now.isoformat(),
+        "byUserId": current_user.get("id"),
+        "byRole": role,
+        **update,
+    }
+    await db.service_requests.update_one(
+        {"id": request_id},
+        {"$set": update, "$push": {"events": event}},
+    )
     return {"success": True}
 
 
@@ -1222,6 +1299,7 @@ async def mark_arrival(
     force_manual = bool(body.get("forceManual") or body.get("force_manual") or False)
 
     now = datetime.now(timezone.utc)
+    role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
 
     if lat is None or lng is None:
         arrival_location = {
@@ -1229,7 +1307,14 @@ async def mark_arrival(
             "source": "manual",
             "verified": False,
         }
-        arrival_event = {"type": "arrival", "at": now.isoformat(), "verified": False, "source": "manual"}
+        arrival_event = {
+            "type": "arrival",
+            "at": now.isoformat(),
+            "verified": False,
+            "source": "manual",
+            "byUserId": current_user.get("id"),
+            "byRole": role,
+        }
         await db.service_requests.update_one(
             {"id": request_id},
             {
@@ -1273,7 +1358,14 @@ async def mark_arrival(
         "verified": bool(verified),
     }
 
-    arrival_event = {'type': 'arrival', 'at': now.isoformat(), "verified": bool(verified), "source": source if source else "gps"}
+    arrival_event = {
+        "type": "arrival",
+        "at": now.isoformat(),
+        "verified": bool(verified),
+        "source": source if source else "gps",
+        "byUserId": current_user.get("id"),
+        "byRole": role,
+    }
     await db.service_requests.update_one(
         {'id': request_id},
         {
@@ -1316,9 +1408,25 @@ async def start_service(
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
     _assert_assigned_provider(current_user, request)
 
+    now = datetime.now(timezone.utc)
+    role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
+    started_event = {
+        "type": "started",
+        "at": now.isoformat(),
+        "byUserId": current_user.get("id"),
+        "byRole": role,
+    }
     result = await db.service_requests.update_one(
         {'id': request_id, 'status': 'confirmed'},
-        {'$set': {'status': 'in_progress'}}
+        {
+            "$set": {
+                "status": "in_progress",
+                "startedAt": now.isoformat(),
+                "startedByUserId": current_user.get("id"),
+                "startedByRole": role,
+            },
+            "$push": {"events": started_event},
+        }
     )
     
     if result.matched_count == 0:
@@ -1442,11 +1550,19 @@ async def finish_service(
         _assert_assigned_provider(current_user, request)
 
     now = datetime.now(timezone.utc)
-    finished_event = {'type': 'finished', 'at': now.isoformat()}
+    role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
+    finished_event = {
+        "type": "finished",
+        "at": now.isoformat(),
+        "byUserId": current_user.get("id"),
+        "byRole": role,
+    }
 
     update_data = {
         'status': 'finished',
         'finishedAt': now.isoformat(),
+        "finishedByUserId": current_user.get("id"),
+        "finishedByRole": role,
         'autoFinished': False  # Cierre manual
     }
     if body.get('endLocation'):

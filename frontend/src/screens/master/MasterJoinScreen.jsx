@@ -1,0 +1,263 @@
+import React, { useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import axios from 'axios';
+import MaqgoLogo from '../../components/MaqgoLogo';
+import BackToPortadaButton from '../../components/BackToPortadaButton';
+import BACKEND_URL from '../../utils/api';
+import { getDeviceId } from '../../utils/deviceId';
+import { getHttpErrorMessage } from '../../utils/httpErrors';
+
+function safeJsonParse(raw, fallback) {
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === 'object' ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function base64UrlDecodeToJson(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  try {
+    const normalized = s.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = normalized.length % 4 ? '='.repeat(4 - (normalized.length % 4)) : '';
+    const json = atob(normalized + pad);
+    const parsed = JSON.parse(json);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizePhoneForBackend(raw) {
+  const d = String(raw || '').replace(/\D/g, '');
+  const last9 = d.length >= 9 ? d.slice(-9) : '';
+  if (/^9\d{8}$/.test(last9)) return `+56${last9}`;
+  if (String(raw || '').trim().startsWith('+')) return String(raw).trim();
+  return '';
+}
+
+function persistRegisterDataPhoneDigits(phoneE164) {
+  const d = String(phoneE164 || '').replace(/\D/g, '');
+  const last9 = d.length >= 9 ? d.slice(-9) : '';
+  if (!/^9\d{8}$/.test(last9)) return;
+  try {
+    const next = { celular: last9 };
+    localStorage.setItem('registerData', JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadInvitePermissionsByCode() {
+  try {
+    return safeJsonParse(localStorage.getItem('masterInvitePermissionsByCode') || '{}', {});
+  } catch {
+    return {};
+  }
+}
+
+function storeMasterPermissionsForUser(userId, permissions) {
+  if (!userId || !permissions || typeof permissions !== 'object') return;
+  try {
+    const raw = localStorage.getItem('masterPermissionsByUserId') || '{}';
+    const map = safeJsonParse(raw, {});
+    map[String(userId)] = permissions;
+    localStorage.setItem('masterPermissionsByUserId', JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
+
+function normalizeMasterPermissions(input) {
+  const p = input && typeof input === 'object' ? input : {};
+  const bool = (k) => (typeof p[k] === 'boolean' ? p[k] : false);
+  return {
+    can_view_finance: bool('can_view_finance'),
+    can_manage_machines: bool('can_manage_machines'),
+    can_manage_operators: bool('can_manage_operators'),
+    can_create_work: bool('can_create_work'),
+    can_assign_operator: bool('can_assign_operator'),
+    can_view_work_details: bool('can_view_work_details'),
+    can_edit_master_profile: bool('can_edit_master_profile'),
+    can_delete_master: bool('can_delete_master'),
+  };
+}
+
+function MasterJoinScreen() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromUrlCode = String(searchParams.get('code') || '').trim().toUpperCase();
+  const permsParam = searchParams.get('p');
+
+  const [code, setCode] = useState(fromUrlCode);
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const resolvedPerms = useMemo(() => {
+    const fromParam = base64UrlDecodeToJson(permsParam);
+    if (fromParam) return normalizeMasterPermissions(fromParam);
+    const byCode = loadInvitePermissionsByCode();
+    const stored = byCode[String(fromUrlCode || code || '').toUpperCase()];
+    return stored ? normalizeMasterPermissions(stored) : null;
+  }, [permsParam, fromUrlCode, code]);
+
+  const handleJoin = async () => {
+    if (loading) return;
+    const c = String(code || '').trim().toUpperCase();
+    if (c.length < 4) {
+      setError('Ingresa el código completo');
+      return;
+    }
+    const name = String(fullName || '').trim();
+    const phoneE164 = normalizePhoneForBackend(phone);
+    if (!name) {
+      setError('Ingresa tu nombre');
+      return;
+    }
+    if (!phoneE164) {
+      setError('Ingresa un celular válido');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const payload = {
+        code: c,
+        master_name: name,
+        master_phone: phoneE164,
+        ...(String(email || '').trim() ? { master_email: String(email).trim() } : {}),
+      };
+      const res = await axios.post(`${BACKEND_URL}/api/operators/masters/join`, payload, {
+        timeout: 15000,
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = res.data || {};
+      const masterId = data.master_id;
+      if (masterId && resolvedPerms) {
+        storeMasterPermissionsForUser(masterId, resolvedPerms);
+      }
+      persistRegisterDataPhoneDigits(phoneE164);
+      try {
+        localStorage.setItem('desiredRole', 'provider');
+        localStorage.setItem('maqgo_device_id', getDeviceId());
+      } catch {
+        /* ignore */
+      }
+      navigate('/login', {
+        replace: true,
+        state: { entry: 'provider', redirect: '/provider/home' },
+      });
+    } catch (e) {
+      setError(
+        getHttpErrorMessage(e, {
+          fallback: 'No pudimos validar el código. Verifica y vuelve a intentar.',
+          statusMessages: {
+            400: 'Código expirado o inválido.',
+            404: 'Código inválido o ya utilizado.',
+            429: 'Demasiados intentos. Espera un momento.',
+          },
+        })
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="maqgo-app maqgo-provider-funnel">
+      <div className="maqgo-screen maqgo-screen--scroll maqgo-funnel-scroll-compact">
+        <div className="maqgo-back-portada-wrap">
+          <BackToPortadaButton onClick={() => navigate('/welcome')} />
+        </div>
+        <MaqgoLogo size="medium" style={{ marginBottom: 24 }} />
+        <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 700, textAlign: 'center', margin: '0 0 10px' }}>
+          Acceso de Gerente
+        </h2>
+        <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, textAlign: 'center', margin: '0 0 22px', lineHeight: 1.45 }}>
+          Ingresa el código que te compartió tu empresa. Luego iniciarás sesión con tu celular.
+        </p>
+
+        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+          Código
+        </label>
+        <input
+          value={code}
+          onChange={(e) => {
+            setError('');
+            setCode(String(e.target.value || '').toUpperCase().slice(0, 6));
+          }}
+          placeholder="CÓDIGO"
+          className="maqgo-input"
+          style={{ width: '100%', marginBottom: 12, letterSpacing: 6, textAlign: 'center', fontWeight: 700 }}
+        />
+
+        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+          Nombre
+        </label>
+        <input
+          value={fullName}
+          onChange={(e) => {
+            setError('');
+            setFullName(e.target.value);
+          }}
+          placeholder="Tu nombre"
+          className="maqgo-input"
+          style={{ width: '100%', marginBottom: 12 }}
+        />
+
+        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+          Celular
+        </label>
+        <input
+          value={phone}
+          onChange={(e) => {
+            setError('');
+            setPhone(e.target.value);
+          }}
+          placeholder="+56 9 1234 5678"
+          className="maqgo-input"
+          style={{ width: '100%', marginBottom: 12 }}
+          inputMode="tel"
+        />
+
+        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+          Correo (opcional)
+        </label>
+        <input
+          value={email}
+          onChange={(e) => {
+            setError('');
+            setEmail(e.target.value);
+          }}
+          placeholder="tu@correo.cl"
+          className="maqgo-input"
+          style={{ width: '100%', marginBottom: 14 }}
+          inputMode="email"
+        />
+
+        {error && (
+          <p style={{ color: '#ff6b6b', fontSize: 13, textAlign: 'center', margin: '0 0 12px' }}>
+            {error}
+          </p>
+        )}
+
+        <button
+          type="button"
+          className="maqgo-btn-primary"
+          onClick={handleJoin}
+          disabled={loading}
+          aria-busy={loading}
+        >
+          {loading ? 'Verificando…' : 'Continuar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default MasterJoinScreen;

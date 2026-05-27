@@ -82,6 +82,7 @@ function MachinePhotosPricingScreen() {
   const backRoute = getProviderBackRoute(pathname) || '/provider/machine-data';
   const prevMachineTypeRef = useRef(null);
   const fileInputsRef = useRef({});
+  const photosRef = useRef([]);
 
   const [photos, setPhotos] = useState(() => {
     const raw = getArray('machinePhotos', []);
@@ -102,6 +103,10 @@ function MachinePhotosPricingScreen() {
       .filter(Boolean);
     return normalized;
   });
+
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
 
   const getPhotoByLabel = (label) => {
     const target = String(label || '').trim().toLowerCase();
@@ -166,8 +171,22 @@ function MachinePhotosPricingScreen() {
   const formatPrice = (price) =>
     new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(price);
 
-  const persistPhotos = (next) => {
-    const sorted = [...next].sort((a, b) => {
+  const isQuotaError = (e) => {
+    const err = e || {};
+    const name = String(err.name || '');
+    const msg = String(err.message || '');
+    const code = err.code;
+    return (
+      name === 'QuotaExceededError' ||
+      name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      code === 22 ||
+      code === 1014 ||
+      /quota/i.test(msg)
+    );
+  };
+
+  const sortPhotos = (next) => {
+    return [...next].sort((a, b) => {
       const ia = PHOTO_SLOT_LABELS.indexOf(a.label);
       const ib = PHOTO_SLOT_LABELS.indexOf(b.label);
       if (ia === -1 && ib === -1) return 0;
@@ -175,8 +194,50 @@ function MachinePhotosPricingScreen() {
       if (ib === -1) return -1;
       return ia - ib;
     });
+  };
+
+  const PHOTO_DATAURL_SOFT_LIMIT = 2_000_000;
+
+  const persistPhotosSafe = (next, opts = {}) => {
+    const { showToast = true } = opts;
+    const sorted = sortPhotos(next);
+    const hasOversized = sorted.some((p) => typeof p?.url === 'string' && p.url.length > PHOTO_DATAURL_SOFT_LIMIT);
+    if (hasOversized) {
+      if (showToast) toast.error('No pudimos guardar esta foto. Prueba una imagen más liviana.');
+      return false;
+    }
+    let payload = '';
+    try {
+      payload = JSON.stringify(sorted);
+    } catch {
+      if (showToast) toast.error('No pudimos guardar esta foto. Prueba una imagen más liviana.');
+      return false;
+    }
+    try {
+      localStorage.setItem('machinePhotos', payload);
+    } catch (e) {
+      if (showToast) {
+        toast.error(
+          isQuotaError(e)
+            ? 'No pudimos guardar esta foto. Prueba una imagen más liviana.'
+            : 'No pudimos guardar esta foto en este dispositivo.'
+        );
+      }
+      return false;
+    }
     setPhotos(sorted);
-    localStorage.setItem('machinePhotos', JSON.stringify(sorted));
+    return true;
+  };
+
+  const buildNextPhotoList = (base, newPhoto, safeLabel) => {
+    const existingIdx = base.findIndex(
+      (p) => String(p?.label || '').trim().toLowerCase() === String(safeLabel).toLowerCase()
+    );
+    const next =
+      existingIdx >= 0
+        ? base.map((p, i) => (i === existingIdx ? newPhoto : p))
+        : [...base, newPhoto].slice(0, MAX_PHOTOS);
+    return next;
   };
 
   const upsertPhotoForLabel = async (file, label) => {
@@ -184,28 +245,30 @@ function MachinePhotosPricingScreen() {
     const safeLabel = PHOTO_SLOT_LABELS.includes(label) ? label : PHOTO_SLOT_LABELS[0];
     const reader = new FileReader();
     reader.onload = async (event) => {
+      const base = Array.isArray(photosRef.current) ? photosRef.current : [];
       try {
-        const dataUrl = event.target.result;
+        const dataUrl = event?.target?.result;
         const compressed = await compressImage(dataUrl);
+        if (typeof compressed !== 'string' || !compressed) {
+          toast.error('No pudimos guardar esta foto. Prueba una imagen más liviana.');
+          return;
+        }
         const newPhoto = { url: compressed, label: safeLabel };
-        const existingIdx = photos.findIndex(
-          (p) => String(p?.label || '').trim().toLowerCase() === String(safeLabel).toLowerCase()
-        );
-        const next =
-          existingIdx >= 0
-            ? photos.map((p, i) => (i === existingIdx ? newPhoto : p))
-            : [...photos, newPhoto].slice(0, MAX_PHOTOS);
-        persistPhotos(next);
+        const next = buildNextPhotoList(base, newPhoto, safeLabel);
+        persistPhotosSafe(next);
       } catch {
-        const newPhoto = { url: event.target.result, label: safeLabel };
-        const existingIdx = photos.findIndex(
-          (p) => String(p?.label || '').trim().toLowerCase() === String(safeLabel).toLowerCase()
-        );
-        const next =
-          existingIdx >= 0
-            ? photos.map((p, i) => (i === existingIdx ? newPhoto : p))
-            : [...photos, newPhoto].slice(0, MAX_PHOTOS);
-        persistPhotos(next);
+        const raw = event?.target?.result;
+        if (typeof raw !== 'string' || !raw) {
+          toast.error('No pudimos guardar esta foto. Prueba una imagen más liviana.');
+          return;
+        }
+        if (raw.length > PHOTO_DATAURL_SOFT_LIMIT) {
+          toast.error('No pudimos guardar esta foto. Prueba una imagen más liviana.');
+          return;
+        }
+        const newPhoto = { url: raw, label: safeLabel };
+        const next = buildNextPhotoList(base, newPhoto, safeLabel);
+        persistPhotosSafe(next);
       }
     };
     reader.readAsDataURL(file);
@@ -219,8 +282,9 @@ function MachinePhotosPricingScreen() {
 
   const handleRemovePhotoByLabel = (label) => {
     const target = String(label || '').trim().toLowerCase();
-    const next = photos.filter((p) => String(p?.label || '').trim().toLowerCase() !== target);
-    persistPhotos(next);
+    const base = Array.isArray(photosRef.current) ? photosRef.current : [];
+    const next = base.filter((p) => String(p?.label || '').trim().toLowerCase() !== target);
+    persistPhotosSafe(next, { showToast: false });
   };
 
   const calculateImmediateExample = (hours) => {
@@ -290,10 +354,7 @@ function MachinePhotosPricingScreen() {
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
-      <div
-        className="maqgo-screen maqgo-screen--scroll"
-        style={{ padding: 'var(--maqgo-screen-padding-top) 24px 140px' }}
-      >
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 140px' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 18 }}>
           <button
             type="button"

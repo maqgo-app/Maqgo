@@ -534,7 +534,16 @@ class PaymentService:
                         "paymentStatus": "charged",
                         "chargedAt": now.isoformat(),
                         "chargedAmount": pending_finalize.get("amount", amount),
-                    }
+                    },
+                    "$push": {
+                        "events": {
+                            "type": "payment_charged",
+                            "at": now.isoformat(),
+                            "paymentId": pending_finalize.get("id"),
+                            "amount": pending_finalize.get("amount", amount),
+                            "source": "recovery_authorized_pending_finalize",
+                        }
+                    },
                 },
             )
             return {
@@ -786,7 +795,16 @@ class PaymentService:
                     'paymentStatus': 'charged',
                     'chargedAt': now.isoformat(),
                     'chargedAmount': amount
-                }
+                },
+                '$push': {
+                    'events': {
+                        'type': 'payment_charged',
+                        'at': now.isoformat(),
+                        'paymentId': payment['id'],
+                        'amount': amount,
+                        'source': 'oneclick',
+                    }
+                },
             }
         )
         
@@ -893,7 +911,19 @@ class PaymentService:
             if refund_payment_status_only:
                 await self.db.service_requests.update_one(
                     {'id': service_request_id},
-                    {'$set': {'paymentStatus': 'refunded'}},
+                    {
+                        '$set': {'paymentStatus': 'refunded'},
+                        '$push': {
+                            'events': {
+                                'type': 'payment_refunded',
+                                'at': now.isoformat(),
+                                'paymentId': payment.get('id'),
+                                'amount': amount,
+                                'reason': reason,
+                                'statusChanged': False,
+                            }
+                        },
+                    },
                 )
             else:
                 await self.db.service_requests.update_one(
@@ -902,7 +932,18 @@ class PaymentService:
                         '$set': {
                             'paymentStatus': 'refunded',
                             'status': 'matching',  # Volver a buscar proveedor
-                        }
+                        },
+                        '$push': {
+                            'events': {
+                                'type': 'payment_refunded',
+                                'at': now.isoformat(),
+                                'paymentId': payment.get('id'),
+                                'amount': amount,
+                                'reason': reason,
+                                'statusChanged': True,
+                                'newStatus': 'matching',
+                            }
+                        },
                     },
                 )
         

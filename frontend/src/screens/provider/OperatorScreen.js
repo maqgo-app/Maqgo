@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { MAQGO } from '../../styles/theme';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
+import { useAuth } from '../../context/authHooks';
 
 /**
  * Pantalla de Agregar Operador
  */
 function OperatorScreen() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const canManageOperators = hasPermission('canManageOperators');
   const [isOperator, setIsOperator] = useState(false);
   const [form, setForm] = useState({ nombre: '', apellido: '', telefono: '', licencia: '' });
+
+  if (!canManageOperators) {
+    return <Navigate to="/provider/home" replace />;
+  }
 
   const handleFinish = () => {
     const data = isOperator ? 'self' : { ...form, name: `${form.nombre} ${form.apellido}`.trim() };

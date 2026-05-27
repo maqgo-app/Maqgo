@@ -572,6 +572,21 @@ async def send_offer_to_provider(
             }
         }
     )
+
+    await db.service_requests.update_one(
+        {'id': service_request_id},
+        {
+            '$push': {
+                'events': {
+                    'type': 'offer_sent',
+                    'at': now.isoformat(),
+                    'mode': 'single',
+                    'providerIds': [provider_id],
+                    'currentOfferId': provider_id,
+                }
+            }
+        },
+    )
     
     logger.info(f"Oferta enviada a proveedor {provider_id} para solicitud {service_request_id}")
     
@@ -610,6 +625,20 @@ async def send_offers_to_providers(
             },
             '$push': {'matchingAttempts': {'$each': attempts}}
         }
+    )
+
+    await db.service_requests.update_one(
+        {'id': service_request_id},
+        {
+            '$push': {
+                'events': {
+                    'type': 'offer_sent',
+                    'at': now.isoformat(),
+                    'mode': 'parallel',
+                    'providerIds': list(provider_ids),
+                }
+            }
+        },
     )
     logger.info(f"Ofertas enviadas a {len(provider_ids)} proveedores para solicitud {service_request_id}")
     return {
@@ -669,6 +698,22 @@ async def send_rotation_wave_one(
             },
             "$push": {"matchingAttempts": {"$each": attempts}},
             "$inc": {"attemptCount": len(wave1)},
+        },
+    )
+
+    await db.service_requests.update_one(
+        {"id": service_request_id},
+        {
+            "$push": {
+                "events": {
+                    "type": "offer_sent",
+                    "at": now.isoformat(),
+                    "mode": "rotation",
+                    "stage": 1,
+                    "providerIds": list(wave1),
+                    "currentOfferId": wave1[0],
+                }
+            }
         },
     )
 
@@ -769,6 +814,19 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
                     "$inc": {"attemptCount": len(new_ids)},
                 },
             )
+            await db.service_requests.update_one(
+                {"id": service_request_id},
+                {
+                    "$push": {
+                        "events": {
+                            "type": "matching_rotation_wave_added",
+                            "at": now.isoformat(),
+                            "stage": 2,
+                            "providerIds": list(new_ids),
+                        }
+                    }
+                },
+            )
             if _DEBUG_MATCH:
                 dt_s = (now - t0).total_seconds()
                 logger.info(
@@ -834,6 +892,19 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
                     "$inc": {"attemptCount": len(new_ids)},
                 },
             )
+            await db.service_requests.update_one(
+                {"id": service_request_id},
+                {
+                    "$push": {
+                        "events": {
+                            "type": "matching_rotation_wave_added",
+                            "at": now.isoformat(),
+                            "stage": 3,
+                            "providerIds": list(new_ids),
+                        }
+                    }
+                },
+            )
             if _DEBUG_MATCH:
                 dt_s = (now - t0).total_seconds()
                 logger.info(
@@ -892,6 +963,19 @@ async def handle_rotation_round_expired(
         {"id": service_request_id},
         {"$set": {"matchingAttempts": attempts}, "$unset": _ROTATION_UNSET},
     )
+    if pending_ids:
+        await db.service_requests.update_one(
+            {"id": service_request_id},
+            {
+                "$push": {
+                    "events": {
+                        "type": "rotation_round_expired",
+                        "at": datetime.now(timezone.utc).isoformat(),
+                        "providerIds": list(pending_ids),
+                    }
+                }
+            },
+        )
     for pid in pending_ids:
         try:
             await db.users.update_one({"id": pid}, {"$inc": {"matchingOffersExpired": 1}})
@@ -974,6 +1058,10 @@ async def start_matching(
                 {'id': service_request_id},
                 {'$set': {'status': 'no_providers_available'}}
             )
+            await db.service_requests.update_one(
+                {'id': service_request_id},
+                {'$push': {'events': {'type': 'no_providers_available', 'at': now.isoformat()}}},
+            )
             return {
                 'status': 'no_providers_available',
                 'message': 'No hay proveedores disponibles en este momento. Intenta más tarde.'
@@ -1035,6 +1123,10 @@ async def start_matching(
                 {'id': service_request_id},
                 {'$set': {'status': 'no_providers_available'}}
             )
+            await db.service_requests.update_one(
+                {'id': service_request_id},
+                {'$push': {'events': {'type': 'no_providers_available', 'at': now.isoformat()}}},
+            )
             return {
                 'status': 'no_providers_available',
                 'message': 'No hay proveedores disponibles en este momento. Intenta más tarde.'
@@ -1068,7 +1160,10 @@ async def handle_offer_response(
     db: AsyncIOMotorDatabase,
     service_request_id: str,
     provider_id: str,
-    accepted: bool
+    accepted: bool,
+    by_user_id: Optional[str] = None,
+    by_role: Optional[str] = None,
+    source: str = "api",
 ) -> dict:
     """
     Maneja la respuesta del proveedor a una oferta.
@@ -1123,7 +1218,20 @@ async def handle_offer_response(
 
         result = await db.service_requests.update_one(
             accept_filter,
-            {'$set': set_confirmed, '$unset': _ROTATION_UNSET},
+            {
+                '$set': set_confirmed,
+                '$unset': _ROTATION_UNSET,
+                '$push': {
+                    'events': {
+                        'type': 'confirmed',
+                        'at': now.isoformat(),
+                        'providerId': provider_id,
+                        'byUserId': by_user_id,
+                        'byRole': by_role,
+                        'source': source,
+                    }
+                },
+            },
             array_filters=[{'elem.providerId': provider_id}],
         )
 
@@ -1171,7 +1279,19 @@ async def handle_offer_response(
                 'id': service_request_id,
                 'matchingAttempts': {'$elemMatch': {'providerId': provider_id, 'status': 'pending'}},
             },
-            {'$set': {'matchingAttempts.$[elem].status': 'rejected'}},
+            {
+                '$set': {'matchingAttempts.$[elem].status': 'rejected'},
+                '$push': {
+                    'events': {
+                        'type': 'rejected',
+                        'at': now.isoformat(),
+                        'providerId': provider_id,
+                        'byUserId': by_user_id,
+                        'byRole': by_role,
+                        'source': source,
+                    }
+                },
+            },
             array_filters=[{'elem.providerId': provider_id}],
         )
         if rej.matched_count == 0:
@@ -1265,7 +1385,17 @@ async def revert_confirmed_offer_after_payment_failure(
 
     res = await db.service_requests.update_one(
         {"id": service_request_id, "status": "confirmed", "paymentStatus": "charging"},
-        {"$set": set_doc, "$unset": {k: "" for k in unset_fields}},
+        {
+            "$set": set_doc,
+            "$unset": {k: "" for k in unset_fields},
+            "$push": {
+                "events": {
+                    "type": "payment_failed_reverted_to_matching",
+                    "at": now.isoformat(),
+                    "providerId": provider_id,
+                }
+            },
+        },
     )
     if res.matched_count == 0:
         logger.warning(
@@ -1331,7 +1461,14 @@ async def handle_offer_expired(
         {
             '$set': {
                 'matchingAttempts.$[elem].status': 'expired'
-            }
+            },
+            '$push': {
+                'events': {
+                    'type': 'offer_expired',
+                    'at': datetime.now(timezone.utc).isoformat(),
+                    'providerId': provider_id,
+                }
+            },
         },
         array_filters=[{'elem.providerId': provider_id}]
     )
@@ -1381,6 +1518,19 @@ async def handle_parallel_offers_expired(
         await db.service_requests.update_one(
             {"id": service_request_id},
             {"$set": {"matchingAttempts": attempts}},
+        )
+    if pending_ids:
+        await db.service_requests.update_one(
+            {"id": service_request_id},
+            {
+                "$push": {
+                    "events": {
+                        "type": "parallel_offers_expired",
+                        "at": datetime.now(timezone.utc).isoformat(),
+                        "providerIds": list(pending_ids),
+                    }
+                }
+            },
         )
     for pid in pending_ids:
         try:
