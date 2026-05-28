@@ -34,6 +34,9 @@ function MyMachinesScreen() {
   const { hasPermission } = useAuth();
   const toast = useToast();
   const canManageMachines = hasPermission('canManageMachines');
+  const canAssignOperator = hasPermission('canAssignOperator');
+  const canManageOperators = hasPermission('canManageOperators');
+  const canAssignOperators = canAssignOperator || canManageOperators;
   const activationEdit = Boolean(location.state?.activationEdit);
   const returnTo = String(location.state?.returnTo || '/provider/home');
   const openOperatorForMachineId = location.state?.openOperatorForMachineId;
@@ -67,12 +70,16 @@ function MyMachinesScreen() {
 
   useEffect(() => {
     if (!openOperatorForMachineId) return;
+    if (!canAssignOperators) {
+      navigate(location.pathname, { replace: true, state: { activationEdit, returnTo } });
+      return;
+    }
     const machine = getMachines().find((m) => m?.id === openOperatorForMachineId);
     if (machine) {
       setOperatorModal({ machine });
       navigate(location.pathname, { replace: true, state: { activationEdit, returnTo } });
     }
-  }, [activationEdit, navigate, openOperatorForMachineId, location.pathname, returnTo]);
+  }, [activationEdit, canAssignOperators, navigate, openOperatorForMachineId, location.pathname, returnTo]);
 
   const handleResetAllMachines = async () => {
     try {
@@ -404,7 +411,7 @@ function MyMachinesScreen() {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          {(machine.operators || []).length > 1 && (
+                          {canAssignOperators && (machine.operators || []).length > 1 && (
                             <button
                               onClick={() => setDefaultOperator(mid, isDefault ? '' : op.id)}
                               title={isDefault ? 'Quitar como predeterminado' : 'Usar por defecto'}
@@ -432,17 +439,19 @@ function MyMachinesScreen() {
                   Sin operadores asignados
                 </p>
               )}
-              <button
-                onClick={() => setOperatorModal({ machine })}
-                style={{
-                  width: '100%', marginTop: 8, padding: '10px',
-                  background: 'none', border: '1px dashed rgba(255,255,255,0.3)', borderRadius: 8,
-                  color: 'rgba(255,255,255,0.7)', fontSize: 12, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
-                }}
-              >
-                {(machine.operators || []).length > 0 ? 'Editar operadores' : 'Asignar operadores'}
-              </button>
+              {canAssignOperators && (
+                <button
+                  onClick={() => setOperatorModal({ machine })}
+                  style={{
+                    width: '100%', marginTop: 8, padding: '10px',
+                    background: 'none', border: '1px dashed rgba(255,255,255,0.3)', borderRadius: 8,
+                    color: 'rgba(255,255,255,0.7)', fontSize: 12, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                  }}
+                >
+                  {(machine.operators || []).length > 0 ? 'Editar operadores' : 'Asignar operadores'}
+                </button>
+              )}
             </div>
 
             {/* Acciones */}
@@ -587,6 +596,8 @@ function EditPricingModal({ machine, priceVal: initialPrice, transportVal: initi
 function AssignOperatorsModal({ machine, onSave, onClose }) {
   const navigate = useNavigate();
   const toast = useToast();
+  const { hasPermission } = useAuth();
+  const canManageOperators = hasPermission('canManageOperators');
   const [loading, setLoading] = useState(true);
   const [teamOperators, setTeamOperators] = useState([]);
   const [pendingInvitations, setPendingInvitations] = useState([]);
@@ -702,11 +713,16 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
               {error}
             </p>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
-              Revisa tu conexión y vuelve a intentar. También puedes gestionar códigos desde <strong>Código de activación operadores</strong>.
+              Revisa tu conexión y vuelve a intentar.
+              {canManageOperators ? (
+                <> También puedes gestionar códigos desde <strong>Código de activación operadores</strong>.</>
+              ) : null}
             </p>
-            <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>
-              Ir a Código de activación
-            </button>
+            {canManageOperators ? (
+              <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>
+                Ir a Código de activación
+              </button>
+            ) : null}
           </div>
         ) : selectableOperators.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 20 }}>
@@ -716,9 +732,11 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
               Genera un código, compártelo con tu operador y cuando lo use en la app aparecerá para asignación.
             </p>
-            <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>
-              Ir a Código de activación
-            </button>
+            {canManageOperators ? (
+              <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>
+                Ir a Código de activación
+              </button>
+            ) : null}
           </div>
         ) : (
           <>
@@ -732,9 +750,11 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
                   {' '}
                   Deben usar su código de activación para poder editarlos y asignarlos correctamente.
                 </div>
-                <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 12 }}>
-                  Ver códigos
-                </button>
+                {canManageOperators ? (
+                  <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 12 }}>
+                    Ver códigos
+                  </button>
+                ) : null}
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto', marginBottom: 16 }}>

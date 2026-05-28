@@ -46,7 +46,6 @@ function ProviderHomeScreen() {
   const [isToggling, setIsToggling] = useState(false);
   const [showBankWarningModal, setShowBankWarningModal] = useState(false);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
-  const isBlockedByBank = onboardingCompleted && !bankDataComplete && !available;
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
@@ -110,6 +109,10 @@ function ProviderHomeScreen() {
   const canManageOperators = can('canManageOperators') || can('can_manage_operators');
   const canAssignOperator = can('canAssignOperator') || can('can_assign_operator');
   const canSeeBank = can('canViewBankData');
+  const bankMissing = onboardingCompleted && !bankDataComplete && !available;
+  const isBlockedByBank = bankMissing;
+  const isBlockedByBankAndCanFix = bankMissing && canSeeBank;
+  const isBlockedByBankNeedsOwner = bankMissing && !canSeeBank;
 
   const activationItems = activationItemsAll.filter((item) => {
     if (item.label === 'Empresa') return canEditCompany;
@@ -256,8 +259,12 @@ function ProviderHomeScreen() {
       return;
     }
     if (!bankDataComplete && !available) {
-      setShowBankWarningModal(true);
-      toast.warning('Completa tus datos bancarios antes de conectarte.');
+      if (canSeeBank) {
+        setShowBankWarningModal(true);
+        toast.warning('Completa tus datos bancarios antes de conectarte.');
+      } else {
+        toast.warning('Faltan datos bancarios. Pide al titular de la empresa que los complete para poder conectarte.');
+      }
       return;
     }
 
@@ -393,11 +400,11 @@ function ProviderHomeScreen() {
             ? `Antes de conectarte, completa: ${missing.join(', ')}.`
             : 'Antes de conectarte, completa tu activación (empresa, máquina, operador, banco y ubicación).'
         );
-        if (!hasCoords) {
+        if (!hasCoords && canEditCompany) {
           navigate('/provider/profile/empresa', { state: { activationEdit: true, returnTo: '/provider/home' } });
-        } else if (!hasMachine) {
+        } else if (!hasMachine && canManageMachines) {
           navigate('/provider/machine-data', { state: { activationEdit: true, returnTo: '/provider/home' } });
-        } else if (!hasOperators) {
+        } else if (!hasOperators && (canAssignOperator || canManageOperators)) {
           navigate('/provider/machines', { state: { activationEdit: true, returnTo: '/provider/home' } });
         }
       } else if (isNetworkError) {
@@ -751,7 +758,7 @@ function ProviderHomeScreen() {
         ) : null}
 
         {/* Alerta si no complet? onboarding */}
-        {!onboardingCompleted && (
+        {!onboardingCompleted && activationItems.length > 0 && (
           <div style={{
             background: '#2A2A2A',
             border: '1px solid #EC6819',
@@ -880,8 +887,10 @@ function ProviderHomeScreen() {
               ? 'Primero completa tu registro para poder recibir solicitudes.'
               : activationPending
                 ? 'Completa los pasos pendientes para habilitar la recepción de solicitudes.'
-                : isBlockedByBank
+                : isBlockedByBankAndCanFix
                   ? 'Siguiente paso: completa tus datos bancarios para conectarte y recibir solicitudes.'
+                  : isBlockedByBankNeedsOwner
+                    ? 'Faltan datos bancarios. Pide al titular de la empresa que los complete para poder conectarte.'
                   : available
                     ? 'Estás en línea. Recibirás una alerta cuando haya una solicitud cerca.'
                     : 'Estás desconectado. Conéctate para empezar a recibir solicitudes de arriendo.'}
@@ -892,11 +901,11 @@ function ProviderHomeScreen() {
               onClick={
                 !onboardingCompleted
                   ? undefined
-                  : isBlockedByBank
+                  : isBlockedByBankAndCanFix
                     ? () => navigate('/provider/profile/banco', { state: { activationEdit: true, returnTo: '/provider/home' } })
                     : toggleAvailability
               }
-              disabled={!onboardingCompleted || isToggling}
+              disabled={!onboardingCompleted || isToggling || isBlockedByBankNeedsOwner}
               style={{
                 width: '100%',
                 marginTop: 4,
@@ -913,16 +922,20 @@ function ProviderHomeScreen() {
               aria-label={
                 !onboardingCompleted
                   ? 'Registro incompleto'
-                  : isBlockedByBank
+                  : isBlockedByBankAndCanFix
                     ? 'Completar datos bancarios'
+                    : isBlockedByBankNeedsOwner
+                      ? 'Faltan datos bancarios'
                     : (available ? 'Pausar disponibilidad' : 'Conectarme ahora')
               }
             >
               {!onboardingCompleted
-                ? 'Completa tu registro para activar'
-                : isBlockedByBank
+                ? 'Registro incompleto'
+                : isBlockedByBankAndCanFix
                   ? 'Completar datos bancarios'
-                  : (isToggling ? 'Actualizando estado...' : (available ? 'Pausar disponibilidad' : 'Conectarme ahora'))}
+                  : isBlockedByBankNeedsOwner
+                    ? 'Faltan datos bancarios'
+                    : (available ? 'Pausar disponibilidad' : 'Conectarme ahora')}
             </button>
           ) : null}
           {canReceiveRequests && (
@@ -1012,25 +1025,27 @@ function ProviderHomeScreen() {
               >
                 Ahora no
               </button>
-              <button
-                onClick={() => {
-                  setShowBankWarningModal(false);
-                  navigate('/provider/profile/banco');
-                }}
-                style={{
-                  flex: 1,
-                  padding: 11,
-                  borderRadius: 20,
-                  border: 'none',
-                  background: '#EC6819',
-                  color: '#fff',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                Ir a banco
-              </button>
+              {canSeeBank ? (
+                <button
+                  onClick={() => {
+                    setShowBankWarningModal(false);
+                    navigate('/provider/profile/banco');
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: 11,
+                    borderRadius: 20,
+                    border: 'none',
+                    background: '#EC6819',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Ir a banco
+                </button>
+              ) : null}
             </div>
           </div>
         </div>

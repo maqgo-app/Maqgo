@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { validateRut, formatRut, validateEmail } from '../../utils/chileanValidation';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
@@ -8,6 +9,8 @@ import ComunaAutocomplete from '../../components/ComunaAutocomplete';
 import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/AddressAutocomplete';
 import { getObject } from '../../utils/safeStorage';
 import { getProviderBackRoute } from '../../utils/bookingFlow';
+import { useAuth } from '../../context/authHooks';
+import BACKEND_URL from '../../utils/api';
 
 const PRESET_CLOSING_TIMES = ['17:00', '17:30', '18:00', '18:30', '19:00', '20:00', '21:00', '22:00'];
 
@@ -19,9 +22,11 @@ const PRESET_CLOSING_TIMES = ['17:00', '17:30', '18:00', '18:30', '19:00', '20:0
 function ProviderDataScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hasPermission } = useAuth();
   const { pathname } = location;
   const activationEdit = Boolean(location.state?.activationEdit);
   const returnTo = String(location.state?.returnTo || '/provider/home');
+  const canManageMachines = hasPermission('canManageMachines');
   const [rutError, setRutError] = useState('');
   const [didSubmit, setDidSubmit] = useState(false);
   const [scriptRetryKey, setScriptRetryKey] = useState(0);
@@ -103,17 +108,33 @@ function ProviderDataScreen() {
     
     // Combinar con datos del registro inicial
     const registerData = getObject('registerData', {});
-    localStorage.setItem('providerData', JSON.stringify({ 
+    const nextProviderData = { 
       ...form, 
       // Datos del registro inicial
       phone: registerData.celular || form.phone
-    }));
+    };
+    localStorage.setItem('providerData', JSON.stringify(nextProviderData));
+    try {
+      const userId = (localStorage.getItem('userId') || '').trim();
+      const isDemoId =
+        userId &&
+        (userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-'));
+      if (userId && !isDemoId) {
+        axios.patch(
+          `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`,
+          { providerData: nextProviderData },
+          { timeout: 8000 }
+        ).catch(() => void 0);
+      }
+    } catch {
+      void 0;
+    }
     if (activationEdit) {
       navigate(returnTo, { replace: true });
       return;
     }
     localStorage.setItem('providerOnboardingStep', '2');
-    navigate('/provider/machine-data');
+    navigate(canManageMachines ? '/provider/machine-data' : '/provider/home');
   };
 
   const handleBack = () => {

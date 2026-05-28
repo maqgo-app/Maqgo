@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
+import axios from 'axios';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
 import { getObject } from '../../utils/safeStorage';
 import ComunaAutocomplete from '../../components/ComunaAutocomplete';
 import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/AddressAutocomplete';
+import { useAuth } from '../../context/authHooks';
+import BACKEND_URL from '../../utils/api';
+import { useToast } from '../../components/Toast';
 
 /**
  * Sub-pantalla: Datos de la Empresa
@@ -12,6 +16,9 @@ import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/Addre
  */
 function EmpresaScreen() {
   const navigate = useNavigate();
+  const toast = useToast();
+  const { can, providerRole } = useAuth();
+  const canEditCompany = (providerRole === 'super_master') || can('canEditMasterProfile') || can('can_edit_master_profile');
   const [saved, setSaved] = useState(false);
   const [rutError, setRutError] = useState('');
   const [scriptRetryKey, setScriptRetryKey] = useState(0);
@@ -56,6 +63,10 @@ function EmpresaScreen() {
     }
   }, []);
 
+  if (!canEditCompany) {
+    return <Navigate to="/provider/home" replace />;
+  }
+
   const handleRutChange = (e) => {
     const value = e.target.value;
     const formatted = formatRut(value);
@@ -73,7 +84,7 @@ function EmpresaScreen() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Validate RUT before saving
     if (data.rut && !validateRut(data.rut)) {
       setRutError('RUT inválido. Verifica el formato y dígito verificador.');
@@ -81,7 +92,26 @@ function EmpresaScreen() {
     }
     
     const existing = getObject('providerData', {});
-    localStorage.setItem('providerData', JSON.stringify({ ...existing, ...data }));
+    const next = { ...existing, ...data };
+    localStorage.setItem('providerData', JSON.stringify(next));
+    try {
+      const userId = (localStorage.getItem('userId') || '').trim();
+      const isDemoId =
+        userId &&
+        (userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-'));
+      if (userId && !isDemoId) {
+        await axios.patch(
+          `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`,
+          { providerData: next },
+          { timeout: 8000 }
+        );
+      }
+    } catch {
+      if (import.meta.env.PROD) {
+        toast.error('No pudimos guardar los datos de empresa. Revisa tu conexión e intenta nuevamente.');
+        return;
+      }
+    }
     setSaved(true);
     setTimeout(() => navigate('/provider/profile'), 1000);
   };

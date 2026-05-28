@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/authHooks';
 import { useToast } from '../../components/Toast';
@@ -28,10 +28,18 @@ function TeamManagementScreen() {
       return null;
     }
   })();
+  const requestedTab = (() => {
+    try {
+      const raw = new URLSearchParams(location.search).get('tab');
+      return raw === 'team' || raw === 'invite' ? raw : null;
+    } catch {
+      return null;
+    }
+  })();
   const screenMode = location.pathname === '/provider/managers' ? 'master' : 'operator';
   const resolvedMode = requestedMode || screenMode;
   const effectiveMode =
-    resolvedMode === 'master' && !isSuperMasterUser && location.pathname !== '/provider/managers'
+    resolvedMode === 'master' && !isSuperMasterUser
       ? 'operator'
       : resolvedMode;
   const [activeTab, setActiveTab] = useState('team'); // 'team' | 'invite'
@@ -69,11 +77,11 @@ function TeamManagementScreen() {
   const GPS_STALE_MINUTES = 120;
 
   useEffect(() => {
-    if (!isSuperMasterUser && requestedMode === 'master' && location.pathname !== '/provider/managers') {
+    if (!isSuperMasterUser && (requestedMode === 'master' || location.pathname === '/provider/managers')) {
       navigate('/provider/team', { replace: true });
     }
     setInviteType(effectiveMode);
-    setActiveTab('team');
+    setActiveTab(requestedTab || 'team');
     setShowCode(false);
     setInviteCode('');
     setBatchInvites(null);
@@ -254,6 +262,13 @@ function TeamManagementScreen() {
     return `${origin}/master/join${qs}`;
   };
 
+  const buildOperatorJoinLink = (code) => {
+    const c = String(code || '').trim().toUpperCase();
+    if (!c) return '';
+    const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+    return `${origin}/operator/join?code=${encodeURIComponent(c)}`;
+  };
+
   const formatClp = (value) =>
     new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(
       Number(value || 0) || 0
@@ -303,13 +318,14 @@ function TeamManagementScreen() {
     return out;
   };
 
-  const buildInviteMessage = (code, type = inviteType) => {
+  const buildInviteMessage = (code, type = inviteType, permsOverride = null) => {
     const c = String(code || '').trim().toUpperCase();
     if (type === 'master') {
-      const link = buildMasterJoinLink(c, masterInvitePermissions);
-      return `Tu código de acceso MAQGO (Gerente) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy gerente”\n3) Ingresa el código\n\nLink directo:\n${link}\n\nVálido por 7 días.`;
+      const link = buildMasterJoinLink(c, permsOverride || masterInvitePermissions);
+      return `Tu código de acceso MAQGO (Gerente) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy gerente”\n3) Ingresa el código\n\nLink directo:\n${link}\n\nVálido por 7 días.\nUso único (1 persona).`;
     }
-    return `Tu código de activación MAQGO (Operador) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy operador (tengo código)”\n3) Ingresa el código\n\nVálido por 7 días.`;
+    const link = buildOperatorJoinLink(c);
+    return `Tu código de activación MAQGO (Operador) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy operador (tengo código)”\n3) Ingresa el código\n\nLink directo:\n${link}\n\nVálido por 7 días.`;
   };
 
   useEffect(() => {
@@ -555,7 +571,8 @@ function TeamManagementScreen() {
   const shareInvite = async (channel, code, phone, type) => {
     const c = String(code || '').trim().toUpperCase();
     if (!c) return;
-    const text = buildInviteMessage(c, type);
+    const permsByCode = type === 'master' ? loadMasterInvitePermissionsByCode() : null;
+    const text = buildInviteMessage(c, type, permsByCode && permsByCode[c] ? permsByCode[c] : null);
     const normalized = normalizePhoneForChannel(phone);
     if (channel === 'whatsapp') {
       const base = normalized ? `https://wa.me/${normalized.replace('+', '')}` : 'https://wa.me/';
@@ -629,35 +646,12 @@ function TeamManagementScreen() {
   });
 
   if (inviteType === 'master' && !isSuperMasterUser) {
-    return (
-      <div className="maqgo-app maqgo-provider-funnel">
-        <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, marginTop: 10 }}>
-            <button
-              onClick={() => navigate(-1)}
-              style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 8 }}
-              data-testid="back-btn"
-            >
-              <BackArrowIcon />
-            </button>
-            <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
-              Crear código de activación
-            </h1>
-          </div>
-          <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 18, textAlign: 'center' }}>
-            <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 14, margin: 0, lineHeight: 1.45 }}>
-              Acceso restringido. Solo el titular de la empresa puede gestionar gerentes.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return <Navigate to="/provider/team" replace />;
   }
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
       <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
-        {/* Header */}
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
@@ -685,15 +679,19 @@ function TeamManagementScreen() {
             margin: 0,
             fontFamily: "'Space Grotesk', sans-serif"
           }}>
-            Crear código de activación
+            {showCode ? 'Código listo' : activeTab === 'invite' ? 'Invitar' : 'Equipo'}
           </h1>
         </div>
 
         {isSuperMasterUser && (
-          <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+          <div style={{ marginBottom: 18 }}>
+            <p style={{ color: 'rgba(255,255,255,0.80)', fontSize: 12, margin: '0 0 10px', fontWeight: 800, textTransform: 'uppercase' }}>
+              ¿A quién vas a invitar?
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
             <button
               type="button"
-              onClick={() => navigate('/provider/team?mode=operator', { replace: true })}
+              onClick={() => navigate(`/provider/team?mode=operator&tab=${encodeURIComponent(activeTab)}`, { replace: true })}
               style={{
                 flex: 1,
                 padding: 12,
@@ -706,11 +704,11 @@ function TeamManagementScreen() {
                 cursor: 'pointer',
               }}
             >
-              Operadores (Maquinaria)
+              Operadores
             </button>
             <button
               type="button"
-              onClick={() => navigate('/provider/team?mode=master', { replace: true })}
+              onClick={() => navigate(`/provider/team?mode=master&tab=${encodeURIComponent(activeTab)}`, { replace: true })}
               style={{
                 flex: 1,
                 padding: 12,
@@ -723,12 +721,12 @@ function TeamManagementScreen() {
                 cursor: 'pointer',
               }}
             >
-              Usuario Master (Gerentes)
+              Gerentes
             </button>
+            </div>
           </div>
         )}
 
-        {/* Tabs */}
         <div style={{
           display: 'flex',
           gap: 10,
@@ -739,7 +737,12 @@ function TeamManagementScreen() {
             return (
               <>
                 <button
-                  onClick={() => { setActiveTab('team'); setShowCode(false); }}
+                  onClick={() => {
+                    setActiveTab('team');
+                    setShowCode(false);
+                    const modeQs = inviteType === 'master' ? 'master' : 'operator';
+                    navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=team`, { replace: true });
+                  }}
                   style={{
                     flex: 1,
                     padding: 12,
@@ -756,7 +759,11 @@ function TeamManagementScreen() {
                   {`Equipo (${teamCount})`}
                 </button>
                 <button
-                  onClick={() => setActiveTab('invite')}
+                  onClick={() => {
+                    setActiveTab('invite');
+                    const modeQs = inviteType === 'master' ? 'master' : 'operator';
+                    navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=invite`, { replace: true });
+                  }}
                   style={{
                     flex: 1,
                     padding: 12,
@@ -770,7 +777,7 @@ function TeamManagementScreen() {
                   }}
                   data-testid="tab-invite"
                 >
-                  Crear código
+                  Invitar
                 </button>
               </>
             );
@@ -1110,7 +1117,34 @@ function TeamManagementScreen() {
                                 fontWeight: 700
                               }}
                             >
-                              Copiar
+                              Copiar código
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const code = String(inv.code || '').trim().toUpperCase();
+                                if (!code) return;
+                                const link =
+                                  inv.invite_type === 'master'
+                                    ? buildMasterJoinLink(
+                                        code,
+                                        (loadMasterInvitePermissionsByCode()?.[code]) || {}
+                                      )
+                                    : buildOperatorJoinLink(code);
+                                copyTextToClipboard(link, 'Link copiado');
+                              }}
+                              style={{
+                                padding: '6px 10px',
+                                background: 'rgba(144, 189, 211, 0.14)',
+                                border: '1px solid rgba(144, 189, 211, 0.35)',
+                                borderRadius: 6,
+                                color: 'rgba(255,255,255,0.92)',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 700
+                              }}
+                            >
+                              Copiar link
                             </button>
                             <button
                               type="button"
@@ -1229,19 +1263,21 @@ function TeamManagementScreen() {
                       <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', margin: 0 }}>
                         Operadores
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUseManualInvite((v) => !v);
-                          setDidAttemptInvite(false);
-                          setOperatorNombreCompleto('');
-                          setOperatorRut('');
-                          setOperatorPhone('');
-                        }}
-                        style={{ background: 'none', border: 'none', color: '#90BDD3', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        {useManualInvite ? 'Usar lista' : 'Ingresar manual'}
-                      </button>
+                      {(declaredLoading || declaredOperators.length > 0) ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUseManualInvite((v) => !v);
+                            setDidAttemptInvite(false);
+                            setOperatorNombreCompleto('');
+                            setOperatorRut('');
+                            setOperatorPhone('');
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#90BDD3', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          {useManualInvite ? 'Buscar en lista' : 'Ingresar manual'}
+                        </button>
+                      ) : null}
                     </div>
 
                     {!useManualInvite && (
@@ -1556,7 +1592,7 @@ function TeamManagementScreen() {
                         );
                       })}
                       <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, margin: '6px 0 0' }}>
-                        Estos permisos se aplican en la app del gerente en este dispositivo (no se guardan en backend).
+                        Define los permisos antes de generar el código: viajan en el link y se guardan en el dispositivo del gerente (no backend).
                       </p>
                     </div>
                   </div>
@@ -1569,7 +1605,11 @@ function TeamManagementScreen() {
                   style={{ opacity: (inviting || !isInviteFormValid) ? 0.6 : 1 }}
                   data-testid="generate-code-btn"
                 >
-                  {inviting ? 'Generando...' : 'Generar código de invitación'}
+                  {inviting
+                    ? 'Generando...'
+                    : inviteType === 'master'
+                      ? 'Generar código de acceso'
+                      : 'Generar código de activación'}
                 </button>
               </>
             ) : (
@@ -1688,8 +1728,65 @@ function TeamManagementScreen() {
                     fontSize: 12, 
                     margin: '12px 0 0'
                   }}>
-                    Válido por 7 días
+                    {inviteType === 'master' ? 'Válido por 7 días · Uso único (1 persona)' : 'Válido por 7 días'}
                   </p>
+                </div>
+
+                <div style={{
+                  background: 'rgba(255,255,255,0.06)',
+                  borderRadius: 14,
+                  padding: 14,
+                  marginBottom: 12,
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  textAlign: 'left',
+                }}>
+                  <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 12, margin: 0, fontWeight: 800, textTransform: 'uppercase' }}>
+                    Link directo
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '8px 0 10px', lineHeight: 1.45 }}>
+                    Úsalo si la otra persona prefiere entrar tocando un link (igual puede pegar solo el código).
+                  </p>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{
+                      flex: '1 1 220px',
+                      padding: '10px 12px',
+                      borderRadius: 10,
+                      background: 'rgba(0,0,0,0.20)',
+                      border: '1px solid rgba(255,255,255,0.10)',
+                      color: 'rgba(255,255,255,0.92)',
+                      fontSize: 12,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {inviteType === 'master'
+                        ? buildMasterJoinLink(inviteCode, masterInvitePermissions)
+                        : buildOperatorJoinLink(inviteCode)}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const link = inviteType === 'master'
+                          ? buildMasterJoinLink(inviteCode, masterInvitePermissions)
+                          : buildOperatorJoinLink(inviteCode);
+                        copyTextToClipboard(link, 'Link copiado');
+                      }}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        border: '1px solid rgba(144, 189, 211, 0.35)',
+                        background: 'rgba(144, 189, 211, 0.14)',
+                        color: '#fff',
+                        fontSize: 13,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Copiar link
+                    </button>
+                  </div>
                 </div>
 
                 <button

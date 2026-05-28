@@ -34,7 +34,10 @@ async def get_machines(
     provider_id: Optional[str] = Query(None),
     current_user: dict = Depends(get_current_user),
 ):
-    provider_id = provider_id or current_user.get("owner_id") or current_user.get("id")
+    if AccessPolicy.is_admin(current_user):
+        provider_id = provider_id or current_user.get("owner_id") or current_user.get("id")
+    else:
+        provider_id = AccessPolicy.company_owner_id(current_user)
     if not provider_id:
         raise HTTPException(status_code=400, detail="provider_id requerido")
     AccessPolicy.assert_owner_scope(current_user, provider_id)
@@ -47,7 +50,10 @@ async def post_machine(
     body: Dict[str, Any] = Body(...),
     current_user: dict = Depends(get_current_user),
 ):
-    provider_id = body.get("provider_id") or current_user.get("owner_id") or current_user.get("id")
+    if AccessPolicy.is_admin(current_user):
+        provider_id = body.get("provider_id") or current_user.get("owner_id") or current_user.get("id")
+    else:
+        provider_id = AccessPolicy.company_owner_id(current_user)
     if not provider_id:
         raise HTTPException(status_code=400, detail="provider_id requerido")
     AccessPolicy.assert_owner_scope(current_user, provider_id)

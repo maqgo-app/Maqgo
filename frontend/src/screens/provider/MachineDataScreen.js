@@ -1,6 +1,6 @@
 import React, { useState, useLayoutEffect, useEffect, useCallback, useRef } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import PasswordField from '../../components/PasswordField';
@@ -649,7 +649,7 @@ function MachineWizardPhotosBlock({ photos, setPhotos }) {
 function MachineDataScreen() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  const { login, can, providerRole } = useAuth();
   const toast = useToast();
   const passwordHintInline = getPasswordHint(false);
   const { id } = useParams();
@@ -657,6 +657,7 @@ function MachineDataScreen() {
   const returnTo = String(location.state?.returnTo || '/provider/home');
   const isEditMode = Boolean(id && location.pathname.includes('edit-machine'));
   const isAddMachineEntry = location.pathname.includes('add-machine');
+  const canManageMachines = providerRole === 'super_master' || can('canManageMachines') || can('can_manage_machines');
   const editMachine = location.state?.machine ?? (id ? getMachineById(id) : null);
   const [form, setForm] = useState(() => buildMachineForm(isEditMode, editMachine));
 
@@ -675,6 +676,10 @@ function MachineDataScreen() {
   const [inlineLoading, setInlineLoading] = useState(false);
   const [inlineError, setInlineError] = useState('');
   const [inlineReady, setInlineReady] = useState(() => hasProviderRoleInStorage());
+
+  if (providerRole === 'master' && !canManageMachines) {
+    return <Navigate to="/provider/home" replace />;
+  }
 
   useLayoutEffect(() => {
     const editMode = Boolean(id && location.pathname.includes('edit-machine'));

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation, Navigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
 import { MAQGO_BILLING } from '../../utils/commissions';
 import { fetchWithAuth } from '../../utils/api';
+import { useAuth } from '../../context/authHooks';
 
 import BACKEND_URL from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
@@ -22,9 +23,15 @@ function UploadInvoiceScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
+  const { can } = useAuth();
   const { serviceId } = useParams();
   const fileInputRef = useRef(null);
   const serviceFromState = location.state?.service;
+  const canViewFinances = can('canViewFinances') || can('can_view_finance');
+
+  if (!canViewFinances) {
+    return <Navigate to="/provider/home" replace />;
+  }
 
   const [service, setService] = useState(null);
   const [loading, setLoading] = useState(true);

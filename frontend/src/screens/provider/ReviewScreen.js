@@ -102,7 +102,7 @@ function ReviewScreen() {
         transportCost: Number(pricing?.transportCost || 0),
       };
       if (machineForInventory?.machineryType && machineForInventory?.licensePlate) {
-        await createMachineInApi(machineForInventory, userId);
+        await createMachineInApi(machineForInventory);
       }
 
       // Publicar al proveedor para pruebas reales: dejar disponible tras completar onboarding.

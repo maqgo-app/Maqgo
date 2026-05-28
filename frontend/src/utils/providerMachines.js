@@ -9,7 +9,7 @@ import { MACHINERY_NO_TRANSPORT, MACHINERY_PER_SERVICE } from './pricing';
 import { getObject } from './safeStorage';
 import BACKEND_URL, { fetchWithAuth } from './api';
 
-const STORAGE_KEY = 'providerMachines';
+const LEGACY_STORAGE_KEY = 'providerMachines';
 
 const MACHINERY_TYPES = [
   { id: 'retroexcavadora', name: 'Retroexcavadora' },
@@ -78,8 +78,17 @@ const DEFAULT_MACHINES = [
 ];
 
 export function getMachines() {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const key = storageKey();
+  const raw = localStorage.getItem(key);
   if (!raw) {
+    if (key !== LEGACY_STORAGE_KEY) {
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy) {
+        localStorage.setItem(key, legacy);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+        return getMachines();
+      }
+    }
     const restored = restoreFromOnboardingIfPossible();
     if (restored.length) return restored;
     const migrated = migrateFromLegacy();
@@ -96,12 +105,12 @@ export function getMachines() {
   } catch {
     // Storage corrupto: preferir vacío a demo.
     list = [];
-    saveMachines(list);
+    localStorage.setItem(key, JSON.stringify(list));
     return list;
   }
   if (!Array.isArray(list)) {
     list = [];
-    saveMachines(list);
+    localStorage.setItem(key, JSON.stringify(list));
   }
   // Si una máquina quedó sin operadores por una sincronización parcial,
   // intentar rehidratar desde operatorsData del onboarding.
@@ -114,9 +123,20 @@ export function getMachines() {
 }
 
 export function resetMachines() {
+  localStorage.removeItem(storageKey());
+  localStorage.removeItem(LEGACY_STORAGE_KEY);
   saveMachines([]);
   // Limpieza de legado para evitar re-hidrataciones extrañas.
   localStorage.removeItem('providerMachinePricing');
+}
+
+function currentProviderId() {
+  return (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+}
+
+function storageKey() {
+  const pid = currentProviderId();
+  return pid ? `${LEGACY_STORAGE_KEY}:${pid}` : LEGACY_STORAGE_KEY;
 }
 
 function restoreFromOnboardingIfPossible() {
@@ -154,11 +174,7 @@ function migrateFromLegacy() {
 }
 
 export function saveMachines(machines) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(machines));
-}
-
-function currentProviderId() {
-  return (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+  localStorage.setItem(storageKey(), JSON.stringify(machines));
 }
 
 function normalizeMachineForCache(machine = {}) {
@@ -188,9 +204,10 @@ function upsertMachineInCache(machine) {
   return normalized;
 }
 
-export async function fetchProviderMachinesFromApi(providerId = currentProviderId()) {
-  if (!providerId) return getMachines();
-  const res = await fetchWithAuth(`${BACKEND_URL}/api/machines?provider_id=${encodeURIComponent(providerId)}`, {}, 10000);
+export async function fetchProviderMachinesFromApi(providerId = null) {
+  const pid = String(providerId || '').trim();
+  const url = pid ? `${BACKEND_URL}/api/machines?provider_id=${encodeURIComponent(pid)}` : `${BACKEND_URL}/api/machines`;
+  const res = await fetchWithAuth(url, {}, 10000);
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(typeof json?.detail === 'string' ? json.detail : `No se pudieron cargar máquinas (${res.status})`);
   const machines = Array.isArray(json?.machines) ? json.machines.map(normalizeMachineForCache) : [];
@@ -198,12 +215,12 @@ export async function fetchProviderMachinesFromApi(providerId = currentProviderI
   return machines;
 }
 
-export async function createMachineInApi(machine, providerId = currentProviderId()) {
-  if (!providerId) throw new Error('Sesión de proveedor no disponible');
+export async function createMachineInApi(machine, providerId = null) {
+  const pid = String(providerId || '').trim();
   const res = await fetchWithAuth(`${BACKEND_URL}/api/machines`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...machine, provider_id: providerId }),
+    body: JSON.stringify({ ...machine, ...(pid ? { provider_id: pid } : {}) }),
   }, 12000);
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(typeof json?.detail === 'string' ? json.detail : `No se pudo guardar maquinaria (${res.status})`);
