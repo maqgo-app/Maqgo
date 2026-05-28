@@ -144,10 +144,6 @@ def generate_voucher_html(service_data: dict) -> str:
                     <td style="padding: 10px 0; border-bottom: 1px solid #333;">Horas</td>
                     <td style="padding: 10px 0; border-bottom: 1px solid #333; text-align: right;">{service_data.get('hours', 'N/A')}</td>
                 </tr>
-                <tr>
-                    <td style="padding: 10px 0; border-bottom: 1px solid #333;">Proveedor</td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid #333; text-align: right;">{service_data.get('providerName', 'N/A')}</td>
-                </tr>
             </table>
             
             <h3 style="margin: 20px 0 10px; color: #90BDD3;">Desglose de Cobros</h3>
@@ -163,7 +159,7 @@ def generate_voucher_html(service_data: dict) -> str:
                     <td style="padding: 8px 0; text-align: right;">${iva:,.0f}</td>
                 </tr>
                 <tr style="border-top: 1px solid #333;">
-                    <td style="padding: 8px 0;"><strong>Subtotal Proveedor</strong></td>
+                    <td style="padding: 8px 0;"><strong>Subtotal servicio</strong></td>
                     <td style="padding: 8px 0; text-align: right;"><strong>${total:,.0f}</strong></td>
                 </tr>
                 <tr>
@@ -178,7 +174,6 @@ def generate_voucher_html(service_data: dict) -> str:
             
             <p style="margin-top: 20px; font-size: 12px; color: #888;">
                 Este voucher es un comprobante de los servicios contratados a través de MAQGO.
-                La factura adjunta corresponde al arriendo de maquinaria emitida por el proveedor.
             </p>
         </div>
     </div>
@@ -201,23 +196,17 @@ async def send_invoice_to_client(
         return {"status": "error", "message": "Servicio de email no configurado"}
     
     voucher_html = generate_voucher_html(service_data)
-    
-    # Convertir factura a base64 para adjuntar
-    invoice_base64 = base64.b64encode(invoice_content).decode('utf-8')
+    attach_provider_invoice = os.environ.get("MAQGO_ATTACH_PROVIDER_INVOICE_TO_CLIENT", "false").strip().lower() in {"1", "true", "yes", "y", "on"}
     
     email_html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #0F0F12;">Hola {client_name},</h2>
         <p>Tu servicio de maquinaria ha sido completado exitosamente.</p>
-        <p>Adjunto encontrarás:</p>
-        <ul>
-            <li><strong>Factura</strong> - Documento tributario emitido por el proveedor</li>
-            <li><strong>Voucher MAQGO</strong> - Desglose detallado de los cobros</li>
-        </ul>
+        <p>Adjunto encontrarás tu voucher MAQGO con el desglose de cobros.</p>
         
         {voucher_html}
         
-        <p style="margin-top: 20px;">Si tienes alguna consulta, contáctanos por WhatsApp.</p>
+        <p style="margin-top: 20px;">Si tienes alguna consulta, contáctanos por el chat dentro de MAQGO.</p>
         <p>Gracias por usar MAQGO.</p>
         
         <p style="font-size: 12px; color: #888; margin-top: 30px;">
@@ -236,19 +225,16 @@ async def send_invoice_to_client(
         params = {
             "from": SENDER_EMAIL,
             "to": [client_email],
-            "subject": f"MAQGO - Factura de tu servicio de {service_data.get('machineryType', 'maquinaria')}",
+            "subject": f"MAQGO - Comprobante de tu servicio de {service_data.get('machineryType', 'maquinaria')}",
             "html": email_html,
-            "attachments": [
-                {
-                    "filename": invoice_filename,
-                    "content": invoice_base64
-                }
-            ]
         }
+        if attach_provider_invoice:
+            invoice_base64 = base64.b64encode(invoice_content).decode('utf-8')
+            params["attachments"] = [{"filename": invoice_filename, "content": invoice_base64}]
         email_result = await asyncio.to_thread(resend.Emails.send, params)
         return {
             "status": "success",
-            "message": f"Factura enviada a {client_email}",
+            "message": f"Comprobante enviado a {client_email}",
             "email_id": email_result.get("id")
         }
     except Exception as e:
