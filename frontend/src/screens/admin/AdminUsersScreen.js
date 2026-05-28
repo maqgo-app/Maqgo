@@ -503,7 +503,7 @@ function AdminUsersScreen() {
                   borderRadius: 999,
                   border: 'none',
                   background: 'transparent',
-                  color: 'rgba(255,255,255,0.8)',
+                  color: 'rgba(255,255,255,0.75)',
                   cursor: 'pointer',
                   fontSize: 13,
                   fontWeight: 800,
@@ -520,7 +520,7 @@ function AdminUsersScreen() {
                   borderRadius: 999,
                   border: 'none',
                   background: 'transparent',
-                  color: 'rgba(255,255,255,0.8)',
+                  color: 'rgba(255,255,255,0.75)',
                   cursor: 'pointer',
                   fontSize: 13,
                   fontWeight: 800,
@@ -528,6 +528,23 @@ function AdminUsersScreen() {
                 }}
               >
                 Operación
+              </button>
+              <button
+                type="button"
+                onClick={() => goDashboardArea('platform')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'rgba(255,255,255,0.75)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Plataforma
               </button>
             </div>
             <button
@@ -544,7 +561,7 @@ function AdminUsersScreen() {
                 fontWeight: 800,
               }}
             >
-              💳 Facturación y pagos
+              Facturación y pagos
             </button>
             <button
               type="button"
@@ -560,7 +577,7 @@ function AdminUsersScreen() {
                 fontWeight: 800,
               }}
             >
-              👥 Usuarios
+              Usuarios
             </button>
             <button
               type="button"
@@ -576,7 +593,7 @@ function AdminUsersScreen() {
                 fontWeight: 800,
               }}
             >
-              💰 Precios
+              Precios
             </button>
             <button
               type="button"
@@ -593,7 +610,7 @@ function AdminUsersScreen() {
                 fontWeight: 800,
               }}
             >
-              📈 Marketing & CAC
+              Marketing & CAC
             </button>
             <button
               type="button"
@@ -609,7 +626,7 @@ function AdminUsersScreen() {
                 fontWeight: 800,
               }}
             >
-              📥 Planilla pagos
+              Planilla pagos
             </button>
           </div>
         </div>
@@ -626,8 +643,8 @@ function AdminUsersScreen() {
             onClick={() => setTab('clients')}
             style={{
               padding: '10px 20px',
-              background: tab === 'clients' ? ADMIN_PALETTE.brand : ADMIN_THEME.panelBg,
-              border: 'none',
+              background: tab === 'clients' ? 'rgba(255,255,255,0.06)' : ADMIN_THEME.panelBg,
+              border: `1px solid ${tab === 'clients' ? 'rgba(236, 104, 25, 0.55)' : ADMIN_THEME.border}`,
               borderRadius: 8,
               color: '#fff',
               cursor: 'pointer',
@@ -641,8 +658,8 @@ function AdminUsersScreen() {
             onClick={() => setTab('providers')}
             style={{
               padding: '10px 20px',
-              background: tab === 'providers' ? ADMIN_PALETTE.brand : ADMIN_THEME.panelBg,
-              border: 'none',
+              background: tab === 'providers' ? 'rgba(255,255,255,0.06)' : ADMIN_THEME.panelBg,
+              border: `1px solid ${tab === 'providers' ? 'rgba(236, 104, 25, 0.55)' : ADMIN_THEME.border}`,
               borderRadius: 8,
               color: '#fff',
               cursor: 'pointer',
@@ -656,8 +673,8 @@ function AdminUsersScreen() {
             onClick={() => setTab('machines')}
             style={{
               padding: '10px 20px',
-              background: tab === 'machines' ? ADMIN_PALETTE.brand : ADMIN_THEME.panelBg,
-              border: 'none',
+              background: tab === 'machines' ? 'rgba(255,255,255,0.06)' : ADMIN_THEME.panelBg,
+              border: `1px solid ${tab === 'machines' ? 'rgba(236, 104, 25, 0.55)' : ADMIN_THEME.border}`,
               borderRadius: 8,
               color: '#fff',
               cursor: 'pointer',

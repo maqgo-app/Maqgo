@@ -103,6 +103,11 @@ function AdminDashboard() {
   const [liveRequestsError, setLiveRequestsError] = useState('');
   const [liveRequestsUpdatedAt, setLiveRequestsUpdatedAt] = useState(null);
   const [showUrgentModal, setShowUrgentModal] = useState(false);
+  const [adminMachines, setAdminMachines] = useState(null);
+  const [adminMachinesLoading, setAdminMachinesLoading] = useState(false);
+  const [adminMachinesError, setAdminMachinesError] = useState('');
+  const [adminMachinesUpdatedAt, setAdminMachinesUpdatedAt] = useState(null);
+  const [showIntegrationDetails, setShowIntegrationDetails] = useState(false);
   const [adminArea, setAdminArea] = useState(() => {
     try {
       return localStorage.getItem('maqgo_admin_area') || 'today';
@@ -118,6 +123,86 @@ function AdminDashboard() {
       void 0;
     }
   }, [adminArea]);
+
+  const fetchAdminMachines = useCallback(async () => {
+    if (actionsLocked) return;
+    setAdminMachinesLoading(true);
+    setAdminMachinesError('');
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/machines`, {}, 12000);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.detail || `No se pudieron cargar máquinas (${res.status})`);
+      setAdminMachines(Array.isArray(data?.machines) ? data.machines : []);
+      setAdminMachinesUpdatedAt(new Date());
+    } catch (e) {
+      setAdminMachinesError(friendlyFetchError(e, 'No se pudieron cargar las máquinas (admin).'));
+      setAdminMachines(null);
+    } finally {
+      setAdminMachinesLoading(false);
+    }
+  }, [actionsLocked, setAdminMachines, setAdminMachinesLoading, setAdminMachinesError]);
+
+  useEffect(() => {
+    if (adminArea !== 'platform') return;
+    if (actionsLocked) return;
+    if (adminMachinesLoading) return;
+    if (adminMachines != null) return;
+    fetchAdminMachines();
+  }, [adminArea, actionsLocked, adminMachines, adminMachinesLoading, fetchAdminMachines]);
+
+  const integrations = useMemo(() => {
+    const rows = Array.isArray(adminMachines) ? adminMachines : [];
+    const now = Date.now();
+    const parseDate = (v) => {
+      if (!v) return null;
+      const d = v instanceof Date ? v : new Date(String(v));
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+    const hoursSince = (d) => (d ? (now - d.getTime()) / 36e5 : null);
+
+    const komatsu = rows
+      .filter((m) => {
+        const ex = m?.external && typeof m.external === 'object' ? m.external : null;
+        const k = ex?.komatsu && typeof ex.komatsu === 'object' ? ex.komatsu : null;
+        return Boolean(k?.assetId);
+      })
+      .map((m) => {
+        const ex = m?.external && typeof m.external === 'object' ? m.external : null;
+        const k = ex?.komatsu && typeof ex.komatsu === 'object' ? ex.komatsu : {};
+        const last = parseDate(k?.lastSyncAt);
+        const ageH = hoursSince(last);
+        return {
+          id: m?.id,
+          providerName: m?.providerName || m?.provider?.name || '-',
+          licensePlate: m?.licensePlate || m?.license_plate || '-',
+          machineryType: m?.machineryType || m?.machinery_type || '-',
+          lastSyncAt: last,
+          ageH,
+          isOk24h: typeof ageH === 'number' ? ageH <= 24 : false,
+          isStale72h: typeof ageH === 'number' ? ageH > 72 : true,
+        };
+      });
+
+    const counts = (list) => {
+      let ok24h = 0;
+      let stale = 0;
+      let never = 0;
+      let newest = null;
+      list.forEach((x) => {
+        if (!x.lastSyncAt) never += 1;
+        else {
+          if (!newest || x.lastSyncAt > newest) newest = x.lastSyncAt;
+          if (x.isOk24h) ok24h += 1;
+          if (x.isStale72h) stale += 1;
+        }
+      });
+      return { total: list.length, ok24h, stale72h: stale, never, newest };
+    };
+
+    return {
+      komatsu: { machines: komatsu, ...counts(komatsu) },
+    };
+  }, [adminMachines]);
 
   // Fallback si el backend no envía `finances` (versiones viejas / demo)
   const calculateFinances = useCallback((serviceList) => {
@@ -985,8 +1070,8 @@ function AdminDashboard() {
                   padding: '8px 12px',
                   borderRadius: 999,
                   border: 'none',
-                  background: adminArea === 'today' ? 'rgba(236, 104, 25, 0.22)' : 'transparent',
-                  color: adminArea === 'today' ? '#fff' : 'rgba(255,255,255,0.8)',
+                    background: adminArea === 'today' ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    color: adminArea === 'today' ? '#fff' : 'rgba(255,255,255,0.75)',
                   cursor: 'pointer',
                   fontSize: 13,
                   fontWeight: 800,
@@ -1002,8 +1087,8 @@ function AdminDashboard() {
                   padding: '8px 12px',
                   borderRadius: 999,
                   border: 'none',
-                  background: adminArea === 'system' ? 'rgba(102, 187, 106, 0.16)' : 'transparent',
-                  color: adminArea === 'system' ? '#fff' : 'rgba(255,255,255,0.8)',
+                    background: adminArea === 'system' ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    color: adminArea === 'system' ? '#fff' : 'rgba(255,255,255,0.75)',
                   cursor: 'pointer',
                   fontSize: 13,
                   fontWeight: 800,
@@ -1012,6 +1097,23 @@ function AdminDashboard() {
               >
                 Operación
               </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminArea('platform')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 999,
+                    border: 'none',
+                    background: adminArea === 'platform' ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    color: adminArea === 'platform' ? '#fff' : 'rgba(255,255,255,0.75)',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Plataforma
+                </button>
             </div>
             <button
               type="button"
@@ -1020,8 +1122,8 @@ function AdminDashboard() {
               onClick={() => !actionsLocked && setAdminArea('money')}
               style={{
                 padding: '8px 16px',
-                background: adminArea === 'money' ? 'rgba(126, 184, 212, 0.18)' : 'transparent',
-                border: `1px solid ${adminArea === 'money' ? 'rgba(126, 184, 212, 0.55)' : 'rgba(255,255,255,0.2)'}`,
+                background: adminArea === 'money' ? 'rgba(255,255,255,0.08)' : 'transparent',
+                border: `1px solid ${adminArea === 'money' ? ADMIN_THEME.borderStrong : 'rgba(255,255,255,0.2)'}`,
                 borderRadius: 8,
                 color: adminArea === 'money' ? '#fff' : 'rgba(255,255,255,0.85)',
                 cursor: actionsLocked ? 'not-allowed' : 'pointer',
@@ -1030,7 +1132,7 @@ function AdminDashboard() {
                 opacity: actionsLocked ? 0.45 : 1,
               }}
             >
-              💳 Facturación y pagos
+              Facturación y pagos
             </button>
             <button
               type="button"
@@ -1048,7 +1150,7 @@ function AdminDashboard() {
                 opacity: actionsLocked ? 0.45 : 1,
               }}
             >
-              👥 Usuarios
+              Usuarios
             </button>
             <button
               type="button"
@@ -1066,7 +1168,7 @@ function AdminDashboard() {
                 opacity: actionsLocked ? 0.45 : 1,
               }}
             >
-              💰 Precios
+              Precios
             </button>
             <button
               type="button"
@@ -1084,7 +1186,7 @@ function AdminDashboard() {
                 opacity: actionsLocked ? 0.45 : 1,
               }}
             >
-              📈 Marketing & CAC
+              Marketing & CAC
             </button>
             <button
               type="button"
@@ -2352,7 +2454,7 @@ function AdminDashboard() {
               Colas e indicadores del flujo operativo: revisión → facturación → pago. Para montos y conciliación, usa «Facturación y pagos».
             </p>
 
-            <SystemHealthPanel stats={stats} finances={finances} isDemoData={usingOfflineDemo} />
+            <SystemHealthPanel stats={stats} finances={finances} isDemoData={usingOfflineDemo} theme={ADMIN_THEME} />
 
         {(sla || weekComparison) && (
           <div style={{
@@ -2451,6 +2553,196 @@ function AdminDashboard() {
           </div>
         )}
 
+          </>
+        )}
+
+        {adminArea === 'platform' && (
+          <>
+            <h2
+              style={{
+                color: '#ffffff',
+                fontSize: 16,
+                fontWeight: 700,
+                margin: '24px 0 8px',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}
+            >
+              Plataforma (tenancy + integraciones)
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '0 0 10px' }}>
+              Vista operacional para monitorear integraciones (telemetría) y salud de datos. Sin acciones destructivas.
+            </p>
+
+            <div
+              style={{
+                background: ADMIN_THEME.panelBg,
+                borderRadius: 12,
+                padding: 20,
+                marginBottom: 24,
+                border: `1px solid ${ADMIN_THEME.border}`,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif" }}>
+                    Integraciones
+                  </h3>
+                  <p style={{ margin: '6px 0 0', color: ADMIN_THEME.textMuted, fontSize: 12 }}>
+                    {adminMachinesUpdatedAt ? `Actualizado: ${adminMachinesUpdatedAt.toLocaleTimeString('es-CL')}` : '—'}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={fetchAdminMachines}
+                    disabled={actionsLocked || adminMachinesLoading}
+                    style={{
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                      borderRadius: 10,
+                      color: '#fff',
+                      cursor: actionsLocked || adminMachinesLoading ? 'default' : 'pointer',
+                      opacity: actionsLocked || adminMachinesLoading ? 0.6 : 1,
+                      fontSize: 13,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {adminMachinesLoading ? 'Actualizando…' : 'Actualizar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowIntegrationDetails((v) => !v)}
+                    style={{
+                      padding: '8px 12px',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: `1px solid ${ADMIN_THEME.border}`,
+                      borderRadius: 10,
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {showIntegrationDetails ? 'Ocultar detalle' : 'Ver detalle'}
+                  </button>
+                </div>
+              </div>
+
+              {actionsLocked && (
+                <div style={{ marginTop: 12, color: ADMIN_THEME.textMuted, fontSize: 13 }}>
+                  Sin conexión al API: no se puede cargar inventario admin.
+                </div>
+              )}
+              {adminMachinesError && (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 12,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: 'rgba(229,115,115,0.12)',
+                    border: '1px solid rgba(229,115,115,0.35)',
+                    color: 'rgba(255,255,255,0.95)',
+                    fontSize: 13,
+                  }}
+                >
+                  {adminMachinesError}
+                </div>
+              )}
+
+              {!adminMachinesLoading && Array.isArray(adminMachines) && (
+                <div style={{ marginTop: 14, overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', color: 'rgba(255,255,255,0.7)' }}>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Integración</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Conectadas</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>OK &lt;= 24h</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Stale &gt; 72h</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Nunca sync</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Última sync</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+                        <td style={{ padding: '10px 10px', fontWeight: 800 }}>Komatsu</td>
+                        <td style={{ padding: '10px 10px' }}>{integrations.komatsu.total}</td>
+                        <td style={{ padding: '10px 10px' }}>{integrations.komatsu.ok24h}</td>
+                        <td style={{ padding: '10px 10px' }}>{integrations.komatsu.stale72h}</td>
+                        <td style={{ padding: '10px 10px' }}>{integrations.komatsu.never}</td>
+                        <td style={{ padding: '10px 10px', color: ADMIN_THEME.textMuted }}>
+                          {integrations.komatsu.newest ? integrations.komatsu.newest.toLocaleString('es-CL') : '—'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {showIntegrationDetails && !adminMachinesLoading && Array.isArray(adminMachines) && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 800, marginBottom: 10 }}>
+                    Komatsu — máquinas conectadas
+                  </div>
+                  {integrations.komatsu.machines.length === 0 ? (
+                    <div style={{ color: ADMIN_THEME.textMuted, fontSize: 13 }}>No hay máquinas Komatsu conectadas.</div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ textAlign: 'left', color: 'rgba(255,255,255,0.7)' }}>
+                            <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Empresa</th>
+                            <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Máquina</th>
+                            <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Última sync</th>
+                            <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {integrations.komatsu.machines.slice(0, 200).map((m) => {
+                            const state =
+                              !m.lastSyncAt ? { label: 'SIN_SYNC', color: 'rgba(255,255,255,0.65)', bg: 'rgba(255,255,255,0.08)', border: ADMIN_THEME.borderStrong } :
+                              m.isOk24h ? { label: 'OK', color: '#81C784', bg: 'rgba(102, 187, 106, 0.12)', border: 'rgba(102, 187, 106, 0.35)' } :
+                              m.isStale72h ? { label: 'STALE', color: '#E8A34B', bg: 'rgba(232, 163, 75, 0.12)', border: 'rgba(232, 163, 75, 0.35)' } :
+                              { label: 'LENTO', color: 'rgba(255,255,255,0.8)', bg: 'rgba(255,255,255,0.08)', border: ADMIN_THEME.borderStrong };
+                            return (
+                              <tr key={String(m.id)} style={{ borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+                                <td style={{ padding: '10px 10px', color: 'rgba(255,255,255,0.9)' }}>{m.providerName}</td>
+                                <td style={{ padding: '10px 10px', color: 'rgba(255,255,255,0.9)' }}>
+                                  {m.licensePlate} · {m.machineryType}
+                                </td>
+                                <td style={{ padding: '10px 10px', color: ADMIN_THEME.textMuted }}>
+                                  {m.lastSyncAt ? m.lastSyncAt.toLocaleString('es-CL') : '—'}
+                                </td>
+                                <td style={{ padding: '10px 10px' }}>
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 8,
+                                      padding: '6px 10px',
+                                      borderRadius: 999,
+                                      background: state.bg,
+                                      border: `1px solid ${state.border}`,
+                                      color: state.color,
+                                      fontWeight: 800,
+                                      fontSize: 12,
+                                      fontFamily: "'JetBrains Mono', monospace",
+                                    }}
+                                  >
+                                    {state.label}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>

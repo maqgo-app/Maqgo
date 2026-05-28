@@ -124,7 +124,11 @@ function RiskBlock({ title, items, emptyLabel }) {
   );
 }
 
-export default function SystemHealthPanel({ stats, finances, isDemoData = false }) {
+export default function SystemHealthPanel({ stats, finances, isDemoData = false, theme = null }) {
+  const t = theme && typeof theme === 'object' ? theme : {};
+  const panelBg = t.panelBg || '#0F172A';
+  const panelBgSoft = t.panelBgSoft || '#0B1220';
+  const border = t.border || 'rgba(255,255,255,0.08)';
   const h = useMemo(() => deriveHealth(stats || {}, finances || {}), [stats, finances]);
   const st = statusStyle[h.status] || statusStyle.STABLE;
   const [detailOpen, setDetailOpen] = useState(true);
@@ -141,11 +145,11 @@ export default function SystemHealthPanel({ stats, finances, isDemoData = false 
   return (
     <div
       style={{
-        background: '#2A2A2A',
+        background: panelBg,
         borderRadius: 12,
         padding: 20,
         marginBottom: 24,
-        border: `1px solid ${st.border}`
+        border: `1px solid ${st.border}`,
       }}
     >
       {isDemoData && (
@@ -253,10 +257,10 @@ export default function SystemHealthPanel({ stats, finances, isDemoData = false 
           <div
             key={block.key}
             style={{
-              background: '#1a1a1a',
+              background: panelBgSoft,
               borderRadius: 10,
               padding: 12,
-              border: '1px solid rgba(255,255,255,0.06)',
+              border: `1px solid ${border}`,
               cursor: 'default'
             }}
           >

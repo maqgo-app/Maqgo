@@ -414,7 +414,7 @@ function AdminMarketingScreen() {
                   borderRadius: 999,
                   border: 'none',
                   background: 'transparent',
-                  color: 'rgba(255,255,255,0.8)',
+                  color: 'rgba(255,255,255,0.75)',
                   cursor: 'pointer',
                   fontSize: 13,
                   fontWeight: 800,
@@ -431,14 +431,31 @@ function AdminMarketingScreen() {
                   borderRadius: 999,
                   border: 'none',
                   background: 'transparent',
-                  color: 'rgba(255,255,255,0.8)',
+                  color: 'rgba(255,255,255,0.75)',
                   cursor: 'pointer',
                   fontSize: 13,
                   fontWeight: 800,
                   whiteSpace: 'nowrap',
                 }}
               >
-                Sistema
+                Operación
+              </button>
+              <button
+                type="button"
+                onClick={() => goDashboardArea('platform')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'rgba(255,255,255,0.75)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Plataforma
               </button>
             </div>
             <button
@@ -455,7 +472,7 @@ function AdminMarketingScreen() {
                 fontWeight: 800,
               }}
             >
-              💳 Facturación y pagos
+              Facturación y pagos
             </button>
             <button
               type="button"
@@ -471,7 +488,7 @@ function AdminMarketingScreen() {
                 fontWeight: 800,
               }}
             >
-              👥 Usuarios
+              Usuarios
             </button>
             <button
               type="button"
@@ -487,7 +504,7 @@ function AdminMarketingScreen() {
                 fontWeight: 800,
               }}
             >
-              💰 Precios
+              Precios
             </button>
             <button
               type="button"
@@ -504,7 +521,7 @@ function AdminMarketingScreen() {
                 fontWeight: 800,
               }}
             >
-              📈 Marketing & CAC
+              Marketing & CAC
             </button>
             <button
               type="button"
@@ -520,7 +537,7 @@ function AdminMarketingScreen() {
                 fontWeight: 800,
               }}
             >
-              📥 Planilla pagos
+              Planilla pagos
             </button>
           </div>
         </div>
