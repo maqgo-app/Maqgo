@@ -134,6 +134,73 @@ def _attach_client_matching_view(req: dict) -> None:
         req["clientPhase"] = "searching"
     req["matchingAttemptCount"] = len(req.get("matchingAttempts") or [])
 
+
+async def _attach_approx_provider_location(viewer: dict, req: dict) -> None:
+    role = viewer.get("role")
+    if role not in ("admin", "client"):
+        return
+
+    provider_id = req.get("providerId") or req.get("currentOfferId")
+    if not provider_id:
+        return
+
+    if role == "client":
+        if str(req.get("clientId") or "") != str(viewer.get("id") or ""):
+            return
+        if str(req.get("status") or "") not in ("confirmed", "in_progress", "last_30", "finished", "rated"):
+            return
+        provider_id = req.get("providerId")
+        if not provider_id:
+            return
+
+    provider = await db.users.find_one(
+        {"id": str(provider_id)},
+        {"_id": 0, "location": 1, "locationUpdatedAt": 1, "locationSource": 1},
+    )
+    if not isinstance(provider, dict):
+        return
+
+    loc = provider.get("location")
+    if not isinstance(loc, dict) or loc.get("lat") is None or loc.get("lng") is None:
+        return
+
+    updated_at = provider.get("locationUpdatedAt")
+    dt = updated_at if isinstance(updated_at, datetime) else _parse_iso_datetime(str(updated_at) if updated_at else None)
+    now = datetime.now(timezone.utc)
+    age_min = None
+    if dt:
+        age_min = max(0, int((now - dt).total_seconds() // 60))
+
+    freshness = "unknown"
+    if age_min is not None:
+        if age_min <= 24 * 60:
+            freshness = "ok"
+        elif age_min > 72 * 60:
+            freshness = "stale"
+        else:
+            freshness = "aging"
+
+    dist_km = None
+    try:
+        rloc = req.get("location") if isinstance(req.get("location"), dict) else {}
+        rlat = rloc.get("lat")
+        rlng = rloc.get("lng")
+        if rlat is not None and rlng is not None:
+            meters = haversine_meters(float(loc.get("lat")), float(loc.get("lng")), float(rlat), float(rlng))
+            dist_km = round(float(meters or 0) / 1000.0, 1)
+    except Exception:
+        dist_km = None
+
+    req["approxProviderLocation"] = {
+        "lat": float(loc.get("lat")),
+        "lng": float(loc.get("lng")),
+        "source": str(provider.get("locationSource") or ""),
+        "updatedAt": dt.isoformat() if dt else None,
+        "ageMinutes": age_min,
+        "freshness": freshness,
+        "distanceToServiceKm": dist_km,
+    }
+
 async def _notify_whatsapp_client_status(
     request_id: str,
     client_id: Optional[str],
@@ -685,6 +752,7 @@ async def get_service_request(
             pass
 
     _attach_client_matching_view(request)
+    await _attach_approx_provider_location(current_user, request)
     
     return request
 
