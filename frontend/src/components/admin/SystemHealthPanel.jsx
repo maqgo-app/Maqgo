@@ -108,7 +108,7 @@ function RiskBlock({ title, items, emptyLabel }) {
   const list = items && items.length ? items : null;
   return (
     <div style={{ marginBottom: 12 }}>
-      <p style={{ color: '#EC6819', fontSize: 13, fontWeight: 700, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, fontWeight: 800, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: 0.6 }}>
         {title}
       </p>
       {list ? (
@@ -176,21 +176,17 @@ export default function SystemHealthPanel({ stats, finances, isDemoData = false,
         <div>
           <h2
             style={{
-              color: '#EC6819',
+              color: 'rgba(255,255,255,0.95)',
               fontSize: 16,
-              fontWeight: 700,
+              fontWeight: 800,
               margin: 0,
               fontFamily: "'Space Grotesk', sans-serif"
             }}
           >
             Operación MAQGO
           </h2>
-          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '6px 0 0' }}>
-            Riesgos y acciones sugeridas del pipeline (revisión, facturación y pago)
-          </p>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
-            No es salud de infraestructura: refleja colas/estados operativos del flujo. Solo lectura: no hay menús ocultos. El texto de las tarjetas ya está expuesto. La etiqueta de estado (derecha) indica el nivel calculado;{' '}
-            <strong style={{ color: 'rgba(255,255,255,0.75)' }}>no es un botón</strong>.
+          <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 12, margin: '6px 0 0', lineHeight: 1.45 }}>
+            Riesgos y acciones sugeridas del pipeline (revisión → facturación → pago).
           </p>
         </div>
         <div

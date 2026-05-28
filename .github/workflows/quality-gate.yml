@@ -16,6 +16,7 @@ on:
 jobs:
   frontend:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     defaults:
       run:
         working-directory: frontend
@@ -42,6 +43,7 @@ jobs:
 
   backend:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     defaults:
       run:
         working-directory: .
@@ -154,3 +156,46 @@ jobs:
           URL="${API_BASE}/api/admin/cron/komatsu-sync?secret=${MAQGO_CRON_SECRET}&dry_run=false&limit=500"
           echo "Calling Komatsu sync: ${API_BASE}/api/admin/cron/komatsu-sync (limit=500)"
           curl -fsS --retry 3 --retry-all-errors --max-time 60 "$URL"
+
+  admin_reports_schedule:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    concurrency:
+      group: maqgo-admin-reports
+      cancel-in-progress: true
+    steps:
+      - name: Trigger Admin reports (weekly Monday 08:00, monthly day 1 08:00 America/Santiago)
+        env:
+          MAQGO_CRON_SECRET: ${{ secrets.MAQGO_CRON_SECRET }}
+          MAQGO_CRON_API_BASE_URL: ${{ secrets.MAQGO_CRON_API_BASE_URL }}
+        run: |
+          if [ -z "$MAQGO_CRON_SECRET" ]; then
+            echo "Missing secret: MAQGO_CRON_SECRET"
+            exit 1
+          fi
+
+          API_BASE="${MAQGO_CRON_API_BASE_URL:-https://api2.maqgo.cl}"
+          API_BASE="${API_BASE%/}"
+
+          DOW=$(TZ=America/Santiago date +%u)   # 1=Mon .. 7=Sun
+          DAY=$(TZ=America/Santiago date +%d)   # 01..31
+          HOUR=$(TZ=America/Santiago date +%H)  # 00..23
+          MIN=$(TZ=America/Santiago date +%M)
+          echo "Admin reports schedule check: America/Santiago dow=${DOW} day=${DAY} ${HOUR}:${MIN}"
+
+          if [ "$HOUR" != "08" ]; then
+            echo "Outside report hour; skipping."
+            exit 0
+          fi
+
+          if [ "$DOW" = "1" ]; then
+            URL="${API_BASE}/api/admin/cron/admin-weekly-report?secret=${MAQGO_CRON_SECRET}&dry_run=false&weeks_ago=1"
+            echo "Calling weekly report cron"
+            curl -fsS --retry 3 --retry-all-errors --max-time 60 "$URL"
+          fi
+
+          if [ "$DAY" = "01" ]; then
+            URL="${API_BASE}/api/admin/cron/admin-monthly-report?secret=${MAQGO_CRON_SECRET}&dry_run=false&months_ago=1"
+            echo "Calling monthly report cron"
+            curl -fsS --retry 3 --retry-all-errors --max-time 60 "$URL"
+          fi

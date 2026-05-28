@@ -33,7 +33,10 @@ db = client[get_db_name()]
 
 SUBSCRIPTIONS_CONFIG_KEY = "admin_report_subscriptions"
 
-DEFAULT_ADMIN_REPORT_EMAIL = (os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", "").strip() or "tomas@maqgo.cl").strip().lower()
+DEFAULT_ADMIN_REPORT_EMAIL = (
+    os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", "").strip()
+    or "tomas@maqgo.cl, cvalle@maqgo.cl"
+).strip().lower()
 
 def _parse_bool(v: str, default: bool = False) -> bool:
     if v is None:
@@ -208,9 +211,9 @@ def _previous_week_key(now_local: datetime) -> str:
 
 
 async def _send_admin_weekly_report_email(*, force: bool, dry_run: bool, weeks_ago: int) -> dict:
-    enabled = _parse_bool(os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_ENABLED", "false"), False)
+    enabled = _parse_bool(os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_ENABLED", "true"), True)
     tz_name = os.environ.get("MAQGO_ADMIN_REPORT_TIMEZONE", "America/Santiago").strip() or "America/Santiago"
-    hour = _parse_int(os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_HOUR", "7"), 7)
+    hour = _parse_int(os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_HOUR", "8"), 8)
     minute = _parse_int(os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_MINUTE", "0"), 0)
     window = _parse_int(os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_WINDOW_MINUTES", "20"), 20)
     recipients = await _get_weekly_recipients_from_config_or_env()
@@ -416,11 +419,11 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
 
 
 async def _send_admin_monthly_report_email(*, force: bool, dry_run: bool, months_ago: int) -> dict:
-    enabled = _parse_bool(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_ENABLED", "false"), False)
+    enabled = _parse_bool(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_ENABLED", "true"), True)
     tz_name = os.environ.get("MAQGO_ADMIN_REPORT_TIMEZONE", "America/Santiago").strip() or "America/Santiago"
     day = _parse_int(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_DAY", "1"), 1)
-    hour = _parse_int(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_HOUR", "7"), 7)
-    minute = _parse_int(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_MINUTE", "5"), 5)
+    hour = _parse_int(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_HOUR", "8"), 8)
+    minute = _parse_int(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_MINUTE", "0"), 0)
     window = _parse_int(os.environ.get("MAQGO_ADMIN_MONTHLY_REPORT_WINDOW_MINUTES", "90"), 90)
     recipients = await _get_monthly_recipients_from_config_or_env()
 
