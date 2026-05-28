@@ -4,6 +4,12 @@ import { json } from './_helpers/mocks.js';
 
 const BASE_URL = resolvePlaywrightBaseUrl();
 
+async function enterOtp(page, code) {
+  const first = page.getByTestId('login-otp-input-0');
+  await first.click();
+  await page.keyboard.type(String(code));
+}
+
 function seedSession({ token, userId, userRole, providerRole, ownerId }) {
   try {
     localStorage.clear();
@@ -283,9 +289,8 @@ test.describe('Operacional: identidad + tenancy + permisos', () => {
     await p1.locator('#login-phone').fill('912345678');
     await p1.getByRole('button', { name: /continuar|iniciar sesi[oó]n/i }).click();
     await expect(p1.getByTestId('login-otp-input')).toBeVisible();
-    await p1.getByTestId('login-otp-input').fill('123456');
-    await p1.getByRole('button', { name: /verificar c[oó]digo|iniciar sesi[oó]n/i }).click();
-    await p1.waitForTimeout(300);
+    await enterOtp(p1, '123456');
+    await p1.waitForFunction(() => !!localStorage.getItem('token') || !!localStorage.getItem('authToken'), null, { timeout: 7000 });
     const u1 = await p1.evaluate(() => localStorage.getItem('userId'));
     await c1.close();
 
@@ -296,9 +301,8 @@ test.describe('Operacional: identidad + tenancy + permisos', () => {
     await p2.locator('#login-phone').fill('912345678');
     await p2.getByRole('button', { name: /continuar|iniciar sesi[oó]n/i }).click();
     await expect(p2.getByTestId('login-otp-input')).toBeVisible();
-    await p2.getByTestId('login-otp-input').fill('123456');
-    await p2.getByRole('button', { name: /verificar c[oó]digo|iniciar sesi[oó]n/i }).click();
-    await p2.waitForTimeout(300);
+    await enterOtp(p2, '123456');
+    await p2.waitForFunction(() => !!localStorage.getItem('token') || !!localStorage.getItem('authToken'), null, { timeout: 7000 });
     const u2 = await p2.evaluate(() => localStorage.getItem('userId'));
     await c2.close();
 
@@ -428,8 +432,9 @@ test.describe('Operacional: identidad + tenancy + permisos', () => {
     api.invitations.set('OABCD', { code: 'OABCD', invite_type: 'operator', owner_id: 'ownerA', status: 'pending' });
 
     const page = await context.newPage();
-    await page.goto(`${BASE_URL}/operator/join?code=OABCD`, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('button', { name: /continuar|unirme|validar/i }).click();
+    await page.goto(`${BASE_URL}/operator/join`, { waitUntil: 'domcontentloaded' });
+    await page.getByTestId('invite-code-input').fill('OABCD');
+    await page.getByTestId('validate-code-btn').click();
     await page.waitForTimeout(500);
     const token = await page.evaluate(() => localStorage.getItem('token') || localStorage.getItem('authToken'));
     expect(token).toBeTruthy();
@@ -453,4 +458,3 @@ test.describe('Operacional: identidad + tenancy + permisos', () => {
     await context.close();
   });
 });
-
