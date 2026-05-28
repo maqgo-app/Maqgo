@@ -14,6 +14,7 @@ from email.message import EmailMessage
 from html import escape as html_escape
 import io
 import csv
+import base64
 import os
 import ssl
 import smtplib
@@ -138,7 +139,13 @@ def _cron_verify(secret: Optional[str]) -> None:
         raise HTTPException(status_code=403, detail="Cron no autorizado")
 
 
-async def _send_email(to_emails: list[str], subject: str, text: str, html: Optional[str] = None) -> dict:
+async def _send_email(
+    to_emails: list[str],
+    subject: str,
+    text: str,
+    html: Optional[str] = None,
+    attachments: Optional[list[dict]] = None,
+) -> dict:
     sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev").strip() or "onboarding@resend.dev"
 
     smtp_host = os.environ.get("EMAIL_SMTP_HOST", "").strip()
@@ -155,6 +162,15 @@ async def _send_email(to_emails: list[str], subject: str, text: str, html: Optio
         msg.set_content(text or "")
         if html:
             msg.add_alternative(html, subtype="html")
+        if attachments:
+            for a in attachments:
+                filename = str((a or {}).get("filename") or "attachment").strip() or "attachment"
+                content = (a or {}).get("content") or b""
+                if isinstance(content, str):
+                    content = content.encode("utf-8")
+                maintype = str((a or {}).get("maintype") or "application")
+                subtype = str((a or {}).get("subtype") or "octet-stream")
+                msg.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
         if use_ssl:
             context = ssl.create_default_context()
             await asyncio.to_thread(_smtp_send_ssl, smtp_host, smtp_port, smtp_user, smtp_pass, msg, context)
@@ -179,6 +195,16 @@ async def _send_email(to_emails: list[str], subject: str, text: str, html: Optio
     }
     if html:
         payload["html"] = html
+    if attachments:
+        out = []
+        for a in attachments:
+            filename = str((a or {}).get("filename") or "attachment").strip() or "attachment"
+            content = (a or {}).get("content") or b""
+            if isinstance(content, str):
+                content = content.encode("utf-8")
+            out.append({"filename": filename, "content": base64.b64encode(content).decode("utf-8")})
+        if out:
+            payload["attachments"] = out
     result = await asyncio.to_thread(resend.Emails.send, payload)
     return {"provider": "resend", "id": result.get("id") if isinstance(result, dict) else None}
 
@@ -208,6 +234,314 @@ def _previous_week_key(now_local: datetime) -> str:
     start_this_week = (now_local - timedelta(days=now_local.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
     prev_week_start = start_this_week - timedelta(days=7)
     return prev_week_start.date().isoformat()
+
+
+def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.graphics import renderPDF
+    from reportlab.graphics.charts.barcharts import VerticalBarChart
+    from reportlab.graphics.charts.piecharts import Pie
+    from reportlab.graphics.shapes import Drawing
+
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    periodo = report.get("periodo", {}) or {}
+    resumen = report.get("resumen", {}) or {}
+    alertas = report.get("alertas", []) or []
+
+    def fmt_int(val):
+        try:
+            return int(val)
+        except Exception:
+            return 0
+
+    def fmt_clp(val):
+        try:
+            n = float(val or 0)
+            return f"${int(round(n)):,}".replace(",", ".")
+        except Exception:
+            return "—"
+
+    margin = 36
+    gap = 12
+
+    c.setTitle("MAQGO - Informe semanal (onepager)")
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(margin, height - 44, "MAQGO — Informe semanal (onepager)")
+    c.setFont("Helvetica", 9)
+    semana_label = str(periodo.get("semana") or "").strip()
+    inicio = str(periodo.get("inicio") or "")[:10]
+    fin = str(periodo.get("fin") or "")[:10]
+    meta = []
+    if semana_label:
+        meta.append(semana_label)
+    if inicio and fin:
+        meta.append(f"{inicio} → {fin}")
+    meta.append(f"Generado: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+    c.drawString(margin, height - 60, " · ".join(meta))
+
+    total_creados = fmt_int(resumen.get("total_servicios_creados_semana") or resumen.get("total_solicitudes"))
+    pagados = fmt_int(resumen.get("servicios_pagados_cerrados_semana"))
+    gmv = fmt_clp(resumen.get("gmv_pagado_semana_clp"))
+    tasa_cancel = str(resumen.get("tasa_cancelacion") or "0%").strip()
+    review_min = resumen.get("tiempo_promedio_revision_min")
+    try:
+        review_min = float(review_min or 0)
+        review_min = round(review_min, 1)
+    except Exception:
+        review_min = 0.0
+
+    box_y = height - 128
+    box_h = 56
+    box_w = (width - (2 * margin) - (2 * gap)) / 3.0
+
+    def draw_kpi(x: float, title: str, value: str, sub: str) -> None:
+        c.setFillColorRGB(0.96, 0.96, 0.97)
+        c.roundRect(x, box_y, box_w, box_h, 10, stroke=0, fill=1)
+        c.setFillColor(colors.HexColor("#0B1220"))
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(x + 12, box_y + box_h - 18, title)
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(x + 12, box_y + 18, value)
+        c.setFillColor(colors.HexColor("#475569"))
+        c.setFont("Helvetica", 9)
+        c.drawString(x + 12, box_y + 6, sub)
+
+    draw_kpi(margin, "Servicios creados", str(total_creados), f"Cancelación: {tasa_cancel}")
+    draw_kpi(margin + box_w + gap, "Pagados cerrados", str(pagados), f"Revisión prom: {review_min} min")
+    draw_kpi(margin + (box_w + gap) * 2, "GMV pagado", gmv, "CLP (paid_at)")
+
+    charts_top = height - 360
+    chart_h = 180
+    left_w = (width - (2 * margin) - gap) / 2.0
+    right_x = margin + left_w + gap
+
+    c.setFillColor(colors.HexColor("#0B1220"))
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(margin, charts_top + chart_h + 18, "Distribución por estado")
+    c.drawString(right_x, charts_top + chart_h + 18, "Top maquinaria")
+
+    por_estado = resumen.get("por_estado") or {}
+    etiquetas = resumen.get("etiquetas_estado") or {}
+    keys = ["pending_review", "approved", "invoiced", "paid", "disputed", "cancelled", "otros"]
+    pie_labels = []
+    pie_data = []
+    for k in keys:
+        v = fmt_int(por_estado.get(k, 0))
+        if v <= 0:
+            continue
+        pie_labels.append(str(etiquetas.get(k, k))[:18])
+        pie_data.append(v)
+    if sum(pie_data) > 0:
+        d = Drawing(left_w, chart_h)
+        p = Pie()
+        p.x = 10
+        p.y = 10
+        p.width = min(220, left_w - 20)
+        p.height = chart_h - 20
+        p.data = pie_data
+        p.labels = [f"{l} ({v})" for l, v in zip(pie_labels, pie_data)]
+        palette = [
+            colors.HexColor("#8FB3C9"),
+            colors.HexColor("#66BB6A"),
+            colors.HexColor("#D9A15A"),
+            colors.HexColor("#EC6819"),
+            colors.HexColor("#E57373"),
+            colors.HexColor("#94A3B8"),
+            colors.HexColor("#CBD5E1"),
+        ]
+        for i in range(len(p.data)):
+            p.slices[i].fillColor = palette[i % len(palette)]
+        d.add(p)
+        renderPDF.draw(d, c, margin, charts_top)
+    else:
+        c.setFont("Helvetica", 10)
+        c.setFillColor(colors.HexColor("#475569"))
+        c.drawString(margin, charts_top + chart_h / 2.0, "Sin datos")
+
+    top_maq = resumen.get("top_maquinaria") or []
+    bar_labels = []
+    bar_values = []
+    for row in top_maq[:5]:
+        bar_labels.append(str(row.get("tipo") or "—")[:10])
+        bar_values.append(fmt_int(row.get("n", 0)))
+    if sum(bar_values) > 0:
+        d2 = Drawing(left_w, chart_h)
+        bc = VerticalBarChart()
+        bc.x = 30
+        bc.y = 20
+        bc.height = chart_h - 40
+        bc.width = left_w - 40
+        bc.data = [bar_values]
+        bc.valueAxis.valueMin = 0
+        bc.valueAxis.valueMax = max(bar_values) if max(bar_values) > 0 else 1
+        bc.valueAxis.valueStep = max(1, int(round(bc.valueAxis.valueMax / 4.0)))
+        bc.categoryAxis.categoryNames = bar_labels
+        bc.bars[0].fillColor = colors.HexColor("#8FB3C9")
+        d2.add(bc)
+        renderPDF.draw(d2, c, right_x, charts_top)
+    else:
+        c.setFont("Helvetica", 10)
+        c.setFillColor(colors.HexColor("#475569"))
+        c.drawString(right_x, charts_top + chart_h / 2.0, "Sin datos")
+
+    c.setFillColor(colors.HexColor("#0B1220"))
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(margin, 178, "Alertas (solo lo crítico)")
+    c.setFont("Helvetica", 9)
+    c.setFillColor(colors.HexColor("#334155"))
+    y = 164
+    shown = 0
+    for a in alertas:
+        msg = str((a or {}).get("mensaje") or "").strip()
+        if not msg:
+            continue
+        c.drawString(margin + 10, y, f"- {msg[:120]}")
+        y -= 12
+        shown += 1
+        if shown >= 4:
+            break
+    if shown == 0:
+        c.drawString(margin + 10, y, "- Sin alertas")
+
+    c.setFont("Helvetica-Oblique", 8)
+    c.setFillColor(colors.HexColor("#64748B"))
+    c.drawString(margin, 36, "Pipeline: pending_review → approved → invoiced → paid · Reporte resumido onepager.")
+
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.graphics import renderPDF
+    from reportlab.graphics.charts.barcharts import VerticalBarChart
+    from reportlab.graphics.charts.piecharts import Pie
+    from reportlab.graphics.shapes import Drawing
+
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    periodo = report.get("periodo", {}) or {}
+    volume = report.get("volume", {}) or {}
+    sales = report.get("sales", {}) or {}
+    contribution = report.get("contribution", {}) or {}
+    iva = report.get("iva", {}) or {}
+    maqgo_revenue = report.get("maqgo_revenue", {}) or {}
+
+    def fmt_clp(val):
+        try:
+            n = float(val or 0)
+            return f"${int(round(n)):,}".replace(",", ".")
+        except Exception:
+            return "—"
+
+    margin = 36
+    gap = 12
+
+    c.setTitle("MAQGO - Informe mensual (onepager)")
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(margin, height - 44, "MAQGO — Informe mensual (onepager)")
+    c.setFont("Helvetica", 9)
+    label = str(periodo.get("label") or "").strip()
+    c.drawString(margin, height - 60, f"Periodo: {label} · Generado: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+
+    box_y_top = height - 156
+    box_h = 54
+    box_w = (width - (2 * margin) - gap) / 2.0
+
+    def draw_kpi(x: float, y: float, title: str, value: str, sub: str) -> None:
+        c.setFillColorRGB(0.96, 0.96, 0.97)
+        c.roundRect(x, y, box_w, box_h, 10, stroke=0, fill=1)
+        c.setFillColor(colors.HexColor("#0B1220"))
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(x + 12, y + box_h - 18, title)
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(x + 12, y + 18, value)
+        c.setFillColor(colors.HexColor("#475569"))
+        c.setFont("Helvetica", 9)
+        c.drawString(x + 12, y + 6, sub)
+
+    services_paid = int(volume.get("services_paid") or 0)
+    draw_kpi(margin, box_y_top, "Ventas netas", fmt_clp(sales.get("net")), f"Servicios pagados: {services_paid}")
+    draw_kpi(margin + box_w + gap, box_y_top, "Margen contribución", fmt_clp(contribution.get("margin")), f"{contribution.get('margin_pct')}% sobre ventas netas")
+    draw_kpi(margin, box_y_top - (box_h + gap), "IVA neto estimado", fmt_clp(iva.get("neto_a_pagar_estimado")), "Estimado contable")
+    draw_kpi(margin + box_w + gap, box_y_top - (box_h + gap), "Ingreso MAQGO neto", fmt_clp(maqgo_revenue.get("total_net")), "Comisiones (estimado)")
+
+    charts_top = height - 392
+    chart_h = 170
+    left_w = (width - (2 * margin) - gap) / 2.0
+    right_x = margin + left_w + gap
+
+    c.setFillColor(colors.HexColor("#0B1220"))
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(margin, charts_top + chart_h + 18, "Estructura mensual (CLP)")
+    c.drawString(right_x, charts_top + chart_h + 18, "Documentos proveedor")
+
+    bars = [
+        float(contribution.get("sales_net") or 0),
+        float(contribution.get("cost_of_sales") or 0),
+        float(contribution.get("margin") or 0),
+        float(maqgo_revenue.get("total_net") or 0),
+    ]
+    bar_labels = ["Ventas", "Costo", "Margen", "MAQGO"]
+    if sum(bars) > 0:
+        d = Drawing(left_w, chart_h)
+        bc = VerticalBarChart()
+        bc.x = 30
+        bc.y = 20
+        bc.height = chart_h - 40
+        bc.width = left_w - 40
+        bc.data = [bars]
+        bc.valueAxis.valueMin = 0
+        bc.valueAxis.valueMax = max(bars) if max(bars) > 0 else 1
+        bc.valueAxis.valueStep = max(1, int(round(bc.valueAxis.valueMax / 4.0)))
+        bc.categoryAxis.categoryNames = bar_labels
+        bc.bars[0].fillColor = colors.HexColor("#66BB6A")
+        d.add(bc)
+        renderPDF.draw(d, c, margin, charts_top)
+    else:
+        c.setFont("Helvetica", 10)
+        c.setFillColor(colors.HexColor("#475569"))
+        c.drawString(margin, charts_top + chart_h / 2.0, "Sin datos")
+
+    with_inv = int(volume.get("with_provider_invoice") or 0)
+    without_inv = int(volume.get("paid_without_invoice") or 0)
+    other = max(0, services_paid - with_inv - without_inv)
+    pie_data = [with_inv, without_inv, other]
+    pie_labels = ["Con factura", "Sin factura", "Otros"]
+    if sum(pie_data) > 0:
+        d2 = Drawing(left_w, chart_h)
+        p = Pie()
+        p.x = 10
+        p.y = 10
+        p.width = min(220, left_w - 20)
+        p.height = chart_h - 20
+        p.data = pie_data
+        p.labels = [f"{l} ({v})" for l, v in zip(pie_labels, pie_data)]
+        palette = [colors.HexColor("#8FB3C9"), colors.HexColor("#D9A15A"), colors.HexColor("#94A3B8")]
+        for i in range(len(p.data)):
+            p.slices[i].fillColor = palette[i % len(palette)]
+        d2.add(p)
+        renderPDF.draw(d2, c, right_x, charts_top)
+    else:
+        c.setFont("Helvetica", 10)
+        c.setFillColor(colors.HexColor("#475569"))
+        c.drawString(right_x, charts_top + chart_h / 2.0, "Sin datos")
+
+    c.setFont("Helvetica-Oblique", 8)
+    c.setFillColor(colors.HexColor("#64748B"))
+    c.drawString(margin, 36, "Onepager mensual para lectura rápida. Valores estimados: validar contabilidad.")
+
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+    return buffer.getvalue()
 
 
 async def _send_admin_weekly_report_email(*, force: bool, dry_run: bool, weeks_ago: int) -> dict:
@@ -245,7 +579,10 @@ async def _send_admin_weekly_report_email(*, force: bool, dry_run: bool, weeks_a
 
     report = await _build_weekly_report(weeks_ago=weeks_ago)
     subject = f"MAQGO — Informe semanal {report['periodo']['semana']}"
-    text = format_report_as_text(report)
+    pdf_bytes = _build_weekly_onepager_pdf_bytes(report)
+    inicio = str((report.get("periodo", {}) or {}).get("inicio") or "")[:10] or "semana"
+    filename = f"maqgo_onepager_semanal_{inicio}.pdf"
+    text = "Adjunto: Informe semanal MAQGO (onepager PDF)."
     html = f"<pre>{html_escape(text)}</pre>"
 
     if dry_run:
@@ -256,9 +593,16 @@ async def _send_admin_weekly_report_email(*, force: bool, dry_run: bool, weeks_a
             "to": recipients,
             "subject": subject,
             "text_preview": text[:2000],
+            "attachment": {"filename": filename, "bytes": len(pdf_bytes)},
         }
 
-    send_result = await _send_email(recipients, subject, text, html)
+    send_result = await _send_email(
+        recipients,
+        subject,
+        text,
+        html,
+        attachments=[{"filename": filename, "content": pdf_bytes, "maintype": "application", "subtype": "pdf"}],
+    )
     await db.admin_weekly_report_mailings.update_one(
         {"kind": "weekly_report", "week_key": week_key, "recipients_key": recipients_key},
         {
@@ -454,7 +798,10 @@ async def _send_admin_monthly_report_email(*, force: bool, dry_run: bool, months
 
     report = await _build_monthly_finance(year=y, month=m)
     subject = f"MAQGO — Informe mensual {report['periodo']['label']}"
-    text = format_monthly_finance_as_text(report)
+    pdf_bytes = _build_monthly_onepager_pdf_bytes(report)
+    label = str((report.get("periodo", {}) or {}).get("label") or "").strip() or "mes"
+    filename = f"maqgo_onepager_mensual_{label}.pdf"
+    text = "Adjunto: Informe mensual MAQGO (onepager PDF)."
     html = f"<pre>{html_escape(text)}</pre>"
 
     if dry_run:
@@ -465,9 +812,16 @@ async def _send_admin_monthly_report_email(*, force: bool, dry_run: bool, months
             "to": recipients,
             "subject": subject,
             "text_preview": text[:2000],
+            "attachment": {"filename": filename, "bytes": len(pdf_bytes)},
         }
 
-    send_result = await _send_email(recipients, subject, text, html)
+    send_result = await _send_email(
+        recipients,
+        subject,
+        text,
+        html,
+        attachments=[{"filename": filename, "content": pdf_bytes, "maintype": "application", "subtype": "pdf"}],
+    )
     await db.admin_monthly_report_mailings.update_one(
         {"kind": "monthly_report", "month_key": month_key, "recipients_key": recipients_key},
         {
@@ -688,159 +1042,10 @@ async def get_weekly_report(
     if format == "json":
         return report
 
-    # -------- PDF generado con reportlab (A4, texto compacto) --------
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-
-    periodo = report.get("periodo", {}) or {}
-    resumen = report.get("resumen", {}) or {}
-    alertas = report.get("alertas", []) or []
-
-    # Helpers
-    def fmt_int(val):
-        try:
-            return int(val)
-        except Exception:
-            return 0
-
-    def fmt_clp(val):
-        try:
-            n = float(val or 0)
-            return f"${int(round(n)):,}".replace(",", ".")
-        except Exception:
-            return "—"
-
-    # Márgenes y posición inicial
-    margin_x = 40
-    y = height - 60
-
-    c.setTitle("MAQGO - Informe semanal de operación")
-
-    # Título
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(margin_x, y, "MAQGO — Informe semanal de operación")
-    y -= 20
-
-    # Rango de semana y fecha generación
-    semana_label = periodo.get("semana") or ""
-    inicio = periodo.get("inicio", "")[:10]
-    fin_raw = periodo.get("fin", "")[:10]
-    fin = fin_raw
-    c.setFont("Helvetica", 9)
-    if semana_label:
-        c.drawString(margin_x, y, semana_label)
-        y -= 12
-    if inicio and fin:
-        c.drawString(margin_x, y, f"Semana: {inicio} → {fin}")
-        y -= 12
-    c.drawString(
-        margin_x,
-        y,
-        f"Generado: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
-    )
-    y -= 20
-
-    # Bloque: resumen ejecutivo (servicios y GMV)
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(margin_x, y, "Resumen ejecutivo")
-    y -= 14
-    c.setFont("Helvetica", 9)
-
-    total_creados = fmt_int(
-        resumen.get("total_servicios_creados_semana")
-        or resumen.get("total_solicitudes")
-    )
-    gmv = fmt_clp(resumen.get("gmv_pagado_semana_clp"))
-    pagados = fmt_int(resumen.get("servicios_pagados_cerrados_semana"))
-    tasa_cancel = str(resumen.get("tasa_cancelacion") or "0%")
-
-    c.drawString(
-        margin_x,
-        y,
-        f"Servicios creados en la semana: {total_creados}   ·   Pagados cerrados (paid_at): {pagados}",
-    )
-    y -= 12
-    c.drawString(
-        margin_x,
-        y,
-        f"GMV pagado semanal (CLP): {gmv}   ·   Tasa cancelación (sobre creados): {tasa_cancel}",
-    )
-    y -= 18
-
-    # Bloque: distribución por estado
-    por_estado = resumen.get("por_estado") or {}
-    etiquetas = resumen.get("etiquetas_estado") or {}
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(margin_x, y, "Pipeline facturación (servicios creados en la semana)")
-    y -= 12
-    c.setFont("Helvetica", 9)
-    for key in ["pending_review", "approved", "invoiced", "paid", "disputed", "cancelled", "otros"]:
-        if key in por_estado:
-            label = etiquetas.get(key, key)
-            val = fmt_int(por_estado.get(key, 0))
-            c.drawString(margin_x + 10, y, f"- {label}: {val}")
-            y -= 11
-            if y < 80:
-                c.showPage()
-                y = height - 60
-                c.setFont("Helvetica", 9)
-
-    y -= 6
-
-    # Bloque: top maquinaria
-    top_maq = resumen.get("top_maquinaria") or []
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(margin_x, y, "Top maquinaria (servicios creados en la semana)")
-    y -= 12
-    c.setFont("Helvetica", 9)
-    if not top_maq:
-        c.drawString(margin_x + 10, y, "- Sin datos")
-        y -= 12
-    else:
-        for row in top_maq[:5]:
-            tipo = row.get("tipo", "—")
-            n = fmt_int(row.get("n", 0))
-            c.drawString(margin_x + 10, y, f"- {tipo}: {n}")
-            y -= 11
-            if y < 80:
-                c.showPage()
-                y = height - 60
-                c.setFont("Helvetica", 9)
-
-    y -= 8
-
-    # Bloque: alertas
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(margin_x, y, "Alertas")
-    y -= 12
-    c.setFont("Helvetica", 9)
-    for alerta in alertas:
-        msg = alerta.get("mensaje") or ""
-        c.drawString(margin_x + 10, y, f"- {msg}")
-        y -= 11
-        if y < 80:
-            c.showPage()
-            y = height - 60
-            c.setFont("Helvetica", 9)
-
-    # Pie de página / nota
-    if y < 40:
-        c.showPage()
-        y = height - 60
-    y -= 10
-    c.setFont("Helvetica-Oblique", 8)
-    c.drawString(
-        margin_x,
-        y,
-        "Alineado a estados: pending_review → approved → invoiced → paid · Pipeline post-servicio MAQGO.",
-    )
-
-    c.showPage()
-    c.save()
-    buffer.seek(0)
-
-    filename = f"maqgo_weekly_report_{inicio or 'semana'}.pdf"
+    pdf_bytes = _build_weekly_onepager_pdf_bytes(report)
+    inicio = str((report.get("periodo", {}) or {}).get("inicio") or "")[:10] or "semana"
+    buffer = io.BytesIO(pdf_bytes)
+    filename = f"maqgo_onepager_semanal_{inicio}.pdf"
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
 
@@ -849,6 +1054,7 @@ async def get_weekly_report(
 async def get_monthly_finance(
     year: Optional[int] = Query(None, ge=2020, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
+    format: str = Query("json", pattern="^(json|pdf)$"),
     _: dict = Depends(get_current_admin_strict),
 ):
     """
@@ -859,7 +1065,15 @@ async def get_monthly_finance(
     now = datetime.utcnow()
     y = int(year or now.year)
     m = int(month or now.month)
-    return await _build_monthly_finance(year=y, month=m)
+    report = await _build_monthly_finance(year=y, month=m)
+    if format == "json":
+        return report
+    pdf_bytes = _build_monthly_onepager_pdf_bytes(report)
+    buffer = io.BytesIO(pdf_bytes)
+    label = str((report.get("periodo", {}) or {}).get("label") or "").strip() or f"{y}-{m:02d}"
+    filename = f"maqgo_onepager_mensual_{label}.pdf"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
 
 
 async def generate_alerts(db, start_date, end_date, umbral_revision_h=72):
