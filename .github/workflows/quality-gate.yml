@@ -199,3 +199,31 @@ jobs:
             echo "Calling monthly report cron"
             curl -fsS --retry 3 --retry-all-errors --max-time 60 "$URL"
           fi
+
+  admin_reports_manual:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: maqgo-admin-reports
+      cancel-in-progress: true
+    steps:
+      - name: Dry-run Admin reports (manual)
+        env:
+          MAQGO_CRON_SECRET: ${{ secrets.MAQGO_CRON_SECRET }}
+          MAQGO_CRON_API_BASE_URL: ${{ secrets.MAQGO_CRON_API_BASE_URL }}
+        run: |
+          if [ -z "$MAQGO_CRON_SECRET" ]; then
+            echo "Missing secret: MAQGO_CRON_SECRET"
+            exit 1
+          fi
+
+          API_BASE="${MAQGO_CRON_API_BASE_URL:-https://api2.maqgo.cl}"
+          API_BASE="${API_BASE%/}"
+
+          URL="${API_BASE}/api/admin/cron/admin-weekly-report?secret=${MAQGO_CRON_SECRET}&force=true&dry_run=true&weeks_ago=1"
+          echo "Calling weekly report cron (dry_run)"
+          curl -fsS --retry 3 --retry-all-errors --max-time 60 "$URL"
+
+          URL="${API_BASE}/api/admin/cron/admin-monthly-report?secret=${MAQGO_CRON_SECRET}&force=true&dry_run=true&months_ago=1"
+          echo "Calling monthly report cron (dry_run)"
+          curl -fsS --retry 3 --retry-all-errors --max-time 60 "$URL"
