@@ -188,15 +188,14 @@ async def send_invoice_to_client(
     invoice_filename: str
 ) -> dict:
     """
-    Envía la factura + voucher al cliente por email
-    MAQGO controla el envío, nunca el proveedor directo
+    Envía el comprobante MAQGO (voucher) al cliente por email.
+    La factura del proveedor queda solo para MAQGO (panel/admin) y conciliación interna.
     """
     
     if not RESEND_API_KEY:
         return {"status": "error", "message": "Servicio de email no configurado"}
     
     voucher_html = generate_voucher_html(service_data)
-    attach_provider_invoice = os.environ.get("MAQGO_ATTACH_PROVIDER_INVOICE_TO_CLIENT", "false").strip().lower() in {"1", "true", "yes", "y", "on"}
     
     email_html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -228,9 +227,6 @@ async def send_invoice_to_client(
             "subject": f"MAQGO - Comprobante de tu servicio de {service_data.get('machineryType', 'maquinaria')}",
             "html": email_html,
         }
-        if attach_provider_invoice:
-            invoice_base64 = base64.b64encode(invoice_content).decode('utf-8')
-            params["attachments"] = [{"filename": invoice_filename, "content": invoice_base64}]
         email_result = await asyncio.to_thread(resend.Emails.send, params)
         return {
             "status": "success",
@@ -371,7 +367,7 @@ async def upload_invoice(
     
     return {
         "status": "success",
-        "message": "Factura validada y enviada al cliente",
+        "message": "Factura validada (solo MAQGO) y comprobante MAQGO enviado al cliente",
         "validation": validation_result.dict(),
         "email": email_result
     }
