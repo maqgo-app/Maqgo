@@ -337,6 +337,7 @@ admin_reports_router = None
 admin_reports_cron_router = None
 admin_config_router = None
 admin_access_router = None
+admin_notifications_router = None
 marketing_kpi_router = None
 marketing_cron_router = None
 chatbot_router = None
@@ -434,6 +435,11 @@ try:
     logger.info("ROUTER LOADED: admin_access")
 except Exception as e:
     logger.error(f"ROUTER FAILED: admin_access - {e}")
+try:
+    from routes.admin_notifications import router as admin_notifications_router  # type: ignore
+    logger.info("ROUTER LOADED: admin_notifications")
+except Exception as e:
+    logger.error(f"ROUTER FAILED: admin_notifications - {e}")
 try:
     from routes.marketing_kpi import router as marketing_kpi_router, cron_router as marketing_cron_router  # type: ignore
     logger.info("ROUTER LOADED: marketing_kpi + cron")
@@ -545,6 +551,7 @@ _include_if_present(admin_reports_router, "admin_reports")
 _include_if_present(admin_reports_cron_router, "admin_reports_cron")
 _include_if_present(admin_config_router, "admin_config")
 _include_if_present(admin_access_router, "admin_access")
+_include_if_present(admin_notifications_router, "admin_notifications")
 _include_if_present(marketing_kpi_router, "marketing_kpi")
 _include_if_present(marketing_cron_router, "marketing_cron")
 _include_if_present(chatbot_router, "chatbot")
