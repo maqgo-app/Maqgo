@@ -125,11 +125,8 @@ def _env_recipients_for_event(event_type: str) -> list[str]:
     raw = ""
     if key:
         raw = os.environ.get(key, "").strip()
-    raw = raw or os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", "").strip()
     if not raw:
-        raw = os.environ.get("MAQGO_ADMIN_REPORT_EMAILS", "").strip()
-    if not raw:
-        raw = "tomas@maqgo.cl, cvalle@maqgo.cl"
+        raw = os.environ.get("MAQGO_ADMIN_EVENT_EMAILS", "").strip()
     return _normalize_email_list(raw)
 
 
@@ -259,4 +256,3 @@ async def send_admin_event_email(
     if status != "sent":
         return {"ok": False, "sent": False, "error": last_error, "dedupe_key": key, "to": recipients}
     return {"ok": True, "sent": True, "dedupe_key": key, "to": recipients, "provider": send_result.get("provider")}
-
