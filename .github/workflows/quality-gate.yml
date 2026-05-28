@@ -4,6 +4,12 @@ on:
   pull_request:
   push:
     branches: [main, master, develop]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Motivo (opcional) para forzar deploy hooks"
+        required: false
+        default: ""
 
 jobs:
   frontend:
@@ -71,15 +77,45 @@ jobs:
     runs-on: ubuntu-latest
     needs: [frontend, backend]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: maqgo-deploy-main
+      cancel-in-progress: true
     steps:
-      - name: Trigger Vercel deploy hook
+      - name: Trigger Vercel deploy hook (push main)
         env:
           VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
           VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
         run: |
+          echo "Deploy trigger: commit=$GITHUB_SHA ref=$GITHUB_REF event=$GITHUB_EVENT_NAME"
           DEPLOY_HOOK_URL="${VERCEL_DEPLOY_HOOK_URL:-$VERCEL_DEPLOY_HOOK}"
           if [ -z "$DEPLOY_HOOK_URL" ]; then
-            echo "Missing secret: VERCEL_DEPLOY_HOOK_URL (or legacy VERCEL_DEPLOY_HOOK) — skipping deploy hook."
-            exit 0
+            echo "Missing secret: VERCEL_DEPLOY_HOOK_URL (or legacy VERCEL_DEPLOY_HOOK)."
+            exit 1
           fi
           curl -fsS --retry 3 --retry-all-errors --max-time 30 "$DEPLOY_HOOK_URL"
+
+  deploy_hooks_manual:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: maqgo-deploy-main
+      cancel-in-progress: true
+    steps:
+      - name: Trigger deploy hooks (manual)
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+          RAILWAY_DEPLOY_HOOK_URL: ${{ secrets.RAILWAY_DEPLOY_HOOK_URL }}
+        run: |
+          echo "Manual deploy trigger: commit=$GITHUB_SHA ref=$GITHUB_REF reason='${{ inputs.reason }}'"
+          VERCEL_URL="${VERCEL_DEPLOY_HOOK_URL:-$VERCEL_DEPLOY_HOOK}"
+          if [ -z "$VERCEL_URL" ]; then
+            echo "Missing secret: VERCEL_DEPLOY_HOOK_URL (or legacy VERCEL_DEPLOY_HOOK)."
+            exit 1
+          fi
+          curl -fsS --retry 3 --retry-all-errors --max-time 30 "$VERCEL_URL"
+          if [ -n "$RAILWAY_DEPLOY_HOOK_URL" ]; then
+            curl -fsS --retry 3 --retry-all-errors --max-time 30 "$RAILWAY_DEPLOY_HOOK_URL"
+          else
+            echo "No RAILWAY_DEPLOY_HOOK_URL configured; skipping Railway hook."
+          fi
