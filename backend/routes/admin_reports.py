@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from auth_dependency import get_current_admin_strict
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from collections import Counter
 from email.message import EmailMessage
@@ -20,6 +20,7 @@ import ssl
 import smtplib
 import asyncio
 from zoneinfo import ZoneInfo
+from pathlib import Path
 
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -55,6 +56,16 @@ def _parse_int(v: str, default: int) -> int:
         return int(str(v).strip())
     except Exception:
         return default
+
+
+def _fmt_clp(val) -> str:
+    try:
+        n = float(val or 0)
+    except Exception:
+        n = 0.0
+    n = round(n, 0)
+    s = f"{int(n):,}".replace(",", ".")
+    return f"${s}"
 
 
 def _normalize_email_list(value) -> list[str]:
@@ -236,16 +247,853 @@ def _previous_week_key(now_local: datetime) -> str:
     return prev_week_start.date().isoformat()
 
 
+def _get_frontend_url() -> str:
+    return (os.environ.get("FRONTEND_URL", "").strip() or "https://www.maqgo.cl").rstrip("/")
+
+
+def _extract_zone_from_address(address: str) -> str:
+    t = str(address or "").strip()
+    if not t:
+        return "—"
+    parts = [p.strip() for p in t.split(",") if p.strip()]
+    if len(parts) >= 2:
+        return parts[-2][:40]
+    if len(parts) == 1:
+        return parts[0][:40]
+    return "—"
+
+
+def _parse_dt_maybe(value) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    t = str(value).strip()
+    if not t:
+        return None
+    try:
+        if t.endswith("Z"):
+            t = t[:-1] + "+00:00"
+        return datetime.fromisoformat(t)
+    except Exception:
+        return None
+
+
+def _business_day_for_month(*, year: int, month: int, day: int, tz_name: str) -> datetime:
+    safe_day = int(day or 1)
+    safe_day = max(1, min(31, safe_day))
+    for d in range(safe_day, 0, -1):
+        try:
+            dt = datetime(year, month, d, 0, 0, 0, tzinfo=ZoneInfo(tz_name))
+            break
+        except Exception:
+            continue
+    else:
+        dt = datetime(year, month, 1, 0, 0, 0, tzinfo=ZoneInfo(tz_name))
+    while dt.weekday() >= 5:
+        dt = dt + timedelta(days=1)
+    return dt
+
+
+async def _compute_komatsu_integration_snapshot() -> dict:
+    docs = await db.machines.find(
+        {
+            "status": {"$ne": "deleted"},
+            "external.komatsu.assetId": {"$exists": True, "$ne": None},
+        },
+        {"_id": 0, "external.komatsu.lastSyncAt": 1},
+    ).to_list(20000)
+    now = datetime.now(timezone.utc)
+    connected = 0
+    ok_24h = 0
+    stale_72h = 0
+    never_sync = 0
+    newest = None
+    for d in docs:
+        connected += 1
+        last = (((d or {}).get("external") or {}).get("komatsu") or {}).get("lastSyncAt")
+        dt = _parse_dt_maybe(last)
+        if not dt:
+            never_sync += 1
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if newest is None or dt > newest:
+            newest = dt
+        age_h = (now - dt).total_seconds() / 3600.0
+        if age_h <= 24.0:
+            ok_24h += 1
+        elif age_h > 72.0:
+            stale_72h += 1
+    return {
+        "connected": connected,
+        "ok_24h": ok_24h,
+        "stale_72h": stale_72h,
+        "never_sync": never_sync,
+        "newest_sync_at": newest.isoformat() if isinstance(newest, datetime) else None,
+    }
+
+
+def _get_email_logo_url() -> str:
+    raw = os.environ.get("MAQGO_EMAIL_LOGO_URL", "").strip()
+    if raw:
+        return raw
+    return f"{_get_frontend_url()}/maqgo_logo_clean.png"
+
+
+def _find_maqgo_logo_png_path() -> Optional[str]:
+    repo_root = Path(__file__).resolve().parents[2]
+    candidates = [
+        repo_root / "frontend" / "public" / "maqgo_logo_clean.png",
+        repo_root / "frontend" / "src" / "assets" / "maqgo-logo.png",
+    ]
+    for p in candidates:
+        if p.exists():
+            return str(p)
+    return None
+
+
+def _render_admin_email_shell(*, title: str, subtitle: str, kpis: list[dict], sections: list[dict], cta_text: str, cta_url: str, report_id: str) -> str:
+    logo_url = html_escape(_get_email_logo_url())
+    safe_title = html_escape(title)
+    safe_subtitle = html_escape(subtitle)
+    safe_cta_text = html_escape(cta_text)
+    safe_cta_url = html_escape(cta_url)
+    safe_report_id = html_escape(report_id)
+
+    kpi_cells = []
+    for k in kpis[:4]:
+        kpi_cells.append(
+            f"""
+            <td style="padding:0 8px 0 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E6EDF5;border-radius:14px;background:#FFFFFF;">
+                <tr><td style="padding:14px 14px 12px 14px;">
+                  <div style="font-size:11px;letter-spacing:.3px;color:#64748B;font-weight:800;">{html_escape(str(k.get('label','')).upper())}</div>
+                  <div style="margin-top:6px;font-size:20px;line-height:24px;color:#0B1220;font-weight:900;">{html_escape(str(k.get('value','')))}</div>
+                  <div style="margin-top:4px;font-size:12px;color:#64748B;">{html_escape(str(k.get('sub','')))}</div>
+                </td></tr>
+              </table>
+            </td>
+            """
+        )
+    if len(kpi_cells) == 3:
+        kpi_cells.append('<td style="padding:0 0 0 0;"></td>')
+    kpi_row = "<tr>" + "".join(kpi_cells) + "</tr>"
+
+    section_html = []
+    for s in sections[:3]:
+        st = html_escape(str(s.get("title") or ""))
+        rows = s.get("rows") or []
+        row_html = []
+        for r in rows[:6]:
+            label = html_escape(str(r.get("label") or ""))
+            value = html_escape(str(r.get("value") or ""))
+            pct = float(r.get("pct") or 0.0)
+            pct = max(0.0, min(100.0, pct))
+            color = html_escape(str(r.get("color") or "#8FB3C9"))
+            row_html.append(
+                f"""
+                <tr>
+                  <td style="padding:8px 0;font-size:12px;color:#0B1220;">{label}</td>
+                  <td style="padding:8px 0 8px 12px;width:64%;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF2F7;border-radius:10px;">
+                      <tr>
+                        <td style="width:{pct:.0f}%;background:{color};height:10px;border-radius:10px;">&nbsp;</td>
+                        <td style="width:{100.0-pct:.0f}%;height:10px;">&nbsp;</td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding:8px 0 8px 12px;font-size:12px;color:#64748B;text-align:right;white-space:nowrap;">{value}</td>
+                </tr>
+                """
+            )
+        section_html.append(
+            f"""
+            <tr>
+              <td style="padding:0 0 14px 0;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                  <tr>
+                    <td style="padding:16px 16px 6px 16px;">
+                      <div style="font-size:14px;font-weight:900;color:#0B1220;">{st}</div>
+                      <div style="margin-top:10px;height:2px;width:120px;background:#EC6819;border-radius:2px;"></div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:4px 16px 12px 16px;">
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                        {''.join(row_html)}
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            """
+        )
+
+    return f"""<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body style="margin:0;background:#F6F8FB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FB;padding:26px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="720" cellpadding="0" cellspacing="0" style="width:720px;max-width:720px;">
+            <tr>
+              <td style="background:#ffffff;border:1px solid #E6EDF5;border-radius:20px;overflow:hidden;">
+                <div style="height:10px;background:#EC6819;line-height:10px;font-size:0;">&nbsp;</div>
+                <div style="padding:22px 26px 18px 26px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="vertical-align:middle;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" style="background:#0B1220;border-radius:999px;">
+                          <tr>
+                            <td style="padding:10px 14px;">
+                              <img src="{logo_url}" alt="MAQGO" width="86" style="display:block;border:0;outline:none;text-decoration:none;" />
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;text-align:right;">
+                        <span style="display:inline-block;background:#0B1220;color:#ffffff;padding:8px 12px;border-radius:999px;font-weight:900;font-size:12px;">Admin</span>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <div style="margin-top:14px;font-weight:900;font-size:26px;line-height:32px;letter-spacing:-0.2px;color:#0B1220;">{safe_title}</div>
+                  <div style="margin-top:6px;font-size:12px;color:#64748B;">{safe_subtitle}</div>
+
+                  <div style="margin-top:16px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      {kpi_row}
+                    </table>
+                  </div>
+
+                  <div style="margin-top:14px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      {''.join(section_html)}
+                    </table>
+                  </div>
+
+                  <div style="margin-top:4px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:14px;background:#FAFBFE;">
+                    <div style="font-size:12px;color:#0B1220;line-height:18px;">
+                      Adjuntamos el reporte en PDF (onepager) para lectura rápida. ID: <span style="font-weight:900;">{safe_report_id}</span>
+                    </div>
+                    <div style="margin-top:12px;">
+                      <a href="{safe_cta_url}" style="display:inline-block;background:#0B1220;color:#ffffff;text-decoration:none;padding:12px 16px;border-radius:12px;font-weight:900;font-size:13px;">
+                        {safe_cta_text}
+                      </a>
+                    </div>
+                  </div>
+
+                  <div style="margin-top:14px;border-top:1px solid #EEF2F7;padding-top:12px;font-size:11px;color:#94A3B8;line-height:16px;">
+                    Este correo es automático para operación MAQGO. No responder.
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="text-align:center;font-size:11px;color:#94A3B8;padding:12px 12px;">© {datetime.utcnow().strftime('%Y')} MAQGO</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
+
+
+def _fmt_delta_pct(val) -> str:
+    try:
+        v = float(val)
+    except Exception:
+        return "—"
+    if v == 0:
+        return "0%"
+    sign = "+" if v > 0 else ""
+    return f"{sign}{v:.1f}%"
+
+
+def _fmt_days(val) -> str:
+    try:
+        v = float(val)
+    except Exception:
+        return "—"
+    if v <= 0:
+        return "—"
+    if v < 1:
+        return f"{v:.2f}"
+    return f"{v:.1f}"
+
+
+def _fmt_ratio(n, d) -> str:
+    try:
+        nn = int(n or 0)
+        dd = int(d or 0)
+    except Exception:
+        return "—"
+    if dd <= 0:
+        return "—"
+    nn = max(0, nn)
+    return f"{nn}/{dd}"
+
+
+def _render_metric_tile(*, label: str, value: str, sub: str) -> str:
+    return f"""
+    <td style="padding:0 10px 10px 0;vertical-align:top;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+        <tr><td style="padding:16px 16px 12px 16px;">
+          <div style="font-size:11px;letter-spacing:.28px;color:#64748B;font-weight:800;text-transform:uppercase;">{html_escape(label)}</div>
+          <div style="margin-top:6px;font-size:22px;line-height:26px;color:#0B1220;font-weight:900;">{html_escape(value)}</div>
+          <div style="margin-top:4px;font-size:12px;line-height:16px;color:#64748B;">{html_escape(sub)}</div>
+        </td></tr>
+      </table>
+    </td>
+    """
+
+
+def _render_section_header(title: str) -> str:
+    return f"""
+    <div style="margin-top:18px;font-size:14px;font-weight:900;color:#0B1220;letter-spacing:.2px;">{html_escape(title)}</div>
+    <div style="margin-top:8px;height:2px;width:140px;background:#EC6819;border-radius:2px;"></div>
+    """
+
+
+def _render_bullets(items: list[str]) -> str:
+    lis = []
+    for x in (items or [])[:6]:
+        t = str(x or "").strip()
+        if not t:
+            continue
+        lis.append(f'<tr><td style="padding:6px 0;font-size:13px;line-height:18px;color:#0B1220;">• {html_escape(t)}</td></tr>')
+    if not lis:
+        lis.append('<tr><td style="padding:6px 0;font-size:13px;line-height:18px;color:#64748B;">—</td></tr>')
+    return f"""
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      {''.join(lis)}
+    </table>
+    """
+
+
+def _render_mini_rows(rows: list[dict]) -> str:
+    out = []
+    for r in (rows or [])[:5]:
+        label = html_escape(str((r or {}).get("label") or ""))
+        value = html_escape(str((r or {}).get("value") or ""))
+        pct = float((r or {}).get("pct") or 0.0)
+        pct = max(0.0, min(100.0, pct))
+        color = html_escape(str((r or {}).get("color") or "#8FB3C9"))
+        out.append(
+            f"""
+            <tr>
+              <td style="padding:7px 0;font-size:12px;color:#0B1220;">{label}</td>
+              <td style="padding:7px 0 7px 10px;width:60%;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF2F7;border-radius:999px;">
+                  <tr>
+                    <td style="width:{pct:.0f}%;background:{color};height:10px;border-radius:999px;">&nbsp;</td>
+                    <td style="width:{100.0-pct:.0f}%;height:10px;">&nbsp;</td>
+                  </tr>
+                </table>
+              </td>
+              <td style="padding:7px 0 7px 10px;font-size:12px;color:#64748B;text-align:right;white-space:nowrap;">{value}</td>
+            </tr>
+            """
+        )
+    return f"""
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      {''.join(out) if out else '<tr><td style="padding:6px 0;color:#64748B;">—</td></tr>'}
+    </table>
+    """
+
+
+def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: str) -> str:
+    logo_url = html_escape(_get_email_logo_url())
+    periodo = report.get("periodo", {}) or {}
+    resumen = report.get("resumen", {}) or {}
+    business = report.get("business", {}) or {}
+    ops = report.get("ops", {}) or {}
+    growth = report.get("growth", {}) or {}
+    demand = report.get("demand", {}) or {}
+    integrations = report.get("integrations", {}) or {}
+
+    title = "Resumen Semanal"
+    semana = str(periodo.get("semana") or "").strip() or "Semana"
+    subtitle = f"{semana} · Generado {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"
+
+    gmv = _fmt_clp(business.get("gmv_paid_clp") or resumen.get("gmv_pagado_semana_clp") or 0)
+    maqgo_rev = _fmt_clp(business.get("maqgo_revenue_net_clp") or 0)
+    completed = str(business.get("services_completed") or resumen.get("servicios_pagados_cerrados_semana") or 0)
+    ticket = _fmt_clp(business.get("ticket_promedio_clp") or 0)
+    wow_gmv = _fmt_delta_pct(business.get("wow_gmv_pct"))
+    wow_rev = _fmt_delta_pct(business.get("wow_maqgo_revenue_pct"))
+    wow_completed = _fmt_delta_pct(business.get("wow_completed_pct"))
+
+    health = ops.get("health_score")
+    try:
+        health = int(health)
+    except Exception:
+        health = None
+    health_label = "—"
+    if health is not None:
+        if health >= 85:
+            health_label = "Sano"
+        elif health >= 70:
+            health_label = "Atención"
+        else:
+            health_label = "Crítico"
+    health_value = f"{health}/100" if health is not None else "—"
+
+    insights = (report.get("insights") or []) if isinstance(report.get("insights"), list) else []
+
+    avg_days = business.get("avg_rental_days")
+    avg_days_label = f"{_fmt_days(avg_days)} días" if avg_days is not None else "—"
+
+    a_items = [
+        f"GMV pagado: {gmv} (vs semana anterior: {wow_gmv})",
+        f"Ingreso MAQGO neto (estimado): {maqgo_rev} (vs semana anterior: {wow_rev})",
+        f"Servicios completados: {completed} (vs semana anterior: {wow_completed})",
+        f"Ticket promedio: {ticket}",
+        f"Arriendo promedio: {avg_days_label}",
+    ]
+
+    b_items = [
+        f"Salud operacional: {health_value} · {health_label} (backlog/disputas/pagos)",
+        f"Tiempo de revisión (prom.): {ops.get('review_avg_min') or resumen.get('tiempo_promedio_revision_min') or 0} min (creación→aprobación)",
+        f"Backlog revisión: {ops.get('pending_review_total') or 0} (en revisión más de 72h: {ops.get('stuck_over_72h') or 0})",
+        f"Disputas abiertas: {ops.get('disputed_total') or 0}",
+        f"Documentos proveedor recibidos: {ops.get('invoiced_total') or resumen.get('por_pagar_proveedor_count') or 0} (pendiente revisión/pago)",
+    ]
+
+    c_items = [
+        f"Nuevos clientes: {growth.get('new_clients') or resumen.get('nuevos_clientes_semana') or 0}",
+        f"Nuevos proveedores: {growth.get('new_providers') or resumen.get('nuevos_proveedores_semana') or 0}",
+        f"Nuevas maquinarias: {growth.get('new_machines') or resumen.get('nuevas_maquinarias_semana') or 0}",
+    ]
+
+    mk = report.get("marketing") or {}
+    mk_funnel = (mk.get("funnel") or {}) if isinstance(mk, dict) else {}
+    fc = (mk_funnel.get("clientes") or {}) if isinstance(mk_funnel.get("clientes"), dict) else {}
+    fp = (mk_funnel.get("proveedores") or {}) if isinstance(mk_funnel.get("proveedores"), dict) else {}
+    c_reg = int(fc.get("registrados") or 0)
+    p_reg = int(fp.get("registrados") or 0)
+    if c_reg > 0:
+        c_items.append(
+            f"Clientes nuevos ({c_reg}): "
+            f"con tarjeta {int(fc.get('con_tarjeta_oneclick') or 0)} · "
+            f"con solicitud {int(fc.get('con_solicitud_servicio') or 0)}"
+        )
+    else:
+        c_items.append("Clientes nuevos: —")
+    if p_reg > 0:
+        c_items.append(
+            f"Proveedores nuevos ({p_reg}): "
+            f"disponibles {int(fp.get('disponibles') or 0)} · "
+            f"con 1er servicio {int(fp.get('con_primer_servicio_semana') or 0)}"
+        )
+    else:
+        c_items.append("Proveedores nuevos: —")
+
+    top_zones = demand.get("top_zones") or []
+    zone_rows = []
+    if isinstance(top_zones, list) and top_zones:
+        max_zone = max([int((z or {}).get("n") or 0) for z in top_zones] + [1])
+        for z in top_zones[:3]:
+            name = str((z or {}).get("zone") or "—").strip()
+            n = int((z or {}).get("n") or 0)
+            ch = (z or {}).get("wow_pct")
+            wow = _fmt_delta_pct(ch) if ch is not None else "—"
+            zone_rows.append({"label": name, "value": f"{n} (vs semana anterior: {wow})", "pct": float(n) / float(max_zone) * 100.0, "color": "#8FB3C9"})
+
+    komatsu = integrations.get("komatsu") or {}
+    k_total = int(komatsu.get("connected") or 0)
+    k_ok = int(komatsu.get("ok_24h") or 0)
+    k_stale = int(komatsu.get("stale_72h") or 0)
+    k_never = int(komatsu.get("never_sync") or 0)
+    d_items = [
+        f"Zonas calientes (demanda): {int(demand.get('requests_created') or 0)} solicitudes",
+        f"Komatsu: conectadas {k_total} · actualizadas (últimas 24h) {k_ok} · sin actualizar (más de 72h) {k_stale} · nunca sincronizadas {k_never}",
+        f"Documentos proveedor recibidos: {ops.get('invoiced_total') or 0} (pendiente revisión/pago)",
+    ]
+
+    html = f"""<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body style="margin:0;background:#F6F8FB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FB;padding:28px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="720" cellpadding="0" cellspacing="0" style="width:720px;max-width:720px;">
+            <tr>
+              <td style="background:#ffffff;border:1px solid #E6EDF5;border-radius:22px;overflow:hidden;">
+                <div style="height:10px;background:#EC6819;line-height:10px;font-size:0;">&nbsp;</div>
+                <div style="padding:26px 26px 22px 26px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="vertical-align:middle;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" style="background:#0B1220;border-radius:999px;">
+                          <tr>
+                            <td style="padding:12px 16px;">
+                              <img src="{logo_url}" alt="MAQGO" width="92" style="display:block;border:0;outline:none;text-decoration:none;width:92px;height:auto;" />
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;text-align:right;">
+                        <span style="display:inline-block;background:#0B1220;color:#ffffff;padding:9px 12px;border-radius:999px;font-weight:900;font-size:12px;letter-spacing:.2px;">Admin</span>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <div style="margin-top:18px;font-weight:900;font-size:28px;line-height:34px;letter-spacing:-0.3px;color:#0B1220;">{html_escape(title)}</div>
+                  <div style="margin-top:6px;font-size:12px;line-height:16px;color:#64748B;">{html_escape(subtitle)}</div>
+
+                  <div style="margin-top:18px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        {_render_metric_tile(label="GMV pagado", value=gmv, sub=f"vs semana anterior: {wow_gmv}")}
+                        {_render_metric_tile(label="Ingreso MAQGO", value=maqgo_rev, sub=f"vs semana anterior: {wow_rev}")}
+                        <td style="padding:0 0 10px 0;vertical-align:top;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                            <tr><td style="padding:16px 16px 12px 16px;">
+                              <div style="font-size:11px;letter-spacing:.28px;color:#64748B;font-weight:800;text-transform:uppercase;">Salud operacional</div>
+                              <div style="margin-top:6px;font-size:22px;line-height:26px;color:#0B1220;font-weight:900;">{html_escape(health_value)}</div>
+                              <div style="margin-top:4px;font-size:12px;line-height:16px;color:#64748B;">{html_escape(health_label)}</div>
+                            </td></tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  {_render_section_header("Claves")}
+                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FAFBFE;">
+                    {_render_bullets(insights)}
+                  </div>
+
+                  {_render_section_header("Negocio")}
+                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                    {_render_bullets(a_items)}
+                  </div>
+
+                  {_render_section_header("Operación")}
+                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                    {_render_bullets(b_items)}
+                  </div>
+
+                  {_render_section_header("Crecimiento")}
+                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                    {_render_bullets(c_items)}
+                  </div>
+
+                  {_render_section_header("Riesgos")}
+                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                    {_render_bullets(d_items)}
+                    {'<div style="margin-top:10px;"></div>' if zone_rows else ''}
+                    {_render_mini_rows(zone_rows) if zone_rows else ''}
+                  </div>
+
+                  <div style="margin-top:16px;padding:16px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#0B1220;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="font-size:12px;line-height:16px;color:rgba(255,255,255,0.78);">
+                          Reporte ID: <span style="font-weight:900;color:#ffffff;">{html_escape(report_id)}</span>
+                        </td>
+                        <td style="text-align:right;">
+                          <a href="{html_escape(cta_url)}" style="display:inline-block;background:#ffffff;color:#0B1220;text-decoration:none;padding:11px 14px;border-radius:12px;font-weight:900;font-size:13px;">
+                            Abrir Admin
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <div style="margin-top:14px;border-top:1px solid #EEF2F7;padding-top:12px;font-size:11px;color:#94A3B8;line-height:16px;">
+                    Reporte automático MAQGO (agregado/anónimo). No responder.
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="text-align:center;font-size:11px;color:#94A3B8;padding:12px 12px;">© {datetime.utcnow().strftime('%Y')} MAQGO</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
+    return html
+
+
+def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, cta_url: str) -> str:
+    logo_url = html_escape(_get_email_logo_url())
+    periodo = report.get("periodo", {}) or {}
+    sales = report.get("sales", {}) or {}
+    contribution = report.get("contribution", {}) or {}
+    iva = report.get("iva", {}) or {}
+    maqgo_revenue = report.get("maqgo_revenue", {}) or {}
+    volume = report.get("volume", {}) or {}
+    demand = report.get("demand", {}) or {}
+    marketing = report.get("marketing") or {}
+    integrations = report.get("integrations", {}) or {}
+
+    label = str(periodo.get("label") or "").strip() or "Mes"
+    title = "Resumen Mensual"
+    subtitle = f"Periodo: {label} · Generado {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"
+
+    sales_net = _fmt_clp(sales.get("net") or 0)
+    margin = _fmt_clp(contribution.get("margin") or 0)
+    margin_pct = contribution.get("margin_pct")
+    try:
+        margin_pct = float(margin_pct)
+        margin_pct = f"{margin_pct:.2f}%"
+    except Exception:
+        margin_pct = "—"
+    maqgo_net = _fmt_clp(maqgo_revenue.get("total_net") or 0)
+    iva_neto = _fmt_clp(iva.get("neto_a_pagar_estimado") or 0)
+
+    services_paid = int(volume.get("services_paid") or 0)
+    avg_days = volume.get("avg_rental_days")
+    avg_days_label = f"{_fmt_days(avg_days)} días" if avg_days is not None else "—"
+    new_clients = int(volume.get("new_clients") or 0)
+    new_providers = int(volume.get("new_providers") or 0)
+    new_machines = int(volume.get("new_machines") or 0)
+    maqgo_pending = int(volume.get("maqgo_client_invoice_pending") or 0)
+    maqgo_done = int(volume.get("maqgo_client_invoiced_marked") or 0)
+    provider_doc_missing = int(volume.get("provider_doc_missing") or 0)
+    with_provider_invoice = int(volume.get("with_provider_invoice") or 0)
+    paid_without_invoice = int(volume.get("paid_without_invoice") or 0)
+
+    mk_kpi = (marketing.get("kpi") or {}) if isinstance(marketing, dict) else {}
+    cac_value = "—"
+    try:
+        c = mk_kpi.get("CAC_cliente_registro_clp")
+        p = mk_kpi.get("CAC_proveedor_registro_clp")
+        left = _fmt_clp(float(c)) if c is not None else "—"
+        right = _fmt_clp(float(p)) if p is not None else "—"
+        if left != "—" or right != "—":
+            cac_value = f"{left} / {right}"
+    except Exception:
+        pass
+
+    ltv_value = "—"
+    try:
+        candidates = [
+            mk_kpi.get("LTV_cliente_clp"),
+            mk_kpi.get("LTV_cliente_12m_clp"),
+            mk_kpi.get("LTV_cliente_estimado_clp"),
+        ]
+        raw = next((x for x in candidates if x is not None and float(x) > 0), None)
+        if raw is not None:
+            ltv_value = _fmt_clp(float(raw))
+    except Exception:
+        ltv_value = "—"
+
+    mid_tile = (
+        _render_metric_tile(label="LTV cliente", value=ltv_value, sub="Auto (si hay datos)")
+        if ltv_value != "—"
+        else _render_metric_tile(label="Crecimiento", value=f"{new_clients} / {new_providers}", sub="Clientes / Proveedores")
+    )
+    growth_hint = (
+        f'<div style="margin-top:6px;font-size:12px;line-height:16px;color:#64748B;">Crecimiento del mes: +{new_clients} clientes · +{new_providers} proveedores</div>'
+        if ltv_value != "—"
+        else ""
+    )
+
+    insights = (report.get("insights") or []) if isinstance(report.get("insights"), list) else []
+
+    net_by_doc = (sales.get("net_by_document") or {}) if isinstance(sales.get("net_by_document"), dict) else {}
+    docs_rows = []
+    max_docs = max(
+        1.0,
+        float(net_by_doc.get("with_provider_invoice") or 0),
+        float(net_by_doc.get("paid_without_invoice") or 0),
+        float(net_by_doc.get("other") or 0),
+    )
+    docs_rows.append(
+        {
+            "label": "Proveedor con factura",
+            "value": _fmt_clp(net_by_doc.get("with_provider_invoice") or 0),
+            "pct": float(net_by_doc.get("with_provider_invoice") or 0) / max_docs * 100.0,
+            "color": "#8FB3C9",
+        }
+    )
+    docs_rows.append(
+        {
+            "label": "Factura de compra (no emisor)",
+            "value": _fmt_clp(net_by_doc.get("paid_without_invoice") or 0),
+            "pct": float(net_by_doc.get("paid_without_invoice") or 0) / max_docs * 100.0,
+            "color": "#D9A15A",
+        }
+    )
+    docs_rows.append(
+        {
+            "label": "Pendiente documento proveedor",
+            "value": _fmt_clp(net_by_doc.get("other") or 0),
+            "pct": float(net_by_doc.get("other") or 0) / max_docs * 100.0,
+            "color": "#94A3B8",
+        }
+    )
+
+    top_zones = demand.get("top_zones") or []
+    zone_rows = []
+    if isinstance(top_zones, list) and top_zones:
+        max_zone = max([int((z or {}).get("n") or 0) for z in top_zones] + [1])
+        for z in top_zones[:5]:
+            zone_rows.append({"label": str((z or {}).get("zone") or "—"), "value": str(int((z or {}).get("n") or 0)), "pct": float(int((z or {}).get("n") or 0)) / float(max_zone) * 100.0, "color": "#8FB3C9"})
+
+    komatsu = integrations.get("komatsu") or {}
+    k_total = int(komatsu.get("connected") or 0)
+    k_ok = int(komatsu.get("ok_24h") or 0)
+    k_stale = int(komatsu.get("stale_72h") or 0)
+    k_never = int(komatsu.get("never_sync") or 0)
+    machines_published_total = int(volume.get("machines_published_total") or 0)
+
+    html = f"""<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body style="margin:0;background:#F6F8FB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FB;padding:28px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="720" cellpadding="0" cellspacing="0" style="width:720px;max-width:720px;">
+            <tr>
+              <td style="background:#ffffff;border:1px solid #E6EDF5;border-radius:22px;overflow:hidden;">
+                <div style="height:10px;background:#EC6819;line-height:10px;font-size:0;">&nbsp;</div>
+                <div style="padding:26px 26px 22px 26px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="vertical-align:middle;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" style="background:#0B1220;border-radius:999px;">
+                          <tr>
+                            <td style="padding:12px 16px;">
+                              <img src="{logo_url}" alt="MAQGO" width="92" style="display:block;border:0;outline:none;text-decoration:none;width:92px;height:auto;" />
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;text-align:right;">
+                        <span style="display:inline-block;background:#0B1220;color:#ffffff;padding:9px 12px;border-radius:999px;font-weight:900;font-size:12px;letter-spacing:.2px;">Admin</span>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <div style="margin-top:18px;font-weight:900;font-size:28px;line-height:34px;letter-spacing:-0.3px;color:#0B1220;">{html_escape(title)}</div>
+                  <div style="margin-top:6px;font-size:12px;line-height:16px;color:#64748B;">{html_escape(subtitle)}</div>
+
+                  <div style="margin-top:18px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        {_render_metric_tile(label="Ventas netas", value=sales_net, sub=f"Servicios pagados: {services_paid}")}
+                        {_render_metric_tile(label="Margen contribución", value=margin, sub=f"{margin_pct} sobre ventas netas")}
+                        {_render_metric_tile(label="Ingreso MAQGO neto", value=maqgo_net, sub="Estimado")}
+                      </tr>
+                      <tr>
+                        {_render_metric_tile(label="IVA neto estimado", value=iva_neto, sub="Validar contabilidad")}
+                        {mid_tile}
+                        <td style="padding:0 0 10px 0;vertical-align:top;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                            <tr><td style="padding:16px 16px 12px 16px;">
+                              <div style="font-size:11px;letter-spacing:.28px;color:#64748B;font-weight:800;text-transform:uppercase;">Nuevas maquinarias</div>
+                              <div style="margin-top:6px;font-size:22px;line-height:26px;color:#0B1220;font-weight:900;">{new_machines}</div>
+                              <div style="margin-top:4px;font-size:12px;line-height:16px;color:#64748B;">CAC C/P: {html_escape(cac_value)}</div>
+                            </td></tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  {growth_hint}
+
+                  {_render_section_header("Claves")}
+                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FAFBFE;">
+                    {_render_bullets(insights)}
+                  </div>
+
+                  {_render_section_header("Finanzas")}
+                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                    <div style="font-size:12px;color:#64748B;margin-bottom:10px;">
+                      Arriendo promedio: {html_escape(avg_days_label)} ·
+                      Documentos MAQGO a cliente: por emitir {maqgo_pending} · emitidos (marcados) {maqgo_done}
+                    </div>
+                    <div style="font-size:12px;color:#64748B;margin-bottom:10px;">
+                      Documentación proveedor: factura {with_provider_invoice} · factura compra {paid_without_invoice} · pendiente documento {provider_doc_missing}
+                    </div>
+                    {_render_mini_rows(docs_rows)}
+                  </div>
+
+                  {_render_section_header("Mercado")}
+                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                    <div style="font-size:12px;color:#64748B;margin-bottom:8px;">Solicitudes creadas: {int(demand.get('requests_created') or 0)}</div>
+                    {_render_mini_rows(zone_rows)}
+                  </div>
+
+                  {_render_section_header("Plataforma")}
+                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                    {_render_bullets([
+                      f"Maquinarias publicadas (MAQGO): {machines_published_total}",
+                      f"Komatsu (única telemática hoy): conectadas {k_total} · actualizadas (últimas 24h) {k_ok} · sin actualizar (más de 72h) {k_stale} · nunca sincronizadas {k_never}",
+                    ])}
+                  </div>
+
+                  <div style="margin-top:16px;padding:16px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#0B1220;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="font-size:12px;line-height:16px;color:rgba(255,255,255,0.78);">
+                          Reporte ID: <span style="font-weight:900;color:#ffffff;">{html_escape(report_id)}</span>
+                        </td>
+                        <td style="text-align:right;">
+                          <a href="{html_escape(cta_url)}" style="display:inline-block;background:#ffffff;color:#0B1220;text-decoration:none;padding:11px 14px;border-radius:12px;font-weight:900;font-size:13px;">
+                            Abrir Admin
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <div style="margin-top:14px;border-top:1px solid #EEF2F7;padding-top:12px;font-size:11px;color:#94A3B8;line-height:16px;">
+                    Reporte automático MAQGO (agregado/anónimo). No responder.
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="text-align:center;font-size:11px;color:#94A3B8;padding:12px 12px;">© {datetime.utcnow().strftime('%Y')} MAQGO</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
+    return html
+
 def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
     from reportlab.lib import colors
-    from reportlab.graphics import renderPDF
-    from reportlab.graphics.charts.barcharts import VerticalBarChart
-    from reportlab.graphics.charts.piecharts import Pie
-    from reportlab.graphics.shapes import Drawing
+    from reportlab.lib.utils import ImageReader
+    from reportlab.platypus import SimpleDocTemplate, Spacer, Table, TableStyle, Paragraph, Flowable
+    from reportlab.lib.styles import ParagraphStyle
 
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
+    BRAND = colors.HexColor("#EC6819")
+    INK = colors.HexColor("#0B1220")
+    MUTED = colors.HexColor("#475569")
+    BG = colors.HexColor("#F8FAFC")
+    CARD = colors.white
+    BORDER = colors.HexColor("#E2E8F0")
+    SOFT = colors.HexColor("#EEF2F7")
 
     periodo = report.get("periodo", {}) or {}
     resumen = report.get("resumen", {}) or {}
@@ -264,28 +1112,18 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
         except Exception:
             return "—"
 
-    margin = 36
-    gap = 12
-
-    c.setTitle("MAQGO - Informe semanal (onepager)")
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(margin, height - 44, "MAQGO — Informe semanal (onepager)")
-    c.setFont("Helvetica", 9)
-    semana_label = str(periodo.get("semana") or "").strip()
-    inicio = str(periodo.get("inicio") or "")[:10]
-    fin = str(periodo.get("fin") or "")[:10]
-    meta = []
-    if semana_label:
-        meta.append(semana_label)
-    if inicio and fin:
-        meta.append(f"{inicio} → {fin}")
-    meta.append(f"Generado: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
-    c.drawString(margin, height - 60, " · ".join(meta))
-
-    total_creados = fmt_int(resumen.get("total_servicios_creados_semana") or resumen.get("total_solicitudes"))
-    pagados = fmt_int(resumen.get("servicios_pagados_cerrados_semana"))
-    gmv = fmt_clp(resumen.get("gmv_pagado_semana_clp"))
-    tasa_cancel = str(resumen.get("tasa_cancelacion") or "0%").strip()
+    created_count = fmt_int(resumen.get("total_servicios_creados_semana") or resumen.get("total_solicitudes"))
+    created_amount = float(resumen.get("monto_creado_semana_clp") or 0)
+    paid_count = fmt_int(resumen.get("servicios_pagados_cerrados_semana") or 0)
+    gmv_paid = float(resumen.get("gmv_pagado_semana_clp") or 0)
+    por_pagar_count = fmt_int(resumen.get("por_pagar_proveedor_count") or 0)
+    por_pagar_amount = float(resumen.get("por_pagar_proveedor_monto_clp") or 0)
+    cancel_rate = str(resumen.get("tasa_cancelacion") or "0%").strip()
+    canceladas = fmt_int(
+        resumen.get("solicitudes_canceladas")
+        or ((resumen.get("por_estado") or {}).get("cancelled") if isinstance(resumen.get("por_estado"), dict) else 0)
+        or 0
+    )
     review_min = resumen.get("tiempo_promedio_revision_min")
     try:
         review_min = float(review_min or 0)
@@ -293,139 +1131,315 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
     except Exception:
         review_min = 0.0
 
-    box_y = height - 128
-    box_h = 56
-    box_w = (width - (2 * margin) - (2 * gap)) / 3.0
+    semana_label = str(periodo.get("semana") or "").strip()
+    inicio = str(periodo.get("inicio") or "")[:10]
+    fin = str(periodo.get("fin") or "")[:10]
+    meta = []
+    if semana_label:
+        meta.append(semana_label)
+    has_range_in_label = ("→" in semana_label) or (inicio and inicio in semana_label) or (fin and fin in semana_label)
+    if inicio and fin and not has_range_in_label:
+        meta.append(f"{inicio} → {fin}")
+    meta.append(datetime.utcnow().strftime("Generado %Y-%m-%d %H:%M UTC"))
+    if review_min and review_min > 0:
+        meta.append(f"Revisión prom.: {review_min} min")
+    subtitle = " · ".join(meta)
 
-    def draw_kpi(x: float, title: str, value: str, sub: str) -> None:
-        c.setFillColorRGB(0.96, 0.96, 0.97)
-        c.roundRect(x, box_y, box_w, box_h, 10, stroke=0, fill=1)
-        c.setFillColor(colors.HexColor("#0B1220"))
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(x + 12, box_y + box_h - 18, title)
-        c.setFont("Helvetica-Bold", 18)
-        c.drawString(x + 12, box_y + 18, value)
-        c.setFillColor(colors.HexColor("#475569"))
-        c.setFont("Helvetica", 9)
-        c.drawString(x + 12, box_y + 6, sub)
-
-    draw_kpi(margin, "Servicios creados", str(total_creados), f"Cancelación: {tasa_cancel}")
-    draw_kpi(margin + box_w + gap, "Pagados cerrados", str(pagados), f"Revisión prom: {review_min} min")
-    draw_kpi(margin + (box_w + gap) * 2, "GMV pagado", gmv, "CLP (paid_at)")
-
-    charts_top = height - 360
-    chart_h = 180
-    left_w = (width - (2 * margin) - gap) / 2.0
-    right_x = margin + left_w + gap
-
-    c.setFillColor(colors.HexColor("#0B1220"))
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(margin, charts_top + chart_h + 18, "Distribución por estado")
-    c.drawString(right_x, charts_top + chart_h + 18, "Top maquinaria")
-
-    por_estado = resumen.get("por_estado") or {}
-    etiquetas = resumen.get("etiquetas_estado") or {}
-    keys = ["pending_review", "approved", "invoiced", "paid", "disputed", "cancelled", "otros"]
-    pie_labels = []
-    pie_data = []
-    for k in keys:
-        v = fmt_int(por_estado.get(k, 0))
-        if v <= 0:
+    por_estado = (resumen.get("por_estado") or {}) if isinstance(resumen.get("por_estado"), dict) else {}
+    etiquetas = (resumen.get("etiquetas_estado") or {}) if isinstance(resumen.get("etiquetas_estado"), dict) else {}
+    palette = {
+        "pending_review": "#8FB3C9",
+        "approved": "#66BB6A",
+        "invoiced": "#D9A15A",
+        "paid": "#EC6819",
+        "disputed": "#E57373",
+        "cancelled": "#94A3B8",
+        "otros": "#CBD5E1",
+    }
+    total_estado = max(1, int(sum(fmt_int(v) for v in por_estado.values())))
+    estado_rows = []
+    for k, v in sorted(por_estado.items(), key=lambda kv: fmt_int(kv[1]), reverse=True):
+        n = fmt_int(v)
+        if n <= 0:
             continue
-        pie_labels.append(str(etiquetas.get(k, k))[:18])
-        pie_data.append(v)
-    if sum(pie_data) > 0:
-        d = Drawing(left_w, chart_h)
-        p = Pie()
-        p.x = 10
-        p.y = 10
-        p.width = min(220, left_w - 20)
-        p.height = chart_h - 20
-        p.data = pie_data
-        p.labels = [f"{l} ({v})" for l, v in zip(pie_labels, pie_data)]
-        palette = [
-            colors.HexColor("#8FB3C9"),
-            colors.HexColor("#66BB6A"),
-            colors.HexColor("#D9A15A"),
-            colors.HexColor("#EC6819"),
-            colors.HexColor("#E57373"),
-            colors.HexColor("#94A3B8"),
-            colors.HexColor("#CBD5E1"),
-        ]
-        for i in range(len(p.data)):
-            p.slices[i].fillColor = palette[i % len(palette)]
-        d.add(p)
-        renderPDF.draw(d, c, margin, charts_top)
-    else:
-        c.setFont("Helvetica", 10)
-        c.setFillColor(colors.HexColor("#475569"))
-        c.drawString(margin, charts_top + chart_h / 2.0, "Sin datos")
+        estado_rows.append(
+            {
+                "label": str(etiquetas.get(k) or k).strip(),
+                "value": str(n),
+                "pct": float(n) / float(total_estado) * 100.0,
+                "color": palette.get(k, "#8FB3C9"),
+            }
+        )
+        if len(estado_rows) >= 6:
+            break
 
     top_maq = resumen.get("top_maquinaria") or []
-    bar_labels = []
-    bar_values = []
-    for row in top_maq[:5]:
-        bar_labels.append(str(row.get("tipo") or "—")[:10])
-        bar_values.append(fmt_int(row.get("n", 0)))
-    if sum(bar_values) > 0:
-        d2 = Drawing(left_w, chart_h)
-        bc = VerticalBarChart()
-        bc.x = 30
-        bc.y = 20
-        bc.height = chart_h - 40
-        bc.width = left_w - 40
-        bc.data = [bar_values]
-        bc.valueAxis.valueMin = 0
-        bc.valueAxis.valueMax = max(bar_values) if max(bar_values) > 0 else 1
-        bc.valueAxis.valueStep = max(1, int(round(bc.valueAxis.valueMax / 4.0)))
-        bc.categoryAxis.categoryNames = bar_labels
-        bc.bars[0].fillColor = colors.HexColor("#8FB3C9")
-        d2.add(bc)
-        renderPDF.draw(d2, c, right_x, charts_top)
-    else:
-        c.setFont("Helvetica", 10)
-        c.setFillColor(colors.HexColor("#475569"))
-        c.drawString(right_x, charts_top + chart_h / 2.0, "Sin datos")
+    if not isinstance(top_maq, list):
+        top_maq = []
+    max_top = max([fmt_int((x or {}).get("n")) for x in top_maq] + [1])
+    top_rows = []
+    for row in top_maq[:6]:
+        t = str((row or {}).get("tipo") or "—").strip()
+        n = fmt_int((row or {}).get("n"))
+        if n <= 0:
+            continue
+        top_rows.append({"label": t, "value": str(n), "pct": float(n) / float(max_top) * 100.0, "color": "#8FB3C9"})
 
-    c.setFillColor(colors.HexColor("#0B1220"))
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(margin, 178, "Alertas (solo lo crítico)")
-    c.setFont("Helvetica", 9)
-    c.setFillColor(colors.HexColor("#334155"))
-    y = 164
-    shown = 0
+    buffer = io.BytesIO()
+    width, height = A4
+
+    styles = {
+        "title": ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=20, leading=24, textColor=INK, spaceAfter=2),
+        "sub": ParagraphStyle("s", fontName="Helvetica", fontSize=9.2, leading=12, textColor=MUTED, spaceAfter=10),
+        "kpi_label": ParagraphStyle("kl", fontName="Helvetica-Bold", fontSize=8.2, leading=10, textColor=MUTED),
+        "kpi_value": ParagraphStyle("kv", fontName="Helvetica-Bold", fontSize=16, leading=18, textColor=INK),
+        "kpi_sub": ParagraphStyle("ks", fontName="Helvetica", fontSize=8.6, leading=11, textColor=MUTED),
+        "card_title": ParagraphStyle("ct", fontName="Helvetica-Bold", fontSize=11, leading=14, textColor=INK),
+        "row_label": ParagraphStyle("rl", fontName="Helvetica", fontSize=9, leading=11, textColor=INK),
+        "row_value": ParagraphStyle("rv", fontName="Helvetica", fontSize=9, leading=11, textColor=MUTED, alignment=2),
+        "alert": ParagraphStyle("al", fontName="Helvetica", fontSize=9, leading=12, textColor=colors.HexColor("#334155")),
+    }
+
+    class ProgressBar(Flowable):
+        def __init__(self, pct: float, color_hex: str):
+            super().__init__()
+            try:
+                self.pct = float(pct or 0.0)
+            except Exception:
+                self.pct = 0.0
+            self.pct = max(0.0, min(100.0, self.pct))
+            self.color_hex = str(color_hex or "#8FB3C9")
+            self.h = 9
+
+        def wrap(self, availWidth, availHeight):
+            self.w = max(1, float(availWidth))
+            return self.w, self.h
+
+        def draw(self):
+            r = 4
+            self.canv.setFillColor(SOFT)
+            self.canv.roundRect(0, 0, self.w, self.h, r, stroke=0, fill=1)
+            if self.pct <= 0:
+                return
+            fill_w = self.w * (self.pct / 100.0)
+            fill_w = max(1.5, min(self.w, fill_w))
+            self.canv.setFillColor(colors.HexColor(self.color_hex))
+            self.canv.roundRect(0, 0, fill_w, self.h, r, stroke=0, fill=1)
+
+    def card(*, inner, pad: int = 12):
+        t = Table([[inner]], colWidths=["*"])
+        t.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), CARD),
+                    ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
+                    ("LINEABOVE", (0, 0), (-1, 0), 2.2, BRAND),
+                    ("LEFTPADDING", (0, 0), (-1, -1), pad),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), pad),
+                    ("TOPPADDING", (0, 0), (-1, -1), pad),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), pad),
+                ]
+            )
+        )
+        return t
+
+    def kpi_cell(label: str, value: str, sub: str):
+        inner = [
+            Paragraph(html_escape(str(label or "")).upper(), styles["kpi_label"]),
+            Spacer(1, 4),
+            Paragraph(html_escape(str(value or "—")), styles["kpi_value"]),
+            Spacer(1, 2),
+            Paragraph(html_escape(str(sub or "")), styles["kpi_sub"]),
+        ]
+        return card(inner=inner, pad=12)
+
+    def section_card(title: str, rows: list[dict]):
+        title_p = Paragraph(html_escape(str(title or "")), styles["card_title"])
+        body_rows = []
+        for r in (rows or [])[:6]:
+            label = html_escape(str((r or {}).get("label") or "—"))
+            value = html_escape(str((r or {}).get("value") or ""))
+            pct = (r or {}).get("pct") or 0.0
+            color_hex = (r or {}).get("color") or "#8FB3C9"
+            body_rows.append([Paragraph(label, styles["row_label"]), ProgressBar(pct, color_hex), Paragraph(value, styles["row_value"])])
+        if not body_rows:
+            body_rows = [[Paragraph("Sin datos", styles["row_label"]), ProgressBar(0, "#CBD5E1"), Paragraph("—", styles["row_value"])]]
+        body = Table(body_rows, colWidths=["42%", "38%", "20%"])
+        body.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 7),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        inner = Table([[title_p], [Spacer(1, 6)], [body]], colWidths=["*"])
+        inner.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+        return card(inner=inner, pad=12)
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=24,
+        rightMargin=24,
+        topMargin=94,
+        bottomMargin=42,
+        title="MAQGO - Informe semanal",
+    )
+
+    logo_path = _find_maqgo_logo_png_path()
+    logo_reader = None
+    if logo_path:
+        try:
+            logo_reader = ImageReader(logo_path)
+        except Exception:
+            logo_reader = None
+
+    def paint_frame(canv, _doc):
+        canv.saveState()
+        canv.setFillColor(BG)
+        canv.rect(0, 0, width, height, stroke=0, fill=1)
+        canv.setFillColor(BRAND)
+        canv.rect(0, height - 18, width, 18, stroke=0, fill=1)
+
+        pill_x, pill_y, pill_w, pill_h = 24, height - 68, 136, 36
+        canv.setFillColor(INK)
+        canv.roundRect(pill_x, pill_y, pill_w, pill_h, 14, stroke=0, fill=1)
+        if logo_reader:
+            try:
+                canv.drawImage(logo_reader, pill_x + 10, pill_y + 6, width=116, height=24, preserveAspectRatio=True, mask="auto")
+            except Exception:
+                pass
+        else:
+            canv.setFillColor(colors.white)
+            canv.setFont("Helvetica-Bold", 12)
+            canv.drawString(pill_x + 12, height - 13, "MAQGO")
+
+        badge_w, badge_h = 64, 22
+        canv.setFillColor(INK)
+        canv.roundRect(width - 24 - badge_w, height - 22, badge_w, badge_h, 10, stroke=0, fill=1)
+        canv.setFillColor(colors.white)
+        canv.setFont("Helvetica-Bold", 10.5)
+        canv.drawCentredString(width - 24 - badge_w / 2, height - 7.5, "Admin")
+
+        canv.setFillColor(colors.HexColor("#64748B"))
+        canv.setFont("Helvetica", 8)
+        canv.drawString(24, 24, "MAQGO · Reporte operativo semanal")
+        canv.restoreState()
+
+    story = []
+    story.append(Paragraph("Informe semanal", styles["title"]))
+    story.append(Paragraph(html_escape(subtitle), styles["sub"]))
+
+    mk = report.get("marketing") or {}
+    mk_kpi = (mk.get("kpi") or {}) if isinstance(mk, dict) else {}
+    cac_c = mk_kpi.get("CAC_cliente_registro_clp")
+    cac_p = mk_kpi.get("CAC_proveedor_registro_clp")
+    try:
+        cac_c_v = float(cac_c) if cac_c is not None else None
+    except Exception:
+        cac_c_v = None
+    try:
+        cac_p_v = float(cac_p) if cac_p is not None else None
+    except Exception:
+        cac_p_v = None
+    cac_value = "—"
+    if cac_c_v is not None or cac_p_v is not None:
+        left = fmt_clp(cac_c_v) if cac_c_v is not None else "—"
+        right = fmt_clp(cac_p_v) if cac_p_v is not None else "—"
+        cac_value = f"{left} / {right}"
+
+    nuevos_clientes = fmt_int(resumen.get("nuevos_clientes_semana") or 0)
+    nuevos_proveedores = fmt_int(resumen.get("nuevos_proveedores_semana") or 0)
+    nuevas_maquinarias = fmt_int(resumen.get("nuevas_maquinarias_semana") or 0)
+    sub_clientes = f"CAC: {fmt_clp(cac_c_v)}" if cac_c_v is not None else "Cohorte semanal"
+    sub_proveedores = f"CAC: {fmt_clp(cac_p_v)}" if cac_p_v is not None else "Cohorte semanal"
+
+    kpis = [
+        ("Servicios creados", str(created_count), f"Monto creado: {fmt_clp(created_amount)}"),
+        ("Pagados cerrados", str(paid_count), f"GMV pagado: {fmt_clp(gmv_paid)}"),
+        ("Documentos proveedor recibidos", str(por_pagar_count), f"Pago pendiente: {fmt_clp(por_pagar_amount)}"),
+        ("Nuevos clientes", str(nuevos_clientes), sub_clientes),
+        ("Nuevos proveedores", str(nuevos_proveedores), sub_proveedores),
+        ("Nuevas maquinarias", str(nuevas_maquinarias), f"Cancelación: {cancel_rate}"),
+    ]
+    kpi_cards = [kpi_cell(*k) for k in kpis[:6]]
+    grid = Table([kpi_cards[:3], kpi_cards[3:6]], colWidths=["33.33%", "33.33%", "33.33%"])
+    grid.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
+    story.append(grid)
+    story.append(Spacer(1, 12))
+
+    two = Table([[section_card("Distribución por estado", estado_rows), section_card("Top maquinaria", top_rows)]], colWidths=["50%", "50%"])
+    two.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    story.append(two)
+    story.append(Spacer(1, 12))
+
+    mk_funnel = (mk.get("funnel") or {}) if isinstance(mk, dict) else {}
+    if isinstance(mk_funnel, dict) and mk_funnel:
+        fc = (mk_funnel.get("clientes") or {}) if isinstance(mk_funnel.get("clientes"), dict) else {}
+        fp = (mk_funnel.get("proveedores") or {}) if isinstance(mk_funnel.get("proveedores"), dict) else {}
+        funnel_rows = [
+            ["Funnel (cohorte nuevos)", "Clientes", "Proveedores"],
+            ["Registrados", str(int(fc.get("registrados") or 0)), str(int(fp.get("registrados") or 0))],
+            ["Activados", str(int(fc.get("con_tarjeta_oneclick") or 0)), str(int(fp.get("onboarding_completado") or 0))],
+            ["Con acción", str(int(fc.get("con_solicitud_servicio") or 0)), str(int(fp.get("disponibles") or 0))],
+            ["Monetizados", str(int(fc.get("con_servicio_pagado_semana") or 0)), str(int(fp.get("con_primer_servicio_semana") or 0))],
+        ]
+        ft = Table(funnel_rows, colWidths=["46%", "27%", "27%"])
+        ft.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 10),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), INK),
+                    ("TEXTCOLOR", (0, 1), (0, -1), INK),
+                    ("TEXTCOLOR", (1, 1), (-1, -1), MUTED),
+                    ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+                    ("LINEBELOW", (0, 0), (-1, 0), 1, BORDER),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        story.append(card(inner=[ft], pad=12))
+        story.append(Spacer(1, 12))
+
+    shown_alerts = []
     for a in alertas:
         msg = str((a or {}).get("mensaje") or "").strip()
         if not msg:
             continue
-        c.drawString(margin + 10, y, f"- {msg[:120]}")
-        y -= 12
-        shown += 1
-        if shown >= 4:
+        shown_alerts.append(msg)
+        if len(shown_alerts) >= 4:
             break
-    if shown == 0:
-        c.drawString(margin + 10, y, "- Sin alertas")
+    if not shown_alerts:
+        shown_alerts = ["Sin alertas críticas"]
+    alert_flow = [Paragraph(f"• {html_escape(m)[:220]}", styles["alert"]) for m in shown_alerts]
+    story.append(card(inner=[Paragraph("Alertas (solo lo crítico)", styles["card_title"]), Spacer(1, 8), *alert_flow], pad=12))
 
-    c.setFont("Helvetica-Oblique", 8)
-    c.setFillColor(colors.HexColor("#64748B"))
-    c.drawString(margin, 36, "Pipeline: pending_review → approved → invoiced → paid · Reporte resumido onepager.")
-
-    c.showPage()
-    c.save()
+    doc.build(story, onFirstPage=paint_frame, onLaterPages=paint_frame)
     buffer.seek(0)
     return buffer.getvalue()
 
 
 def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
     from reportlab.lib import colors
-    from reportlab.graphics import renderPDF
-    from reportlab.graphics.charts.barcharts import VerticalBarChart
-    from reportlab.graphics.charts.piecharts import Pie
-    from reportlab.graphics.shapes import Drawing
+    from reportlab.lib.utils import ImageReader
+    from reportlab.platypus import SimpleDocTemplate, Spacer, Table, TableStyle, Paragraph, Flowable
+    from reportlab.lib.styles import ParagraphStyle
 
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
+    BRAND = colors.HexColor("#EC6819")
+    INK = colors.HexColor("#0B1220")
+    MUTED = colors.HexColor("#475569")
+    BG = colors.HexColor("#F8FAFC")
+    CARD = colors.white
+    BORDER = colors.HexColor("#E2E8F0")
+    SOFT = colors.HexColor("#EEF2F7")
 
     periodo = report.get("periodo", {}) or {}
     volume = report.get("volume", {}) or {}
@@ -433,6 +1447,7 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
     contribution = report.get("contribution", {}) or {}
     iva = report.get("iva", {}) or {}
     maqgo_revenue = report.get("maqgo_revenue", {}) or {}
+    demand = report.get("demand", {}) or {}
 
     def fmt_clp(val):
         try:
@@ -441,105 +1456,267 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
         except Exception:
             return "—"
 
-    margin = 36
-    gap = 12
+    width, height = A4
+    buffer = io.BytesIO()
 
-    c.setTitle("MAQGO - Informe mensual (onepager)")
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(margin, height - 44, "MAQGO — Informe mensual (onepager)")
-    c.setFont("Helvetica", 9)
+    styles = {
+        "title": ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=20, leading=24, textColor=INK, spaceAfter=2),
+        "sub": ParagraphStyle("s", fontName="Helvetica", fontSize=9.2, leading=12, textColor=MUTED, spaceAfter=10),
+        "kpi_label": ParagraphStyle("kl", fontName="Helvetica-Bold", fontSize=8.2, leading=10, textColor=MUTED),
+        "kpi_value": ParagraphStyle("kv", fontName="Helvetica-Bold", fontSize=16, leading=18, textColor=INK),
+        "kpi_sub": ParagraphStyle("ks", fontName="Helvetica", fontSize=8.6, leading=11, textColor=MUTED),
+        "card_title": ParagraphStyle("ct", fontName="Helvetica-Bold", fontSize=11, leading=14, textColor=INK),
+        "row_label": ParagraphStyle("rl", fontName="Helvetica", fontSize=9, leading=11, textColor=INK),
+        "row_value": ParagraphStyle("rv", fontName="Helvetica", fontSize=9, leading=11, textColor=MUTED, alignment=2),
+    }
+
+    class ProgressBar(Flowable):
+        def __init__(self, pct: float, color_hex: str):
+            super().__init__()
+            try:
+                self.pct = float(pct or 0.0)
+            except Exception:
+                self.pct = 0.0
+            self.pct = max(0.0, min(100.0, self.pct))
+            self.color_hex = str(color_hex or "#8FB3C9")
+            self.h = 9
+
+        def wrap(self, availWidth, availHeight):
+            self.w = max(1, float(availWidth))
+            return self.w, self.h
+
+        def draw(self):
+            r = 4
+            self.canv.setFillColor(SOFT)
+            self.canv.roundRect(0, 0, self.w, self.h, r, stroke=0, fill=1)
+            if self.pct <= 0:
+                return
+            fill_w = self.w * (self.pct / 100.0)
+            fill_w = max(1.5, min(self.w, fill_w))
+            self.canv.setFillColor(colors.HexColor(self.color_hex))
+            self.canv.roundRect(0, 0, fill_w, self.h, r, stroke=0, fill=1)
+
+    def card(*, inner, pad: int = 12):
+        t = Table([[inner]], colWidths=["*"])
+        t.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), CARD),
+                    ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
+                    ("LINEABOVE", (0, 0), (-1, 0), 2.2, BRAND),
+                    ("LEFTPADDING", (0, 0), (-1, -1), pad),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), pad),
+                    ("TOPPADDING", (0, 0), (-1, -1), pad),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), pad),
+                ]
+            )
+        )
+        return t
+
+    def kpi_cell(label: str, value: str, sub: str):
+        inner = [
+            Paragraph(html_escape(str(label or "")).upper(), styles["kpi_label"]),
+            Spacer(1, 4),
+            Paragraph(html_escape(str(value or "—")), styles["kpi_value"]),
+            Spacer(1, 2),
+            Paragraph(html_escape(str(sub or "")), styles["kpi_sub"]),
+        ]
+        return card(inner=inner, pad=12)
+
+    def section_card(title: str, rows: list[dict]):
+        title_p = Paragraph(html_escape(str(title or "")), styles["card_title"])
+        body_rows = []
+        for r in (rows or [])[:6]:
+            label = html_escape(str((r or {}).get("label") or "—"))
+            value = html_escape(str((r or {}).get("value") or ""))
+            pct = (r or {}).get("pct") or 0.0
+            color_hex = (r or {}).get("color") or "#8FB3C9"
+            body_rows.append([Paragraph(label, styles["row_label"]), ProgressBar(pct, color_hex), Paragraph(value, styles["row_value"])])
+        if not body_rows:
+            body_rows = [[Paragraph("Sin datos", styles["row_label"]), ProgressBar(0, "#CBD5E1"), Paragraph("—", styles["row_value"])]]
+        body = Table(body_rows, colWidths=["42%", "38%", "20%"])
+        body.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 7),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        inner = Table([[title_p], [Spacer(1, 6)], [body]], colWidths=["*"])
+        inner.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+        return card(inner=inner, pad=12)
+
     label = str(periodo.get("label") or "").strip()
-    c.drawString(margin, height - 60, f"Periodo: {label} · Generado: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
-
-    box_y_top = height - 156
-    box_h = 54
-    box_w = (width - (2 * margin) - gap) / 2.0
-
-    def draw_kpi(x: float, y: float, title: str, value: str, sub: str) -> None:
-        c.setFillColorRGB(0.96, 0.96, 0.97)
-        c.roundRect(x, y, box_w, box_h, 10, stroke=0, fill=1)
-        c.setFillColor(colors.HexColor("#0B1220"))
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(x + 12, y + box_h - 18, title)
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(x + 12, y + 18, value)
-        c.setFillColor(colors.HexColor("#475569"))
-        c.setFont("Helvetica", 9)
-        c.drawString(x + 12, y + 6, sub)
+    subtitle = f"Periodo: {label} · {datetime.utcnow().strftime('Generado %Y-%m-%d %H:%M UTC')}"
 
     services_paid = int(volume.get("services_paid") or 0)
-    draw_kpi(margin, box_y_top, "Ventas netas", fmt_clp(sales.get("net")), f"Servicios pagados: {services_paid}")
-    draw_kpi(margin + box_w + gap, box_y_top, "Margen contribución", fmt_clp(contribution.get("margin")), f"{contribution.get('margin_pct')}% sobre ventas netas")
-    draw_kpi(margin, box_y_top - (box_h + gap), "IVA neto estimado", fmt_clp(iva.get("neto_a_pagar_estimado")), "Estimado contable")
-    draw_kpi(margin + box_w + gap, box_y_top - (box_h + gap), "Ingreso MAQGO neto", fmt_clp(maqgo_revenue.get("total_net")), "Comisiones (estimado)")
+    new_clients = int(volume.get("new_clients") or 0)
+    new_providers = int(volume.get("new_providers") or 0)
+    new_machines = int(volume.get("new_machines") or 0)
+    sales_net = float(contribution.get("sales_net") or sales.get("net") or 0)
+    sales_gross = float(sales.get("gross") or 0)
+    cost = float(contribution.get("cost_of_sales") or 0)
+    margin_val = float(contribution.get("margin") or 0)
+    margin_pct = contribution.get("margin_pct")
+    try:
+        margin_pct = float(margin_pct)
+        margin_pct_label = f"{margin_pct:.2f}% sobre ventas netas"
+    except Exception:
+        margin_pct_label = f"{contribution.get('margin_pct')}% sobre ventas netas" if contribution.get("margin_pct") is not None else "Sobre ventas netas"
+    iva_neto = float(iva.get("neto_a_pagar_estimado") or 0)
+    maqgo_val = float(maqgo_revenue.get("total_net") or 0)
 
-    charts_top = height - 392
-    chart_h = 170
-    left_w = (width - (2 * margin) - gap) / 2.0
-    right_x = margin + left_w + gap
-
-    c.setFillColor(colors.HexColor("#0B1220"))
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(margin, charts_top + chart_h + 18, "Estructura mensual (CLP)")
-    c.drawString(right_x, charts_top + chart_h + 18, "Documentos proveedor")
-
-    bars = [
-        float(contribution.get("sales_net") or 0),
-        float(contribution.get("cost_of_sales") or 0),
-        float(contribution.get("margin") or 0),
-        float(maqgo_revenue.get("total_net") or 0),
+    max_flow = max(1.0, sales_net, cost, margin_val, maqgo_val)
+    flow_rows = [
+        {"label": "Ventas", "value": fmt_clp(sales_net), "pct": float(sales_net) / float(max_flow) * 100.0, "color": "#66BB6A"},
+        {"label": "Costo", "value": fmt_clp(cost), "pct": float(cost) / float(max_flow) * 100.0, "color": "#8FB3C9"},
+        {"label": "Margen", "value": fmt_clp(margin_val), "pct": float(margin_val) / float(max_flow) * 100.0, "color": "#EC6819"},
+        {"label": "MAQGO", "value": fmt_clp(maqgo_val), "pct": float(maqgo_val) / float(max_flow) * 100.0, "color": "#0B1220"},
     ]
-    bar_labels = ["Ventas", "Costo", "Margen", "MAQGO"]
-    if sum(bars) > 0:
-        d = Drawing(left_w, chart_h)
-        bc = VerticalBarChart()
-        bc.x = 30
-        bc.y = 20
-        bc.height = chart_h - 40
-        bc.width = left_w - 40
-        bc.data = [bars]
-        bc.valueAxis.valueMin = 0
-        bc.valueAxis.valueMax = max(bars) if max(bars) > 0 else 1
-        bc.valueAxis.valueStep = max(1, int(round(bc.valueAxis.valueMax / 4.0)))
-        bc.categoryAxis.categoryNames = bar_labels
-        bc.bars[0].fillColor = colors.HexColor("#66BB6A")
-        d.add(bc)
-        renderPDF.draw(d, c, margin, charts_top)
-    else:
-        c.setFont("Helvetica", 10)
-        c.setFillColor(colors.HexColor("#475569"))
-        c.drawString(margin, charts_top + chart_h / 2.0, "Sin datos")
 
     with_inv = int(volume.get("with_provider_invoice") or 0)
     without_inv = int(volume.get("paid_without_invoice") or 0)
     other = max(0, services_paid - with_inv - without_inv)
-    pie_data = [with_inv, without_inv, other]
-    pie_labels = ["Con factura", "Sin factura", "Otros"]
-    if sum(pie_data) > 0:
-        d2 = Drawing(left_w, chart_h)
-        p = Pie()
-        p.x = 10
-        p.y = 10
-        p.width = min(220, left_w - 20)
-        p.height = chart_h - 20
-        p.data = pie_data
-        p.labels = [f"{l} ({v})" for l, v in zip(pie_labels, pie_data)]
-        palette = [colors.HexColor("#8FB3C9"), colors.HexColor("#D9A15A"), colors.HexColor("#94A3B8")]
-        for i in range(len(p.data)):
-            p.slices[i].fillColor = palette[i % len(palette)]
-        d2.add(p)
-        renderPDF.draw(d2, c, right_x, charts_top)
-    else:
-        c.setFont("Helvetica", 10)
-        c.setFillColor(colors.HexColor("#475569"))
-        c.drawString(right_x, charts_top + chart_h / 2.0, "Sin datos")
+    net_by_doc = (sales.get("net_by_document") or {}) if isinstance(sales.get("net_by_document"), dict) else {}
+    net_with_inv = float(net_by_doc.get("with_provider_invoice") or 0)
+    net_without_inv = float(net_by_doc.get("paid_without_invoice") or 0)
+    net_other = float(net_by_doc.get("other") or 0)
+    max_docs_val = max(1.0, net_with_inv, net_without_inv, net_other)
+    docs_rows = [
+        {
+            "label": "Proveedor con factura",
+            "value": f"{fmt_clp(net_with_inv)} ({with_inv})",
+            "pct": float(net_with_inv) / float(max_docs_val) * 100.0,
+            "color": "#8FB3C9",
+        },
+        {
+            "label": "Factura de compra (no emisor)",
+            "value": f"{fmt_clp(net_without_inv)} ({without_inv})",
+            "pct": float(net_without_inv) / float(max_docs_val) * 100.0,
+            "color": "#D9A15A",
+        },
+        {
+            "label": "Pendiente documento proveedor",
+            "value": f"{fmt_clp(net_other)} ({other})",
+            "pct": float(net_other) / float(max_docs_val) * 100.0,
+            "color": "#94A3B8",
+        },
+    ]
 
-    c.setFont("Helvetica-Oblique", 8)
-    c.setFillColor(colors.HexColor("#64748B"))
-    c.drawString(margin, 36, "Onepager mensual para lectura rápida. Valores estimados: validar contabilidad.")
+    zones = demand.get("top_zones") or []
+    zone_rows = []
+    if isinstance(zones, list) and zones:
+        max_zone = max([int((z or {}).get("n") or 0) for z in zones] + [1])
+        for z in zones[:5]:
+            name = str((z or {}).get("zone") or "—").strip()
+            n = int((z or {}).get("n") or 0)
+            if not name or n <= 0:
+                continue
+            zone_rows.append({"label": name, "value": str(n), "pct": float(n) / float(max_zone) * 100.0, "color": "#8FB3C9"})
 
-    c.showPage()
-    c.save()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=24,
+        rightMargin=24,
+        topMargin=94,
+        bottomMargin=42,
+        title="MAQGO - Informe mensual",
+    )
+
+    logo_path = _find_maqgo_logo_png_path()
+    logo_reader = None
+    if logo_path:
+        try:
+            logo_reader = ImageReader(logo_path)
+        except Exception:
+            logo_reader = None
+
+    def paint_frame(canv, _doc):
+        canv.saveState()
+        canv.setFillColor(BG)
+        canv.rect(0, 0, width, height, stroke=0, fill=1)
+        canv.setFillColor(BRAND)
+        canv.rect(0, height - 18, width, 18, stroke=0, fill=1)
+
+        pill_x, pill_y, pill_w, pill_h = 24, height - 68, 136, 36
+        canv.setFillColor(INK)
+        canv.roundRect(pill_x, pill_y, pill_w, pill_h, 14, stroke=0, fill=1)
+        if logo_reader:
+            try:
+                canv.drawImage(logo_reader, pill_x + 10, pill_y + 6, width=116, height=24, preserveAspectRatio=True, mask="auto")
+            except Exception:
+                pass
+        else:
+            canv.setFillColor(colors.white)
+            canv.setFont("Helvetica-Bold", 12)
+            canv.drawString(pill_x + 12, height - 13, "MAQGO")
+
+        badge_w, badge_h = 64, 22
+        canv.setFillColor(INK)
+        canv.roundRect(width - 24 - badge_w, height - 22, badge_w, badge_h, 10, stroke=0, fill=1)
+        canv.setFillColor(colors.white)
+        canv.setFont("Helvetica-Bold", 10.5)
+        canv.drawCentredString(width - 24 - badge_w / 2, height - 7.5, "Admin")
+
+        canv.setFillColor(colors.HexColor("#64748B"))
+        canv.setFont("Helvetica", 8)
+        canv.drawString(24, 24, footer_text)
+        canv.restoreState()
+
+    story = []
+    story.append(Paragraph("Informe mensual", styles["title"]))
+    story.append(Paragraph(html_escape(subtitle), styles["sub"]))
+
+    mk = report.get("marketing") or {}
+    mk_kpi = (mk.get("kpi") or {}) if isinstance(mk, dict) else {}
+    cac_c = mk_kpi.get("CAC_cliente_registro_clp")
+    cac_p = mk_kpi.get("CAC_proveedor_registro_clp")
+    try:
+        cac_c_v = float(cac_c) if cac_c is not None else None
+    except Exception:
+        cac_c_v = None
+    try:
+        cac_p_v = float(cac_p) if cac_p is not None else None
+    except Exception:
+        cac_p_v = None
+    cac_value = "—"
+    if cac_c_v is not None or cac_p_v is not None:
+        left = fmt_clp(cac_c_v) if cac_c_v is not None else "—"
+        right = fmt_clp(cac_p_v) if cac_p_v is not None else "—"
+        cac_value = f"{left} / {right}"
+
+    footer_text = "Valores estimados: validar contabilidad"
+    if cac_value != "—":
+        footer_text = f"{footer_text} · CAC C/P: {cac_value}"
+
+    kpis = [
+        ("Ventas netas", fmt_clp(sales_net), f"Servicios pagados: {services_paid}"),
+        ("Margen contribución", fmt_clp(margin_val), margin_pct_label),
+        ("Ingreso MAQGO neto", fmt_clp(maqgo_val), "Estimado"),
+        ("IVA neto estimado", fmt_clp(iva_neto), "Estimado contable"),
+        ("Nuevos usuarios", f"{new_clients} / {new_providers}", "Clientes / Proveedores"),
+        ("Nuevas maquinarias", str(new_machines), "Registradas en el mes"),
+    ]
+    kpi_cards = [kpi_cell(*k) for k in kpis[:6]]
+    grid = Table([kpi_cards[:3], kpi_cards[3:6]], colWidths=["33.33%", "33.33%", "33.33%"])
+    grid.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
+    story.append(grid)
+    story.append(Spacer(1, 12))
+
+    two = Table([[section_card("Flujo mensual (neto)", flow_rows), section_card("Documentación proveedor", docs_rows)]], colWidths=["50%", "50%"])
+    two.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    story.append(two)
+
+    if zone_rows:
+        story.append(Spacer(1, 12))
+        story.append(section_card("Zonas con mayor demanda (solicitudes)", zone_rows))
+
+    doc.build(story, onFirstPage=paint_frame, onLaterPages=paint_frame)
     buffer.seek(0)
     return buffer.getvalue()
 
@@ -578,12 +1755,11 @@ async def _send_admin_weekly_report_email(*, force: bool, dry_run: bool, weeks_a
         return {"ok": True, "skipped": True, "reason": "already_sent", "week_key": week_key}
 
     report = await _build_weekly_report(weeks_ago=weeks_ago)
-    subject = f"MAQGO — Informe semanal {report['periodo']['semana']}"
-    pdf_bytes = _build_weekly_onepager_pdf_bytes(report)
-    inicio = str((report.get("periodo", {}) or {}).get("inicio") or "")[:10] or "semana"
-    filename = f"maqgo_onepager_semanal_{inicio}.pdf"
-    text = "Adjunto: Informe semanal MAQGO (onepager PDF)."
-    html = f"<pre>{html_escape(text)}</pre>"
+    cta_url = f"{_get_frontend_url()}/admin"
+    report_id = week_key
+    subject = f"MAQGO — Resumen semanal {report['periodo']['semana']}"
+    html = _render_admin_weekly_brief_email(report=report, report_id=report_id, cta_url=cta_url)
+    text = f"MAQGO — Resumen semanal · {report['periodo']['semana']} · ID: {report_id}"
 
     if dry_run:
         return {
@@ -593,7 +1769,7 @@ async def _send_admin_weekly_report_email(*, force: bool, dry_run: bool, weeks_a
             "to": recipients,
             "subject": subject,
             "text_preview": text[:2000],
-            "attachment": {"filename": filename, "bytes": len(pdf_bytes)},
+            "html_preview": html[:2000],
         }
 
     send_result = await _send_email(
@@ -601,7 +1777,6 @@ async def _send_admin_weekly_report_email(*, force: bool, dry_run: bool, weeks_a
         subject,
         text,
         html,
-        attachments=[{"filename": filename, "content": pdf_bytes, "maintype": "application", "subtype": "pdf"}],
     )
     await db.admin_weekly_report_mailings.update_one(
         {"kind": "weekly_report", "week_key": week_key, "recipients_key": recipients_key},
@@ -674,8 +1849,16 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
         "paid_at": {"$gte": start, "$lt": end},
     }).to_list(5000)
 
+    machines_published_total = await db.machines.count_documents({
+        "status": {"$ne": "deleted"},
+        "published": True,
+    })
+
     sales_net = 0.0
     sales_gross = 0.0
+    sales_net_with_provider_invoice = 0.0
+    sales_net_paid_without_invoice = 0.0
+    sales_net_other_docs = 0.0
     provider_payment_total = 0.0
     iva_debito = 0.0
     iva_credito_estimado = 0.0
@@ -683,15 +1866,29 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
     provider_commission_net = 0.0
     paid_without_invoice_count = 0
     with_provider_invoice_count = 0
+    other_doc_count = 0
+    maqgo_client_pending_count = 0
+    maqgo_client_done_count = 0
+    rental_hours = []
+    gmv_by_type = {}
 
     for s in services:
         net_total = float(s.get("net_total") or 0)
         gross_total = float(s.get("gross_total") or 0)
         if gross_total <= 0 and net_total > 0:
             gross_total = round(net_total * 1.19, 0)
+        mtype = str(s.get("machinery_type") or s.get("machineryType") or "—").strip() or "—"
+        gmv_by_type[mtype] = float(gmv_by_type.get(mtype) or 0) + float(gross_total or 0)
 
         service_fee = float(s.get("service_fee") or 0)
         paid_without_invoice = bool(s.get("paid_without_invoice", False))
+        hours = float(s.get("hours") or 0)
+        if hours > 0:
+            rental_hours.append(hours)
+        if s.get("maqgo_client_invoice_pending") is False:
+            maqgo_client_done_count += 1
+        else:
+            maqgo_client_pending_count += 1
 
         provider_paid = (
             float(s.get("amount_paid_to_provider"))
@@ -708,11 +1905,22 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
 
         if paid_without_invoice:
             paid_without_invoice_count += 1
+            sales_net_paid_without_invoice += net_total
         else:
-            has_provider_invoice = bool(s.get("invoice_number")) or bool(s.get("invoice_uploaded_at"))
+            has_provider_invoice = (
+                (s.get("invoiceStatus") == "validated")
+                or bool(s.get("invoice_uploaded_at"))
+                or bool(s.get("invoice_number"))
+                or bool(s.get("invoiceFilename"))
+                or bool(s.get("invoice_image"))
+            )
             if has_provider_invoice:
                 iva_credito_estimado += iva_servicio
                 with_provider_invoice_count += 1
+                sales_net_with_provider_invoice += net_total
+            else:
+                other_doc_count += 1
+                sales_net_other_docs += net_total
 
         gross_sin_iva = (gross_total / 1.19) if gross_total else 0.0
         subtotal_base = gross_sin_iva / 1.10 if gross_sin_iva else 0.0
@@ -723,8 +1931,67 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
     contribution_margin = sales_net - provider_payment_total
     contribution_margin_pct = (contribution_margin / sales_net * 100.0) if sales_net > 0 else 0.0
     maqgo_operating_revenue = client_commission_net + provider_commission_net
+    avg_rental_hours = (sum(rental_hours) / len(rental_hours)) if rental_hours else 0.0
+    avg_rental_days = (avg_rental_hours / 8.0) if avg_rental_hours > 0 else 0.0
 
-    return {
+    start_iso = start.replace(tzinfo=timezone.utc).isoformat()
+    end_iso = end.replace(tzinfo=timezone.utc).isoformat()
+    reqs = await db.service_requests.find(
+        {"createdAt": {"$gte": start_iso, "$lt": end_iso}},
+        {"_id": 0, "location.address": 1},
+    ).to_list(5000)
+    zones = Counter(_extract_zone_from_address((r.get("location") or {}).get("address") if isinstance(r.get("location"), dict) else "") for r in reqs)
+    top_zones = [{"zone": k, "n": v} for k, v in zones.most_common(5) if k and k != "—"]
+
+    spend_rows = await db.marketing_spend.find(
+        {"week_start": {"$gte": start.replace(tzinfo=timezone.utc), "$lt": end.replace(tzinfo=timezone.utc)}},
+        {"_id": 0, "audience": 1, "amount_clp": 1, "channel": 1},
+    ).to_list(2000)
+    spend_clientes = 0.0
+    spend_proveedores = 0.0
+    for row in spend_rows:
+        aud = str(row.get("audience") or "clientes").strip().lower()
+        amt = float(row.get("amount_clp") or 0)
+        if aud == "proveedores":
+            spend_proveedores += amt
+        else:
+            spend_clientes += amt
+    spend_total = spend_clientes + spend_proveedores
+
+    async def count_role(role: str) -> int:
+        return await db.users.count_documents({
+            "$and": [
+                {"$or": [{"role": role}, {"roles": role}]},
+                {
+                    "$or": [
+                        {"createdAt": {"$gte": start_iso, "$lt": end_iso}},
+                        {"created_at": {"$gte": start, "$lt": end}},
+                    ]
+                },
+            ],
+        })
+
+    nuevos_clientes = await count_role("client")
+    nuevos_proveedores = await count_role("provider")
+    cac_cliente = (round(spend_clientes / nuevos_clientes, 2) if nuevos_clientes > 0 else None)
+    cac_proveedor = (round(spend_proveedores / nuevos_proveedores, 2) if nuevos_proveedores > 0 else None)
+    nuevas_maquinarias = await db.machines.count_documents(
+        {
+            "status": {"$ne": "deleted"},
+            "createdAt": {"$gte": start.replace(tzinfo=timezone.utc), "$lt": end.replace(tzinfo=timezone.utc)},
+        }
+    )
+
+    komatsu = await _compute_komatsu_integration_snapshot()
+    integrations = {"komatsu": komatsu}
+
+    top_machinery_gmv = []
+    for k, v in sorted(gmv_by_type.items(), key=lambda kv: float(kv[1] or 0), reverse=True)[:5]:
+        if not k or k == "—":
+            continue
+        top_machinery_gmv.append({"machinery": k, "gmv_clp": round(float(v or 0), 0)})
+
+    report = {
         "periodo": {
             "year": year,
             "month": month,
@@ -736,10 +2003,23 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
             "services_paid": len(services),
             "with_provider_invoice": with_provider_invoice_count,
             "paid_without_invoice": paid_without_invoice_count,
+            "provider_doc_missing": other_doc_count,
+            "maqgo_client_invoice_pending": maqgo_client_pending_count,
+            "maqgo_client_invoiced_marked": maqgo_client_done_count,
+            "new_clients": nuevos_clientes,
+            "new_providers": nuevos_proveedores,
+            "new_machines": nuevas_maquinarias,
+            "avg_rental_days": round(avg_rental_days, 2) if avg_rental_days > 0 else None,
+            "machines_published_total": int(machines_published_total or 0),
         },
         "sales": {
             "net": round(sales_net, 0),
             "gross": round(sales_gross, 0),
+            "net_by_document": {
+                "with_provider_invoice": round(sales_net_with_provider_invoice, 0),
+                "paid_without_invoice": round(sales_net_paid_without_invoice, 0),
+                "other": round(sales_net_other_docs, 0),
+            },
         },
         "iva": {
             "debito": round(iva_debito, 0),
@@ -758,8 +2038,45 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
             "provider_commission_net": round(provider_commission_net, 0),
             "total_net": round(maqgo_operating_revenue, 0),
         },
+        "demand": {
+            "requests_created": len(reqs),
+            "top_zones": top_zones,
+        },
+        "marketing": {
+            "spend_clp": {
+                "total": round(spend_total, 0),
+                "clientes": round(spend_clientes, 0),
+                "proveedores": round(spend_proveedores, 0),
+            },
+            "kpi": {
+                "CAC_cliente_registro_clp": cac_cliente,
+                "CAC_proveedor_registro_clp": cac_proveedor,
+            },
+        },
+        "integrations": integrations,
+        "market": {
+            "top_machinery_by_gmv": top_machinery_gmv,
+        },
         "generated_at": datetime.utcnow().isoformat(),
     }
+
+    insights = []
+    if top_machinery_gmv:
+        top = top_machinery_gmv[0]
+        label = str(top.get("machinery") or "").strip()
+        if label:
+            insights.append(f"{label} lidera GMV del mes.")
+    if top_zones:
+        z0 = top_zones[0]
+        label = str(z0.get("zone") or "").strip()
+        if label:
+            insights.append(f"{label} concentra la mayor demanda (solicitudes).")
+    if int((komatsu or {}).get("stale_72h") or 0) > 0:
+        insights.append(f"Integración Komatsu: {int((komatsu or {}).get('stale_72h') or 0)} máquina(s) sin actualizar (más de 72h).")
+    if other_doc_count > 0:
+        insights.append(f"Pendiente documento proveedor: {other_doc_count} servicio(s) sin evidencia de documento en sistema.")
+    report["insights"] = insights[:5]
+    return report
 
 
 async def _send_admin_monthly_report_email(*, force: bool, dry_run: bool, months_ago: int) -> dict:
@@ -778,12 +2095,15 @@ async def _send_admin_monthly_report_email(*, force: bool, dry_run: bool, months
 
     now_local = datetime.now(ZoneInfo(tz_name))
     in_window = _scheduled_window_allows_send(now_local, hour, minute, window)
-    if not force and not (int(now_local.day) == int(day) and in_window):
+    scheduled_local = _business_day_for_month(year=now_local.year, month=now_local.month, day=day, tz_name=tz_name)
+    is_scheduled_day = now_local.date() == scheduled_local.date()
+    if not force and not (is_scheduled_day and in_window):
         return {
             "ok": False,
             "reason": "outside_schedule_window",
             "timezone": tz_name,
             "now_local": now_local.isoformat(),
+            "scheduled_local": scheduled_local.isoformat(),
         }
 
     y, m = _shift_month(year=now_local.year, month=now_local.month, months_ago=months_ago)
@@ -797,12 +2117,11 @@ async def _send_admin_monthly_report_email(*, force: bool, dry_run: bool, months
         return {"ok": True, "skipped": True, "reason": "already_sent", "month_key": month_key}
 
     report = await _build_monthly_finance(year=y, month=m)
-    subject = f"MAQGO — Informe mensual {report['periodo']['label']}"
-    pdf_bytes = _build_monthly_onepager_pdf_bytes(report)
-    label = str((report.get("periodo", {}) or {}).get("label") or "").strip() or "mes"
-    filename = f"maqgo_onepager_mensual_{label}.pdf"
-    text = "Adjunto: Informe mensual MAQGO (onepager PDF)."
-    html = f"<pre>{html_escape(text)}</pre>"
+    report_id = month_key
+    cta_url = f"{_get_frontend_url()}/admin"
+    subject = f"MAQGO — Resumen mensual {report['periodo']['label']}"
+    html = _render_admin_monthly_intelligence_email(report=report, report_id=report_id, cta_url=cta_url)
+    text = f"MAQGO — Resumen mensual · {report['periodo']['label']} · ID: {report_id}"
 
     if dry_run:
         return {
@@ -812,7 +2131,7 @@ async def _send_admin_monthly_report_email(*, force: bool, dry_run: bool, months
             "to": recipients,
             "subject": subject,
             "text_preview": text[:2000],
-            "attachment": {"filename": filename, "bytes": len(pdf_bytes)},
+            "html_preview": html[:2000],
         }
 
     send_result = await _send_email(
@@ -820,7 +2139,6 @@ async def _send_admin_monthly_report_email(*, force: bool, dry_run: bool, months
         subject,
         text,
         html,
-        attachments=[{"filename": filename, "content": pdf_bytes, "maintype": "application", "subtype": "pdf"}],
     )
     await db.admin_monthly_report_mailings.update_one(
         {"kind": "monthly_report", "month_key": month_key, "recipients_key": recipients_key},
@@ -975,6 +2293,70 @@ async def _build_weekly_report(weeks_ago: int = 0):
     }).to_list(None)
     gmv_week = sum(float(d.get("gross_total") or 0) for d in paid_docs)
     n_pagados_cerrados = len(paid_docs)
+    rental_hours = [float(s.get("hours") or 0) for s in paid_docs if float(s.get("hours") or 0) > 0]
+    avg_rental_hours = (sum(rental_hours) / len(rental_hours)) if rental_hours else 0.0
+    avg_rental_days = (avg_rental_hours / 8.0) if avg_rental_hours > 0 else 0.0
+
+    def calc_maqgo_net(docs: list[dict]) -> float:
+        total = 0.0
+        for s in docs or []:
+            net_total = float(s.get("net_total") or 0)
+            gross_total = float(s.get("gross_total") or 0)
+            if gross_total <= 0 and net_total > 0:
+                gross_total = round(net_total * 1.19, 0)
+            service_fee = float(s.get("service_fee") or 0)
+            gross_sin_iva = (gross_total / 1.19) if gross_total else 0.0
+            subtotal_base = gross_sin_iva / 1.10 if gross_sin_iva else 0.0
+            client_commission_net = subtotal_base * 0.10
+            provider_commission_net = (service_fee / 1.19) if service_fee else 0.0
+            total += float(client_commission_net + provider_commission_net)
+        return round(total, 0)
+
+    prev_start = start_of_week - timedelta(days=7)
+    prev_end = start_of_week
+    paid_docs_prev = await db.services.find(
+        {"status": "paid", "paid_at": {"$gte": prev_start, "$lt": prev_end}},
+        {"_id": 0, "gross_total": 1, "net_total": 1, "service_fee": 1},
+    ).to_list(5000)
+    gmv_prev = sum(float(d.get("gross_total") or 0) for d in paid_docs_prev)
+    completed_prev = len(paid_docs_prev)
+    maqgo_rev_week = calc_maqgo_net(paid_docs)
+    maqgo_rev_prev = calc_maqgo_net(paid_docs_prev)
+
+    def wow_pct(now_val: float, prev_val: float):
+        try:
+            now_f = float(now_val or 0)
+            prev_f = float(prev_val or 0)
+        except Exception:
+            return None
+        if prev_f <= 0:
+            return None
+        return round((now_f - prev_f) / prev_f * 100.0, 1)
+
+    ticket_prom = round((gmv_week / n_pagados_cerrados), 0) if n_pagados_cerrados > 0 else 0.0
+
+    monto_creado_week = sum(float(s.get("gross_total") or 0) for s in services)
+    invoiced_filter = {
+        "status": "invoiced",
+        "$or": [
+            {"invoiceStatus": "validated"},
+            {"invoice_uploaded_at": {"$exists": True, "$ne": None}},
+            {"invoice_number": {"$exists": True, "$ne": None}},
+            {"invoiceFilename": {"$exists": True, "$ne": ""}},
+            {"invoice_image": {"$exists": True, "$ne": None}},
+        ],
+    }
+    invoiced_pending = await db.services.find(
+        invoiced_filter,
+        {"_id": 0, "net_total": 1, "amount_paid_to_provider": 1},
+    ).to_list(5000)
+    por_pagar_count = len(invoiced_pending)
+    por_pagar_amount = 0.0
+    for s in invoiced_pending:
+        if s.get("amount_paid_to_provider") is not None:
+            por_pagar_amount += float(s.get("amount_paid_to_provider") or 0)
+        else:
+            por_pagar_amount += float(s.get("net_total") or 0)
 
     total_creados = len(services)
     canceladas = por_estado.get("cancelled", 0)
@@ -984,11 +2366,125 @@ async def _build_weekly_report(weeks_ago: int = 0):
     top_maquinaria = [{"tipo": k, "n": v} for k, v in mach.most_common(5)]
 
     alertas = await generate_alerts(db, start_of_week, end_of_week)
+    marketing = None
+    try:
+        from routes.marketing_kpi import build_marketing_report_for_week
+
+        marketing = await build_marketing_report_for_week(start_of_week.replace(tzinfo=timezone.utc))
+    except Exception:
+        marketing = None
+
+    start_iso = start_of_week.replace(tzinfo=timezone.utc).isoformat()
+    end_iso = end_of_week.replace(tzinfo=timezone.utc).isoformat()
+
+    async def count_role(role: str) -> int:
+        return await db.users.count_documents({
+            "$and": [
+                {"$or": [{"role": role}, {"roles": role}]},
+                {
+                    "$or": [
+                        {"createdAt": {"$gte": start_iso, "$lt": end_iso}},
+                        {"created_at": {"$gte": start_of_week, "$lt": end_of_week}},
+                    ]
+                },
+            ],
+        })
+
+    nuevos_clientes = await count_role("client")
+    nuevos_proveedores = await count_role("provider")
+    nuevas_maquinarias = await db.machines.count_documents(
+        {
+            "status": {"$ne": "deleted"},
+            "createdAt": {"$gte": start_of_week.replace(tzinfo=timezone.utc), "$lt": end_of_week.replace(tzinfo=timezone.utc)},
+        }
+    )
+
+    komatsu = await _compute_komatsu_integration_snapshot()
+    integrations = {"komatsu": komatsu}
+
+    pending_review_total = await db.services.count_documents({"status": "pending_review"})
+    stuck_over_72h = await db.services.count_documents({"status": "pending_review", "created_at": {"$lt": now - timedelta(hours=72)}})
+    disputed_total = await db.services.count_documents({"status": "disputed"})
+    invoiced_total = await db.services.count_documents(invoiced_filter)
+
+    health_score = 100.0
+    health_score -= min(35.0, float(stuck_over_72h) * 6.0)
+    health_score -= min(20.0, float(disputed_total) * 3.0)
+    health_score -= min(20.0, float(invoiced_total) * 0.6)
+    health_score = max(0.0, min(100.0, health_score))
+
+    reqs_week = await db.service_requests.find(
+        {"createdAt": {"$gte": start_iso, "$lt": end_iso}},
+        {"_id": 0, "location.address": 1},
+    ).to_list(8000)
+    prev_start_iso = prev_start.replace(tzinfo=timezone.utc).isoformat()
+    prev_end_iso = prev_end.replace(tzinfo=timezone.utc).isoformat()
+    reqs_prev = await db.service_requests.find(
+        {"createdAt": {"$gte": prev_start_iso, "$lt": prev_end_iso}},
+        {"_id": 0, "location.address": 1},
+    ).to_list(8000)
+
+    zones_week = Counter(_extract_zone_from_address((r.get("location") or {}).get("address") if isinstance(r.get("location"), dict) else "") for r in reqs_week)
+    zones_prev = Counter(_extract_zone_from_address((r.get("location") or {}).get("address") if isinstance(r.get("location"), dict) else "") for r in reqs_prev)
+    top_zones = []
+    for z, n in zones_week.most_common(5):
+        if not z or z == "—":
+            continue
+        prev_n = int(zones_prev.get(z) or 0)
+        zp = None
+        if prev_n > 0:
+            zp = round((float(n) - float(prev_n)) / float(prev_n) * 100.0, 1)
+        top_zones.append({"zone": z, "n": int(n), "wow_pct": zp})
+        if len(top_zones) >= 5:
+            break
+
+    demand = {"requests_created": len(reqs_week), "top_zones": top_zones}
+    growth = {"new_clients": nuevos_clientes, "new_providers": nuevos_proveedores, "new_machines": nuevas_maquinarias}
+    ops = {
+        "health_score": int(round(health_score, 0)),
+        "review_avg_min": tiempo_promedio_revision_min,
+        "pending_review_total": pending_review_total,
+        "stuck_over_72h": stuck_over_72h,
+        "disputed_total": disputed_total,
+        "invoiced_total": invoiced_total,
+    }
+    business = {
+        "gmv_paid_clp": round(gmv_week, 0),
+        "maqgo_revenue_net_clp": maqgo_rev_week,
+        "services_completed": n_pagados_cerrados,
+        "ticket_promedio_clp": ticket_prom,
+        "avg_rental_days": round(avg_rental_days, 2) if avg_rental_days > 0 else None,
+        "wow_gmv_pct": wow_pct(gmv_week, gmv_prev),
+        "wow_maqgo_revenue_pct": wow_pct(maqgo_rev_week, maqgo_rev_prev),
+        "wow_completed_pct": wow_pct(n_pagados_cerrados, completed_prev),
+    }
+
+    insights = []
+    if business.get("wow_gmv_pct") is not None:
+        d = float(business["wow_gmv_pct"])
+        if abs(d) >= 8:
+            verb = "subió" if d > 0 else "bajó"
+            insights.append(f"GMV {verb} {abs(d):.1f}% vs semana anterior.")
+    if business.get("wow_maqgo_revenue_pct") is not None:
+        d = float(business["wow_maqgo_revenue_pct"])
+        if abs(d) >= 8:
+            verb = "subió" if d > 0 else "bajó"
+            insights.append(f"Ingreso MAQGO {verb} {abs(d):.1f}% vs semana anterior (estimado).")
+    if int(stuck_over_72h) > 0:
+        insights.append(f"Backlog crítico: {int(stuck_over_72h)} servicio(s) en revisión (más de 72h).")
+    if int(komatsu.get("stale_72h") or 0) > 0:
+        insights.append(f"Integración Komatsu: {int(komatsu.get('stale_72h') or 0)} máquina(s) sin actualizar (más de 72h).")
+    if top_zones:
+        z0 = top_zones[0]
+        if z0.get("wow_pct") is not None and abs(float(z0["wow_pct"])) >= 20:
+            verb = "creció" if float(z0["wow_pct"]) > 0 else "cayó"
+            insights.append(f"Demanda: {z0.get('zone')} {verb} {abs(float(z0['wow_pct'])):.1f}% vs semana anterior.")
+    insights = insights[:5]
 
     etiquetas = {
         "pending_review": "En revisión MAQGO",
         "approved": "Aprobado (factura proveedor)",
-        "invoiced": "Facturado (pago pendiente)",
+        "invoiced": "Factura recibida (pago pendiente)",
         "paid": "Pagado",
         "disputed": "En disputa",
         "cancelled": "Cancelado",
@@ -1003,14 +2499,20 @@ async def _build_weekly_report(weeks_ago: int = 0):
         },
         "resumen": {
             "total_servicios_creados_semana": total_creados,
+            "monto_creado_semana_clp": round(monto_creado_week, 0),
             "por_estado": por_estado,
             "etiquetas_estado": etiquetas,
             "tiempo_promedio_revision_h": tiempo_promedio_revision_h,
             "tiempo_promedio_revision_min": tiempo_promedio_revision_min,
             "servicios_pagados_cerrados_semana": n_pagados_cerrados,
             "gmv_pagado_semana_clp": round(gmv_week),
+            "por_pagar_proveedor_count": por_pagar_count,
+            "por_pagar_proveedor_monto_clp": round(por_pagar_amount, 0),
             "tasa_cancelacion": f"{tasa_cancel}%",
             "top_maquinaria": top_maquinaria,
+            "nuevos_clientes_semana": nuevos_clientes,
+            "nuevos_proveedores_semana": nuevos_proveedores,
+            "nuevas_maquinarias_semana": nuevas_maquinarias,
             "total_solicitudes": total_creados,
             "tiempo_promedio_confirmacion_min": tiempo_promedio_revision_min,
             "solicitudes_aceptadas": por_estado.get("approved", 0) + por_estado.get("invoiced", 0) + por_estado.get("paid", 0),
@@ -1021,6 +2523,13 @@ async def _build_weekly_report(weeks_ago: int = 0):
             "tasa_aceptacion_inmediatas": "N/A",
         },
         "alertas": alertas,
+        "marketing": marketing,
+        "business": business,
+        "ops": ops,
+        "growth": growth,
+        "demand": demand,
+        "integrations": integrations,
+        "insights": insights,
         "generado_el": datetime.utcnow().isoformat(),
         "pipeline": "facturacion_post_servicio",
     }
@@ -1134,7 +2643,17 @@ async def generate_alerts(db, start_date, end_date, umbral_revision_h=72):
             "detalle": [],
         })
 
-    inv_pend = await db.services.count_documents({"status": "invoiced"})
+    invoiced_filter = {
+        "status": "invoiced",
+        "$or": [
+            {"invoiceStatus": "validated"},
+            {"invoice_uploaded_at": {"$exists": True, "$ne": None}},
+            {"invoice_number": {"$exists": True, "$ne": None}},
+            {"invoiceFilename": {"$exists": True, "$ne": ""}},
+            {"invoice_image": {"$exists": True, "$ne": None}},
+        ],
+    }
+    inv_pend = await db.services.count_documents(invoiced_filter)
     if inv_pend > 0:
         alertas.append({
             "tipo": "COBROS_PROVEEDOR",
@@ -1156,22 +2675,40 @@ async def generate_alerts(db, start_date, end_date, umbral_revision_h=72):
 async def get_payments_planilla(
     format: str = Query("json", description="json o csv"),
     date: Optional[str] = Query(None, description="YYYY-MM-DD. Sin fecha = todos los pendientes"),
+    only_approved: bool = Query(True, description="Si true: solo facturas proveedor aprobadas por MAQGO (listas para pago)."),
     _: dict = Depends(get_current_admin_strict),
 ):
     """
     Planilla de pagos pendientes (status=invoiced) para conciliación financiera.
     Incluye desglose neto/IVA/bruto y visibilidad de facturación MAQGO al cliente.
     """
-    query = {"status": "invoiced"}
+    evidence_or = [
+        {"invoiceStatus": "validated"},
+        {"invoice_uploaded_at": {"$exists": True, "$ne": None}},
+        {"invoice_number": {"$exists": True, "$ne": None}},
+        {"invoiceFilename": {"$exists": True, "$ne": ""}},
+        {"invoice_image": {"$exists": True, "$nin": [None, ""]}},
+    ]
+    base = {"status": "invoiced", "$or": evidence_or}
+    if only_approved:
+        base["provider_invoice_approved"] = True
+    query = base
     if date:
         try:
             d = datetime.strptime(date, "%Y-%m-%d")
             start = d.replace(hour=0, minute=0, second=0, microsecond=0)
             end = start + timedelta(days=1)
-            query["$or"] = [
-                {"invoice_uploaded_at": {"$gte": start, "$lt": end}},
-                {"created_at": {"$gte": start, "$lt": end}},
-            ]
+            query = {
+                "$and": [
+                    base,
+                    {
+                        "$or": [
+                            {"invoice_uploaded_at": {"$gte": start, "$lt": end}},
+                            {"created_at": {"$gte": start, "$lt": end}},
+                        ]
+                    },
+                ]
+            }
         except ValueError:
             date = None  # Ignorar fecha inválida
 
@@ -1200,6 +2737,9 @@ async def get_payments_planilla(
             if s.get("amount_paid_to_provider") is not None
             else net_amount
         )
+        provider_invoice_approved = bool(s.get("provider_invoice_approved") is True)
+        provider_invoice_expected = float(s.get("provider_invoice_expected_total_clp") or 0)
+        provider_invoice_confirmed = float(s.get("provider_invoice_total_confirmed_clp") or 0)
         rows.append({
             "id": str(s.get("_id", s.get("id", ""))),
             "fecha_creacion": s.get("created_at", ""),
@@ -1219,6 +2759,9 @@ async def get_payments_planilla(
             "pagado_sin_factura": "SI" if paid_without_invoice else "NO",
             "retencion_iva_sin_factura": round(retention_amount, 0) if paid_without_invoice else 0,
             "n_factura": s.get("invoice_number", "–"),
+            "factura_proveedor_aprobada": "SI" if provider_invoice_approved else "NO",
+            "monto_factura_proveedor_esperado": round(provider_invoice_expected, 0),
+            "monto_factura_proveedor_confirmado": round(provider_invoice_confirmed, 0),
             "maqgo_facturo_cliente": "NO" if maqgo_invoice_pending else "SI",
             "fecha_factura_cliente_maqgo": s.get("maqgo_client_invoiced_at", ""),
             "estado_servicio": s.get("status", "–"),
@@ -1247,6 +2790,9 @@ async def get_payments_planilla(
             "Pagado sin factura",
             "Retención IVA sin factura (CLP)",
             "Nº factura proveedor",
+            "Factura proveedor aprobada",
+            "Monto factura proveedor esperado (CLP)",
+            "Monto factura proveedor confirmado (CLP)",
             "MAQGO facturó cliente",
             "Fecha factura cliente MAQGO",
         ]
@@ -1272,6 +2818,9 @@ async def get_payments_planilla(
                 r["pagado_sin_factura"],
                 r["retencion_iva_sin_factura"],
                 r["n_factura"],
+                r["factura_proveedor_aprobada"],
+                r["monto_factura_proveedor_esperado"],
+                r["monto_factura_proveedor_confirmado"],
                 r["maqgo_facturo_cliente"],
                 str(r["fecha_factura_cliente_maqgo"])[:19] if r["fecha_factura_cliente_maqgo"] else "",
             ])

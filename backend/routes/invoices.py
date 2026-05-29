@@ -56,17 +56,31 @@ IVA_RATE = 0.19
 
 def expected_invoice_total_from_service(service: dict) -> float:
     """
-    Monto total que debe tener la factura del proveedor (cruce con reporte del servicio).
-    = Desglose del servicio (servicio + bono + traslado) menos tarifa plataforma (10%+IVA) + IVA.
+    Monto total esperado de la factura del proveedor.
+    Regla práctica: debe calzar con el monto a pagar al proveedor que ya está en el servicio (`net_total`).
+    Si `net_total` no existe, se estima como (serviceAmount + bonusAmount + transportAmount) + IVA.
     """
-    gross = (
-        service.get("serviceAmount", 0) or service.get("service_amount", 0)
-        + service.get("bonusAmount", 0) or service.get("bonus_amount", 0)
-        + service.get("transportAmount", 0) or service.get("transport_amount", 0)
-    )
-    commission = round(gross * 0.10 * (1 + IVA_RATE), 0)
-    provider_net = gross - commission
-    return round(provider_net * (1 + IVA_RATE), 0)
+    try:
+        net_total = float(service.get("net_total") or 0)
+    except Exception:
+        net_total = 0.0
+    if net_total > 0:
+        return round(net_total, 0)
+
+    def _f(*keys: str) -> float:
+        for k in keys:
+            if k in service and service.get(k) is not None:
+                try:
+                    return float(service.get(k) or 0)
+                except Exception:
+                    return 0.0
+        return 0.0
+
+    service_amount = _f("serviceAmount", "service_amount")
+    bonus_amount = _f("bonusAmount", "bonus_amount")
+    transport_amount = _f("transportAmount", "transport_amount")
+    subtotal = service_amount + bonus_amount + transport_amount
+    return round(subtotal * (1 + IVA_RATE), 0)
 
 
 class InvoiceValidationResult(BaseModel):
@@ -343,6 +357,12 @@ async def upload_invoice(
             # Misma convención que POST /services/{id}/invoice (data URL) para el modal admin
             "invoice_image": f"data:{mime};base64,{invoice_b64}",
             "invoice_uploaded_at": datetime.now(timezone.utc),
+            "provider_invoice_expected_total_clp": float(expected_amount or 0),
+            "provider_invoice_total_detected_clp": float(validation_result.total or expected_amount or 0),
+            "provider_invoice_total_confirmed_clp": None,
+            "provider_invoice_approved": False,
+            "provider_invoice_reviewed_at": None,
+            "provider_invoice_reviewed_by": None,
         }
     if validation_result.folio:
         update_payload["invoice_number"] = str(validation_result.folio)

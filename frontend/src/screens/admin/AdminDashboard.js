@@ -93,6 +93,7 @@ function AdminDashboard() {
   const [invoiceModalSrc, setInvoiceModalSrc] = useState('');
   const [invoiceModalLoading, setInvoiceModalLoading] = useState(false);
   const [invoiceModalHint, setInvoiceModalHint] = useState('');
+  const [providerInvoiceConfirmed, setProviderInvoiceConfirmed] = useState('');
   const [showReportSubscriptions, setShowReportSubscriptions] = useState(false);
   const [reportSubsLoading, setReportSubsLoading] = useState(false);
   const [weeklyReportEmailsText, setWeeklyReportEmailsText] = useState('');
@@ -576,28 +577,45 @@ function AdminDashboard() {
     }
   };
 
-  const payWithoutInvoice = async (serviceId) => {
-    if (usingOfflineDemo || isDemoServiceId(serviceId)) {
-      toast.warning('Sin API o datos demo: esta acción no está disponible.');
-      return;
-    }
-    if (!window.confirm('¿Pagar sin factura? Se retendrá el 19% (IVA) del pago al proveedor. MAQGO factura al cliente.')) return;
-    try {
-      const res = await fetchWithAuth(`${BACKEND_URL}/api/services/admin/${serviceId}/pay-without-invoice`, {
-        method: 'PATCH'
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Error');
-      fetchServices();
-      toast.success(data.message);
-    } catch (error) {
-      toast.error(friendlyFetchError(error, 'Error al pagar sin factura'));
-    }
-  };
-
   const viewInvoice = (service) => {
     setSelectedService(service);
+    try {
+      const v =
+        service?.provider_invoice_total_confirmed_clp ??
+        service?.provider_invoice_total_detected_clp ??
+        service?.provider_invoice_expected_total_clp ??
+        service?.net_total ??
+        '';
+      setProviderInvoiceConfirmed(v !== null && v !== undefined ? String(v) : '');
+    } catch {
+      setProviderInvoiceConfirmed('');
+    }
     setShowInvoiceModal(true);
+  };
+
+  const approveProviderInvoice = async (serviceId, confirmedTotalClp) => {
+    if (usingOfflineDemo || isDemoServiceId(serviceId)) {
+      toast.warning('Sin API o datos demo: esta acción no está disponible.');
+      return false;
+    }
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/services/admin/${serviceId}/provider-invoice/approve`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmed_total_clp: Number(confirmedTotalClp || 0) })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.detail || 'Error al aprobar factura proveedor');
+        return false;
+      }
+      fetchServices();
+      toast.success(data.message || 'Factura proveedor aprobada');
+      return true;
+    } catch (error) {
+      toast.error(friendlyFetchError(error, 'Error al aprobar factura proveedor'));
+      return false;
+    }
   };
 
   const downloadInvoiceFile = () => {
@@ -727,7 +745,7 @@ function AdminDashboard() {
 
   const downloadPlanillaPagos = async () => {
     try {
-      const url = `${BACKEND_URL}/api/admin/reports/payments-planilla?format=csv`;
+      const url = `${BACKEND_URL}/api/admin/reports/payments-planilla?format=csv&only_approved=1`;
       const res = await fetchWithAuth(url);
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
@@ -2294,32 +2312,11 @@ function AdminDashboard() {
                   </span>
 
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {service.status === 'approved' && (
-                      <button
-                        type="button"
-                        disabled={actionsLocked}
-                        onClick={() => payWithoutInvoice(service._id)}
-                        style={{
-                          background: 'rgba(255, 152, 0, 0.9)',
-                          border: 'none',
-                          borderRadius: 6,
-                          padding: '6px 12px',
-                          color: '#fff',
-                          fontSize: 12,
-                          cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                          fontWeight: 600,
-                          opacity: actionsLocked ? 0.45 : 1,
-                        }}
-                        title="Proveedor no subió factura. MAQGO retiene 19% IVA y paga el resto."
-                      >
-                        Pagar sin factura
-                      </button>
-                    )}
                     {service.status === 'invoiced' && (
                       <button
                         type="button"
                         disabled={actionsLocked}
-                        onClick={() => updateStatus(service._id, 'paid')}
+                        onClick={() => !actionsLocked && viewInvoice(service)}
                         style={{
                           background: ADMIN_PALETTE.success,
                           border: 'none',
@@ -2332,7 +2329,7 @@ function AdminDashboard() {
                           opacity: actionsLocked ? 0.45 : 1,
                         }}
                       >
-                        Marcar Pagado
+                        Revisar y pagar
                       </button>
                     )}
                     {service.status === 'paid' && service.maqgo_client_invoice_pending !== false && (
@@ -2799,6 +2796,31 @@ function AdminDashboard() {
               <p><strong>Maquinaria:</strong> {selectedService.machinery_type}</p>
               <p><strong>{isPerTripMachineryType(selectedService.machinery_type) ? 'Tipo' : 'Horas'}:</strong> {isPerTripMachineryType(selectedService.machinery_type) ? 'Valor viaje' : selectedService.hours}</p>
               <p><strong>Monto a pagar:</strong> {formatPrice(selectedService.net_total)}</p>
+              <p><strong>Monto factura proveedor (esperado):</strong> {formatPrice(selectedService.provider_invoice_expected_total_clp ?? selectedService.net_total)}</p>
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                Monto factura proveedor (confirmado, CLP)
+              </label>
+              <input
+                value={providerInvoiceConfirmed}
+                onChange={(e) => setProviderInvoiceConfirmed(e.target.value)}
+                disabled={actionsLocked}
+                inputMode="numeric"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: '#fff',
+                  outline: 'none',
+                }}
+                placeholder="Ej: 119000"
+              />
+              <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>
+                Este monto debe calzar con la factura del proveedor para habilitar pago.
+              </div>
             </div>
 
             {invoiceModalLoading && (
@@ -2868,6 +2890,11 @@ function AdminDashboard() {
                   type="button"
                   disabled={actionsLocked}
                   onClick={async () => {
+                    const confirmed = Number(String(providerInvoiceConfirmed || '').replace(/[^\d.]/g, ''));
+                    const approved = selectedService.provider_invoice_approved === true
+                      ? true
+                      : await approveProviderInvoice(selectedService._id, confirmed);
+                    if (!approved) return;
                     const ok = await updateStatus(selectedService._id, 'paid');
                     if (ok) closeInvoiceModal();
                   }}

@@ -15,6 +15,7 @@ from typing import Optional, List
 from datetime import datetime, timedelta
 from bson import ObjectId
 import base64
+import os
 
 from db_config import get_db_name, get_mongo_url
 
@@ -68,6 +69,11 @@ class InvoiceSubmit(BaseModel):
 class ServiceUpdate(BaseModel):
     status: str
     admin_notes: Optional[str] = None
+
+
+class ProviderInvoiceApprovePayload(BaseModel):
+    confirmed_total_clp: float
+    note: Optional[str] = None
 
 # Estados posibles
 STATUSES = ['pending_review', 'approved', 'invoiced', 'paid', 'disputed']
@@ -179,7 +185,13 @@ async def submit_invoice(
         "status": "invoiced",
         "invoice_number": invoice.invoice_number,
         "invoice_uploaded_at": now,
-        "updated_at": now
+        "updated_at": now,
+        "provider_invoice_expected_total_clp": float(service.get("net_total") or 0),
+        "provider_invoice_total_detected_clp": float(service.get("net_total") or 0),
+        "provider_invoice_total_confirmed_clp": None,
+        "provider_invoice_approved": False,
+        "provider_invoice_reviewed_at": None,
+        "provider_invoice_reviewed_by": None,
     }
     
     if invoice.invoice_image:
@@ -192,7 +204,7 @@ async def submit_invoice(
     
     return {
         "success": True,
-        "message": "Factura registrada. Pago en 2 días hábiles."
+        "message": "Factura registrada. Queda pendiente de revisión MAQGO para programar pago."
     }
 
 @router.get("/{service_id}")
@@ -329,6 +341,21 @@ def _age_hours(ref, now):
         return max(0.0, (now - ref).total_seconds() / 3600.0)
     except Exception:
         return None
+
+
+def _has_provider_invoice_evidence(service: dict) -> bool:
+    s = service or {}
+    if s.get("invoiceStatus") == "validated":
+        return True
+    if s.get("invoice_uploaded_at"):
+        return True
+    if s.get("invoice_number"):
+        return True
+    if s.get("invoiceFilename"):
+        return True
+    if s.get("invoice_image"):
+        return True
+    return False
 
 
 def _admin_compute_sla_metrics() -> dict:
@@ -492,6 +519,8 @@ async def update_service_status(service_id: str, update: ServiceUpdate, _: dict 
     
     # Obtener servicio actual para notificaciones
     current_service = services_collection.find_one({"_id": ObjectId(service_id)})
+    if not current_service:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
     
     update_data = {
         "status": update.status,
@@ -505,6 +534,21 @@ async def update_service_status(service_id: str, update: ServiceUpdate, _: dict 
         update_data["approved_at"] = datetime.utcnow()
     
     if update.status == 'paid':
+        if current_service.get("status") != "invoiced":
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede marcar pagado si el servicio no está en estado 'invoiced' (factura proveedor subida).",
+            )
+        if not _has_provider_invoice_evidence(current_service):
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede marcar pagado sin evidencia de factura proveedor. Debe estar subida y revisada por MAQGO.",
+            )
+        if current_service.get("provider_invoice_approved") is not True:
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede marcar pagado sin aprobar la factura proveedor (revisión MAQGO).",
+            )
         update_data["paid_at"] = datetime.utcnow()
         # MAQGO debe facturar el total al cliente dentro del mes
         update_data["maqgo_client_invoice_pending"] = True
@@ -588,6 +632,9 @@ async def pay_without_invoice(service_id: str, _: dict = Depends(get_current_adm
     Proveedor recibe: net_total * 0.81 (neto sin IVA).
     Solo aplicable cuando status es 'approved' (proveedor no subió factura).
     """
+    allow = str(os.environ.get("MAQGO_ALLOW_PAY_WITHOUT_INVOICE", "") or "").strip().lower() in ("1", "true", "yes", "y", "on")
+    if not allow:
+        raise HTTPException(status_code=400, detail="Pago sin factura deshabilitado por regla de negocio MAQGO.")
     service = services_collection.find_one({"_id": ObjectId(service_id)})
     if not service:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
@@ -661,6 +708,134 @@ async def get_invoice_image(service_id: str, _: dict = Depends(get_current_admin
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     
     return {"invoice_image": service.get('invoice_image')}
+
+
+@router.patch("/admin/{service_id}/provider-invoice/approve")
+async def approve_provider_invoice(
+    service_id: str,
+    body: ProviderInvoiceApprovePayload,
+    admin: dict = Depends(get_current_admin_strict),
+):
+    service = services_collection.find_one({"_id": ObjectId(service_id)})
+    if not service:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    if service.get("status") != "invoiced":
+        raise HTTPException(status_code=400, detail="Solo se puede aprobar la factura cuando el servicio está en estado 'invoiced'.")
+    if not _has_provider_invoice_evidence(service):
+        raise HTTPException(status_code=400, detail="No hay evidencia de factura proveedor para aprobar.")
+
+    try:
+        confirmed = float(body.confirmed_total_clp or 0)
+    except Exception:
+        confirmed = 0.0
+    if confirmed <= 0:
+        raise HTTPException(status_code=400, detail="Monto confirmado inválido.")
+
+    expected = service.get("provider_invoice_expected_total_clp")
+    if expected is None:
+        expected = service.get("net_total")
+    try:
+        expected = float(expected or 0)
+    except Exception:
+        expected = 0.0
+
+    update = {
+        "provider_invoice_expected_total_clp": float(expected or confirmed or 0),
+        "provider_invoice_total_confirmed_clp": float(confirmed),
+        "provider_invoice_approved": True,
+        "provider_invoice_reviewed_at": datetime.utcnow(),
+        "provider_invoice_reviewed_by": str(admin.get("id") or admin.get("email") or "admin"),
+        "updated_at": datetime.utcnow(),
+    }
+    if body.note:
+        update["provider_invoice_review_note"] = str(body.note)[:400]
+
+    services_collection.update_one({"_id": ObjectId(service_id)}, {"$set": update})
+    return {"success": True, "message": "Factura proveedor aprobada por MAQGO."}
+
+
+@router.get("/admin/audit/payment-rule")
+async def audit_payment_rule(
+    year: Optional[int] = Query(None, ge=2020, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
+    limit: int = Query(50, ge=0, le=200),
+    _: dict = Depends(get_current_admin_strict),
+):
+    now = datetime.utcnow()
+    y = int(year or now.year)
+    m = int(month or now.month)
+    start = datetime(y, m, 1, 0, 0, 0, 0)
+    if m == 12:
+        end = datetime(y + 1, 1, 1, 0, 0, 0, 0)
+    else:
+        end = datetime(y, m + 1, 1, 0, 0, 0, 0)
+
+    base_paid = {"status": "paid", "paid_at": {"$gte": start, "$lt": end}}
+    evidence_or = [
+        {"invoiceStatus": "validated"},
+        {"invoice_uploaded_at": {"$exists": True, "$ne": None}},
+        {"invoice_number": {"$exists": True, "$ne": None}},
+        {"invoiceFilename": {"$exists": True, "$ne": ""}},
+        {"invoice_image": {"$exists": True, "$nin": [None, ""]}},
+    ]
+
+    paid_total = services_collection.count_documents(base_paid)
+    paid_without_invoice_total = services_collection.count_documents({**base_paid, "paid_without_invoice": True})
+    paid_with_invoice_evidence_total = services_collection.count_documents({**base_paid, "paid_without_invoice": {"$ne": True}, "$or": evidence_or})
+    paid_missing_invoice_evidence_total = max(0, int(paid_total) - int(paid_without_invoice_total) - int(paid_with_invoice_evidence_total))
+    paid_missing_invoice_approval_total = services_collection.count_documents({**base_paid, "provider_invoice_approved": {"$ne": True}})
+
+    amount_override_filter = {
+        **base_paid,
+        "paid_without_invoice": {"$ne": True},
+        "$expr": {"$and": [{"$ne": ["$amount_paid_to_provider", None]}, {"$ne": ["$amount_paid_to_provider", "$net_total"]}]},
+    }
+    amount_override_total = services_collection.count_documents(amount_override_filter)
+
+    violations_missing_evidence = [
+        str(x.get("_id"))
+        for x in services_collection.find(
+            {**base_paid, "paid_without_invoice": {"$ne": True}, "$nor": evidence_or},
+            {"_id": 1},
+        ).limit(int(limit or 0))
+    ]
+    violations_paid_without_invoice = [
+        str(x.get("_id"))
+        for x in services_collection.find(
+            {**base_paid, "paid_without_invoice": True},
+            {"_id": 1},
+        ).limit(int(limit or 0))
+    ]
+    violations_amount_override = [
+        str(x.get("_id"))
+        for x in services_collection.find(
+            amount_override_filter,
+            {"_id": 1},
+        ).limit(int(limit or 0))
+    ]
+    violations_missing_approval = [
+        str(x.get("_id"))
+        for x in services_collection.find(
+            {**base_paid, "provider_invoice_approved": {"$ne": True}},
+            {"_id": 1},
+        ).limit(int(limit or 0))
+    ]
+
+    return {
+        "periodo": {"year": y, "month": m, "inicio": start.isoformat(), "fin": end.isoformat()},
+        "paid_total": paid_total,
+        "paid_with_invoice_evidence_total": paid_with_invoice_evidence_total,
+        "paid_missing_invoice_evidence_total": paid_missing_invoice_evidence_total,
+        "paid_without_invoice_total": paid_without_invoice_total,
+        "paid_missing_invoice_approval_total": paid_missing_invoice_approval_total,
+        "paid_amount_override_total": amount_override_total,
+        "examples": {
+            "paid_missing_invoice_evidence": violations_missing_evidence,
+            "paid_without_invoice": violations_paid_without_invoice,
+            "paid_missing_invoice_approval": violations_missing_approval,
+            "paid_amount_override": violations_amount_override,
+        },
+    }
 
 
 @router.get("/provider/{provider_id}/summary")
