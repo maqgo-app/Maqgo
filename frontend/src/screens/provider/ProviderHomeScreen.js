@@ -10,6 +10,7 @@ import { vibrate } from '../../utils/uberUX';
 import BACKEND_URL, { hasPersistedSessionCredentials } from '../../utils/api';
 import { traceRedirectToLogin } from '../../utils/traceLoginRedirect';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
+import { getMachines } from '../../utils/providerMachines';
 import { getProviderOnboardingRoute } from '../../utils/providerOnboarding';
 import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
 import { useAuth } from '../../context/authHooks';
@@ -49,7 +50,7 @@ function ProviderHomeScreen() {
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
-  const providerMachines = getArray('providerMachines', []);
+  const providerMachines = getMachines();
   const machineComplete =
     !!(machineData?.machineryType && machineData?.licensePlate) ||
     (Array.isArray(providerMachines) &&
@@ -294,7 +295,7 @@ function ProviderHomeScreen() {
     }
 
     const machineDataLocal = getObject('machineData', {});
-    const providerMachinesLocal = getArray('providerMachines', []);
+    const providerMachinesLocal = getMachines();
     const firstRegisteredMachine =
       Array.isArray(providerMachinesLocal)
         ? providerMachinesLocal.find((m) => m && typeof m === 'object' && m.machineryType && String(m.licensePlate || '').trim())

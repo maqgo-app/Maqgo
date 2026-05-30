@@ -6,7 +6,7 @@ import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgr
 import PasswordField from '../../components/PasswordField';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../context/authHooks';
-import { createMachineInApi, updateMachine, updateMachineInApi, getMachineById } from '../../utils/providerMachines';
+import { createMachineInApi, updateMachine, updateMachineInApi, getMachineById, getMachines } from '../../utils/providerMachines';
 import { getMachineryCapacityOptions, getProviderSpecLabel } from '../../utils/machineryNames';
 import { getArray, getObject } from '../../utils/safeStorage';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
@@ -696,7 +696,7 @@ function MachineDataScreen() {
 
   useEffect(() => {
     if (!isAddMachineEntry || isEditMode) return;
-    const machines = getArray('providerMachines', []);
+    const machines = getMachines();
     const hasRegisteredMachine = Array.isArray(machines)
       ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))
       : false;
@@ -818,7 +818,7 @@ function MachineDataScreen() {
     const ok = await ensureProviderThenPublish();
     if (!ok) return;
 
-    const machines = getArray('providerMachines', []);
+    const machines = getMachines();
     const hasRegisteredMachine = Array.isArray(machines)
       ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))
       : false;

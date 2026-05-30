@@ -256,7 +256,9 @@ export function getProviderBackRoute(pathname) {
   if (pathname === '/provider/machine-data' && typeof localStorage !== 'undefined' && localStorage.getItem('providerCameFromWelcome')) {
     try {
       if (localStorage.getItem('providerOnboardingCompleted') === 'true') return '/';
-      const raw = localStorage.getItem('providerMachines');
+      const pid = String(localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+      const namespacedKey = pid ? `providerMachines:${pid}` : 'providerMachines';
+      const raw = localStorage.getItem(namespacedKey) || localStorage.getItem('providerMachines');
       const machines = raw ? JSON.parse(raw) : [];
       const hasRegisteredMachine = Array.isArray(machines)
         ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))

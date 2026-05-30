@@ -11,7 +11,14 @@ function hasAnyProviderProgressInStorage() {
   try {
     const providerData = JSON.parse(globalThis.localStorage?.getItem('providerData') || '{}');
     const machineData = JSON.parse(globalThis.localStorage?.getItem('machineData') || '{}');
-    const providerMachines = JSON.parse(globalThis.localStorage?.getItem('providerMachines') || '[]');
+    const pid = String(globalThis.localStorage?.getItem('ownerId') || globalThis.localStorage?.getItem('userId') || '').trim();
+    const namespacedKey = pid ? `providerMachines:${pid}` : 'providerMachines';
+    const providerMachines = (() => {
+      const raw =
+        globalThis.localStorage?.getItem(namespacedKey) ||
+        globalThis.localStorage?.getItem('providerMachines');
+      return JSON.parse(raw || '[]');
+    })();
     const operatorsData = JSON.parse(globalThis.localStorage?.getItem('operatorsData') || '[]');
     const bankData = JSON.parse(globalThis.localStorage?.getItem('bankData') || '{}');
     const companyComplete = Boolean(providerData?.businessName && providerData?.rut);

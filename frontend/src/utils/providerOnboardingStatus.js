@@ -3,6 +3,7 @@
  * Solo lectura de localStorage; sin llamadas API (login/OTP/sesión intactos).
  */
 import { getArray, getObject } from './safeStorage';
+import { getMachines } from './providerMachines';
 
 const MACHINE_FIRST_ENTRY = '/provider/machine-data';
 
@@ -37,7 +38,7 @@ function normalizeMachineOperators(raw = []) {
 }
 
 function hasAssignedMachineOperatorFromStorage() {
-  const machines = getArray('providerMachines', []);
+  const machines = getMachines();
   const onboardingOperators = normalizeMachineOperators(getArray('operatorsData', []));
   const hasMachineData = (() => {
     const machineData = getObject('machineData', {});
@@ -98,7 +99,7 @@ export function getProviderLandingPath() {
     return '/provider/home';
   }
   if (isProviderCameFromWelcomeFlag()) {
-    const machines = getArray('providerMachines', []);
+    const machines = getMachines();
     const hasRegisteredMachine = Array.isArray(machines)
       ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))
       : false;
