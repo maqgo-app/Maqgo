@@ -1459,7 +1459,8 @@ a:focus-visible,
 .maqgo-admin-topbar {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.92) 0%, rgba(15, 23, 42, 0.78) 100%) !important;
   border-bottom: 1px solid var(--maqgo-admin-border) !important;
-  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .maqgo-admin .maqgo-btn-primary {
@@ -1502,7 +1503,8 @@ a:focus-visible,
 
 .maqgo-admin .maqgo-modal-overlay {
   background: rgba(2, 6, 23, 0.86);
-  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .maqgo-admin .maqgo-modal-dialog {
