@@ -16,6 +16,7 @@ import io
 import csv
 import base64
 import os
+import re
 import ssl
 import smtplib
 import asyncio
@@ -76,7 +77,7 @@ def _normalize_email_list(value) -> list[str]:
     else:
         raw = str(value)
     emails = []
-    for part in raw.replace(";", ",").split(","):
+    for part in re.split(r"[,\s]+", raw.replace(";", ",")):
         t = part.strip().lower()
         if not t:
             continue

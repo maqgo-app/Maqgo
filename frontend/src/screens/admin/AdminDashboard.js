@@ -768,7 +768,7 @@ function AdminDashboard() {
   const parseEmailsInput = useCallback((raw) => {
     return String(raw || '')
       .replace(/;/g, ',')
-      .split(/[\n,]+/g)
+      .split(/[\s,]+/g)
       .map((t) => t.trim())
       .filter(Boolean);
   }, []);
