@@ -1,7 +1,7 @@
 """
 MAQGO Admin - Informe Operativo Semanal y Planilla de Pagos
 """
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
 
 from auth_dependency import get_current_admin_strict
@@ -2846,22 +2846,34 @@ async def send_weekly_report_email(
     email: Optional[str] = Query(None),
     weeks_ago: int = Query(1, ge=0, le=52),
     dry_run: bool = Query(False),
+    async_send: bool = Query(True),
+    background_tasks: BackgroundTasks,
     _: dict = Depends(get_current_admin_strict),
 ):
     recipients = _normalize_email_list(email or ",".join(await _get_weekly_recipients_from_config_or_env()) or DEFAULT_ADMIN_REPORT_EMAIL)
     if not recipients:
         raise HTTPException(status_code=400, detail="Falta destinatario email (param email o suscripción semanal)")
 
-    report = await _build_weekly_report(weeks_ago=weeks_ago)
-    text = format_report_as_text(report)
-    subject = f"MAQGO — Informe semanal {report['periodo']['semana']}"
-    html = f"<pre>{html_escape(text)}</pre>"
-
     if dry_run:
+        report = await _build_weekly_report(weeks_ago=weeks_ago)
+        text = format_report_as_text(report)
+        subject = f"MAQGO — Informe semanal {report['periodo']['semana']}"
+        html = f"<pre>{html_escape(text)}</pre>"
         return {"ok": True, "dry_run": True, "to": recipients, "subject": subject, "text_preview": text[:2000]}
 
-    result = await _send_email(recipients, subject, text, html)
-    return {"ok": True, "sent": True, "to": recipients, "provider": result.get("provider"), "provider_id": result.get("id")}
+    async def _job():
+        report = await _build_weekly_report(weeks_ago=weeks_ago)
+        text = format_report_as_text(report)
+        subject = f"MAQGO — Informe semanal {report['periodo']['semana']}"
+        html = f"<pre>{html_escape(text)}</pre>"
+        await _send_email(recipients, subject, text, html)
+
+    if async_send:
+        background_tasks.add_task(_job)
+        return {"ok": True, "queued": True, "to": recipients}
+
+    await _job()
+    return {"ok": True, "sent": True, "to": recipients}
 
 
 @router.post("/monthly/send-email")
@@ -2869,24 +2881,38 @@ async def send_monthly_report_email(
     email: Optional[str] = Query(None),
     months_ago: int = Query(1, ge=0, le=36),
     dry_run: bool = Query(False),
+    async_send: bool = Query(True),
+    background_tasks: BackgroundTasks,
     _: dict = Depends(get_current_admin_strict),
 ):
     recipients = _normalize_email_list(email or ",".join(await _get_monthly_recipients_from_config_or_env()) or DEFAULT_ADMIN_REPORT_EMAIL)
     if not recipients:
         raise HTTPException(status_code=400, detail="Falta destinatario email (param email o env MAQGO_ADMIN_MONTHLY_REPORT_EMAILS)")
 
-    now = datetime.utcnow()
-    y, m = _shift_month(year=now.year, month=now.month, months_ago=months_ago)
-    report = await _build_monthly_finance(year=y, month=m)
-    text = format_monthly_finance_as_text(report)
-    subject = f"MAQGO — Informe mensual {report['periodo']['label']}"
-    html = f"<pre>{html_escape(text)}</pre>"
-
     if dry_run:
+        now = datetime.utcnow()
+        y, m = _shift_month(year=now.year, month=now.month, months_ago=months_ago)
+        report = await _build_monthly_finance(year=y, month=m)
+        text = format_monthly_finance_as_text(report)
+        subject = f"MAQGO — Informe mensual {report['periodo']['label']}"
+        html = f"<pre>{html_escape(text)}</pre>"
         return {"ok": True, "dry_run": True, "to": recipients, "subject": subject, "text_preview": text[:2000]}
 
-    result = await _send_email(recipients, subject, text, html)
-    return {"ok": True, "sent": True, "to": recipients, "provider": result.get("provider"), "provider_id": result.get("id")}
+    async def _job():
+        now = datetime.utcnow()
+        y, m = _shift_month(year=now.year, month=now.month, months_ago=months_ago)
+        report = await _build_monthly_finance(year=y, month=m)
+        text = format_monthly_finance_as_text(report)
+        subject = f"MAQGO — Informe mensual {report['periodo']['label']}"
+        html = f"<pre>{html_escape(text)}</pre>"
+        await _send_email(recipients, subject, text, html)
+
+    if async_send:
+        background_tasks.add_task(_job)
+        return {"ok": True, "queued": True, "to": recipients}
+
+    await _job()
+    return {"ok": True, "sent": True, "to": recipients}
 
 
 def format_report_as_text(report: dict) -> str:

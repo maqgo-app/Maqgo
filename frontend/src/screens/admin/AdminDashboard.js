@@ -785,8 +785,8 @@ function AdminDashboard() {
       }
       const weekly = Array.isArray(data.weekly_emails) ? data.weekly_emails : [];
       const monthly = Array.isArray(data.monthly_emails) ? data.monthly_emails : [];
-      setWeeklyReportEmailsText((weekly.length ? weekly : [DEFAULT_REPORT_EMAIL]).join(', '));
-      setMonthlyReportEmailsText((monthly.length ? monthly : [DEFAULT_REPORT_EMAIL]).join(', '));
+      setWeeklyReportEmailsText((weekly.length ? weekly : [DEFAULT_REPORT_EMAIL]).join('\n'));
+      setMonthlyReportEmailsText((monthly.length ? monthly : [DEFAULT_REPORT_EMAIL]).join('\n'));
       setReportSubsMeta({
         updatedAt: data.updated_at || '',
         source: data.source || null,
@@ -850,8 +850,8 @@ function AdminDashboard() {
       if (!res.ok) {
         throw new Error(data.detail || `Error ${res.status}`);
       }
-      setWeeklyReportEmailsText((data.weekly_emails || []).join(', '));
-      setMonthlyReportEmailsText((data.monthly_emails || []).join(', '));
+      setWeeklyReportEmailsText((data.weekly_emails || []).join('\n'));
+      setMonthlyReportEmailsText((data.monthly_emails || []).join('\n'));
       setReportSubsMeta({ updatedAt: data.updated_at || '', source: { weekly: 'db', monthly: 'db' } });
       toast.success('Destinatarios guardados.', 'admin-report-subs');
     } catch (e) {
@@ -863,45 +863,45 @@ function AdminDashboard() {
 
   const sendWeeklyReportTestEmail = useCallback(async () => {
     if (usingOfflineDemo) return;
-    const emails = weeklyReportEmailsText.trim();
-    if (!emails) {
+    const list = parseEmailsInput(weeklyReportEmailsText);
+    if (!list.length) {
       toast.error('Falta email para enviar prueba.', 'admin-report-test');
       return;
     }
     setReportTestSending('weekly');
     try {
-      const url = `${BACKEND_URL}/api/admin/reports/weekly/send-email?email=${encodeURIComponent(emails)}&weeks_ago=1&dry_run=false`;
+      const url = `${BACKEND_URL}/api/admin/reports/weekly/send-email?email=${encodeURIComponent(list.join(','))}&weeks_ago=1&dry_run=false`;
       const res = await fetchWithAuth(url, { method: 'POST' }, 20000);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
-      toast.success(`Prueba semanal enviada a: ${(data.to || []).join(', ') || emails}`, 'admin-report-test');
+      toast.success(`Prueba semanal enviada a: ${(data.to || []).join(', ') || list.join(', ')}`, 'admin-report-test');
     } catch (e) {
       toast.error(friendlyFetchError(e, 'No se pudo enviar prueba semanal'), 'admin-report-test');
     } finally {
       setReportTestSending('');
     }
-  }, [usingOfflineDemo, weeklyReportEmailsText, toast]);
+  }, [parseEmailsInput, usingOfflineDemo, weeklyReportEmailsText, toast]);
 
   const sendMonthlyReportTestEmail = useCallback(async () => {
     if (usingOfflineDemo) return;
-    const emails = monthlyReportEmailsText.trim();
-    if (!emails) {
+    const list = parseEmailsInput(monthlyReportEmailsText);
+    if (!list.length) {
       toast.error('Falta email para enviar prueba.', 'admin-report-test');
       return;
     }
     setReportTestSending('monthly');
     try {
-      const url = `${BACKEND_URL}/api/admin/reports/monthly/send-email?email=${encodeURIComponent(emails)}&months_ago=1&dry_run=false`;
+      const url = `${BACKEND_URL}/api/admin/reports/monthly/send-email?email=${encodeURIComponent(list.join(','))}&months_ago=1&dry_run=false`;
       const res = await fetchWithAuth(url, { method: 'POST' }, 20000);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
-      toast.success(`Prueba mensual enviada a: ${(data.to || []).join(', ') || emails}`, 'admin-report-test');
+      toast.success(`Prueba mensual enviada a: ${(data.to || []).join(', ') || list.join(', ')}`, 'admin-report-test');
     } catch (e) {
       toast.error(friendlyFetchError(e, 'No se pudo enviar prueba mensual'), 'admin-report-test');
     } finally {
       setReportTestSending('');
     }
-  }, [usingOfflineDemo, monthlyReportEmailsText, toast]);
+  }, [monthlyReportEmailsText, parseEmailsInput, toast, usingOfflineDemo]);
 
   useEffect(() => {
     fetchMonthlyFinance();
@@ -1553,8 +1553,8 @@ function AdminDashboard() {
             <div style={{ minWidth: 260 }}>
               <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.4 }}>Destinatarios de reportes</div>
               <div style={{ color: ADMIN_THEME.textMuted, fontSize: 12, marginTop: 6, lineHeight: 1.45 }}>
-                <div><span style={{ color: 'rgba(255,255,255,0.82)' }}>Semanal:</span> {weeklyReportEmailsText || '—'}</div>
-                <div><span style={{ color: 'rgba(255,255,255,0.82)' }}>Mensual:</span> {monthlyReportEmailsText || '—'}</div>
+                <div><span style={{ color: 'rgba(255,255,255,0.82)' }}>Semanal:</span> {parseEmailsInput(weeklyReportEmailsText).join(', ') || '—'}</div>
+                <div><span style={{ color: 'rgba(255,255,255,0.82)' }}>Mensual:</span> {parseEmailsInput(monthlyReportEmailsText).join(', ') || '—'}</div>
                 {reportSubsMeta?.updatedAt ? (
                   <div style={{ marginTop: 6 }}>
                     Última actualización: {String(reportSubsMeta.updatedAt).slice(0, 19)}
