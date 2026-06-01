@@ -334,6 +334,19 @@ async def delete_machine(db, machine_id: str) -> Optional[dict]:
     return existing
 
 
+async def delete_provider_machines(db, provider_id: str) -> int:
+    now = utcnow()
+    result = await db.machines.update_many(
+        {
+            "status": {"$ne": "deleted"},
+            "$or": [{"provider_id": provider_id}, {"providerId": provider_id}],
+        },
+        {"$set": {"status": "deleted", "published": False, "available": False, "deletedAt": now, "updatedAt": now}},
+    )
+    await sync_user_machine_mirror(db, provider_id)
+    return int(getattr(result, "modified_count", 0) or 0)
+
+
 async def list_admin_machines(db) -> List[dict]:
     await migrate_legacy_machine_data(db)
     machines = await db.machines.find({"status": {"$ne": "deleted"}}, {"_id": 0}).sort("createdAt", -1).to_list(2000)

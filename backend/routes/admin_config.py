@@ -21,7 +21,7 @@ from pricing.constants import (
 
 from services.payment_auto_healer import run_auto_heal
 from services.payment_consistency_engine import run_consistency_check
-from services.machines_service import delete_machine, list_admin_machines, serialize_machine, update_machine
+from services.machines_service import delete_machine, delete_provider_machines, list_admin_machines, serialize_machine, update_machine
 from services.payment_rollout import get_payment_hardening_metrics_snapshot
 from services.payment_saga_recovery import recover_saga
 from services.reconciliation_service import reconcile_payment_intents
@@ -192,11 +192,13 @@ async def get_admin_users(_: dict = Depends(get_current_admin_strict)):
             {"$or": [{"role": "provider"}, {"roles": "provider"}]},
             {"_id": 0, "password": 0},
         ).to_list(1000)
+        total_clients = sum(1 for u in clients if u.get("status") != "deleted" and u.get("deleted") is not True)
+        total_providers = sum(1 for u in providers if u.get("status") != "deleted" and u.get("deleted") is not True)
         return {
             "clients": clients,
             "providers": providers,
-            "total_clients": len(clients),
-            "total_providers": len(providers)
+            "total_clients": total_clients,
+            "total_providers": total_providers,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -276,6 +278,8 @@ async def admin_update_user(
             return {"ok": True, "user": fresh}
 
         now = datetime.now(timezone.utc).isoformat()
+        was_deleted = existing.get("status") == "deleted" or existing.get("deleted") is True
+        is_provider_user = existing.get("role") == "provider" or ("provider" in (existing.get("roles") or []))
         if update_doc.get("deleted") is True:
             update_doc["status"] = "deleted"
         if update_doc.get("status") == "deleted":
@@ -285,6 +289,8 @@ async def admin_update_user(
             if not update_doc.get("deleteReason"):
                 update_doc["deleteReason"] = "admin"
             update_doc["isAvailable"] = False
+            if is_provider_user and not was_deleted:
+                await delete_provider_machines(db, user_id)
         if update_doc.get("deleted") is False:
             if existing.get("deleted") is True or existing.get("status") == "deleted":
                 if "status" not in update_doc or update_doc.get("status") == "deleted":
@@ -330,7 +336,11 @@ async def admin_delete_user(
                 }
             },
         )
-        return {"ok": True, "soft_deleted": True}
+        machines_deleted = 0
+        is_provider_user = existing.get("role") == "provider" or ("provider" in (existing.get("roles") or []))
+        if is_provider_user:
+            machines_deleted = await delete_provider_machines(db, user_id)
+        return {"ok": True, "soft_deleted": True, "machines_deleted": machines_deleted}
     except HTTPException:
         raise
     except Exception as e:
