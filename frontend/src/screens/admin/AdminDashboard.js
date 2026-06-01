@@ -870,11 +870,13 @@ function AdminDashboard() {
     }
     setReportTestSending('weekly');
     try {
-      const url = `${BACKEND_URL}/api/admin/reports/weekly/send-email?email=${encodeURIComponent(list.join(','))}&weeks_ago=1&dry_run=false`;
-      const res = await fetchWithAuth(url, { method: 'POST' }, 20000);
+      const url = `${BACKEND_URL}/api/admin/reports/weekly/send-email?email=${encodeURIComponent(list.join(','))}&weeks_ago=1&dry_run=false&async_send=false`;
+      const res = await fetchWithAuth(url, { method: 'POST' }, 60000);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
-      toast.success(`Prueba semanal enviada a: ${(data.to || []).join(', ') || list.join(', ')}`, 'admin-report-test');
+      const sentTo = (data.to || []).join(', ') || list.join(', ');
+      const meta = data.provider ? ` (${data.provider}${data.provider_id ? `:${data.provider_id}` : ''})` : '';
+      toast.success(`Prueba semanal enviada a: ${sentTo}${meta}`, 'admin-report-test');
     } catch (e) {
       toast.error(friendlyFetchError(e, 'No se pudo enviar prueba semanal'), 'admin-report-test');
     } finally {
@@ -891,11 +893,13 @@ function AdminDashboard() {
     }
     setReportTestSending('monthly');
     try {
-      const url = `${BACKEND_URL}/api/admin/reports/monthly/send-email?email=${encodeURIComponent(list.join(','))}&months_ago=1&dry_run=false`;
-      const res = await fetchWithAuth(url, { method: 'POST' }, 20000);
+      const url = `${BACKEND_URL}/api/admin/reports/monthly/send-email?email=${encodeURIComponent(list.join(','))}&months_ago=1&dry_run=false&async_send=false`;
+      const res = await fetchWithAuth(url, { method: 'POST' }, 60000);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
-      toast.success(`Prueba mensual enviada a: ${(data.to || []).join(', ') || list.join(', ')}`, 'admin-report-test');
+      const sentTo = (data.to || []).join(', ') || list.join(', ');
+      const meta = data.provider ? ` (${data.provider}${data.provider_id ? `:${data.provider_id}` : ''})` : '';
+      toast.success(`Prueba mensual enviada a: ${sentTo}${meta}`, 'admin-report-test');
     } catch (e) {
       toast.error(friendlyFetchError(e, 'No se pudo enviar prueba mensual'), 'admin-report-test');
     } finally {

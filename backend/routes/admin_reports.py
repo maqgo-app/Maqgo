@@ -2896,14 +2896,18 @@ async def send_weekly_report_email(
         text = format_report_as_text(report)
         subject = f"MAQGO — Informe semanal {report['periodo']['semana']}"
         html = f"<pre>{html_escape(text)}</pre>"
-        await _send_email(recipients, subject, text, html)
+        return await _send_email(recipients, subject, text, html)
 
     if async_send:
         background_tasks.add_task(_job)
         return {"ok": True, "queued": True, "to": recipients}
 
-    await _job()
-    return {"ok": True, "sent": True, "to": recipients}
+    result = await _job()
+    out = {"ok": True, "sent": True, "to": recipients}
+    if isinstance(result, dict):
+        out["provider"] = result.get("provider")
+        out["provider_id"] = result.get("id")
+    return out
 
 
 @router.post("/monthly/send-email")
@@ -2935,14 +2939,18 @@ async def send_monthly_report_email(
         text = format_monthly_finance_as_text(report)
         subject = f"MAQGO — Informe mensual {report['periodo']['label']}"
         html = f"<pre>{html_escape(text)}</pre>"
-        await _send_email(recipients, subject, text, html)
+        return await _send_email(recipients, subject, text, html)
 
     if async_send:
         background_tasks.add_task(_job)
         return {"ok": True, "queued": True, "to": recipients}
 
-    await _job()
-    return {"ok": True, "sent": True, "to": recipients}
+    result = await _job()
+    out = {"ok": True, "sent": True, "to": recipients}
+    if isinstance(result, dict):
+        out["provider"] = result.get("provider")
+        out["provider_id"] = result.get("id")
+    return out
 
 
 def format_report_as_text(report: dict) -> str:
