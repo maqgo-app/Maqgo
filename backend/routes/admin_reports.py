@@ -2873,11 +2873,11 @@ async def get_payments_planilla(
 
 @router.post("/weekly/send-email")
 async def send_weekly_report_email(
+    background_tasks: BackgroundTasks,
     email: Optional[str] = Query(None),
     weeks_ago: int = Query(1, ge=0, le=52),
     dry_run: bool = Query(False),
     async_send: bool = Query(True),
-    background_tasks: BackgroundTasks,
     _: dict = Depends(get_current_admin_strict),
 ):
     recipients = _normalize_email_list(email or ",".join(await _get_weekly_recipients_from_config_or_env()) or DEFAULT_ADMIN_REPORT_EMAIL)
@@ -2908,11 +2908,11 @@ async def send_weekly_report_email(
 
 @router.post("/monthly/send-email")
 async def send_monthly_report_email(
+    background_tasks: BackgroundTasks,
     email: Optional[str] = Query(None),
     months_ago: int = Query(1, ge=0, le=36),
     dry_run: bool = Query(False),
     async_send: bool = Query(True),
-    background_tasks: BackgroundTasks,
     _: dict = Depends(get_current_admin_strict),
 ):
     recipients = _normalize_email_list(email or ",".join(await _get_monthly_recipients_from_config_or_env()) or DEFAULT_ADMIN_REPORT_EMAIL)
