@@ -26,6 +26,7 @@ from services.payment_rollout import get_payment_hardening_metrics_snapshot
 from services.payment_saga_recovery import recover_saga
 from services.reconciliation_service import reconcile_payment_intents
 from services.komatsu_sync import sync_komatsu_machine_locations
+from services.testdata_purge_service import purge_user_testdata
 
 router = APIRouter(prefix="/admin", tags=["admin-config"])
 
@@ -43,6 +44,11 @@ def _cron_verify(secret: Optional[str]) -> None:
         raise HTTPException(status_code=500, detail="cron_secret_not_configured")
     if got != expected:
         raise HTTPException(status_code=403, detail="forbidden")
+
+
+def _parse_bool_env(name: str, default: bool = False) -> bool:
+    raw = str(os.environ.get(name, str(default))).strip().lower()
+    return raw in {"1", "true", "yes", "on"}
 
 
 @router.api_route("/cron/komatsu-sync", methods=["GET", "POST"])
@@ -341,6 +347,39 @@ async def admin_delete_user(
         if is_provider_user:
             machines_deleted = await delete_provider_machines(db, user_id)
         return {"ok": True, "soft_deleted": True, "machines_deleted": machines_deleted}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/users/{user_id}/purge")
+async def admin_purge_user_testdata(
+    user_id: str,
+    dry_run: bool = Query(True),
+    confirm: bool = Query(False),
+    _: dict = Depends(get_current_admin_strict),
+):
+    if not _parse_bool_env("MAQGO_ALLOW_TESTDATA_PURGE", False):
+        raise HTTPException(status_code=403, detail="testdata_purge_disabled")
+    try:
+        existing = await db.users.find_one({"id": user_id}, {"_id": 0, "id": 1, "role": 1, "roles": 1, "status": 1, "deleted": 1})
+        if not existing:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        if existing.get("role") == "admin" or ("admin" in (existing.get("roles") or [])):
+            raise HTTPException(status_code=403, detail="No se puede eliminar un administrador")
+
+        st = str(existing.get("status") or "").strip().lower()
+        is_deleted = bool(existing.get("deleted")) or st == "deleted"
+        is_test = st == "test"
+        if not is_deleted and not is_test:
+            raise HTTPException(status_code=409, detail="Solo se puede purgar usuarios test o ya eliminados (soft)")
+
+        if not dry_run and not confirm:
+            raise HTTPException(status_code=400, detail="Confirmación requerida (confirm=true)")
+
+        return await purge_user_testdata(db, user_id, dry_run=dry_run)
     except HTTPException:
         raise
     except Exception as e:

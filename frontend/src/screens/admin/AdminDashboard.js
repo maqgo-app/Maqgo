@@ -99,6 +99,8 @@ function AdminDashboard() {
   const [weeklyReportEmailsText, setWeeklyReportEmailsText] = useState('');
   const [monthlyReportEmailsText, setMonthlyReportEmailsText] = useState('');
   const [reportSubsMeta, setReportSubsMeta] = useState(null);
+  const [reportTestSending, setReportTestSending] = useState('');
+  const [reportSubsLoaded, setReportSubsLoaded] = useState(false);
   const [liveRequests, setLiveRequests] = useState([]);
   const [liveRequestsLoading, setLiveRequestsLoading] = useState(false);
   const [liveRequestsError, setLiveRequestsError] = useState('');
@@ -805,6 +807,26 @@ function AdminDashboard() {
     loadReportSubscriptions();
   }, [usingOfflineDemo, loadReportSubscriptions, toast]);
 
+  useEffect(() => {
+    try {
+      const shouldOpen = localStorage.getItem('maqgo_open_report_subscriptions') === '1';
+      if (!shouldOpen) return;
+      localStorage.removeItem('maqgo_open_report_subscriptions');
+      openReportSubscriptions();
+    } catch {
+      void 0;
+    }
+  }, [openReportSubscriptions]);
+
+  useEffect(() => {
+    if (usingOfflineDemo) return;
+    if (actionsLocked) return;
+    if (reportSubsLoaded) return;
+    if (reportSubsLoading) return;
+    setReportSubsLoaded(true);
+    loadReportSubscriptions();
+  }, [actionsLocked, loadReportSubscriptions, reportSubsLoaded, reportSubsLoading, usingOfflineDemo]);
+
   const closeReportSubscriptions = useCallback(() => {
     setShowReportSubscriptions(false);
   }, []);
@@ -838,6 +860,48 @@ function AdminDashboard() {
       setReportSubsLoading(false);
     }
   }, [usingOfflineDemo, monthlyReportEmailsText, parseEmailsInput, toast, weeklyReportEmailsText]);
+
+  const sendWeeklyReportTestEmail = useCallback(async () => {
+    if (usingOfflineDemo) return;
+    const emails = weeklyReportEmailsText.trim();
+    if (!emails) {
+      toast.error('Falta email para enviar prueba.', 'admin-report-test');
+      return;
+    }
+    setReportTestSending('weekly');
+    try {
+      const url = `${BACKEND_URL}/api/admin/reports/weekly/send-email?email=${encodeURIComponent(emails)}&weeks_ago=1&dry_run=false`;
+      const res = await fetchWithAuth(url, { method: 'POST' }, 20000);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
+      toast.success(`Prueba semanal enviada a: ${(data.to || []).join(', ') || emails}`, 'admin-report-test');
+    } catch (e) {
+      toast.error(friendlyFetchError(e, 'No se pudo enviar prueba semanal'), 'admin-report-test');
+    } finally {
+      setReportTestSending('');
+    }
+  }, [usingOfflineDemo, weeklyReportEmailsText, toast]);
+
+  const sendMonthlyReportTestEmail = useCallback(async () => {
+    if (usingOfflineDemo) return;
+    const emails = monthlyReportEmailsText.trim();
+    if (!emails) {
+      toast.error('Falta email para enviar prueba.', 'admin-report-test');
+      return;
+    }
+    setReportTestSending('monthly');
+    try {
+      const url = `${BACKEND_URL}/api/admin/reports/monthly/send-email?email=${encodeURIComponent(emails)}&months_ago=1&dry_run=false`;
+      const res = await fetchWithAuth(url, { method: 'POST' }, 20000);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
+      toast.success(`Prueba mensual enviada a: ${(data.to || []).join(', ') || emails}`, 'admin-report-test');
+    } catch (e) {
+      toast.error(friendlyFetchError(e, 'No se pudo enviar prueba mensual'), 'admin-report-test');
+    } finally {
+      setReportTestSending('');
+    }
+  }, [usingOfflineDemo, monthlyReportEmailsText, toast]);
 
   useEffect(() => {
     fetchMonthlyFinance();
@@ -1476,6 +1540,90 @@ function AdminDashboard() {
 
       {/* Content */}
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
+        <div
+          style={{
+            marginBottom: 20,
+            padding: '16px 18px',
+            borderRadius: 14,
+            background: ADMIN_THEME.panelBg,
+            border: `1px solid ${ADMIN_THEME.border}`,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 260 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.4 }}>Destinatarios de reportes</div>
+              <div style={{ color: ADMIN_THEME.textMuted, fontSize: 12, marginTop: 6, lineHeight: 1.45 }}>
+                <div><span style={{ color: 'rgba(255,255,255,0.82)' }}>Semanal:</span> {weeklyReportEmailsText || '—'}</div>
+                <div><span style={{ color: 'rgba(255,255,255,0.82)' }}>Mensual:</span> {monthlyReportEmailsText || '—'}</div>
+                {reportSubsMeta?.updatedAt ? (
+                  <div style={{ marginTop: 6 }}>
+                    Última actualización: {String(reportSubsMeta.updatedAt).slice(0, 19)}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={openReportSubscriptions}
+                disabled={actionsLocked || usingOfflineDemo}
+                style={{
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                  borderRadius: 10,
+                  color: '#fff',
+                  cursor: actionsLocked || usingOfflineDemo ? 'not-allowed' : 'pointer',
+                  opacity: actionsLocked || usingOfflineDemo ? 0.6 : 1,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                onClick={sendWeeklyReportTestEmail}
+                disabled={actionsLocked || usingOfflineDemo || reportTestSending === 'weekly'}
+                style={{
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  border: '1px solid rgba(236, 104, 25, 0.55)',
+                  borderRadius: 10,
+                  color: '#fff',
+                  cursor: actionsLocked || usingOfflineDemo || reportTestSending === 'weekly' ? 'not-allowed' : 'pointer',
+                  opacity: actionsLocked || usingOfflineDemo ? 0.6 : 1,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {reportTestSending === 'weekly' ? 'Enviando…' : 'Prueba semanal'}
+              </button>
+              <button
+                type="button"
+                onClick={sendMonthlyReportTestEmail}
+                disabled={actionsLocked || usingOfflineDemo || reportTestSending === 'monthly'}
+                style={{
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  border: '1px solid rgba(236, 104, 25, 0.55)',
+                  borderRadius: 10,
+                  color: '#fff',
+                  cursor: actionsLocked || usingOfflineDemo || reportTestSending === 'monthly' ? 'not-allowed' : 'pointer',
+                  opacity: actionsLocked || usingOfflineDemo ? 0.6 : 1,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {reportTestSending === 'monthly' ? 'Enviando…' : 'Prueba mensual'}
+              </button>
+            </div>
+          </div>
+        </div>
+
         {adminArea === 'today' && (
         <div
           style={{
@@ -3043,6 +3191,27 @@ function AdminDashboard() {
                 style={{ flex: 1 }}
               >
                 Cerrar
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={sendWeeklyReportTestEmail}
+                disabled={reportSubsLoading || actionsLocked || reportTestSending === 'weekly'}
+                className="maqgo-btn-secondary"
+                style={{ flex: 1, opacity: reportSubsLoading || actionsLocked ? 0.6 : 1 }}
+              >
+                {reportTestSending === 'weekly' ? 'Enviando…' : 'Enviar prueba semanal'}
+              </button>
+              <button
+                type="button"
+                onClick={sendMonthlyReportTestEmail}
+                disabled={reportSubsLoading || actionsLocked || reportTestSending === 'monthly'}
+                className="maqgo-btn-secondary"
+                style={{ flex: 1, opacity: reportSubsLoading || actionsLocked ? 0.6 : 1 }}
+              >
+                {reportTestSending === 'monthly' ? 'Enviando…' : 'Enviar prueba mensual'}
               </button>
             </div>
           </div>

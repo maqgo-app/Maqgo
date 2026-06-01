@@ -53,6 +53,7 @@ function AdminUsersScreen() {
   const [editForm, setEditForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [purgeTarget, setPurgeTarget] = useState(null);
   const [deleteMachineTarget, setDeleteMachineTarget] = useState(null);
   const [photoModalUrl, setPhotoModalUrl] = useState('');
 
@@ -408,6 +409,25 @@ function AdminUsersScreen() {
     }
   };
 
+  const doPurge = async () => {
+    if (!purgeTarget?.id) return;
+    try {
+      const url = `${BACKEND_URL}/api/admin/users/${encodeURIComponent(purgeTarget.id)}/purge?dry_run=false&confirm=true`;
+      const res = await fetchWithAuth(url, { method: 'DELETE' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(typeof json?.detail === 'string' ? json.detail : `No se pudo borrar (${res.status}).`);
+        return;
+      }
+      await fetchUsers();
+      toast.success('Usuario borrado definitivamente.');
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo borrar.');
+    } finally {
+      setPurgeTarget(null);
+    }
+  };
+
   const doDeleteMachine = async () => {
     if (!deleteMachineTarget?.id) return;
     try {
@@ -611,6 +631,29 @@ function AdminUsersScreen() {
               }}
             >
               Marketing & CAC
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  localStorage.setItem('maqgo_open_report_subscriptions', '1');
+                } catch {
+                  void 0;
+                }
+                navigate('/admin');
+              }}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 8,
+                color: 'rgba(255,255,255,0.8)',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              📧 Destinatarios
             </button>
             <button
               type="button"
@@ -1026,22 +1069,40 @@ function AdminUsersScreen() {
                               const isDel = Boolean(u?.deleted) || st === 'deleted';
                               if (isDel) {
                                 return (
-                                  <button
-                                    type="button"
-                                    onClick={() => restoreUser(u)}
-                                    style={{
-                                      padding: '8px 12px',
-                                      borderRadius: 8,
-                                      background: 'rgba(102, 187, 106, 0.16)',
-                                      border: '1px solid rgba(102, 187, 106, 0.45)',
-                                      color: '#fff',
-                                      cursor: 'pointer',
-                                      fontSize: 13,
-                                      fontWeight: 800,
-                                    }}
-                                  >
-                                    Restaurar
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => restoreUser(u)}
+                                      style={{
+                                        padding: '8px 12px',
+                                        borderRadius: 8,
+                                        background: 'rgba(102, 187, 106, 0.16)',
+                                        border: '1px solid rgba(102, 187, 106, 0.45)',
+                                        color: '#fff',
+                                        cursor: 'pointer',
+                                        fontSize: 13,
+                                        fontWeight: 800,
+                                      }}
+                                    >
+                                      Restaurar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPurgeTarget(u)}
+                                      style={{
+                                        padding: '8px 12px',
+                                        borderRadius: 8,
+                                        background: 'rgba(220, 53, 69, 0.18)',
+                                        border: '1px solid rgba(220, 53, 69, 0.55)',
+                                        color: '#fff',
+                                        cursor: 'pointer',
+                                        fontSize: 13,
+                                        fontWeight: 900,
+                                      }}
+                                    >
+                                      Borrar definitivo
+                                    </button>
+                                  </>
                                 );
                               }
                               return (
@@ -1112,6 +1173,24 @@ function AdminUsersScreen() {
                                   >
                                     Marcar test
                                   </button>
+                                  {st === 'test' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPurgeTarget(u)}
+                                      style={{
+                                        padding: '8px 12px',
+                                        borderRadius: 8,
+                                        background: 'rgba(220, 53, 69, 0.18)',
+                                        border: '1px solid rgba(220, 53, 69, 0.55)',
+                                        color: '#fff',
+                                        cursor: 'pointer',
+                                        fontSize: 13,
+                                        fontWeight: 900,
+                                      }}
+                                    >
+                                      Borrar definitivo
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => setDeleteTarget(u)}
@@ -1386,6 +1465,17 @@ function AdminUsersScreen() {
         confirmLabel="Eliminar"
         cancelLabel="Cancelar"
         onConfirm={doDelete}
+        variant="danger"
+      />
+
+      <ConfirmModal
+        open={Boolean(purgeTarget)}
+        onClose={() => setPurgeTarget(null)}
+        title="Borrar definitivo"
+        message={`Borrar definitivamente en MongoDB a ${purgeTarget?.name || purgeTarget?.email || 'este usuario'}?`}
+        confirmLabel="Borrar"
+        cancelLabel="Cancelar"
+        onConfirm={doPurge}
         variant="danger"
       />
 

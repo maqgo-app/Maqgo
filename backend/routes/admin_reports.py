@@ -2848,14 +2848,9 @@ async def send_weekly_report_email(
     dry_run: bool = Query(False),
     _: dict = Depends(get_current_admin_strict),
 ):
-    recipients = _normalize_email_list(
-        email
-        or os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_EMAILS", "")
-        or os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", "")
-        or DEFAULT_ADMIN_REPORT_EMAIL
-    )
+    recipients = _normalize_email_list(email or ",".join(await _get_weekly_recipients_from_config_or_env()) or DEFAULT_ADMIN_REPORT_EMAIL)
     if not recipients:
-        raise HTTPException(status_code=400, detail="Falta destinatario email (param email o env MAQGO_ADMIN_WEEKLY_REPORT_EMAILS)")
+        raise HTTPException(status_code=400, detail="Falta destinatario email (param email o suscripción semanal)")
 
     report = await _build_weekly_report(weeks_ago=weeks_ago)
     text = format_report_as_text(report)
