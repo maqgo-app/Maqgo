@@ -1,6 +1,8 @@
 """
 MAQGO Admin - Informe Operativo Semanal y Planilla de Pagos
 """
+from __future__ import annotations
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
 
@@ -20,7 +22,10 @@ import re
 import ssl
 import smtplib
 import asyncio
-from zoneinfo import ZoneInfo
+try:
+    from zoneinfo import ZoneInfo  # type: ignore
+except Exception:
+    ZoneInfo = None  # type: ignore
 from pathlib import Path
 
 REPORTLAB_AVAILABLE = True
@@ -63,6 +68,15 @@ def _parse_int(v: str, default: int) -> int:
         return int(str(v).strip())
     except Exception:
         return default
+
+
+def _tzinfo_or_utc(name: str):
+    if ZoneInfo is None:
+        return timezone.utc
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        return timezone.utc
 
 
 def _fmt_clp(val) -> str:
@@ -291,12 +305,12 @@ def _business_day_for_month(*, year: int, month: int, day: int, tz_name: str) ->
     safe_day = max(1, min(31, safe_day))
     for d in range(safe_day, 0, -1):
         try:
-            dt = datetime(year, month, d, 0, 0, 0, tzinfo=ZoneInfo(tz_name))
+            dt = datetime(year, month, d, 0, 0, 0, tzinfo=_tzinfo_or_utc(tz_name))
             break
         except Exception:
             continue
     else:
-        dt = datetime(year, month, 1, 0, 0, 0, tzinfo=ZoneInfo(tz_name))
+        dt = datetime(year, month, 1, 0, 0, 0, tzinfo=_tzinfo_or_utc(tz_name))
     while dt.weekday() >= 5:
         dt = dt + timedelta(days=1)
     return dt
@@ -1745,7 +1759,7 @@ async def _send_admin_weekly_report_email(*, force: bool, dry_run: bool, weeks_a
     if not enabled and not force:
         return {"ok": False, "reason": "disabled"}
 
-    now_local = datetime.now(ZoneInfo(tz_name))
+    now_local = datetime.now(_tzinfo_or_utc(tz_name))
     is_monday = now_local.weekday() == 0
     in_window = _scheduled_window_allows_send(now_local, hour, minute, window)
     if not force and not (is_monday and in_window):
@@ -2104,7 +2118,7 @@ async def _send_admin_monthly_report_email(*, force: bool, dry_run: bool, months
     if not enabled and not force:
         return {"ok": False, "reason": "disabled"}
 
-    now_local = datetime.now(ZoneInfo(tz_name))
+    now_local = datetime.now(_tzinfo_or_utc(tz_name))
     in_window = _scheduled_window_allows_send(now_local, hour, minute, window)
     scheduled_local = _business_day_for_month(year=now_local.year, month=now_local.month, day=day, tz_name=tz_name)
     is_scheduled_day = now_local.date() == scheduled_local.date()
