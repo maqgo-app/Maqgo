@@ -23,8 +23,14 @@ import asyncio
 from zoneinfo import ZoneInfo
 from pathlib import Path
 
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
+REPORTLAB_AVAILABLE = True
+try:
+    from reportlab.lib.pagesizes import A4  # type: ignore
+    from reportlab.pdfgen import canvas  # type: ignore
+except Exception:
+    REPORTLAB_AVAILABLE = False
+    A4 = None  # type: ignore
+    canvas = None  # type: ignore
 
 from db_config import get_db_name, get_mongo_url
 
@@ -1083,6 +1089,8 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
     return html
 
 def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
+    if not REPORTLAB_AVAILABLE:
+        raise RuntimeError("reportlab_missing")
     from reportlab.lib import colors
     from reportlab.lib.utils import ImageReader
     from reportlab.platypus import SimpleDocTemplate, Spacer, Table, TableStyle, Paragraph, Flowable
@@ -1429,6 +1437,8 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
 
 
 def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
+    if not REPORTLAB_AVAILABLE:
+        raise RuntimeError("reportlab_missing")
     from reportlab.lib import colors
     from reportlab.lib.utils import ImageReader
     from reportlab.platypus import SimpleDocTemplate, Spacer, Table, TableStyle, Paragraph, Flowable
@@ -2552,6 +2562,9 @@ async def get_weekly_report(
     if format == "json":
         return report
 
+    if not REPORTLAB_AVAILABLE:
+        raise HTTPException(status_code=501, detail="PDF no disponible (dependencia reportlab no instalada)")
+
     pdf_bytes = _build_weekly_onepager_pdf_bytes(report)
     inicio = str((report.get("periodo", {}) or {}).get("inicio") or "")[:10] or "semana"
     buffer = io.BytesIO(pdf_bytes)
@@ -2578,6 +2591,8 @@ async def get_monthly_finance(
     report = await _build_monthly_finance(year=y, month=m)
     if format == "json":
         return report
+    if not REPORTLAB_AVAILABLE:
+        raise HTTPException(status_code=501, detail="PDF no disponible (dependencia reportlab no instalada)")
     pdf_bytes = _build_monthly_onepager_pdf_bytes(report)
     buffer = io.BytesIO(pdf_bytes)
     label = str((report.get("periodo", {}) or {}).get("label") or "").strip() or f"{y}-{m:02d}"
