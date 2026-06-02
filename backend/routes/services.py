@@ -47,6 +47,12 @@ from utils.rbac import (
     OPERATOR_HIDDEN_FIELDS,
     get_company_owner_id
 )
+from utils.invoice_precheck import (
+    classify_amount_bucket,
+    decode_data_url,
+    normalize_invoice_number,
+    precheck_invoice_bytes,
+)
 
 class ServiceCreate(BaseModel):
     provider_id: str
@@ -181,21 +187,53 @@ async def submit_invoice(
         raise HTTPException(status_code=400, detail="El servicio no está aprobado para facturar")
     
     now = datetime.utcnow()
+    invoice_number = normalize_invoice_number(invoice.invoice_number)
+    if not invoice_number:
+        raise HTTPException(status_code=400, detail="Número de factura inválido.")
+    if not invoice.invoice_image:
+        raise HTTPException(status_code=400, detail="Debes adjuntar PDF o foto de la factura.")
+
+    try:
+        data_mime, raw_bytes = decode_data_url(invoice.invoice_image)
+        precheck = precheck_invoice_bytes(file_bytes=raw_bytes, filename=None, content_type=data_mime)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    expected_total = 0.0
+    try:
+        expected_total = float(service.get("net_total") or 0)
+    except Exception:
+        expected_total = 0.0
+    amount_bucket = classify_amount_bucket(expected_total)
+
+    invoice_image_value = invoice.invoice_image
+    if isinstance(invoice_image_value, str) and not invoice_image_value.strip().startswith("data:"):
+        invoice_image_value = f"data:{precheck.get('file_mime')};base64,{invoice_image_value.strip()}"
+
     update_data = {
         "status": "invoiced",
-        "invoice_number": invoice.invoice_number,
+        "invoice_number": invoice_number,
         "invoice_uploaded_at": now,
         "updated_at": now,
-        "provider_invoice_expected_total_clp": float(service.get("net_total") or 0),
-        "provider_invoice_total_detected_clp": float(service.get("net_total") or 0),
+        "provider_invoice_expected_total_clp": float(expected_total or 0),
+        "provider_invoice_total_detected_clp": float(expected_total or 0),
         "provider_invoice_total_confirmed_clp": None,
         "provider_invoice_approved": False,
         "provider_invoice_reviewed_at": None,
         "provider_invoice_reviewed_by": None,
+        "provider_invoice_precheck_status": precheck.get("status"),
+        "provider_invoice_precheck_reasons": precheck.get("reasons") or [],
+        "provider_invoice_file_kind": precheck.get("file_kind"),
+        "provider_invoice_file_mime": precheck.get("file_mime"),
+        "provider_invoice_file_size_bytes": precheck.get("file_size_bytes"),
+        "provider_invoice_image_width": precheck.get("image_width"),
+        "provider_invoice_image_height": precheck.get("image_height"),
+        "provider_invoice_amount_bucket": amount_bucket,
+        "provider_invoice_amount_bucket_source": "expected",
+        "provider_invoice_uploaded_via": "services_json",
     }
     
-    if invoice.invoice_image:
-        update_data["invoice_image"] = invoice.invoice_image
+    update_data["invoice_image"] = invoice_image_value
     
     services_collection.update_one(
         {"_id": ObjectId(service_id)},

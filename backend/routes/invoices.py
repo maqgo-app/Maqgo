@@ -29,6 +29,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from utils.invoice_precheck import (
+    choose_amount_for_bucket,
+    classify_amount_bucket,
+    precheck_invoice_bytes,
+)
+
 try:
     import resend
 except ModuleNotFoundError:
@@ -283,9 +289,16 @@ async def upload_invoice(
     if service.get("provider_id") != provider_id and service.get("providerId") != provider_id:
         raise HTTPException(status_code=403, detail="No tienes permiso para este servicio")
     
-    # Leer contenido del archivo
     file_content = await file.read()
     filename = file.filename
+    try:
+        precheck = precheck_invoice_bytes(
+            file_bytes=file_content,
+            filename=filename,
+            content_type=getattr(file, "content_type", None),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     
     # Calcular monto esperado: desglose del reporte (servicio + bono + traslado) + IVA, sin comisión MAQGO
     expected_amount = expected_invoice_total_from_service(service)
@@ -346,6 +359,11 @@ async def upload_invoice(
         low = (filename or "").lower()
         mime = "application/pdf" if low.endswith(".pdf") else "image/jpeg"
     invoice_b64 = base64.b64encode(file_content).decode("utf-8")
+    detected_total = float(validation_result.total or 0)
+    expected_total = float(expected_amount or 0)
+    bucket_amount, bucket_source = choose_amount_for_bucket(None, detected_total, expected_total)
+    amount_bucket = classify_amount_bucket(bucket_amount)
+
     update_payload = {
             "invoiceStatus": "validated",
             "invoiceFilename": filename,
@@ -357,12 +375,22 @@ async def upload_invoice(
             # Misma convención que POST /services/{id}/invoice (data URL) para el modal admin
             "invoice_image": f"data:{mime};base64,{invoice_b64}",
             "invoice_uploaded_at": datetime.now(timezone.utc),
-            "provider_invoice_expected_total_clp": float(expected_amount or 0),
-            "provider_invoice_total_detected_clp": float(validation_result.total or expected_amount or 0),
+            "provider_invoice_expected_total_clp": expected_total,
+            "provider_invoice_total_detected_clp": float(detected_total or expected_total or 0),
             "provider_invoice_total_confirmed_clp": None,
             "provider_invoice_approved": False,
             "provider_invoice_reviewed_at": None,
             "provider_invoice_reviewed_by": None,
+            "provider_invoice_precheck_status": precheck.get("status"),
+            "provider_invoice_precheck_reasons": precheck.get("reasons") or [],
+            "provider_invoice_file_kind": precheck.get("file_kind"),
+            "provider_invoice_file_mime": precheck.get("file_mime"),
+            "provider_invoice_file_size_bytes": precheck.get("file_size_bytes"),
+            "provider_invoice_image_width": precheck.get("image_width"),
+            "provider_invoice_image_height": precheck.get("image_height"),
+            "provider_invoice_amount_bucket": amount_bucket,
+            "provider_invoice_amount_bucket_source": bucket_source,
+            "provider_invoice_uploaded_via": "invoices_multipart",
         }
     if validation_result.folio:
         update_payload["invoice_number"] = str(validation_result.folio)

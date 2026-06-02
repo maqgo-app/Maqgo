@@ -153,8 +153,16 @@ function UploadInvoiceScreen() {
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.warning('La imagen no debe superar 5MB');
+      const maxBytes = 8 * 1024 * 1024;
+      if (file.size > maxBytes) {
+        toast.warning('El archivo no debe superar 8MB');
+        return;
+      }
+      const low = String(file.name || '').toLowerCase();
+      const isPdf = file.type === 'application/pdf' || low.endsWith('.pdf');
+      const isImage = String(file.type || '').startsWith('image/');
+      if (!isPdf && !isImage) {
+        toast.warning('Formato no soportado. Sube PDF o imagen (JPG/PNG).');
         return;
       }
       setInvoiceImage(file);
@@ -170,7 +178,7 @@ function UploadInvoiceScreen() {
       return;
     }
     if (!invoiceImage) {
-      toast.warning('Debes adjuntar la imagen de la factura');
+      toast.warning('Debes adjuntar el archivo de la factura (PDF o foto)');
       return;
     }
 
@@ -332,19 +340,34 @@ function UploadInvoiceScreen() {
         {/* Upload imagen */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 8, display: 'block' }}>
-            Imagen de Factura <span style={{ color: '#EC6819' }}>*</span>
+            Archivo de Factura (PDF o foto) <span style={{ color: '#EC6819' }}>*</span>
           </label>
-          <input type="file" accept="image/*,.pdf" capture="environment" onChange={handleFileSelect} ref={fileInputRef} style={{ display: 'none' }} aria-label="Tomar foto o subir imagen de la factura" />
+          <input type="file" accept="image/*,application/pdf,.pdf" capture="environment" onChange={handleFileSelect} ref={fileInputRef} style={{ display: 'none' }} aria-label="Tomar foto o subir PDF de la factura" />
           {imagePreview ? (
             <div style={{ position: 'relative' }}>
-              <img src={imagePreview} alt="Preview" style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 12, background: '#1a1a1a' }} />
+              {String(imagePreview).startsWith('data:application/pdf') ? (
+                <div style={{ width: '100%', borderRadius: 12, background: '#1a1a1a', padding: 16, border: '1px solid rgba(255,255,255,0.12)' }}>
+                  <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, marginBottom: 8 }}>PDF cargado</div>
+                  <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginBottom: 12, wordBreak: 'break-word' }}>
+                    {invoiceImage?.name || 'factura.pdf'}
+                  </div>
+                  <button
+                    onClick={() => window.open(imagePreview, '_blank', 'noopener,noreferrer')}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, background: '#2A2A2A', border: '1px solid rgba(255,255,255,0.14)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Ver PDF
+                  </button>
+                </div>
+              ) : (
+                <img src={imagePreview} alt="Preview" style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 12, background: '#1a1a1a' }} />
+              )}
               <button onClick={() => { setInvoiceImage(null); setImagePreview(null); }} style={{ position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: '50%', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', cursor: 'pointer' }}>✕</button>
             </div>
           ) : (
             <button onClick={() => fileInputRef.current?.click()} style={{ width: '100%', padding: 30, background: '#2A2A2A', border: '2px dashed rgba(255,255,255,0.2)', borderRadius: 12, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M21 15V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V15" stroke="#666" strokeWidth="2"/><path d="M17 8L12 3L7 8" stroke="#666" strokeWidth="2"/><path d="M12 3V15" stroke="#666" strokeWidth="2"/></svg>
-              <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14 }}>Toca para subir foto de la factura</span>
-              <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>JPG, PNG o PDF (máx. 5MB)</span>
+              <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14 }}>Toca para subir foto o PDF de la factura</span>
+              <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>JPG, PNG o PDF (máx. 8MB)</span>
             </button>
           )}
         </div>
