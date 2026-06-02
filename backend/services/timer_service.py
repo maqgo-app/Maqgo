@@ -11,6 +11,7 @@ Este servicio debe ejecutarse periódicamente (intervalo definido en server.time
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
+import os
 import time
 from typing import Optional, Any
 
@@ -134,7 +135,7 @@ class TimerService:
                     'status': 'confirmed',
                     'arrivalDetectedAt': {'$exists': True, '$ne': None},
                 },
-                {'_id': 0, 'id': 1, 'arrivalDetectedAt': 1},
+                {'_id': 0, 'id': 1, 'clientId': 1, 'arrivalDetectedAt': 1},
             )
             .sort([('_id', 1)])
         )
@@ -156,14 +157,274 @@ class TimerService:
                     '$set': {
                         'status': 'in_progress',
                         'autoStartedAt': now.isoformat(),
+                        'autoStartClientNoticePendingAt': now.isoformat(),
                     },
                     '$push': {'events': auto_start_event}
                 }
             )
             if result.modified_count > 0:
                 updated_count += 1
+                client_id = str(service.get("clientId") or "").strip()
+                if client_id:
+                    try:
+                        from services.webpush_service import notify_service_event
+
+                        await notify_service_event(
+                            db=self.db,
+                            client_id=client_id,
+                            service_request_id=str(service.get("id") or ""),
+                            kind="started",
+                            extra={"source": "auto_start"},
+                        )
+                    except Exception:
+                        pass
                 logger.info(f"Servicio {service['id']} -> in_progress (auto_start post llegada)")
         return updated_count
+
+    async def check_pending_client_auto_start_emails(self) -> int:
+        now = datetime.now(timezone.utc)
+        app_url = (os.environ.get("FRONTEND_URL", "").strip() or "").rstrip("/")
+        cursor = (
+            self.db.service_requests.find(
+                {
+                    "status": "in_progress",
+                    "autoStartClientNoticePendingAt": {"$exists": True, "$ne": None},
+                    "$or": [{"autoStartClientNoticeSentAt": {"$exists": False}}, {"autoStartClientNoticeSentAt": None}],
+                    "clientId": {"$exists": True, "$ne": None},
+                },
+                {"_id": 0, "id": 1, "clientId": 1},
+            )
+            .sort([("_id", 1)])
+        )
+        sent_count = 0
+        async for service in cursor:
+            srid = str(service.get("id") or "").strip()
+            client_id = str(service.get("clientId") or "").strip()
+            if not srid or not client_id:
+                continue
+            client = await self.db.users.find_one({"id": client_id}, {"_id": 0, "email": 1})
+            email = str((client or {}).get("email") or "").strip().lower()
+            if not email:
+                await self.db.service_requests.update_one(
+                    {"id": srid, "status": "in_progress"},
+                    {"$set": {"autoStartClientNoticeSkippedAt": now.isoformat(), "autoStartClientNoticeSkipReason": "missing_email"}},
+                )
+                continue
+            try:
+                from services.client_emailer import send_client_event_email
+
+                out = await send_client_event_email(
+                    db=self.db,
+                    event_type="service_auto_started",
+                    to_email=email,
+                    payload={"service_request_id": srid, "app_url": app_url},
+                )
+                if out.get("sent"):
+                    await self.db.service_requests.update_one(
+                        {"id": srid, "status": "in_progress"},
+                        {"$set": {"autoStartClientNoticeSentAt": now.isoformat(), "autoStartClientNoticeEmail": email}},
+                    )
+                    sent_count += 1
+            except Exception as e:
+                await self.db.service_requests.update_one(
+                    {"id": srid, "status": "in_progress"},
+                    {"$set": {"autoStartClientNoticeLastError": str(e), "autoStartClientNoticeLastErrorAt": now.isoformat()}},
+                )
+        return sent_count
+
+    async def check_auto_arrival_from_tracking(self) -> int:
+        enabled_raw = str(os.environ.get("MAQGO_AUTO_ARRIVAL_ENABLED", "false") or "").strip().lower()
+        enabled = enabled_raw in {"1", "true", "yes", "y", "on"}
+        if not enabled:
+            return 0
+
+        now = datetime.now(timezone.utc)
+        radius_m = float(os.environ.get("MAQGO_ARRIVAL_RADIUS_METERS", "300") or 300)
+        dwell_seconds = float(os.environ.get("MAQGO_ARRIVAL_DWELL_SECONDS", "60") or 60)
+        max_age_telem_min = float(os.environ.get("MAQGO_TELEMETRY_MAX_AGE_MINUTES", "10") or 10)
+        max_age_gps_min = float(os.environ.get("MAQGO_GPS_MAX_AGE_MINUTES", "5") or 5)
+        max_candidates = int(str(os.environ.get("MAQGO_AUTO_ARRIVAL_MAX_CANDIDATES", "120") or "120").strip() or "120")
+        if max_candidates <= 0:
+            max_candidates = 120
+
+        from services.utils import haversine_meters
+
+        query = {
+            "status": "confirmed",
+            "$or": [{"arrivalDetectedAt": {"$exists": False}}, {"arrivalDetectedAt": None}],
+            "location.lat": {"$exists": True},
+            "location.lng": {"$exists": True},
+        }
+        projection = {
+            "_id": 0,
+            "id": 1,
+            "clientId": 1,
+            "providerId": 1,
+            "machineId": 1,
+            "machine_id": 1,
+            "location": 1,
+            "arrivalCandidateAt": 1,
+            "arrivalCandidateSource": 1,
+        }
+        candidates = (
+            await self.db.service_requests.find(query, projection).sort([("_id", -1)]).limit(max_candidates).to_list(max_candidates)
+        )
+
+        def _dt(raw: Any) -> Optional[datetime]:
+            return _parse_offer_expires_at_utc(raw)
+
+        updated = 0
+        machine_ids = set()
+        provider_ids = set()
+        for req in candidates:
+            mid = str(req.get("machineId") or req.get("machine_id") or "").strip()
+            pid = str(req.get("providerId") or "").strip()
+            if mid:
+                machine_ids.add(mid)
+            if pid:
+                provider_ids.add(pid)
+
+        machines_by_id: dict[str, dict] = {}
+        if machine_ids:
+            ms = await self.db.machines.find(
+                {"id": {"$in": list(machine_ids)}},
+                {"_id": 0, "id": 1, "location": 1, "locationUpdatedAt": 1, "locationSource": 1},
+            ).to_list(len(machine_ids))
+            for m in ms:
+                mid = str(m.get("id") or "").strip()
+                if mid:
+                    machines_by_id[mid] = m
+
+        users_by_id: dict[str, dict] = {}
+        if provider_ids:
+            us = await self.db.users.find(
+                {"id": {"$in": list(provider_ids)}},
+                {"_id": 0, "id": 1, "location": 1, "locationUpdatedAt": 1, "locationSource": 1},
+            ).to_list(len(provider_ids))
+            for u in us:
+                uid = str(u.get("id") or "").strip()
+                if uid:
+                    users_by_id[uid] = u
+
+        for req in candidates:
+            req_id = str(req.get("id") or "").strip()
+            if not req_id:
+                continue
+
+            provider_id = str(req.get("providerId") or "").strip()
+            machine_id = str(req.get("machineId") or req.get("machine_id") or "").strip()
+            job = req.get("location") if isinstance(req.get("location"), dict) else {}
+            jlat = job.get("lat")
+            jlng = job.get("lng")
+            if jlat is None or jlng is None:
+                continue
+            try:
+                jlat_f = float(jlat)
+                jlng_f = float(jlng)
+            except Exception:
+                continue
+
+            tracked_loc = None
+            tracked_at = None
+            tracked_source = ""
+            is_telem = False
+
+            if machine_id:
+                m = machines_by_id.get(machine_id)
+                if isinstance(m, dict):
+                    loc = m.get("location") if isinstance(m.get("location"), dict) else None
+                    if loc and loc.get("lat") is not None and loc.get("lng") is not None:
+                        tracked_loc = {"lat": loc.get("lat"), "lng": loc.get("lng")}
+                        tracked_at = _dt(m.get("locationUpdatedAt"))
+                        tracked_source = str(m.get("locationSource") or "").strip() or "telematics"
+                        is_telem = tracked_source in {"komatsu", "cat", "telematics"}
+
+            if tracked_loc is None and provider_id:
+                u = users_by_id.get(provider_id)
+                if isinstance(u, dict):
+                    loc = u.get("location") if isinstance(u.get("location"), dict) else None
+                    if loc and loc.get("lat") is not None and loc.get("lng") is not None:
+                        tracked_loc = {"lat": loc.get("lat"), "lng": loc.get("lng")}
+                        tracked_at = _dt(u.get("locationUpdatedAt"))
+                        tracked_source = str(u.get("locationSource") or "").strip() or "gps"
+                        is_telem = tracked_source in {"komatsu", "cat", "telematics"}
+
+            if not tracked_loc or tracked_at is None:
+                continue
+
+            age_min = (now - tracked_at).total_seconds() / 60.0
+            max_age = max_age_telem_min if is_telem else max_age_gps_min
+            if age_min < 0 or age_min > max_age:
+                continue
+
+            try:
+                plat = float(tracked_loc.get("lat"))
+                plng = float(tracked_loc.get("lng"))
+            except Exception:
+                continue
+
+            dist_m = haversine_meters(jlat_f, jlng_f, plat, plng)
+            if dist_m > radius_m:
+                await self.db.service_requests.update_one(
+                    {"id": req_id, "status": "confirmed"},
+                    {"$unset": {"arrivalCandidateAt": "", "arrivalCandidateSource": ""}},
+                )
+                continue
+
+            cand_at = _dt(req.get("arrivalCandidateAt"))
+            cand_src = str(req.get("arrivalCandidateSource") or "").strip()
+            if cand_at is None or cand_src != tracked_source:
+                await self.db.service_requests.update_one(
+                    {"id": req_id, "status": "confirmed"},
+                    {"$set": {"arrivalCandidateAt": now.isoformat(), "arrivalCandidateSource": tracked_source}},
+                )
+                continue
+
+            if (now - cand_at).total_seconds() < dwell_seconds:
+                continue
+
+            arrival_location = {
+                "lat": plat,
+                "lng": plng,
+                "capturedAt": now.isoformat(),
+                "distanceMeters": round(float(dist_m or 0), 2),
+                "source": tracked_source,
+                "verified": True,
+            }
+            arrival_event = {
+                "type": "arrival",
+                "at": now.isoformat(),
+                "verified": True,
+                "source": tracked_source,
+                "byRole": "system",
+            }
+            result = await self.db.service_requests.update_one(
+                {"id": req_id, "status": "confirmed", "$or": [{"arrivalDetectedAt": {"$exists": False}}, {"arrivalDetectedAt": None}]},
+                {
+                    "$set": {"arrivalDetectedAt": now.isoformat(), "arrivalLocation": arrival_location},
+                    "$unset": {"arrivalCandidateAt": "", "arrivalCandidateSource": ""},
+                    "$push": {"events": arrival_event},
+                },
+            )
+            if result.modified_count > 0:
+                updated += 1
+                client_id = str(req.get("clientId") or "").strip()
+                if client_id:
+                    try:
+                        from services.webpush_service import notify_service_event
+
+                        await notify_service_event(
+                            db=self.db,
+                            client_id=client_id,
+                            service_request_id=req_id,
+                            kind="arrival",
+                            extra={"source": tracked_source},
+                        )
+                    except Exception:
+                        pass
+                logger.info("Servicio %s -> arrivalDetectedAt (auto tracking source=%s dist=%.0fm)", req_id, tracked_source, dist_m)
+
+        return updated
 
     async def check_last_30_services(self) -> int:
         """
@@ -612,7 +873,9 @@ class TimerService:
         logger.debug("Ejecutando verificación de timers...")
         
         cancelled_no_arrival = await self.check_confirmed_no_arrival_timeout()
+        auto_arrival = await self.check_auto_arrival_from_tracking()
         auto_started = await self.check_auto_start_post_arrival()
+        auto_start_emails = await self.check_pending_client_auto_start_emails()
         rotation_waves = await self.check_matching_rotation_waves()
         expired_offers = await self.check_expired_offers()
         last_30_services = await self.check_last_30_services()
@@ -621,7 +884,9 @@ class TimerService:
         
         summary = {
             'cancelled_no_arrival': cancelled_no_arrival,
+            'auto_arrival': auto_arrival,
             'auto_started': auto_started,
+            'auto_start_emails': auto_start_emails,
             'matching_rotation_waves': rotation_waves,
             'expired_offers': expired_offers,
             'last_30_triggered': last_30_services,
@@ -630,7 +895,7 @@ class TimerService:
             'checked_at': datetime.now(timezone.utc).isoformat()
         }
         
-        if cancelled_no_arrival or auto_started or rotation_waves or expired_offers or last_30_services or finished_services or auto_approved:
+        if cancelled_no_arrival or auto_arrival or auto_started or auto_start_emails or rotation_waves or expired_offers or last_30_services or finished_services or auto_approved:
             logger.info(f"Timer check completado: {summary}")
         
         return summary

@@ -1517,6 +1517,86 @@ async def start_service(
     return {'message': 'Servicio iniciado', 'status': 'in_progress'}
 
 
+@router.post("/{request_id}/confirm-entry", response_model=dict)
+async def confirm_entry(
+    request_id: str,
+    body: dict = Body(default={}),
+    current_user: dict = Depends(get_current_user),
+):
+    request = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
+    if not request:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    if request.get("clientId") != current_user.get("id"):
+        raise HTTPException(status_code=403, detail="Solo el cliente puede confirmar el ingreso")
+
+    if not request.get("arrivalDetectedAt"):
+        raise HTTPException(status_code=400, detail="El operador aún no ha marcado llegada")
+
+    now = datetime.now(timezone.utc)
+    confirmed_at = request.get("clientEntryConfirmedAt")
+    if confirmed_at:
+        return {"success": True, "already_confirmed": True}
+
+    event = {
+        "type": "client_entry_confirmed",
+        "at": now.isoformat(),
+        "byUserId": current_user.get("id"),
+        "byRole": "client",
+    }
+
+    update: dict = {
+        "clientEntryConfirmedAt": now.isoformat(),
+        "clientEntryConfirmedByUserId": current_user.get("id"),
+    }
+
+    raw_start = body.get("startNow") if "startNow" in body else body.get("start_now")
+    if raw_start is None:
+        start_now = True
+    else:
+        t = str(raw_start).strip().lower()
+        start_now = t in {"1", "true", "yes", "y", "on"}
+    if start_now and request.get("status") == "confirmed":
+        update.update(
+            {
+                "status": "in_progress",
+                "startedAt": now.isoformat(),
+                "startedByUserId": current_user.get("id"),
+                "startedByRole": "client",
+            }
+        )
+
+    await db.service_requests.update_one(
+        {"id": request_id},
+        {"$set": update, "$push": {"events": event}},
+    )
+
+    provider_id = str(request.get("providerId") or "").strip()
+    if provider_id:
+        try:
+            from services.webpush_service import notify_user
+
+            await notify_user(
+                db=db,
+                user_id=provider_id,
+                title="Ingreso autorizado",
+                body=f"El cliente autorizo el ingreso en el servicio {request_id}.",
+                url=f"/chat/{request_id}",
+                tag=f"sr:{request_id}",
+            )
+        except Exception:
+            pass
+
+    if update.get("status") == "in_progress":
+        await _notify_push_client_event(
+            request_id=request_id,
+            client_id=request.get("clientId"),
+            kind="started",
+            extra={"source": "client_entry_confirmed"},
+        )
+
+    return {"success": True, "status": update.get("status") or request.get("status")}
+
+
 @router.post("/{request_id}/report-incident", response_model=dict)
 async def report_incident(
     request_id: str,

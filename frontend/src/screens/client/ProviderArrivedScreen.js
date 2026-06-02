@@ -13,6 +13,7 @@ import {
   getOperatorDisplayNameForSite,
   getOperatorRutForSite
 } from '../../utils/providerDisplay';
+import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 
 // Constantes de tiempo (en segundos)
 const MAX_WAIT_TIME = 30 * 60; // 30 minutos
@@ -115,9 +116,22 @@ function ProviderArrivedScreen() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleLetIn = () => {
+  const handleLetIn = async () => {
     unlockAudio();
     playAccessGrantedAlert(); // Sonido + vibración de confirmación
+    try {
+      await fetchWithAuth(
+        `${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceId)}/confirm-entry`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ startNow: true })
+        },
+        12000
+      );
+    } catch {
+      void 0;
+    }
     localStorage.setItem('clientAcceptedEntry', 'true');
     localStorage.setItem('clientAcceptedEntryTime', new Date().toISOString());
     handleStartService();
