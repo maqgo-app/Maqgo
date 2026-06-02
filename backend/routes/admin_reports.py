@@ -28,6 +28,8 @@ except Exception:
     ZoneInfo = None  # type: ignore
 from pathlib import Path
 
+from utils.invoice_precheck import choose_amount_for_bucket, classify_amount_bucket
+
 REPORTLAB_AVAILABLE = True
 try:
     from reportlab.lib.pagesizes import A4  # type: ignore
@@ -590,7 +592,7 @@ def _render_bullets(items: list[str]) -> str:
         t = str(x or "").strip()
         if not t:
             continue
-        lis.append(f'<tr><td style="padding:6px 0;font-size:13px;line-height:18px;color:#0B1220;">• {html_escape(t)}</td></tr>')
+        lis.append(f'<tr><td style="padding:6px 0;font-size:13px;line-height:18px;color:#0B1220;">- {html_escape(t)}</td></tr>')
     if not lis:
         lis.append('<tr><td style="padding:6px 0;font-size:13px;line-height:18px;color:#64748B;">—</td></tr>')
     return f"""
@@ -683,11 +685,26 @@ def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: s
 
     b_items = [
         f"Salud operacional: {health_value} · {health_label} (backlog/disputas/pagos)",
-        f"Tiempo de revisión (prom.): {ops.get('review_avg_min') or resumen.get('tiempo_promedio_revision_min') or 0} min (creación→aprobación)",
+        f"Tiempo de revision (prom.): {ops.get('review_avg_min') or resumen.get('tiempo_promedio_revision_min') or 0} min (creacion->aprobacion)",
         f"Backlog revisión: {ops.get('pending_review_total') or 0} (en revisión más de 72h: {ops.get('stuck_over_72h') or 0})",
         f"Disputas abiertas: {ops.get('disputed_total') or 0}",
         f"Documentos proveedor recibidos: {ops.get('invoiced_total') or resumen.get('por_pagar_proveedor_count') or 0} (pendiente revisión/pago)",
     ]
+    inv_buckets = ops.get("invoiced_by_amount_bucket") or {}
+    if isinstance(inv_buckets, dict):
+        b_items.append(
+            "Tramos facturas proveedor (pendiente pago): "
+            f"<500k {int(inv_buckets.get('lt_500k') or 0)} · "
+            f"500k–1M {int(inv_buckets.get('500k_1m') or 0)} · "
+            f"≥1M {int(inv_buckets.get('gte_1m') or 0)} · "
+            f"sin monto {int(inv_buckets.get('missing') or 0)}"
+        )
+    inv_precheck = ops.get("invoiced_precheck") or {}
+    if isinstance(inv_precheck, dict) and int(inv_precheck.get("warning") or 0) > 0:
+        b_items.append(
+            "Precheck documentos proveedor: "
+            f"warning {int(inv_precheck.get('warning') or 0)} (nitidez/resolución/formato)"
+        )
 
     c_items = [
         f"Nuevos clientes: {growth.get('new_clients') or resumen.get('nuevos_clientes_semana') or 0}",
@@ -892,6 +909,23 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
     provider_doc_missing = int(volume.get("provider_doc_missing") or 0)
     with_provider_invoice = int(volume.get("with_provider_invoice") or 0)
     paid_without_invoice = int(volume.get("paid_without_invoice") or 0)
+    bucket_counts = volume.get("provider_invoices_by_amount_bucket") or {}
+    bucket_hint = ""
+    if isinstance(bucket_counts, dict):
+        bucket_hint = (
+            "Tramos facturas proveedor (pagadas): "
+            f"<500k {int(bucket_counts.get('lt_500k') or 0)} · "
+            f"500k–1M {int(bucket_counts.get('500k_1m') or 0)} · "
+            f"≥1M {int(bucket_counts.get('gte_1m') or 0)} · "
+            f"sin monto {int(bucket_counts.get('missing') or 0)}"
+        )
+    precheck_counts = volume.get("provider_invoice_precheck") or {}
+    precheck_hint = ""
+    if isinstance(precheck_counts, dict) and int(precheck_counts.get("warning") or 0) > 0:
+        precheck_hint = (
+            "Precheck documentos proveedor: "
+            f"warning {int(precheck_counts.get('warning') or 0)} (nitidez/resolución/formato)"
+        )
 
     mk_kpi = (marketing.get("kpi") or {}) if isinstance(marketing, dict) else {}
     cac_value = "—"
@@ -1052,6 +1086,8 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
                     <div style="font-size:12px;color:#64748B;margin-bottom:10px;">
                       Documentación proveedor: factura {with_provider_invoice} · factura compra {paid_without_invoice} · pendiente documento {provider_doc_missing}
                     </div>
+                    {f'<div style="font-size:12px;color:#64748B;margin-bottom:10px;">{html_escape(bucket_hint)}</div>' if bucket_hint else ''}
+                    {f'<div style="font-size:12px;color:#64748B;margin-bottom:10px;">{html_escape(precheck_hint)}</div>' if precheck_hint else ''}
                     {_render_mini_rows(docs_rows)}
                   </div>
 
@@ -1162,7 +1198,7 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
         meta.append(semana_label)
     has_range_in_label = ("→" in semana_label) or (inicio and inicio in semana_label) or (fin and fin in semana_label)
     if inicio and fin and not has_range_in_label:
-        meta.append(f"{inicio} → {fin}")
+        meta.append(f"{inicio} -> {fin}")
     meta.append(datetime.utcnow().strftime("Generado %Y-%m-%d %H:%M UTC"))
     if review_min and review_min > 0:
         meta.append(f"Revisión prom.: {review_min} min")
@@ -1442,7 +1478,7 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
             break
     if not shown_alerts:
         shown_alerts = ["Sin alertas críticas"]
-    alert_flow = [Paragraph(f"• {html_escape(m)[:220]}", styles["alert"]) for m in shown_alerts]
+    alert_flow = [Paragraph(f"- {html_escape(m)[:220]}", styles["alert"]) for m in shown_alerts]
     story.append(card(inner=[Paragraph("Alertas (solo lo crítico)", styles["card_title"]), Spacer(1, 8), *alert_flow], pad=12))
 
     doc.build(story, onFirstPage=paint_frame, onLaterPages=paint_frame)
@@ -1896,6 +1932,8 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
     maqgo_client_done_count = 0
     rental_hours = []
     gmv_by_type = {}
+    provider_invoice_bucket_counts = Counter()
+    provider_invoice_precheck_counts = Counter()
 
     for s in services:
         net_total = float(s.get("net_total") or 0)
@@ -1943,6 +1981,19 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
                 iva_credito_estimado += iva_servicio
                 with_provider_invoice_count += 1
                 sales_net_with_provider_invoice += net_total
+                b = s.get("provider_invoice_amount_bucket")
+                if b not in ("lt_500k", "500k_1m", "gte_1m", "missing"):
+                    amt, _src = choose_amount_for_bucket(
+                        s.get("provider_invoice_total_confirmed_clp"),
+                        s.get("provider_invoice_total_detected_clp"),
+                        s.get("provider_invoice_expected_total_clp") or net_total,
+                    )
+                    b = classify_amount_bucket(amt)
+                provider_invoice_bucket_counts[str(b)] += 1
+                ps = s.get("provider_invoice_precheck_status")
+                if ps not in ("ok", "warning"):
+                    ps = "missing"
+                provider_invoice_precheck_counts[str(ps)] += 1
             else:
                 other_doc_count += 1
                 sales_net_other_docs += net_total
@@ -2029,6 +2080,17 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
             "with_provider_invoice": with_provider_invoice_count,
             "paid_without_invoice": paid_without_invoice_count,
             "provider_doc_missing": other_doc_count,
+            "provider_invoices_by_amount_bucket": {
+                "lt_500k": int(provider_invoice_bucket_counts.get("lt_500k") or 0),
+                "500k_1m": int(provider_invoice_bucket_counts.get("500k_1m") or 0),
+                "gte_1m": int(provider_invoice_bucket_counts.get("gte_1m") or 0),
+                "missing": int(provider_invoice_bucket_counts.get("missing") or 0),
+            },
+            "provider_invoice_precheck": {
+                "ok": int(provider_invoice_precheck_counts.get("ok") or 0),
+                "warning": int(provider_invoice_precheck_counts.get("warning") or 0),
+                "missing": int(provider_invoice_precheck_counts.get("missing") or 0),
+            },
             "maqgo_client_invoice_pending": maqgo_client_pending_count,
             "maqgo_client_invoiced_marked": maqgo_client_done_count,
             "new_clients": nuevos_clientes,
@@ -2210,11 +2272,246 @@ async def cron_admin_monthly_report_reports_namespace(
     return await _send_admin_monthly_report_email(force=force, dry_run=dry_run, months_ago=months_ago)
 
 
+async def _get_daily_recipients_from_config_or_env() -> list[str]:
+    try:
+        cfg = await _get_subscription_config()
+        daily = cfg.get("daily_emails")
+        if isinstance(daily, list) and daily:
+            return _normalize_email_list(daily)
+    except Exception:
+        pass
+    raw = (
+        os.environ.get("MAQGO_ADMIN_DAILY_DIGEST_EMAILS", "").strip()
+        or os.environ.get("MAQGO_ADMIN_WEEKLY_REPORT_EMAILS", "").strip()
+        or os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", "").strip()
+        or DEFAULT_ADMIN_REPORT_EMAIL
+    )
+    return _normalize_email_list(raw)
+
+
+def _render_admin_daily_digest_email(*, title: str, subtitle: str, items: list[str], report_id: str, cta_url: str) -> str:
+    logo_url = html_escape(_get_email_logo_url())
+    content = _render_bullets(items or [])
+    return f"""<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body style="margin:0;background:#F6F8FB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FB;padding:28px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="720" cellpadding="0" cellspacing="0" style="width:720px;max-width:720px;">
+            <tr>
+              <td style="background:#ffffff;border:1px solid #E6EDF5;border-radius:22px;overflow:hidden;">
+                <div style="height:10px;background:#EC6819;line-height:10px;font-size:0;">&nbsp;</div>
+                <div style="padding:26px 26px 22px 26px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="vertical-align:middle;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" style="background:#0B1220;border-radius:999px;">
+                          <tr>
+                            <td style="padding:12px 16px;">
+                              <img src="{logo_url}" alt="MAQGO" width="92" style="display:block;border:0;outline:none;text-decoration:none;width:92px;height:auto;" />
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td style="vertical-align:middle;text-align:right;">
+                        <span style="display:inline-block;background:#0B1220;color:#ffffff;padding:9px 12px;border-radius:999px;font-weight:900;font-size:12px;letter-spacing:.2px;">Admin</span>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <div style="margin-top:18px;font-weight:900;font-size:28px;line-height:34px;letter-spacing:-0.3px;color:#0B1220;">{html_escape(title)}</div>
+                  <div style="margin-top:6px;font-size:12px;line-height:16px;color:#64748B;">{html_escape(subtitle)}</div>
+
+                  {_render_section_header("Alertas")}
+                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                    {content}
+                  </div>
+
+                  <div style="margin-top:16px;padding:16px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#0B1220;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="font-size:12px;line-height:16px;color:rgba(255,255,255,0.78);">
+                          Reporte ID: <span style="font-weight:900;color:#ffffff;">{html_escape(report_id)}</span>
+                        </td>
+                        <td style="text-align:right;">
+                          <a href="{html_escape(cta_url)}" style="display:inline-block;background:#ffffff;color:#0B1220;text-decoration:none;padding:11px 14px;border-radius:12px;font-weight:900;font-size:13px;">
+                            Abrir Admin
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <div style="margin-top:14px;border-top:1px solid #EEF2F7;padding-top:12px;font-size:11px;color:#94A3B8;line-height:16px;">
+                    Reporte automático MAQGO (solo si hay alertas). No responder.
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="text-align:center;font-size:11px;color:#94A3B8;padding:12px 12px;">© {datetime.utcnow().strftime('%Y')} MAQGO</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
+
+
+async def _build_daily_alert_items(*, now_utc: datetime) -> list[str]:
+    alert_items: list[str] = []
+    threshold_48h = now_utc - timedelta(hours=48)
+    threshold_72h = now_utc - timedelta(hours=72)
+
+    invoiced_evidence_filter = {
+        "status": "invoiced",
+        "$or": [
+            {"invoiceStatus": "validated"},
+            {"invoice_uploaded_at": {"$exists": True, "$ne": None}},
+            {"invoice_number": {"$exists": True, "$ne": None}},
+            {"invoiceFilename": {"$exists": True, "$ne": ""}},
+            {"invoice_image": {"$exists": True, "$ne": None}},
+        ],
+    }
+
+    pending_payment_filter = {
+        **invoiced_evidence_filter,
+        "provider_invoice_approved": {"$ne": True},
+        "invoice_uploaded_at": {"$lte": threshold_48h},
+    }
+    pending_docs = await db.services.find(
+        pending_payment_filter,
+        {"_id": 0, "provider_invoice_amount_bucket": 1},
+    ).to_list(5000)
+    pending_count = len(pending_docs)
+    if pending_count > 0:
+        hi = sum(1 for d in pending_docs if d.get("provider_invoice_amount_bucket") == "gte_1m")
+        alert_items.append(
+            f"Pagos a proveedor pendientes >48h desde factura recibida: {pending_count} (≥1M: {hi})"
+        )
+
+    warn_last_24h_filter = {
+        **invoiced_evidence_filter,
+        "provider_invoice_precheck_status": "warning",
+        "invoice_uploaded_at": {"$gte": now_utc - timedelta(hours=24), "$lt": now_utc},
+    }
+    warn_count = await db.services.count_documents(warn_last_24h_filter)
+    if int(warn_count or 0) > 0:
+        alert_items.append(f"Facturas proveedor con precheck warning (últimas 24h): {int(warn_count)}")
+
+    stuck_review = await db.services.count_documents({"status": "pending_review", "created_at": {"$lt": threshold_72h}})
+    if int(stuck_review or 0) > 0:
+        alert_items.append(f"Backlog crítico: {int(stuck_review)} servicio(s) en revisión >72h")
+
+    return alert_items[:8]
+
+
+async def _send_admin_daily_digest_email(*, force: bool, dry_run: bool) -> dict:
+    enabled = _parse_bool(os.environ.get("MAQGO_ADMIN_DAILY_DIGEST_ENABLED", "true"), True)
+    tz_name = os.environ.get("MAQGO_ADMIN_REPORT_TIMEZONE", "America/Santiago").strip() or "America/Santiago"
+    hour = _parse_int(os.environ.get("MAQGO_ADMIN_DAILY_DIGEST_HOUR", "8"), 8)
+    minute = _parse_int(os.environ.get("MAQGO_ADMIN_DAILY_DIGEST_MINUTE", "0"), 0)
+    window = _parse_int(os.environ.get("MAQGO_ADMIN_DAILY_DIGEST_WINDOW_MINUTES", "30"), 30)
+    recipients = await _get_daily_recipients_from_config_or_env()
+
+    if not recipients:
+        return {"ok": False, "reason": "missing_recipients"}
+    if not enabled and not force:
+        return {"ok": False, "reason": "disabled"}
+
+    now_local = datetime.now(_tzinfo_or_utc(tz_name))
+    in_window = _scheduled_window_allows_send(now_local, hour, minute, window)
+    if not force and not in_window:
+        return {"ok": False, "reason": "outside_schedule_window", "timezone": tz_name, "now_local": now_local.isoformat()}
+
+    digest_day = (now_local.date() - timedelta(days=1)).isoformat()
+    recipients_key = ",".join(sorted(recipients))
+    existing = await db.admin_daily_digest_mailings.find_one(
+        {"kind": "daily_digest", "day_key": digest_day, "recipients_key": recipients_key},
+        {"_id": 0, "sent_at": 1},
+    )
+    if existing and not force:
+        return {"ok": True, "skipped": True, "reason": "already_sent", "day_key": digest_day}
+
+    now_utc = datetime.utcnow()
+    items = await _build_daily_alert_items(now_utc=now_utc)
+    if not items and not force:
+        return {"ok": True, "skipped": True, "reason": "no_alerts", "day_key": digest_day}
+
+    title = "Alertas Diarias"
+    subtitle = f"Día: {digest_day} · Generado {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"
+    report_id = digest_day
+    cta_url = f"{_get_frontend_url()}/admin"
+    subject = f"MAQGO — Alertas diarias {digest_day}"
+    html = _render_admin_daily_digest_email(title=title, subtitle=subtitle, items=items or ["—"], report_id=report_id, cta_url=cta_url)
+    text = f"MAQGO — Alertas diarias · Día {digest_day} · ID: {report_id}"
+
+    if dry_run:
+        return {
+            "ok": True,
+            "dry_run": True,
+            "day_key": digest_day,
+            "to": recipients,
+            "subject": subject,
+            "alerts": items,
+            "text_preview": text[:2000],
+            "html_preview": html[:2000],
+        }
+
+    send_result = await _send_email(recipients, subject, text, html)
+    await db.admin_daily_digest_mailings.update_one(
+        {"kind": "daily_digest", "day_key": digest_day, "recipients_key": recipients_key},
+        {
+            "$set": {
+                "kind": "daily_digest",
+                "day_key": digest_day,
+                "recipients_key": recipients_key,
+                "to": recipients,
+                "timezone": tz_name,
+                "scheduled_hour": hour,
+                "scheduled_minute": minute,
+                "sent_at": datetime.utcnow().isoformat(),
+                "provider": send_result.get("provider"),
+                "provider_id": send_result.get("id"),
+                "alerts": items,
+            }
+        },
+        upsert=True,
+    )
+    return {"ok": True, "sent": True, "day_key": digest_day, "to": recipients, "provider": send_result.get("provider")}
+
+
+@cron_router.api_route("/cron/admin-daily-digest", methods=["GET", "POST"])
+async def cron_admin_daily_digest(
+    secret: Optional[str] = Query(None),
+    force: bool = Query(False),
+    dry_run: bool = Query(False),
+):
+    _cron_verify(secret)
+    return await _send_admin_daily_digest_email(force=force, dry_run=dry_run)
+
+
+@router.api_route("/cron/admin-daily-digest", methods=["GET", "POST"])
+async def cron_admin_daily_digest_reports_namespace(
+    secret: Optional[str] = Query(None),
+    force: bool = Query(False),
+    dry_run: bool = Query(False),
+):
+    _cron_verify(secret)
+    return await _send_admin_daily_digest_email(force=force, dry_run=dry_run)
+
+
+
 @router.get("/sms-balance")
 async def get_sms_balance(_: dict = Depends(get_current_admin_strict)):
-    """
-    Saldo de créditos SMS (LabsMobile) para monitoreo operativo en Admin.
-    """
+    """Saldo de creditos SMS (LabsMobile) para monitoreo operativo en Admin."""
     try:
         from services.otp_service import get_sms_balance as otp_get_sms_balance
     except ImportError:
@@ -2280,7 +2577,7 @@ async def update_admin_report_subscriptions(body: AdminReportSubscriptionsUpdate
 async def _build_weekly_report(weeks_ago: int = 0):
     """
     Informe semanal alineado al pipeline de facturación MAQGO (colección `services`):
-    pending_review → approved → invoiced → paid | disputed | cancelled
+    pending_review -> approved -> invoiced -> paid | disputed | cancelled
     """
     now = datetime.utcnow()
     start_of_week = now - timedelta(days=now.weekday() + (weeks_ago * 7))
@@ -2373,15 +2670,39 @@ async def _build_weekly_report(weeks_ago: int = 0):
     }
     invoiced_pending = await db.services.find(
         invoiced_filter,
-        {"_id": 0, "net_total": 1, "amount_paid_to_provider": 1},
+        {
+            "_id": 0,
+            "net_total": 1,
+            "amount_paid_to_provider": 1,
+            "provider_invoice_expected_total_clp": 1,
+            "provider_invoice_total_detected_clp": 1,
+            "provider_invoice_total_confirmed_clp": 1,
+            "provider_invoice_amount_bucket": 1,
+            "provider_invoice_precheck_status": 1,
+        },
     ).to_list(5000)
     por_pagar_count = len(invoiced_pending)
     por_pagar_amount = 0.0
+    invoiced_bucket_counts = Counter()
+    invoiced_precheck_counts = Counter()
     for s in invoiced_pending:
         if s.get("amount_paid_to_provider") is not None:
             por_pagar_amount += float(s.get("amount_paid_to_provider") or 0)
         else:
             por_pagar_amount += float(s.get("net_total") or 0)
+        b = s.get("provider_invoice_amount_bucket")
+        if b not in ("lt_500k", "500k_1m", "gte_1m", "missing"):
+            amt, _src = choose_amount_for_bucket(
+                s.get("provider_invoice_total_confirmed_clp"),
+                s.get("provider_invoice_total_detected_clp"),
+                s.get("provider_invoice_expected_total_clp") or s.get("net_total"),
+            )
+            b = classify_amount_bucket(amt)
+        invoiced_bucket_counts[str(b)] += 1
+        ps = s.get("provider_invoice_precheck_status")
+        if ps not in ("ok", "warning"):
+            ps = "missing"
+        invoiced_precheck_counts[str(ps)] += 1
 
     total_creados = len(services)
     canceladas = por_estado.get("cancelled", 0)
@@ -2472,6 +2793,17 @@ async def _build_weekly_report(weeks_ago: int = 0):
         "stuck_over_72h": stuck_over_72h,
         "disputed_total": disputed_total,
         "invoiced_total": invoiced_total,
+        "invoiced_by_amount_bucket": {
+            "lt_500k": int(invoiced_bucket_counts.get("lt_500k") or 0),
+            "500k_1m": int(invoiced_bucket_counts.get("500k_1m") or 0),
+            "gte_1m": int(invoiced_bucket_counts.get("gte_1m") or 0),
+            "missing": int(invoiced_bucket_counts.get("missing") or 0),
+        },
+        "invoiced_precheck": {
+            "ok": int(invoiced_precheck_counts.get("ok") or 0),
+            "warning": int(invoiced_precheck_counts.get("warning") or 0),
+            "missing": int(invoiced_precheck_counts.get("missing") or 0),
+        },
     }
     business = {
         "gmv_paid_clp": round(gmv_week, 0),
@@ -2963,49 +3295,52 @@ def format_report_as_text(report: dict) -> str:
     for k, v in pe.items():
         if v or k == "pending_review":
             etiqueta = lab.get(k, k)
-            lineas_estado += f"  • {etiqueta}: {v}\n"
+            lineas_estado += f"  - {etiqueta}: {v}\n"
 
     top_m = r.get("top_maquinaria") or []
     lineas_maq = ""
     for row in top_m[:5]:
-        lineas_maq += f"  • {row.get('tipo', '—')}: {row.get('n', 0)}\n"
+        lineas_maq += f"  - {row.get('tipo', '-')}: {row.get('n', 0)}\n"
     if not lineas_maq:
         lineas_maq = "  (sin datos)\n"
 
-    texto = f"""
-═══════════════════════════════════════════════════════════════
-     MAQGO - INFORME SEMANAL (pipeline facturación post-servicio)
-═══════════════════════════════════════════════════════════════
-{report["periodo"]["semana"]}
-Generado: {report["generado_el"][:19]}
-
-Servicios creados en la semana: {r.get("total_servicios_creados_semana", r.get("total_solicitudes", 0))}
-Tiempo promedio revisión MAQGO→aprobado: {r.get("tiempo_promedio_revision_h", 0)} h
-Pagados cerrados en la semana (paid_at): {r.get("servicios_pagados_cerrados_semana", 0)}
-GMV pagado en la semana (CLP): {r.get("gmv_pagado_semana_clp", 0)}
-Tasa cancelación (sobre creados): {r.get("tasa_cancelacion", "0%")}
-
-Por estado (creados esta semana):
-{lineas_estado}
-Top maquinaria (creados esta semana):
-{lineas_maq}
-───────────────────────────────────────────────────────────────
-                        ALERTAS
-───────────────────────────────────────────────────────────────
-"""
+    lines = []
+    lines.append("================================================================")
+    lines.append("     MAQGO - INFORME SEMANAL (pipeline facturacion post-servicio)")
+    lines.append("================================================================")
+    lines.append(str((report.get("periodo") or {}).get("semana") or ""))
+    lines.append(f"Generado: {str(report.get('generado_el') or '')[:19]}")
+    lines.append("")
+    lines.append(f"Servicios creados en la semana: {r.get('total_servicios_creados_semana', r.get('total_solicitudes', 0))}")
+    lines.append(f"Tiempo promedio revision MAQGO->aprobado: {r.get('tiempo_promedio_revision_h', 0)} h")
+    lines.append(f"Pagados cerrados en la semana (paid_at): {r.get('servicios_pagados_cerrados_semana', 0)}")
+    lines.append(f"GMV pagado en la semana (CLP): {r.get('gmv_pagado_semana_clp', 0)}")
+    lines.append(f"Tasa cancelacion (sobre creados): {r.get('tasa_cancelacion', '0%')}")
+    lines.append("")
+    lines.append("Por estado (creados esta semana):")
+    lines.append((lineas_estado or "").rstrip("\n"))
+    lines.append("Top maquinaria (creados esta semana):")
+    lines.append((lineas_maq or "").rstrip("\n"))
+    lines.append("----------------------------------------------------------------")
+    lines.append("                        ALERTAS")
+    lines.append("----------------------------------------------------------------")
+    texto = "\n".join(lines) + "\n"
 
     for alerta in report["alertas"]:
-        texto += f"\n⚠️  {alerta['mensaje']}\n"
+        texto += f"\nALERTA: {alerta['mensaje']}\n"
         if alerta.get("detalle"):
             for d in alerta["detalle"][:5]:
-                texto += f"    • {d}\n"
+                texto += f"    - {d}\n"
 
-    texto += """
-═══════════════════════════════════════════════════════════════
-Alineado a estados: pending_review → approved → invoiced → paid
-═══════════════════════════════════════════════════════════════
-"""
-
+    texto += "\n".join(
+        [
+            "",
+            "================================================================",
+            "Alineado a estados: pending_review -> approved -> invoiced -> paid",
+            "================================================================",
+            "",
+        ]
+    )
     return texto
 
 
@@ -3025,40 +3360,41 @@ def format_monthly_finance_as_text(report: dict) -> str:
     contr = report.get("contribution") or {}
     rev = report.get("maqgo_revenue") or {}
 
-    label = p.get("label") or f"{p.get('year', '—')}-{int(p.get('month') or 0):02d}"
+    year = str(p.get("year") or "").strip()
+    month = int(p.get("month") or 0)
+    label = str(p.get("label") or "").strip() or (f"{year}-{month:02d}" if year and month else "periodo")
     gen = str(report.get("generated_at") or datetime.utcnow().isoformat())[:19]
 
-    texto = f"""
-═══════════════════════════════════════════════════════════════
-                 MAQGO - INFORME MENSUAL (finanzas)
-═══════════════════════════════════════════════════════════════
-Periodo: {label}
-Generado: {gen}
-
-Servicios pagados en el mes: {vol.get('services_paid', 0)}
-Con factura proveedor: {vol.get('with_provider_invoice', 0)}
-Pagado sin factura: {vol.get('paid_without_invoice', 0)}
-
-Ventas (CLP):
-  • Neto:  {_fmt_money(sales.get('net'))}
-  • Bruto: {_fmt_money(sales.get('gross'))}
-
-IVA (estimado, CLP):
-  • Débito: {_fmt_money(iva.get('debito'))}
-  • Crédito estimado: {_fmt_money(iva.get('credito_estimado'))}
-  • Neto a pagar estimado: {_fmt_money(iva.get('neto_a_pagar_estimado'))}
-
-Margen contribución (CLP):
-  • Ventas netas: {_fmt_money(contr.get('sales_net'))}
-  • Costo venta (pago proveedor): {_fmt_money(contr.get('cost_of_sales'))}
-  • Margen: {_fmt_money(contr.get('margin'))} ({contr.get('margin_pct', 0)}%)
-
-Ingresos MAQGO (neto, CLP):
-  • Comisión cliente: {_fmt_money(rev.get('client_commission_net'))}
-  • Comisión proveedor: {_fmt_money(rev.get('provider_commission_net'))}
-  • Total: {_fmt_money(rev.get('total_net'))}
-
-Nota: {iva.get('warning', '')}
-═══════════════════════════════════════════════════════════════
-"""
-    return texto.strip() + "\n"
+    lines = []
+    lines.append("================================================================")
+    lines.append("                 MAQGO - INFORME MENSUAL (finanzas)")
+    lines.append("================================================================")
+    lines.append(f"Periodo: {label}")
+    lines.append(f"Generado: {gen}")
+    lines.append("")
+    lines.append(f"Servicios pagados en el mes: {vol.get('services_paid', 0)}")
+    lines.append(f"Con factura proveedor: {vol.get('with_provider_invoice', 0)}")
+    lines.append(f"Pagado sin factura: {vol.get('paid_without_invoice', 0)}")
+    lines.append("")
+    lines.append("Ventas (CLP):")
+    lines.append(f"  - Neto:  {_fmt_money(sales.get('net'))}")
+    lines.append(f"  - Bruto: {_fmt_money(sales.get('gross'))}")
+    lines.append("")
+    lines.append("IVA (estimado, CLP):")
+    lines.append(f"  - Debito: {_fmt_money(iva.get('debito'))}")
+    lines.append(f"  - Credito estimado: {_fmt_money(iva.get('credito_estimado'))}")
+    lines.append(f"  - Neto a pagar estimado: {_fmt_money(iva.get('neto_a_pagar_estimado'))}")
+    lines.append("")
+    lines.append("Margen contribucion (CLP):")
+    lines.append(f"  - Ventas netas: {_fmt_money(contr.get('sales_net'))}")
+    lines.append(f"  - Costo venta (pago proveedor): {_fmt_money(contr.get('cost_of_sales'))}")
+    lines.append(f"  - Margen: {_fmt_money(contr.get('margin'))} ({contr.get('margin_pct', 0)}%)")
+    lines.append("")
+    lines.append("Ingresos MAQGO (neto, CLP):")
+    lines.append(f"  - Comision cliente: {_fmt_money(rev.get('client_commission_net'))}")
+    lines.append(f"  - Comision proveedor: {_fmt_money(rev.get('provider_commission_net'))}")
+    lines.append(f"  - Total: {_fmt_money(rev.get('total_net'))}")
+    lines.append("")
+    lines.append(f"Nota: {iva.get('warning', '')}")
+    lines.append("================================================================")
+    return "\n".join(lines).strip() + "\n"
