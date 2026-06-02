@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import BACKEND_URL, { fetchWithAuth, hasPersistedSessionCredentials } from "../utils/api";
+import BACKEND_URL, { clearLocalSession, fetchWithAuth, hasPersistedSessionCredentials } from "../utils/api";
 import MaqgoLogo from "./MaqgoLogo";
 
 function shouldEnforceLegalForPath(path) {
@@ -41,6 +41,7 @@ const ProtectedRoute = ({ children }) => {
   const hasSession = hasPersistedSessionCredentials();
   const [legalState, setLegalState] = useState("unknown");
   const [verifyNonce, setVerifyNonce] = useState(0);
+  const [legalErrorKind, setLegalErrorKind] = useState("");
 
   const mustAcceptLegalNow = useMemo(() => shouldEnforceLegalForPath(path), [path]);
 
@@ -56,10 +57,12 @@ const ProtectedRoute = ({ children }) => {
     let cancelled = false;
     if (!hasSession) {
       setLegalState("unknown");
+      setLegalErrorKind("");
       return () => void 0;
     }
     if (!mustAcceptLegalNow) {
       setLegalState("accepted");
+      setLegalErrorKind("");
       return () => void 0;
     }
     const fromStorage = () => {
@@ -72,40 +75,60 @@ const ProtectedRoute = ({ children }) => {
     };
     if (fromStorage()) {
       setLegalState("accepted");
+      setLegalErrorKind("");
       return () => void 0;
     }
     if (!userId) {
       setLegalState("missing");
+      setLegalErrorKind("");
       return () => void 0;
     }
     setLegalState("unknown");
-    fetchWithAuth(`${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`, { method: "GET" }, 5000)
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = new Error("legal_verification_failed");
-          err.status = res.status;
-          throw err;
-        }
-        return await res.json();
-      })
-      .then((data) => {
+    const verify = async () => {
+      let res;
+      try {
+        res = await fetchWithAuth(`${BACKEND_URL}/api/auth/me`, { method: "GET" }, 12000);
+      } catch (err) {
         if (cancelled) return;
-        const acceptedAt = String(data?.legalAcceptedAt || "").trim();
-        if (acceptedAt) {
-          try {
-            localStorage.setItem("legalAcceptedAt", acceptedAt);
-          } catch {
-            void 0;
-          }
-          setLegalState("accepted");
-        } else {
-          setLegalState("missing");
+        const name = String(err?.name || "");
+        const msg = String(err?.message || "");
+        if (name === "AbortError" || /Failed to fetch/i.test(msg)) {
+          setLegalErrorKind("network");
+          setLegalState("network_error");
+          return;
         }
-      })
-      .catch(() => {
-        if (cancelled) return;
+        setLegalErrorKind("session");
         setLegalState("network_error");
-      });
+        return;
+      }
+      if (!res.ok) {
+        if (cancelled) return;
+        if (res.status >= 500) {
+          setLegalErrorKind("server");
+          setLegalState("network_error");
+          return;
+        }
+        setLegalErrorKind("session");
+        setLegalState("network_error");
+        return;
+      }
+      const data = await res.json();
+      if (cancelled) return;
+      const acceptedAt = String(data?.legalAcceptedAt || "").trim();
+      if (acceptedAt) {
+        try {
+          localStorage.setItem("legalAcceptedAt", acceptedAt);
+        } catch {
+          void 0;
+        }
+        setLegalErrorKind("");
+        setLegalState("accepted");
+      } else {
+        setLegalErrorKind("");
+        setLegalState("missing");
+      }
+    };
+    verify();
     return () => {
       cancelled = true;
     };
@@ -198,16 +221,27 @@ const ProtectedRoute = ({ children }) => {
             <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, margin: "10px 0 0", lineHeight: 1.45 }}>
               {offline
                 ? "Parece que estás sin internet. Revisa tu conexión y vuelve a intentar."
-                : "Tu conexión está lenta o el servidor tardó en responder. Vuelve a intentar."}
+                : legalErrorKind === "server"
+                  ? "El servidor tardó en responder o está con problemas. Vuelve a intentar."
+                  : legalErrorKind === "session"
+                    ? "No pudimos validar tu sesión. Vuelve a iniciar sesión."
+                    : "Tu conexión está lenta o el servidor tardó en responder. Vuelve a intentar."}
             </p>
             <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
               <button
                 type="button"
                 className="maqgo-btn-primary"
-                onClick={() => setVerifyNonce((n) => n + 1)}
+                onClick={() => {
+                  if (legalErrorKind === "session") {
+                    clearLocalSession();
+                    window.location.href = "/login";
+                    return;
+                  }
+                  setVerifyNonce((n) => n + 1);
+                }}
                 style={{ width: "min(360px, 100%)" }}
               >
-                Reintentar
+                {legalErrorKind === "session" ? "Iniciar sesión" : "Reintentar"}
               </button>
             </div>
             <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>

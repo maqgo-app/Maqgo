@@ -1209,6 +1209,7 @@ async def auth_me(current_user: dict = Depends(get_current_user)):
         "phone": current_user.get("phone"),
         "rut": current_user.get("rut"),
         "razon_social": current_user.get("razon_social"),
+        "legalAcceptedAt": current_user.get("legalAcceptedAt"),
         "role": effective_role,
         "roles": roles,
         "provider_role": pr,
