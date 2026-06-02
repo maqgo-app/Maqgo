@@ -209,6 +209,13 @@ async def update_availability(
     
     if body.get('machineryType'):
         update_data['machineryType'] = body['machineryType']
+
+    loc = body.get("location")
+    if isinstance(loc, dict) and loc.get("lat") is not None and loc.get("lng") is not None:
+        update_data["location"] = {"lat": loc.get("lat"), "lng": loc.get("lng")}
+        update_data["locationUpdatedAt"] = datetime.now(timezone.utc)
+        src = loc.get("source") or body.get("locationSource") or body.get("location_source")
+        update_data["locationSource"] = str(src).strip() if src else "gps"
     
     result = await db.users.update_one(
         {'id': user_id},
