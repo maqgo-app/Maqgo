@@ -79,10 +79,11 @@ async function postWithTransportRetry(urlBuilder, payload, extraHeaders = {}) {
       import.meta.env.PROD && (host === 'www.maqgo.cl' || host === 'maqgo.cl');
     if (!isMaqgoWww) throw firstErr;
     const current = String(BACKEND_URL || '').replace(/\/+$/, '');
-    const alternate = current === MAQGO_API_ORIGIN ? '' : MAQGO_API_ORIGIN;
+    const alternate = current && current !== MAQGO_API_ORIGIN ? MAQGO_API_ORIGIN : '';
+    if (!alternate) throw firstErr;
     console.warn('PROVIDER_API_RETRY alternate_transport', {
       failedUrl: firstErr.config?.url || primary,
-      to: alternate || '(same-origin /api)',
+      to: alternate,
     });
     try {
       return await axios.post(urlBuilder(alternate), payload, {
