@@ -25,6 +25,13 @@ function ReviewScreen() {
   const [machineData, setMachineData] = useState({});
   const [operators, setOperators] = useState([]);
   const [photos, setPhotos] = useState([]);
+  const phone9 =
+    String(providerData?.phone || '')
+      .replace(/\D/g, '')
+      .slice(-9) ||
+    String(localStorage.getItem('userPhone') || '')
+      .replace(/\D/g, '')
+      .slice(-9);
 
   useEffect(() => {
     const safeParse = (key, fallback) => {
@@ -371,7 +378,7 @@ function ReviewScreen() {
           </div>
           <div style={styles.row}>
             <span style={styles.label}>Celular:</span>
-            <span style={styles.value}>{providerData.phone ? `+56 ${providerData.phone}` : '-'}</span>
+            <span style={styles.value}>{phone9 ? `+56 ${phone9}` : '-'}</span>
           </div>
           <div style={styles.row}>
             <span style={styles.label}>Hora cierre:</span>

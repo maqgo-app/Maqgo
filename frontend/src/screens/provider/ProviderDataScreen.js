@@ -108,10 +108,11 @@ function ProviderDataScreen() {
     
     // Combinar con datos del registro inicial
     const registerData = getObject('registerData', {});
+    const sessionPhone9 = String(localStorage.getItem('userPhone') || '').replace(/\D/g, '').slice(-9);
     const nextProviderData = { 
       ...form, 
       // Datos del registro inicial
-      phone: registerData.celular || form.phone
+      phone: registerData.celular || form.phone || sessionPhone9 || ''
     };
     localStorage.setItem('providerData', JSON.stringify(nextProviderData));
     try {
