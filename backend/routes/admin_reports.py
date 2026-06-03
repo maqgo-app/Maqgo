@@ -675,17 +675,38 @@ def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: s
     avg_days = business.get("avg_rental_days")
     avg_days_label = f"{_fmt_days(avg_days)} días" if avg_days is not None else "—"
 
+    def _fmt_pp(val) -> str:
+        try:
+            v = float(val)
+        except Exception:
+            return "—"
+        sign = "+" if v > 0 else ""
+        return f"{sign}{v:.2f} pp"
+
+    take_rate_pct = business.get("take_rate_pct")
+    take_rate_label = f"{float(take_rate_pct):.2f}%" if take_rate_pct is not None else "—"
+    take_rate_delta_pp = business.get("take_rate_delta_pp")
+    take_rate_delta_label = _fmt_pp(take_rate_delta_pp) if take_rate_delta_pp is not None else "—"
+
     a_items = [
         f"GMV pagado: {gmv} (vs semana anterior: {wow_gmv})",
         f"Ingreso MAQGO neto (estimado): {maqgo_rev} (vs semana anterior: {wow_rev})",
+        f"Take rate (neto): {take_rate_label} (Δ vs semana anterior: {take_rate_delta_label})",
         f"Servicios completados: {completed} (vs semana anterior: {wow_completed})",
         f"Ticket promedio: {ticket}",
         f"Arriendo promedio: {avg_days_label}",
     ]
 
+    sla_24 = ops.get("review_within_24h_pct")
+    sla_72 = ops.get("review_within_72h_pct")
+    sla_24_label = _fmt_delta_pct(sla_24) if sla_24 is not None else "—"
+    sla_72_label = _fmt_delta_pct(sla_72) if sla_72 is not None else "—"
+    reviewed_total = int(ops.get("reviewed_total") or 0)
+
     b_items = [
         f"Salud operacional: {health_value} · {health_label} (backlog/disputas/pagos)",
         f"Tiempo de revision (prom.): {ops.get('review_avg_min') or resumen.get('tiempo_promedio_revision_min') or 0} min (creacion->aprobacion)",
+        f"SLA revisión: <24h {sla_24_label} · <72h {sla_72_label} (aprobados en semana: {reviewed_total})",
         f"Backlog revisión: {ops.get('pending_review_total') or 0} (en revisión más de 72h: {ops.get('stuck_over_72h') or 0})",
         f"Disputas abiertas: {ops.get('disputed_total') or 0}",
         f"Documentos proveedor recibidos: {ops.get('invoiced_total') or resumen.get('por_pagar_proveedor_count') or 0} (pendiente revisión/pago)",
@@ -706,6 +727,26 @@ def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: s
             f"warning {int(inv_precheck.get('warning') or 0)} (nitidez/resolución/formato)"
         )
 
+    doc_comp = ops.get("provider_doc_compliance") or {}
+    if isinstance(doc_comp, dict):
+        total_paid = int(doc_comp.get("total_paid") or 0)
+        if total_paid > 0:
+            with_inv = int(doc_comp.get("with_provider_invoice") or 0)
+            without_inv = int(doc_comp.get("paid_without_invoice") or 0)
+            missing = int(doc_comp.get("missing") or 0)
+            with_pct = doc_comp.get("pct_with_provider_invoice")
+            without_pct = doc_comp.get("pct_paid_without_invoice")
+            missing_pct = doc_comp.get("pct_missing")
+            with_pct_label = _fmt_delta_pct(with_pct) if with_pct is not None else "—"
+            without_pct_label = _fmt_delta_pct(without_pct) if without_pct is not None else "—"
+            missing_pct_label = _fmt_delta_pct(missing_pct) if missing_pct is not None else "—"
+            b_items.append(
+                "Cumplimiento doc proveedor (pagados semana): "
+                f"con factura {with_inv} ({with_pct_label}) · "
+                f"sin factura {without_inv} ({without_pct_label}) · "
+                f"pendiente {missing} ({missing_pct_label})"
+            )
+
     c_items = [
         f"Nuevos clientes: {growth.get('new_clients') or resumen.get('nuevos_clientes_semana') or 0}",
         f"Nuevos proveedores: {growth.get('new_providers') or resumen.get('nuevos_proveedores_semana') or 0}",
@@ -718,19 +759,36 @@ def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: s
     fp = (mk_funnel.get("proveedores") or {}) if isinstance(mk_funnel.get("proveedores"), dict) else {}
     c_reg = int(fc.get("registrados") or 0)
     p_reg = int(fp.get("registrados") or 0)
+    def _pct(n, d) -> str:
+        try:
+            nn = float(n or 0)
+            dd = float(d or 0)
+        except Exception:
+            return "—"
+        if dd <= 0:
+            return "—"
+        return f"{(nn / dd * 100.0):.1f}%"
     if c_reg > 0:
+        c_act = int(fc.get("con_tarjeta_oneclick") or 0)
+        c_action = int(fc.get("con_solicitud_servicio") or 0)
+        c_paid = int(fc.get("con_servicio_pagado_semana") or 0)
         c_items.append(
             f"Clientes nuevos ({c_reg}): "
-            f"con tarjeta {int(fc.get('con_tarjeta_oneclick') or 0)} · "
-            f"con solicitud {int(fc.get('con_solicitud_servicio') or 0)}"
+            f"activados {c_act} ({_pct(c_act, c_reg)}) · "
+            f"con solicitud {c_action} ({_pct(c_action, c_reg)}) · "
+            f"pagaron {c_paid} ({_pct(c_paid, c_reg)})"
         )
     else:
         c_items.append("Clientes nuevos: —")
     if p_reg > 0:
+        p_act = int(fp.get("onboarding_completado") or 0)
+        p_action = int(fp.get("disponibles") or 0)
+        p_paid = int(fp.get("con_primer_servicio_semana") or 0)
         c_items.append(
             f"Proveedores nuevos ({p_reg}): "
-            f"disponibles {int(fp.get('disponibles') or 0)} · "
-            f"con 1er servicio {int(fp.get('con_primer_servicio_semana') or 0)}"
+            f"activados {p_act} ({_pct(p_act, p_reg)}) · "
+            f"disponibles {p_action} ({_pct(p_action, p_reg)}) · "
+            f"1er servicio {p_paid} ({_pct(p_paid, p_reg)})"
         )
     else:
         c_items.append("Proveedores nuevos: —")
@@ -897,6 +955,13 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
         margin_pct = "—"
     maqgo_net = _fmt_clp(maqgo_revenue.get("total_net") or 0)
     iva_neto = _fmt_clp(iva.get("neto_a_pagar_estimado") or 0)
+    mom = report.get("mom", {}) or {}
+    mom_sales = _fmt_delta_pct(mom.get("sales_net_pct")) if mom.get("sales_net_pct") is not None else "—"
+    mom_margin = _fmt_delta_pct(mom.get("margin_pct")) if mom.get("margin_pct") is not None else "—"
+    mom_maqgo = _fmt_delta_pct(mom.get("maqgo_revenue_pct")) if mom.get("maqgo_revenue_pct") is not None else "—"
+    mom_services = _fmt_delta_pct(mom.get("services_paid_pct")) if mom.get("services_paid_pct") is not None else "—"
+    take_rate_pct = maqgo_revenue.get("take_rate_pct")
+    take_rate_label = f"{float(take_rate_pct):.2f}%" if take_rate_pct is not None else "—"
 
     services_paid = int(volume.get("services_paid") or 0)
     avg_days = volume.get("avg_rental_days")
@@ -964,8 +1029,14 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
     )
 
     insights = (report.get("insights") or []) if isinstance(report.get("insights"), list) else []
+    if take_rate_label != "—":
+        insights = [*insights, f"Take rate neto (MAQGO / ventas netas): {take_rate_label}"]
+    if mom_services != "—":
+        insights = [*insights, f"Servicios pagados MoM: {mom_services}"]
+    insights = insights[:6]
 
     net_by_doc = (sales.get("net_by_document") or {}) if isinstance(sales.get("net_by_document"), dict) else {}
+    net_by_doc_pct = (sales.get("net_by_document_pct") or {}) if isinstance(sales.get("net_by_document_pct"), dict) else {}
     docs_rows = []
     max_docs = max(
         1.0,
@@ -976,7 +1047,12 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
     docs_rows.append(
         {
             "label": "Proveedor con factura",
-            "value": _fmt_clp(net_by_doc.get("with_provider_invoice") or 0),
+            "value": _fmt_clp(net_by_doc.get("with_provider_invoice") or 0)
+            + (
+                f" ({float(net_by_doc_pct.get('with_provider_invoice') or 0):.1f}%)"
+                if net_by_doc_pct.get("with_provider_invoice") is not None
+                else ""
+            ),
             "pct": float(net_by_doc.get("with_provider_invoice") or 0) / max_docs * 100.0,
             "color": "#8FB3C9",
         }
@@ -984,7 +1060,12 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
     docs_rows.append(
         {
             "label": "Factura de compra (no emisor)",
-            "value": _fmt_clp(net_by_doc.get("paid_without_invoice") or 0),
+            "value": _fmt_clp(net_by_doc.get("paid_without_invoice") or 0)
+            + (
+                f" ({float(net_by_doc_pct.get('paid_without_invoice') or 0):.1f}%)"
+                if net_by_doc_pct.get("paid_without_invoice") is not None
+                else ""
+            ),
             "pct": float(net_by_doc.get("paid_without_invoice") or 0) / max_docs * 100.0,
             "color": "#D9A15A",
         }
@@ -992,7 +1073,8 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
     docs_rows.append(
         {
             "label": "Pendiente documento proveedor",
-            "value": _fmt_clp(net_by_doc.get("other") or 0),
+            "value": _fmt_clp(net_by_doc.get("other") or 0)
+            + (f" ({float(net_by_doc_pct.get('other') or 0):.1f}%)" if net_by_doc_pct.get("other") is not None else ""),
             "pct": float(net_by_doc.get("other") or 0) / max_docs * 100.0,
             "color": "#94A3B8",
         }
@@ -1050,9 +1132,9 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
                   <div style="margin-top:18px;">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        {_render_metric_tile(label="Ventas netas", value=sales_net, sub=f"Servicios pagados: {services_paid}")}
-                        {_render_metric_tile(label="Margen contribución", value=margin, sub=f"{margin_pct} sobre ventas netas")}
-                        {_render_metric_tile(label="Ingreso MAQGO neto", value=maqgo_net, sub="Estimado")}
+                        {_render_metric_tile(label="Ventas netas", value=sales_net, sub=f"Servicios pagados: {services_paid} · MoM: {mom_sales}")}
+                        {_render_metric_tile(label="Margen contribución", value=margin, sub=f"{margin_pct} sobre ventas netas · MoM: {mom_margin}")}
+                        {_render_metric_tile(label="Ingreso MAQGO neto", value=maqgo_net, sub=f"MoM: {mom_maqgo} · Take: {take_rate_label}")}
                       </tr>
                       <tr>
                         {_render_metric_tile(label="IVA neto estimado", value=iva_neto, sub="Validar contabilidad")}
@@ -1157,6 +1239,10 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
     periodo = report.get("periodo", {}) or {}
     resumen = report.get("resumen", {}) or {}
     alertas = report.get("alertas", []) or []
+    demand = report.get("demand", {}) or {}
+    integrations = report.get("integrations", {}) or {}
+    business = report.get("business", {}) or {}
+    ops = report.get("ops", {}) or {}
 
     def fmt_int(val):
         try:
@@ -1189,6 +1275,8 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
         review_min = round(review_min, 1)
     except Exception:
         review_min = 0.0
+    sla_24 = ops.get("review_within_24h_pct")
+    sla_24_label = _fmt_delta_pct(sla_24) if sla_24 is not None else None
 
     semana_label = str(periodo.get("semana") or "").strip()
     inicio = str(periodo.get("inicio") or "")[:10]
@@ -1202,6 +1290,8 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
     meta.append(datetime.utcnow().strftime("Generado %Y-%m-%d %H:%M UTC"))
     if review_min and review_min > 0:
         meta.append(f"Revisión prom.: {review_min} min")
+    if sla_24_label and sla_24_label != "—":
+        meta.append(f"SLA <24h: {sla_24_label}")
     subtitle = " · ".join(meta)
 
     por_estado = (resumen.get("por_estado") or {}) if isinstance(resumen.get("por_estado"), dict) else {}
@@ -1243,6 +1333,35 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
         if n <= 0:
             continue
         top_rows.append({"label": t, "value": str(n), "pct": float(n) / float(max_top) * 100.0, "color": "#8FB3C9"})
+
+    def fmt_wow_pct(val) -> str:
+        if val is None:
+            return ""
+        try:
+            n = float(val)
+        except Exception:
+            return ""
+        sign = "+" if n > 0 else ""
+        return f"{sign}{n:.1f}%"
+
+    top_zones = demand.get("top_zones") or []
+    zone_rows = []
+    if isinstance(top_zones, list) and top_zones:
+        max_zone = max([int((z or {}).get("n") or 0) for z in top_zones] + [1])
+        for z in top_zones[:5]:
+            name = str((z or {}).get("zone") or "—").strip()
+            n = int((z or {}).get("n") or 0)
+            if not name or name == "—" or n <= 0:
+                continue
+            wow = fmt_wow_pct((z or {}).get("wow_pct"))
+            v = f"{n}" + (f" ({wow})" if wow else "")
+            zone_rows.append({"label": name, "value": v, "pct": float(n) / float(max_zone) * 100.0, "color": "#8FB3C9"})
+
+    komatsu = integrations.get("komatsu") or {}
+    k_total = int(komatsu.get("connected") or 0)
+    k_ok = int(komatsu.get("ok_24h") or 0)
+    k_stale = int(komatsu.get("stale_72h") or 0)
+    k_never = int(komatsu.get("never_sync") or 0)
 
     buffer = io.BytesIO()
     width, height = A4
@@ -1323,7 +1442,7 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
             body_rows.append([Paragraph(label, styles["row_label"]), ProgressBar(pct, color_hex), Paragraph(value, styles["row_value"])])
         if not body_rows:
             body_rows = [[Paragraph("Sin datos", styles["row_label"]), ProgressBar(0, "#CBD5E1"), Paragraph("—", styles["row_value"])]]
-        body = Table(body_rows, colWidths=["42%", "38%", "20%"])
+        body = Table(body_rows, colWidths=["40%", "24%", "36%"])
         body.setStyle(
             TableStyle(
                 [
@@ -1417,9 +1536,12 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
     sub_clientes = f"CAC: {fmt_clp(cac_c_v)}" if cac_c_v is not None else "Cohorte semanal"
     sub_proveedores = f"CAC: {fmt_clp(cac_p_v)}" if cac_p_v is not None else "Cohorte semanal"
 
+    take_rate_pct = business.get("take_rate_pct")
+    take_rate_label = f"{float(take_rate_pct):.2f}%" if take_rate_pct is not None else "—"
+
     kpis = [
         ("Servicios creados", str(created_count), f"Monto creado: {fmt_clp(created_amount)}"),
-        ("Pagados cerrados", str(paid_count), f"GMV pagado: {fmt_clp(gmv_paid)}"),
+        ("Pagados cerrados", str(paid_count), f"GMV: {fmt_clp(gmv_paid)} · Take: {take_rate_label}"),
         ("Documentos proveedor recibidos", str(por_pagar_count), f"Pago pendiente: {fmt_clp(por_pagar_amount)}"),
         ("Nuevos clientes", str(nuevos_clientes), sub_clientes),
         ("Nuevos proveedores", str(nuevos_proveedores), sub_proveedores),
@@ -1434,39 +1556,10 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
     two = Table([[section_card("Distribución por estado", estado_rows), section_card("Top maquinaria", top_rows)]], colWidths=["50%", "50%"])
     two.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
     story.append(two)
-    story.append(Spacer(1, 12))
-
-    mk_funnel = (mk.get("funnel") or {}) if isinstance(mk, dict) else {}
-    if isinstance(mk_funnel, dict) and mk_funnel:
-        fc = (mk_funnel.get("clientes") or {}) if isinstance(mk_funnel.get("clientes"), dict) else {}
-        fp = (mk_funnel.get("proveedores") or {}) if isinstance(mk_funnel.get("proveedores"), dict) else {}
-        funnel_rows = [
-            ["Funnel (cohorte nuevos)", "Clientes", "Proveedores"],
-            ["Registrados", str(int(fc.get("registrados") or 0)), str(int(fp.get("registrados") or 0))],
-            ["Activados", str(int(fc.get("con_tarjeta_oneclick") or 0)), str(int(fp.get("onboarding_completado") or 0))],
-            ["Con acción", str(int(fc.get("con_solicitud_servicio") or 0)), str(int(fp.get("disponibles") or 0))],
-            ["Monetizados", str(int(fc.get("con_servicio_pagado_semana") or 0)), str(int(fp.get("con_primer_servicio_semana") or 0))],
-        ]
-        ft = Table(funnel_rows, colWidths=["46%", "27%", "27%"])
-        ft.setStyle(
-            TableStyle(
-                [
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, 0), 10),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), INK),
-                    ("TEXTCOLOR", (0, 1), (0, -1), INK),
-                    ("TEXTCOLOR", (1, 1), (-1, -1), MUTED),
-                    ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
-                    ("LINEBELOW", (0, 0), (-1, 0), 1, BORDER),
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ]
-            )
-        )
-        story.append(card(inner=[ft], pad=12))
+    if zone_rows:
         story.append(Spacer(1, 12))
+        story.append(section_card("Zonas con mayor demanda (WoW)", zone_rows))
+    story.append(Spacer(1, 12))
 
     shown_alerts = []
     for a in alertas:
@@ -1474,8 +1567,13 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
         if not msg:
             continue
         shown_alerts.append(msg)
-        if len(shown_alerts) >= 4:
+        if len(shown_alerts) >= 3:
             break
+    if k_total > 0 or k_ok > 0 or k_stale > 0 or k_never > 0:
+        shown_alerts.append(
+            f"Komatsu: conectadas {k_total} · actualizadas (24h) {k_ok} · sin actualizar (>72h) {k_stale} · nunca {k_never}"
+        )
+    shown_alerts = shown_alerts[:4]
     if not shown_alerts:
         shown_alerts = ["Sin alertas críticas"]
     alert_flow = [Paragraph(f"- {html_escape(m)[:220]}", styles["alert"]) for m in shown_alerts]
@@ -1509,6 +1607,8 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
     iva = report.get("iva", {}) or {}
     maqgo_revenue = report.get("maqgo_revenue", {}) or {}
     demand = report.get("demand", {}) or {}
+    integrations = report.get("integrations", {}) or {}
+    insights = (report.get("insights") or []) if isinstance(report.get("insights"), list) else []
 
     def fmt_clp(val):
         try:
@@ -1528,7 +1628,7 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
         "kpi_sub": ParagraphStyle("ks", fontName="Helvetica", fontSize=8.6, leading=11, textColor=MUTED),
         "card_title": ParagraphStyle("ct", fontName="Helvetica-Bold", fontSize=11, leading=14, textColor=INK),
         "row_label": ParagraphStyle("rl", fontName="Helvetica", fontSize=9, leading=11, textColor=INK),
-        "row_value": ParagraphStyle("rv", fontName="Helvetica", fontSize=9, leading=11, textColor=MUTED, alignment=2),
+        "row_value": ParagraphStyle("rv", fontName="Helvetica", fontSize=9, leading=11, textColor=MUTED, alignment=2, splitLongWords=0),
     }
 
     class ProgressBar(Flowable):
@@ -1647,22 +1747,29 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
     net_without_inv = float(net_by_doc.get("paid_without_invoice") or 0)
     net_other = float(net_by_doc.get("other") or 0)
     max_docs_val = max(1.0, net_with_inv, net_without_inv, net_other)
+    def pct_sales(val: float) -> str:
+        try:
+            if float(sales_net or 0) <= 0:
+                return "—"
+            return f"{(float(val or 0) / float(sales_net) * 100.0):.1f}%"
+        except Exception:
+            return "—"
     docs_rows = [
         {
             "label": "Proveedor con factura",
-            "value": f"{fmt_clp(net_with_inv)} ({with_inv})",
+            "value": f"{fmt_clp(net_with_inv)} ({with_inv}) · {pct_sales(net_with_inv)}",
             "pct": float(net_with_inv) / float(max_docs_val) * 100.0,
             "color": "#8FB3C9",
         },
         {
             "label": "Factura de compra (no emisor)",
-            "value": f"{fmt_clp(net_without_inv)} ({without_inv})",
+            "value": f"{fmt_clp(net_without_inv)} ({without_inv}) · {pct_sales(net_without_inv)}",
             "pct": float(net_without_inv) / float(max_docs_val) * 100.0,
             "color": "#D9A15A",
         },
         {
             "label": "Pendiente documento proveedor",
-            "value": f"{fmt_clp(net_other)} ({other})",
+            "value": f"{fmt_clp(net_other)} ({other}) · {pct_sales(net_other)}",
             "pct": float(net_other) / float(max_docs_val) * 100.0,
             "color": "#94A3B8",
         },
@@ -1755,10 +1862,41 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
     if cac_value != "—":
         footer_text = f"{footer_text} · CAC C/P: {cac_value}"
 
+    komatsu = integrations.get("komatsu") or {}
+    k_total = int(komatsu.get("connected") or 0)
+    k_ok = int(komatsu.get("ok_24h") or 0)
+    k_stale = int(komatsu.get("stale_72h") or 0)
+    k_never = int(komatsu.get("never_sync") or 0)
+    machines_published_total = int(volume.get("machines_published_total") or 0)
+    footer_bits = []
+    if machines_published_total > 0:
+        footer_bits.append(f"Pub: {machines_published_total}")
+    if k_total > 0 or k_ok > 0 or k_stale > 0 or k_never > 0:
+        footer_bits.append(f"Komatsu >72h: {k_stale}")
+    if footer_bits:
+        footer_text = f"{footer_text} · " + " · ".join(footer_bits)
+
+    def fmt_delta(val) -> str:
+        try:
+            v = float(val)
+        except Exception:
+            return "—"
+        if v == 0:
+            return "0%"
+        sign = "+" if v > 0 else ""
+        return f"{sign}{v:.1f}%"
+
+    mom = report.get("mom", {}) or {}
+    mom_sales = fmt_delta(mom.get("sales_net_pct")) if mom.get("sales_net_pct") is not None else "—"
+    mom_margin = fmt_delta(mom.get("margin_pct")) if mom.get("margin_pct") is not None else "—"
+    mom_maqgo = fmt_delta(mom.get("maqgo_revenue_pct")) if mom.get("maqgo_revenue_pct") is not None else "—"
+    take_rate_pct = (report.get("maqgo_revenue") or {}).get("take_rate_pct")
+    take_rate_label = f"{float(take_rate_pct):.2f}%" if take_rate_pct is not None else "—"
+
     kpis = [
-        ("Ventas netas", fmt_clp(sales_net), f"Servicios pagados: {services_paid}"),
-        ("Margen contribución", fmt_clp(margin_val), margin_pct_label),
-        ("Ingreso MAQGO neto", fmt_clp(maqgo_val), "Estimado"),
+        ("Ventas netas", fmt_clp(sales_net), f"Servicios pagados: {services_paid} · MoM: {mom_sales}"),
+        ("Margen contribución", fmt_clp(margin_val), f"{margin_pct_label} · MoM: {mom_margin}"),
+        ("Ingreso MAQGO neto", fmt_clp(maqgo_val), f"MoM: {mom_maqgo} · Take: {take_rate_label}"),
         ("IVA neto estimado", fmt_clp(iva_neto), "Estimado contable"),
         ("Nuevos usuarios", f"{new_clients} / {new_providers}", "Clientes / Proveedores"),
         ("Nuevas maquinarias", str(new_machines), "Registradas en el mes"),
@@ -1768,6 +1906,19 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
     grid.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
     story.append(grid)
     story.append(Spacer(1, 12))
+
+    shown_insights = []
+    for it in insights:
+        t = str(it or "").strip()
+        if not t:
+            continue
+        shown_insights.append(t)
+        if len(shown_insights) >= 3:
+            break
+    if shown_insights:
+        insight_flow = [Paragraph(f"- {html_escape(m)[:240]}", styles["kpi_sub"]) for m in shown_insights]
+        story.append(card(inner=[Paragraph("Claves", styles["card_title"]), Spacer(1, 8), *insight_flow], pad=12))
+        story.append(Spacer(1, 12))
 
     two = Table([[section_card("Flujo mensual (neto)", flow_rows), section_card("Documentación proveedor", docs_rows)]], colWidths=["50%", "50%"])
     two.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
@@ -1902,7 +2053,7 @@ def _month_bounds_utc(*, year: int, month: int) -> tuple[datetime, datetime]:
     return start, end
 
 
-async def _build_monthly_finance(*, year: int, month: int) -> dict:
+async def _build_monthly_finance(*, year: int, month: int, include_prev: bool = True) -> dict:
     start, end = _month_bounds_utc(year=year, month=month)
 
     services = await db.services.find({
@@ -2007,6 +2158,7 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
     contribution_margin = sales_net - provider_payment_total
     contribution_margin_pct = (contribution_margin / sales_net * 100.0) if sales_net > 0 else 0.0
     maqgo_operating_revenue = client_commission_net + provider_commission_net
+    take_rate_pct = (maqgo_operating_revenue / sales_net * 100.0) if sales_net > 0 else None
     avg_rental_hours = (sum(rental_hours) / len(rental_hours)) if rental_hours else 0.0
     avg_rental_days = (avg_rental_hours / 8.0) if avg_rental_hours > 0 else 0.0
 
@@ -2107,6 +2259,11 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
                 "paid_without_invoice": round(sales_net_paid_without_invoice, 0),
                 "other": round(sales_net_other_docs, 0),
             },
+            "net_by_document_pct": {
+                "with_provider_invoice": (round((sales_net_with_provider_invoice / sales_net) * 100.0, 1) if sales_net > 0 else None),
+                "paid_without_invoice": (round((sales_net_paid_without_invoice / sales_net) * 100.0, 1) if sales_net > 0 else None),
+                "other": (round((sales_net_other_docs / sales_net) * 100.0, 1) if sales_net > 0 else None),
+            },
         },
         "iva": {
             "debito": round(iva_debito, 0),
@@ -2124,6 +2281,7 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
             "client_commission_net": round(client_commission_net, 0),
             "provider_commission_net": round(provider_commission_net, 0),
             "total_net": round(maqgo_operating_revenue, 0),
+            "take_rate_pct": (round(float(take_rate_pct), 2) if take_rate_pct is not None else None),
         },
         "demand": {
             "requests_created": len(reqs),
@@ -2163,6 +2321,27 @@ async def _build_monthly_finance(*, year: int, month: int) -> dict:
     if other_doc_count > 0:
         insights.append(f"Pendiente documento proveedor: {other_doc_count} servicio(s) sin evidencia de documento en sistema.")
     report["insights"] = insights[:5]
+    if include_prev:
+        prev_y, prev_m = _shift_month(year=year, month=month, months_ago=1)
+        prev = await _build_monthly_finance(year=prev_y, month=prev_m, include_prev=False)
+
+        def mom_pct(now_val, prev_val):
+            try:
+                n = float(now_val or 0)
+                p = float(prev_val or 0)
+            except Exception:
+                return None
+            if p <= 0:
+                return None
+            return round((n - p) / p * 100.0, 1)
+
+        report["mom"] = {
+            "sales_net_pct": mom_pct((report.get("sales") or {}).get("net"), (prev.get("sales") or {}).get("net")),
+            "margin_pct": mom_pct((report.get("contribution") or {}).get("margin"), (prev.get("contribution") or {}).get("margin")),
+            "maqgo_revenue_pct": mom_pct((report.get("maqgo_revenue") or {}).get("total_net"), (prev.get("maqgo_revenue") or {}).get("total_net")),
+            "services_paid_pct": mom_pct((report.get("volume") or {}).get("services_paid"), (prev.get("volume") or {}).get("services_paid")),
+            "requests_created_pct": mom_pct((report.get("demand") or {}).get("requests_created"), (prev.get("demand") or {}).get("requests_created")),
+        }
     return report
 
 
@@ -2600,11 +2779,20 @@ async def _build_weekly_report(weeks_ago: int = 0):
             por_estado["otros"] += 1
 
     review_hours = []
+    reviewed_total = 0
+    reviewed_within_24h = 0
+    reviewed_within_72h = 0
     for s in services:
         if s.get("approved_at") and s.get("created_at"):
             ca, aa = s["created_at"], s["approved_at"]
             if isinstance(ca, datetime) and isinstance(aa, datetime):
-                review_hours.append((aa - ca).total_seconds() / 3600.0)
+                dh = (aa - ca).total_seconds() / 3600.0
+                review_hours.append(dh)
+                reviewed_total += 1
+                if dh <= 24.0:
+                    reviewed_within_24h += 1
+                if dh <= 72.0:
+                    reviewed_within_72h += 1
 
     tiempo_promedio_revision_h = round(sum(review_hours) / len(review_hours), 1) if review_hours else 0.0
     tiempo_promedio_revision_min = round(tiempo_promedio_revision_h * 60, 1) if tiempo_promedio_revision_h else 0.0
@@ -2613,6 +2801,27 @@ async def _build_weekly_report(weeks_ago: int = 0):
         "status": "paid",
         "paid_at": {"$gte": start_of_week, "$lt": end_of_week}
     }).to_list(None)
+    paid_doc_with_invoice = 0
+    paid_doc_without_invoice = 0
+    paid_doc_missing = 0
+    paid_doc_total = 0
+    for s in paid_docs or []:
+        paid_doc_total += 1
+        paid_without_invoice = bool(s.get("paid_without_invoice", False))
+        if paid_without_invoice:
+            paid_doc_without_invoice += 1
+            continue
+        has_provider_invoice = (
+            (s.get("invoiceStatus") == "validated")
+            or bool(s.get("invoice_uploaded_at"))
+            or bool(s.get("invoice_number"))
+            or bool(s.get("invoiceFilename"))
+            or bool(s.get("invoice_image"))
+        )
+        if has_provider_invoice:
+            paid_doc_with_invoice += 1
+        else:
+            paid_doc_missing += 1
     gmv_week = sum(float(d.get("gross_total") or 0) for d in paid_docs)
     n_pagados_cerrados = len(paid_docs)
     rental_hours = [float(s.get("hours") or 0) for s in paid_docs if float(s.get("hours") or 0) > 0]
@@ -2789,10 +2998,22 @@ async def _build_weekly_report(weeks_ago: int = 0):
     ops = {
         "health_score": int(round(health_score, 0)),
         "review_avg_min": tiempo_promedio_revision_min,
+        "reviewed_total": int(reviewed_total),
+        "review_within_24h_pct": (round((reviewed_within_24h / reviewed_total) * 100.0, 1) if reviewed_total > 0 else None),
+        "review_within_72h_pct": (round((reviewed_within_72h / reviewed_total) * 100.0, 1) if reviewed_total > 0 else None),
         "pending_review_total": pending_review_total,
         "stuck_over_72h": stuck_over_72h,
         "disputed_total": disputed_total,
         "invoiced_total": invoiced_total,
+        "provider_doc_compliance": {
+            "total_paid": int(paid_doc_total),
+            "with_provider_invoice": int(paid_doc_with_invoice),
+            "paid_without_invoice": int(paid_doc_without_invoice),
+            "missing": int(paid_doc_missing),
+            "pct_with_provider_invoice": (round((paid_doc_with_invoice / paid_doc_total) * 100.0, 1) if paid_doc_total > 0 else None),
+            "pct_paid_without_invoice": (round((paid_doc_without_invoice / paid_doc_total) * 100.0, 1) if paid_doc_total > 0 else None),
+            "pct_missing": (round((paid_doc_missing / paid_doc_total) * 100.0, 1) if paid_doc_total > 0 else None),
+        },
         "invoiced_by_amount_bucket": {
             "lt_500k": int(invoiced_bucket_counts.get("lt_500k") or 0),
             "500k_1m": int(invoiced_bucket_counts.get("500k_1m") or 0),
@@ -2815,6 +3036,13 @@ async def _build_weekly_report(weeks_ago: int = 0):
         "wow_maqgo_revenue_pct": wow_pct(maqgo_rev_week, maqgo_rev_prev),
         "wow_completed_pct": wow_pct(n_pagados_cerrados, completed_prev),
     }
+    gmv_week_net = (float(gmv_week) / 1.19) if float(gmv_week or 0) > 0 else 0.0
+    gmv_prev_net = (float(gmv_prev) / 1.19) if float(gmv_prev or 0) > 0 else 0.0
+    take_rate = (float(maqgo_rev_week or 0) / gmv_week_net * 100.0) if gmv_week_net > 0 else None
+    take_rate_prev = (float(maqgo_rev_prev or 0) / gmv_prev_net * 100.0) if gmv_prev_net > 0 else None
+    take_rate_delta_pp = (round(float(take_rate) - float(take_rate_prev), 2) if (take_rate is not None and take_rate_prev is not None) else None)
+    business["take_rate_pct"] = (round(float(take_rate), 2) if take_rate is not None else None)
+    business["take_rate_delta_pp"] = take_rate_delta_pp
 
     insights = []
     if business.get("wow_gmv_pct") is not None:

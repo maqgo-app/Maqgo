@@ -43,6 +43,8 @@ def main() -> None:
         "business": {
             "gmv_paid_clp": 12500000,
             "maqgo_revenue_net_clp": 1650000,
+            "take_rate_pct": 12.4,
+            "take_rate_delta_pp": 0.18,
             "services_completed": 18,
             "ticket_promedio_clp": 694444,
             "avg_rental_days": 1.15,
@@ -53,6 +55,18 @@ def main() -> None:
         "ops": {
             "health_score": 82,
             "review_avg_min": 95,
+            "reviewed_total": 16,
+            "review_within_24h_pct": 62.5,
+            "review_within_72h_pct": 93.8,
+            "provider_doc_compliance": {
+                "total_paid": 18,
+                "with_provider_invoice": 14,
+                "paid_without_invoice": 2,
+                "missing": 2,
+                "pct_with_provider_invoice": 77.8,
+                "pct_paid_without_invoice": 11.1,
+                "pct_missing": 11.1,
+            },
             "pending_review_total": 6,
             "stuck_over_72h": 2,
             "disputed_total": 1,
@@ -62,7 +76,7 @@ def main() -> None:
         "marketing": {
             "funnel": {
                 "clientes": {"registrados": 24, "con_tarjeta_oneclick": 10, "con_solicitud_servicio": 8},
-                "proveedores": {"registrados": 5, "disponibles": 2, "con_primer_servicio_semana": 0},
+                "proveedores": {"registrados": 5, "onboarding_completado": 3, "disponibles": 2, "con_primer_servicio_semana": 0},
             }
         },
         "demand": {
@@ -93,7 +107,14 @@ def main() -> None:
         },
         "contribution": {"margin": 8800000, "margin_pct": 18.9},
         "iva": {"neto_a_pagar_estimado": 2900000},
-        "maqgo_revenue": {"total_net": 5820000},
+        "mom": {
+            "sales_net_pct": 8.2,
+            "margin_pct": -1.1,
+            "maqgo_revenue_pct": 5.6,
+            "services_paid_pct": 3.4,
+            "requests_created_pct": 4.8,
+        },
+        "maqgo_revenue": {"total_net": 5820000, "take_rate_pct": 12.52},
         "volume": {
             "services_paid": 71,
             "with_provider_invoice": 71,

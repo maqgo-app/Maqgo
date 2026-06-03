@@ -78,6 +78,17 @@ def main() -> None:
                 },
             },
         },
+        "demand": {
+            "requests_created": 120,
+            "top_zones": [
+                {"zone": "Lampa", "n": 13, "wow_pct": 48.0},
+                {"zone": "Quilicura", "n": 10, "wow_pct": 6.0},
+                {"zone": "Pudahuel", "n": 7, "wow_pct": -12.0},
+            ],
+        },
+        "integrations": {"komatsu": {"connected": 38, "ok_24h": 31, "stale_72h": 4, "never_sync": 3}},
+        "business": {"take_rate_pct": 12.4},
+        "ops": {"review_within_24h_pct": 62.5},
         "alertas": [
             {"tipo": "COLA_REVISION", "mensaje": "4 servicio(s) con más de 72h en revisión MAQGO."},
             {"tipo": "FACTURACION_MAQGO_CLIENTE", "mensaje": "6 pago(s) donde MAQGO debe facturar al cliente (pendiente)."},
@@ -99,6 +110,7 @@ def main() -> None:
             "new_clients": 103,
             "new_providers": 22,
             "new_machines": 41,
+            "machines_published_total": 420,
         },
         "sales": {
             "net": 46500000,
@@ -107,7 +119,7 @@ def main() -> None:
         },
         "iva": {"debito": 8800000, "credito_estimado": 5900000, "neto_a_pagar_estimado": 2900000},
         "contribution": {"sales_net": 46500000, "cost_of_sales": 37700000, "margin": 8800000, "margin_pct": 18.92},
-        "maqgo_revenue": {"client_commission_net": 4230000, "provider_commission_net": 1590000, "total_net": 5820000},
+        "maqgo_revenue": {"client_commission_net": 4230000, "provider_commission_net": 1590000, "total_net": 5820000, "take_rate_pct": 12.52},
         "marketing": {"kpi": {"CAC_cliente_registro_clp": 22500, "CAC_proveedor_registro_clp": 51000}},
         "demand": {
             "requests_created": 120,
@@ -119,6 +131,19 @@ def main() -> None:
                 {"zone": "San Bernardo", "n": 11},
             ],
         },
+        "integrations": {"komatsu": {"connected": 38, "ok_24h": 31, "stale_72h": 4, "never_sync": 3}},
+        "mom": {
+            "sales_net_pct": 8.2,
+            "margin_pct": -1.1,
+            "maqgo_revenue_pct": 5.6,
+            "services_paid_pct": 3.4,
+            "requests_created_pct": 4.8,
+        },
+        "insights": [
+            "Excavadoras lideran GMV del mes.",
+            "Las Condes concentra la mayor demanda (solicitudes).",
+            "Integración Komatsu: 4 máquinas sin actualizar (más de 72h).",
+        ],
     }
 
     weekly_pdf = _build_weekly_onepager_pdf_bytes(weekly_report)
