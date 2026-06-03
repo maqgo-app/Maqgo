@@ -7,6 +7,7 @@ import ProviderHomeScreen from './screens/provider/ProviderHomeScreen'; // Impor
 import WelcomeScreen from './screens/WelcomeScreen.jsx'; // Import directo: evita fallback a bundle antiguo en pantalla inicial
 import LoginScreen from './screens/LoginScreen.jsx'; // Import directo: evita flash Suspense (spinner) Welcome → Iniciar sesión
 import ClientHome from './screens/client/ClientHome'; // Eager: primer destino post-login/registro cliente (menos flash Suspense)
+import { hasPersistedSessionCredentials } from './utils/api';
 import BookingFlowEntry from './screens/client/BookingFlowEntry.jsx';
 import MachinerySelection from './screens/client/MachinerySelection'; // Eager: entrada típica al embudo de reserva
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen.jsx'; // Import directo: evita pantalla legacy de recuperación
@@ -60,6 +61,7 @@ function ProviderSensitiveGate({ children }) {
   let isProvider = false;
   let hasPassword = true;
   let prefillPhoneDigits = '';
+  const hasSession = hasPersistedSessionCredentials();
   try {
     const userRole = String(globalThis.localStorage?.getItem('userRole') || '').trim();
     const providerRole = String(globalThis.localStorage?.getItem('providerRole') || '').trim();
@@ -73,6 +75,19 @@ function ProviderSensitiveGate({ children }) {
     isProvider = false;
     hasPassword = true;
     prefillPhoneDigits = '';
+  }
+  if (isProvider && !hasSession) {
+    const fullPath = `${location.pathname}${location.search || ''}`;
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{
+          entry: 'provider',
+          redirect: fullPath,
+        }}
+      />
+    );
   }
   if (isProvider && !hasPassword) {
     const fullPath = `${location.pathname}${location.search || ''}`;
