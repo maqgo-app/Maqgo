@@ -52,7 +52,7 @@ export function resolveBackendBaseUrl(rawFromEnv) {
     if (!compact) {
       return 'https://api2.maqgo.cl';
     }
-    return '';
+    return 'https://api2.maqgo.cl';
   }
 
   if (raw) {
