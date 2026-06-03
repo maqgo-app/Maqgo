@@ -47,6 +47,7 @@ function ProviderHomeScreen() {
   const [isToggling, setIsToggling] = useState(false);
   const [showBankWarningModal, setShowBankWarningModal] = useState(false);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const [machineSyncFailed, setMachineSyncFailed] = useState(false);
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
@@ -151,6 +152,14 @@ function ProviderHomeScreen() {
 
     const bankDataLocal = getObject('bankData', {});
     setBankDataComplete(isBankComplete(bankDataLocal));
+
+    try {
+      const failed = localStorage.getItem('providerMachineSyncFailed') === 'true';
+      setMachineSyncFailed(failed);
+      if (failed) localStorage.removeItem('providerMachineSyncFailed');
+    } catch {
+      setMachineSyncFailed(false);
+    }
 
     // Sincronizar disponibilidad/onboarding/banco desde backend (fuente de verdad)
     const userId = localStorage.getItem('userId');
@@ -577,6 +586,45 @@ function ProviderHomeScreen() {
               }}
             >
               Ver solicitud
+            </button>
+          </div>
+        ) : null}
+
+        {machineSyncFailed ? (
+          <div
+            role="status"
+            style={{
+              background: 'rgba(255, 193, 7, 0.12)',
+              border: '1px solid rgba(255, 193, 7, 0.35)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              marginBottom: 16,
+            }}
+          >
+            <p style={{ color: '#fff', fontSize: 14, fontWeight: 800, margin: 0, lineHeight: 1.35 }}>
+              Tu perfil quedó guardado, pero falta registrar la máquina
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.4 }}>
+              Entra a “Mis Máquinas” y guarda la maquinaria para quedar operativo.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/provider/machines')}
+              style={{
+                width: '100%',
+                marginTop: 12,
+                padding: 12,
+                background: '#EC6819',
+                border: 'none',
+                borderRadius: 10,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: 'pointer',
+                lineHeight: 1.35,
+              }}
+            >
+              Ir a Mis Máquinas
             </button>
           </div>
         ) : null}

@@ -81,16 +81,40 @@ function ReviewScreen() {
       const operatorsPayload = Array.isArray(operators)
         ? operators.map(op => ({ ...op, photo: undefined }))
         : [];
-      const payload = {
+      const payloadBase = {
         providerData,
         machineData: machinePayload,
         operators: operatorsPayload,
         onboarding_completed: true,
-        email: providerData.email // Sincronizar email del paso 1 de onboarding al perfil raíz
       };
-      if (machineData?.machineryType) payload.machineryType = machineData.machineryType;
+      if (machineData?.machineryType) payloadBase.machineryType = machineData.machineryType;
 
-      await axios.patch(`${BACKEND_URL}/api/users/${userId}`, payload, { timeout: 8000 });
+      const emailCandidate = String(providerData?.email || '').trim();
+      const payloadWithEmail = emailCandidate ? { ...payloadBase, email: emailCandidate } : payloadBase;
+
+      try {
+        await axios.patch(`${BACKEND_URL}/api/users/${userId}`, payloadWithEmail, { timeout: 20000 });
+      } catch (e) {
+        const status = e?.response?.status;
+        const detail = e?.response?.data?.detail;
+        const detailText = typeof detail === 'string' ? detail : '';
+        if (status === 409 && emailCandidate) {
+          await axios.patch(`${BACKEND_URL}/api/users/${userId}`, payloadBase, { timeout: 20000 });
+          toast.warning('El correo ya está asociado a otra cuenta. Finalizamos tu registro sin correo; puedes actualizarlo luego en Perfil.');
+        } else if (status && detailText) {
+          toast.error(detailText);
+          return;
+        } else if (status === 401) {
+          toast.error('Tu sesión expiró. Inicia sesión nuevamente para finalizar el registro.');
+          navigate('/login?expired=1', { replace: true });
+          return;
+        } else if (e?.code === 'ECONNABORTED') {
+          toast.error('No pudimos guardar tu registro a tiempo. Revisa tu conexión e intenta nuevamente.');
+          return;
+        } else {
+          throw e;
+        }
+      }
 
       const pricing = getObject('machinePricing', {});
       const priceBase = Number(pricing?.priceBase || 0);
@@ -102,7 +126,17 @@ function ReviewScreen() {
         transportCost: Number(pricing?.transportCost || 0),
       };
       if (machineForInventory?.machineryType && machineForInventory?.licensePlate) {
-        await createMachineInApi(machineForInventory);
+        try {
+          await createMachineInApi(machineForInventory);
+        } catch (e) {
+          try {
+            localStorage.setItem('providerMachineSyncFailed', 'true');
+          } catch {
+            void 0;
+          }
+          const msg = String(e?.message || '').trim();
+          toast.warning(msg ? `Tu perfil quedó guardado, pero faltó registrar la máquina: ${msg}` : 'Tu perfil quedó guardado, pero faltó registrar la máquina. Intenta de nuevo desde “Mis Máquinas”.');
+        }
       }
 
       // Publicar al proveedor para pruebas reales: dejar disponible tras completar onboarding.
@@ -165,9 +199,13 @@ function ReviewScreen() {
       } else {
         navigate(getProviderLandingPath());
       }
-    } catch {
+    } catch (e) {
       if (import.meta.env.PROD) {
-        toast.error('No pudimos guardar tu registro. Revisa tu conexión e intenta nuevamente.');
+        const status = e?.response?.status;
+        const detail = e?.response?.data?.detail;
+        const detailText = typeof detail === 'string' ? detail : '';
+        if (status && detailText) toast.error(detailText);
+        else toast.error('No pudimos guardar tu registro. Revisa tu conexión e intenta nuevamente.');
         return;
       }
 

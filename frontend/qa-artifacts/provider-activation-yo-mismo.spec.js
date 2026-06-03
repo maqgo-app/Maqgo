@@ -97,6 +97,35 @@ test.describe('QA: onboarding proveedor “Yo mismo” (activación)', () => {
     await context.close();
   });
 
+  test('1b) Email ya existe: finaliza onboarding sin bloquear', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+    await installApiMocks(context, { usersPatchEmailConflictOnce: true });
+    await context.addInitScript(seedNewProviderOnboarding);
+    const page = await context.newPage();
+
+    await page.goto(`${BASE_URL}/provider/review`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForLoadState('load');
+    await page.getByRole('button', { name: 'Confirmar y Continuar' }).click();
+
+    await expect(page).toHaveURL(/\/provider\/home/);
+    await context.close();
+  });
+
+  test('1c) Falla al registrar maquinaria: no bloquea y muestra alerta en home', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+    await installApiMocks(context, { machinesPostFail: true });
+    await context.addInitScript(seedNewProviderOnboarding);
+    const page = await context.newPage();
+
+    await page.goto(`${BASE_URL}/provider/review`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForLoadState('load');
+    await page.getByRole('button', { name: 'Confirmar y Continuar' }).click();
+
+    await expect(page).toHaveURL(/\/provider\/home/);
+    await expect(page.getByText('Tu perfil quedó guardado, pero falta registrar la máquina')).toBeVisible();
+    await context.close();
+  });
+
   test('2) Persistencia real: providerMachines:<userId> existe; machineData puede borrarse; dashboard usa getMachines()', async ({ browser }) => {
     const userId = 'provider-qa-2';
     const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });

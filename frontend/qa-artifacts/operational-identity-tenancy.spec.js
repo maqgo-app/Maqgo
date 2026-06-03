@@ -403,7 +403,7 @@ test.describe('Operacional: identidad + tenancy + permisos', () => {
     const page = await context.newPage();
     await page.goto(`${BASE_URL}/provider/machines`, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('load');
-    await expect(page).toHaveURL(/\/provider\/home/);
+    await expect(page).toHaveURL(/\/provider\/data/);
     await expect(page.getByText(/acceso restringido/i)).toHaveCount(0);
     await context.close();
   });

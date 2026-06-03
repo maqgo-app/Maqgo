@@ -6,7 +6,10 @@ export function json(status, body, headers = {}) {
   };
 }
 
-export async function installApiMocks(context) {
+export async function installApiMocks(context, options = {}) {
+  const state = {
+    usersPatchCalls: 0,
+  };
   await context.route('**/api/**', async (route) => {
     const url = route.request().url();
     const method = route.request().method();
@@ -86,7 +89,44 @@ export async function installApiMocks(context) {
       return route.fulfill(json(200, { id: 'user-1', role: 'provider', available: true, name: 'Test User' }));
     }
     if (url.includes('/api/users/') && (method === 'PATCH' || method === 'PUT')) {
+      state.usersPatchCalls += 1;
+      if (options?.usersPatchEmailConflictOnce && state.usersPatchCalls === 1) {
+        let body = {};
+        try {
+          body = route.request().postDataJSON() || {};
+        } catch {
+          body = {};
+        }
+        if (body && typeof body === 'object' && body.email) {
+          return route.fulfill(json(409, { detail: 'Este correo ya está registrado. Usa otro correo o inicia sesión.' }));
+        }
+      }
       return route.fulfill(json(200, { success: true }));
+    }
+
+    if (url.includes('/api/machines') && method === 'POST') {
+      if (options?.machinesPostFail) {
+        return route.fulfill(json(500, { detail: 'No se pudo guardar maquinaria (500)' }));
+      }
+      let body = {};
+      try {
+        body = route.request().postDataJSON() || {};
+      } catch {
+        body = {};
+      }
+      const machineryType = body?.machineryType || body?.machinery_type || null;
+      const licensePlate = body?.licensePlate || body?.license_plate || null;
+      return route.fulfill(
+        json(200, {
+          ok: true,
+          machine: {
+            ...body,
+            id: `mach-${Date.now()}`,
+            ...(machineryType ? { machineryType } : {}),
+            ...(licensePlate ? { licensePlate } : {}),
+          },
+        })
+      );
     }
 
     // --- service-requests ---
