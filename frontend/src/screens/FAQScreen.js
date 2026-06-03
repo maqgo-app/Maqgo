@@ -17,7 +17,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Cuál es la tarifa por servicio?',
-        a: 'MAQGO cobra una tarifa por servicio sobre el valor del arriendo. Este monto ya está incluido en el precio que ves en la app.'
+        a: 'El precio final que ves en la app es el total a pagar por el servicio. Siempre verás el total antes de confirmar una reserva.'
       },
       {
         q: '¿Qué es la bonificación por alta demanda?',
@@ -29,7 +29,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Puedo cancelar una reserva?',
-        a: 'Sí. Tienes una ventana para cancelar gratis según la urgencia (15 min a 1 hora). Después: asignado 20%, en camino 40%, en obra 60%. Si el operador no llega (no-show), puedes reportar y cancelar sin cargo con reembolso completo. El servicio iniciado no se puede cancelar.'
+        a: 'Sí. Puedes cancelar sin cargo durante los primeros 60 minutos desde que el proveedor acepta. Pasado ese plazo y mientras el proveedor no haya registrado su llegada, aplica un cargo de cancelación del 20%. Una vez registrada la llegada, no se puede cancelar. Si el proveedor no registra su llegada dentro de 120 minutos desde la confirmación, la reserva se cancela automáticamente y se gestiona el reembolso.'
       },
       {
         q: '¿Cómo me comunico con el operador?',
@@ -37,7 +37,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Recibiré factura?',
-        a: 'Sí. MAQGO te emite la factura por la reserva. El proveedor factura a MAQGO (no a ti) por: neto + IVA menos la tarifa por servicio de la plataforma. También recibirás un Resumen de Servicio con el detalle completo.'
+        a: 'Sí. MAQGO te emite la factura por la reserva. El proveedor factura a MAQGO (no al cliente). También recibirás un Resumen de Servicio con el detalle del servicio.'
       },
       {
         q: '¿Qué pasa si el operador llega y no estoy?',
@@ -45,7 +45,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Qué pasa si el operador no llega (no-show)?',
-        a: 'Si el operador no se presenta en el tiempo acordado, puedes reportar el no-show desde la app. La cancelación será sin cargo y recibirás reembolso completo.'
+        a: 'Si el proveedor no registra su llegada, la plataforma cancela automáticamente la reserva al cumplirse 120 minutos desde la confirmación y se gestiona el reembolso.'
       },
       {
         q: '¿MAQGO es dueño de las máquinas?',
@@ -53,7 +53,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Cómo contacto a soporte?',
-        a: 'A través del botón de WhatsApp disponible en toda la app. Respondemos en horario hábil de lunes a viernes.'
+        a: 'Desde la sección de soporte disponible en la aplicación. Respondemos en horario hábil de lunes a viernes.'
       }
     ]
   },

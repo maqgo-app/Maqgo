@@ -153,21 +153,14 @@ function TermsScreen() {
           <p style={{ marginBottom: 12 }}>
             El proveedor debe facturar a MAQGO por el servicio realizado. MAQGO pone a su 
             disposición los datos de facturación una vez completado el servicio. La factura debe 
-            considerar <strong>neto + IVA menos la tarifa por servicio</strong> de la plataforma, 
-            e incluir el número de reserva único del servicio (ejemplo: MAQGO-2026-00001) para 
-            su correcta identificación.
+            incluir el número de reserva único del servicio (ejemplo: MAQGO-2026-00001) para su correcta identificación.
           </p>
           <p>
             MAQGO actúa como intermediario de cobro entre cliente y proveedor.
           </p>
         </Section>
 
-        <Section title="3. Tarifa por Servicio">
-          <p style={{ marginBottom: 12 }}>
-            MAQGO cobra una Tarifa por Servicio sobre cada transacción completada. Esta tarifa 
-            se muestra de forma transparente en el desglose del precio antes de confirmar 
-            cualquier reserva.
-          </p>
+        <Section title="3. Pagos a proveedores">
           <p>
             Los pagos a proveedores se realizan mediante depósito bancario. El proveedor 
             puede subir su factura 24 horas después de terminado el servicio; el pago se 
@@ -185,10 +178,7 @@ function TermsScreen() {
             contratadas y la urgencia del servicio. Este monto se muestra claramente 
             en el desglose antes de confirmar la reserva.
           </p>
-          <p>
-            La bonificación se traslada al proveedor como ingreso adicional por su 
-            disponibilidad, descontando la tarifa de servicio correspondiente.
-          </p>
+          <p>La bonificación se traslada al proveedor como ingreso adicional por su disponibilidad.</p>
         </Section>
 
         <Section title="5. Comunicación">
@@ -201,30 +191,16 @@ function TermsScreen() {
 
         <Section title="6. Cancelaciones">
           <p style={{ marginBottom: 12 }}>
-            Cuando el operador acepta, tu reserva queda confirmada. Tienes un tiempo para cancelar 
-            gratis (depende de la urgencia):
+            Cuando el operador acepta, tu reserva queda confirmada. Puedes cancelar sin cargo durante los primeros 60 minutos desde la confirmación.
           </p>
-          <ul style={{ paddingLeft: 20, marginBottom: 12 }}>
-            <li><strong>Urgente</strong> (menos de 2 h): si cancelas, hay cargo desde que acepten</li>
-            <li><strong>Express</strong> (2 a 4 h): 15 min para cancelar gratis</li>
-            <li><strong>Hoy</strong> (más de 4 h): 30 min para cancelar gratis</li>
-            <li><strong>Programado</strong> (otro día): 1 hora para cancelar gratis</li>
-          </ul>
           <p style={{ marginBottom: 12 }}>
-            Si cancelas después de ese tiempo:
+            Pasados los 60 minutos, y mientras el proveedor no haya registrado su llegada, aplica un cargo de cancelación del 20% del total del servicio.
           </p>
-          <ul style={{ paddingLeft: 20, marginBottom: 12 }}>
-            <li>Asignado: 20%</li>
-            <li>En camino: 40%</li>
-            <li>En obra: 60%</li>
-            <li>Ya empezó: el servicio sigue en curso</li>
-          </ul>
           <p style={{ marginBottom: 12 }}>
-            <strong>No-show del operador:</strong> Si el operador no llega (no se presenta), 
-            puedes reportar el no-show y cancelar sin cargo. La ventana para hacerlo depende de 
-            si el operador informó algo en ruta (ej. tráfico): si no informó nada, puedes 
-            cancelar sin cargo después de 60 minutos desde la hora de llegada indicada (ETA); 
-            si sí informó en ruta, después de 90 minutos desde la ETA. Recibirás reembolso completo.
+            Una vez registrada la llegada, no se puede cancelar.
+          </p>
+          <p style={{ marginBottom: 12 }}>
+            <strong>No-show del proveedor:</strong> Si el proveedor no registra su llegada, la reserva se cancela automáticamente al cumplirse 120 minutos desde la confirmación y se gestiona el reembolso.
           </p>
           <p>
             Las reservas programadas (varios días) deben ser días consecutivos. El domingo no 
@@ -280,6 +256,7 @@ function TermsScreen() {
             Para consultas, reclamos o sugerencias, contáctanos a través del chat de soporte 
             disponible en la aplicación.
           </p>
+          <p>Los reclamos deben ingresarse dentro de las primeras 24 horas desde finalizado el servicio.</p>
         </Section>
 
         <p style={{ 
