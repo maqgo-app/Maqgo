@@ -472,8 +472,7 @@ function ProviderHomeScreen() {
     navigate(route || '/provider/data');
   };
 
-  // Sin sesión e onboarding pendiente → login. Con sesión: NO forzar /provider/data (Paso 1/5);
-  // el home ya muestra checklist y "Completar registro" / CTAs (evita saltar desde Welcome "Ofrecer maquinaria").
+  // Sin sesión → login.
   if (bootstrapped && !onboardingCompleted && !hasPersistedSessionCredentials()) {
     traceRedirectToLogin('src/screens/provider/ProviderHomeScreen.js');
     return (
@@ -483,6 +482,14 @@ function ProviderHomeScreen() {
         state={{ entry: 'provider', redirect: '/provider/home' }}
       />
     );
+  }
+
+  // Con sesión pero onboarding incompleto → forzar wizard en orden (una vez).
+  if (bootstrapped && hasPersistedSessionCredentials() && !onboardingCompleted) {
+    const target = getProviderLandingPath();
+    if (target && target !== '/provider/home') {
+      return <Navigate to={target} replace />;
+    }
   }
 
   if (!bootstrapped) {
