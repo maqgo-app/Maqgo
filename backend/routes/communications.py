@@ -186,6 +186,12 @@ async def api_verify_otp(request: Request, body: VerifyOTPRequest):
         else:
             user = None
         if user:
+            roles = user.get("roles") or []
+            is_admin = user.get("role") == "admin" or ("admin" in roles if isinstance(roles, list) else False)
+            if not is_admin:
+                u_status = user.get("status") or "active"
+                if user.get("deleted") is True or u_status != "active":
+                    raise HTTPException(status_code=403, detail="Usuario inactivo")
             token = await create_session_for_user(user["id"])
             response["token"] = token
             response["userId"] = user["id"]

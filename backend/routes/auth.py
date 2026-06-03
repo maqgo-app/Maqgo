@@ -745,6 +745,17 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
         logger.info("LOGIN_SMS_START reuse userId=%s phone9=%s", user_id, phone9)
         req_role = (body.requested_role or "").strip().lower()
         roles = _user_roles(existing)
+        u_status = existing.get("status") or "active"
+        if existing.get("deleted") is True or u_status != "active":
+            log_ops_event(
+                logger,
+                event="login_sms_start_inactive_user",
+                user_id=user_id,
+                phone=_phone_tail_log(raw_phone),
+                success=False,
+                reason=u_status,
+            )
+            raise HTTPException(status_code=403, detail="Usuario inactivo")
         if req_role:
             logger.info(
                 "LOGIN_SMS_START requested_role userId=%s requested_role=%s user_roles=%s",
@@ -958,6 +969,18 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 detail="Tu cuenta está temporalmente bloqueada por seguridad. Intenta en 15 minutos.",
             )
 
+        u_status = user.get("status") or "active"
+        if user.get("deleted") is True or u_status != "active":
+            log_ops_event(
+                logger,
+                event="login_sms_verify_inactive_user",
+                user_id=user["id"],
+                phone=_phone_tail_log(raw_phone),
+                success=False,
+                reason=u_status,
+            )
+            raise HTTPException(status_code=403, detail="Usuario inactivo")
+
         result = verify_sms_otp(raw_phone, body.code)
         if not result.get("success"):
             logger.info("LOGIN_SMS_VERIFY fail phone9=%s reason=%s", phone9, result.get("error"))
@@ -1102,6 +1125,13 @@ async def verify_sms_password(request: Request, body: StepUpVerifyRequest):
     user = await db.users.find_one({"id": body.user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    roles = _user_roles(user)
+    is_admin = "admin" in roles
+    if not is_admin:
+        u_status = user.get("status") or "active"
+        if user.get("deleted") is True or u_status != "active":
+            raise HTTPException(status_code=403, detail="Usuario inactivo")
 
     if not verify_password(body.password, user.get("password", "")):
         log_ops_event(
