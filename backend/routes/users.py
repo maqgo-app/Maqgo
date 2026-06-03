@@ -76,6 +76,59 @@ def _phone9_digits(cel: str) -> str:
     return digits[-9:] if len(digits) >= 9 else digits
 
 
+def _normalize_rut(value: str) -> str:
+    raw = str(value or "").strip()
+    cleaned = re.sub(r"[^0-9kK]", "", raw)
+    if len(cleaned) < 2:
+        return ""
+    body = cleaned[:-1]
+    dv = cleaned[-1].upper()
+    if not body.isdigit():
+        return ""
+    return f"{body}-{dv}"
+
+
+def _rut_loose_regex(rut_norm: str) -> str:
+    cleaned = re.sub(r"[^0-9kK]", "", rut_norm)
+    if len(cleaned) < 2:
+        return ""
+    parts = [re.escape(ch) for ch in cleaned]
+    return r"^\D*" + r"\D*".join(parts) + r"\D*$"
+
+
+async def _assert_provider_rut_unique(rut_value: str, *, current_user_id: str) -> None:
+    rut_norm = _normalize_rut(rut_value)
+    if not rut_norm:
+        return
+    pattern = _rut_loose_regex(rut_norm)
+    if not pattern:
+        return
+    candidates = await db.users.find(
+        {
+            "$or": [{"role": "provider"}, {"roles": "provider"}],
+            "$or": [
+                {"providerData.rut": {"$regex": pattern, "$options": "i"}},
+                {"rut": {"$regex": pattern, "$options": "i"}},
+            ],
+        },
+        {"_id": 0, "id": 1, "status": 1, "deleted": 1},
+    ).to_list(50)
+    for u in candidates:
+        if u.get("id") == current_user_id:
+            continue
+        st = str(u.get("status") or "active").strip().lower()
+        is_deleted = bool(u.get("deleted")) or st == "deleted"
+        if is_deleted or st != "active":
+            raise HTTPException(
+                status_code=409,
+                detail="Esta empresa ya está registrada pero la cuenta está desactivada. Solicita reactivación a soporte.",
+            )
+        raise HTTPException(
+            status_code=409,
+            detail="Esta empresa ya está registrada. Inicia sesión con el titular o usa un código de invitación para unirte.",
+        )
+
+
 @router.post("", response_model=dict)
 async def create_user(user: UserCreate):
     """Crear usuario o fusionar rol. Deduplica por email o por teléfono (OTP)."""
@@ -407,6 +460,8 @@ async def become_provider(
         set_fields["provider_role"] = "super_master"
 
     pd_in = body.provider_data if isinstance(body.provider_data, dict) else {}
+    if pd_in and pd_in.get("rut"):
+        await _assert_provider_rut_unique(pd_in.get("rut"), current_user_id=user_id)
     if pd_in:
         prev_pd = doc.get("providerData") if isinstance(doc.get("providerData"), dict) else {}
         set_fields["providerData"] = {**prev_pd, **pd_in}
@@ -464,6 +519,10 @@ async def patch_user(
         'legalAcceptedAt',
     }
     update_data = {k: v for k, v in body.items() if k in allowed_fields}
+
+    pd_in = update_data.get("providerData")
+    if isinstance(pd_in, dict) and pd_in.get("rut"):
+        await _assert_provider_rut_unique(pd_in.get("rut"), current_user_id=user_id)
 
     plain_password = body.get("password")
     add_provider = bool(body.get("add_provider"))

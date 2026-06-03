@@ -57,7 +57,7 @@ test.describe('Smoke crítico: login SMS + embudo cliente', () => {
     await page.getByRole('button', { name: /continuar con tu celular/i }).click();
 
     await expect(page.getByTestId('inactive-user-guide')).toBeVisible({ timeout: 10_000 });
-    await page.getByRole('button', { name: /usar otro número/i }).click();
+    await page.getByRole('button', { name: /corregir número/i }).click();
     await expect(page.locator('#login-phone')).toBeVisible({ timeout: 10_000 });
 
     await context.close();

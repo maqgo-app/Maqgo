@@ -1009,7 +1009,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                     textDecoration: 'underline',
                   }}
                 >
-                  Usar otro número
+                  Corregir número
                 </button>
               </p>
             </>
@@ -1054,7 +1054,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                     cursor: 'pointer',
                   }}
                 >
-                  Usar otro número
+                  Corregir número
                 </button>
                 <button
                   type="button"

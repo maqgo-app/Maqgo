@@ -1057,7 +1057,7 @@ function ProviderRegisterScreen() {
                       cursor: 'pointer',
                     }}
                   >
-                    Usar otro número
+                  Corregir número
                   </button>
                   <button
                     type="button"
