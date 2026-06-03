@@ -404,7 +404,14 @@ async def _send_otp_auth_impl(request: Request, body: SendOtpRequest):
             phone=_phone_tail_log(phone_e164),
             success=True,
         )
-        return {"success": True, "message": "Código enviado"}
+        reused = bool(result.get("reused"))
+        ttl_seconds = result.get("ttl_seconds")
+        msg = "Código enviado"
+        if reused and ttl_seconds:
+            msg = f"Tu código sigue vigente por {max(1, int(ttl_seconds) // 60)} min. Revisa tu SMS."
+        elif reused:
+            msg = "Tu código sigue vigente. Revisa tu SMS."
+        return {"success": True, "message": msg, "reused": reused, "ttl_seconds": ttl_seconds}
 
     # --- Path 2: Recuperación email + celular ---
     email_pair = str(body.email or "").strip()
@@ -449,6 +456,13 @@ async def _send_otp_auth_impl(request: Request, body: SendOtpRequest):
             success=True,
         )
         masked_sms = _mask_phone_for_display(user.get("phone", ""))
+        reused = bool(send_result.get("reused"))
+        ttl_seconds = send_result.get("ttl_seconds")
+        msg = "Código enviado"
+        if reused and ttl_seconds:
+            msg = f"Tu código sigue vigente por {max(1, int(ttl_seconds) // 60)} min. Revisa tu SMS."
+        elif reused:
+            msg = "Tu código sigue vigente. Revisa tu SMS."
         return {
             "success": True,
             "otp_sent": True,
@@ -456,7 +470,9 @@ async def _send_otp_auth_impl(request: Request, body: SendOtpRequest):
             "channel": "sms",
             "masked_phone": masked_sms,
             "masked": {"sms": masked_sms, "email": _mask_email_for_display(user.get("email", ""))},
-            "message": "Código enviado",
+            "reused": reused,
+            "ttl_seconds": ttl_seconds,
+            "message": msg,
         }
 
     # --- Path 3: Recuperación por identifier ---
@@ -530,6 +546,14 @@ async def _send_otp_auth_impl(request: Request, body: SendOtpRequest):
         channel=selected_channel,
         success=True,
     )
+    reused = bool(send_result.get("reused")) if selected_channel == "sms" else False
+    ttl_seconds = send_result.get("ttl_seconds") if selected_channel == "sms" else None
+    msg = "Código enviado"
+    if selected_channel == "sms":
+        if reused and ttl_seconds:
+            msg = f"Tu código sigue vigente por {max(1, int(ttl_seconds) // 60)} min. Revisa tu SMS."
+        elif reused:
+            msg = "Tu código sigue vigente. Revisa tu SMS."
     return {
         "success": True,
         "otp_sent": True,
@@ -540,7 +564,9 @@ async def _send_otp_auth_impl(request: Request, body: SendOtpRequest):
             "sms": masked_sms,
             "email": _mask_email_for_display(user.get("email", "")) if "email" in channels else None,
         },
-        "message": "Código enviado",
+        "reused": reused if selected_channel == "sms" else None,
+        "ttl_seconds": ttl_seconds,
+        "message": msg,
     }
 
 
@@ -2340,21 +2366,19 @@ async def resend_code(request: Request, body: dict = Body(...)):
     
     phone_e164 = _format_phone(user.get("phone", ""))
     sms_result = send_sms_otp(phone_e164, channel='sms')
-    
-    if 'otp' in sms_result:
-        sms_code = sms_result['otp']
-    else:
-        sms_code = None
-    
-    now = datetime.now(timezone.utc).isoformat()
-    if sms_code:
-        await db.verification_codes.update_one(
-            {"userId": user_id},
-            {"$set": {"code": sms_code, "createdAt": now}},
-            upsert=True
-        )
-    
-    return {"message": "Código reenviado"}
+
+    if not sms_result.get("success"):
+        raise HTTPException(status_code=502, detail=sms_result.get("error", "No se pudo enviar el código"))
+
+    reused = bool(sms_result.get("reused"))
+    ttl_seconds = sms_result.get("ttl_seconds")
+    msg = "Código enviado"
+    if reused and ttl_seconds:
+        msg = f"Tu código sigue vigente por {max(1, int(ttl_seconds) // 60)} min. Revisa tu SMS."
+    elif reused:
+        msg = "Tu código sigue vigente. Revisa tu SMS."
+
+    return {"success": True, "message": msg, "reused": reused, "ttl_seconds": ttl_seconds}
 
 @router.post("/logout")
 async def logout(body: dict = Body(...)):

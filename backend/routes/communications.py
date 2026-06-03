@@ -124,12 +124,22 @@ async def api_send_otp(request: Request, body: SendOTPRequest):
         raise HTTPException(status_code=status, detail=err)
     
     channel_name = 'WhatsApp' if body.channel == 'whatsapp' else 'SMS'
+
+    reused = bool(result.get("reused"))
+    ttl_seconds = result.get("ttl_seconds")
+    msg = f'OTP enviado correctamente por {channel_name}' if not result.get('demo_mode') else result.get('message')
+    if reused and ttl_seconds:
+        msg = f"Tu código sigue vigente por {max(1, int(ttl_seconds) // 60)} min. Revisa tu {channel_name}."
+    elif reused:
+        msg = f"Tu código sigue vigente. Revisa tu {channel_name}."
     
     return {
         'success': True,
         'demo_mode': result.get('demo_mode', False),
         'channel': body.channel,
-        'message': f'OTP enviado correctamente por {channel_name}' if not result.get('demo_mode') else result.get('message')
+        'reused': reused,
+        'ttl_seconds': ttl_seconds,
+        'message': msg
     }
 
 
