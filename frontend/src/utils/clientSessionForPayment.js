@@ -34,6 +34,9 @@ export function getStoredProfileOptionsForBookingSync() {
     displayName: getClientDisplayNameForApi(),
     rut: needsInvoice ? String(merged.rut || '').trim() : '',
     razonSocial: needsInvoice ? String(merged.razonSocial || '').trim() : '',
+    billingType: needsInvoice ? String(merged.billingType || 'empresa') : '',
+    giro: needsInvoice ? String(merged.giro || '').trim() : '',
+    direccion: needsInvoice ? String(merged.direccion || '').trim() : '',
   };
 }
 
@@ -60,6 +63,9 @@ export async function ensureBackendSessionForClientBooking(email, options = {}) 
   const displayName = (options.displayName || '').trim();
   const rut = (options.rut || '').trim();
   const razonSocial = (options.razonSocial || '').trim();
+  const billingType = (options.billingType || '').trim();
+  const giro = (options.giro || '').trim();
+  const direccion = (options.direccion || '').trim();
   const token = localStorage.getItem('token') || localStorage.getItem('authToken');
 
   if (token) {
@@ -71,6 +77,19 @@ export async function ensureBackendSessionForClientBooking(email, options = {}) 
       timeout: 12000,
       headers: { 'Content-Type': 'application/json' },
     });
+    if (billingType === 'empresa') {
+      await axios.post(
+        `${BACKEND_URL}/api/auth/me/client-billing`,
+        {
+          billingType: 'empresa',
+          razonSocial,
+          rut,
+          giro,
+          direccion,
+        },
+        { timeout: 12000, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
     persistClientEmailToStorage(trimmed);
     if (data?.id) localStorage.setItem('userId', String(data.id));
     return;
@@ -89,6 +108,15 @@ export async function ensureBackendSessionForClientBooking(email, options = {}) 
       ...(phone && { phone }),
       ...(rut && { rut }),
       ...(razonSocial && { razon_social: razonSocial }),
+      ...(billingType === 'empresa' && {
+        clientBilling: {
+          billingType: 'empresa',
+          razonSocial,
+          rut,
+          giro,
+          direccion,
+        },
+      }),
     },
     { timeout: 12000 }
   );

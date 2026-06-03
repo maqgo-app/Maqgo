@@ -125,6 +125,14 @@ async def create_user(user: UserCreate):
             update["email"] = user_data["email"]
         if plain_password:
             update["password"] = _hash_password(plain_password)
+        if user_data.get("clientBilling") is not None:
+            update["clientBilling"] = user_data["clientBilling"]
+            cb = user_data.get("clientBilling") or {}
+            if isinstance(cb, dict):
+                if cb.get("rut") and not update.get("rut"):
+                    update["rut"] = cb.get("rut")
+                if cb.get("razonSocial") and not update.get("razon_social"):
+                    update["razon_social"] = cb.get("razonSocial")
         if new_role == "provider":
             if user_data.get("hourlyRate") is not None:
                 update["hourlyRate"] = user_data["hourlyRate"]

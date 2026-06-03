@@ -14,6 +14,15 @@ class ProviderMachinery(BaseModel):
     licensePlate: Optional[str] = None
     hourlyRate: float = 0.0
 
+
+class ClientBilling(BaseModel):
+    billingType: Optional[Literal['persona', 'empresa']] = None
+    razonSocial: Optional[str] = None
+    rut: Optional[str] = None
+    giro: Optional[str] = None
+    direccion: Optional[str] = None
+    updatedAt: Optional[str] = None
+
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     role: str  # 'client' | 'provider' (rol principal; si hay roles[], es el primero)
@@ -54,6 +63,7 @@ class User(BaseModel):
     # RUT / facturación (progressive profiling; obligatorio solo si factura)
     rut: Optional[str] = None
     razon_social: Optional[str] = None
+    clientBilling: Optional[ClientBilling] = None
     
     # Estadísticas
     totalServices: int = 0
@@ -76,6 +86,7 @@ class UserCreate(BaseModel):
     owner_id: Optional[str] = None
     rut: Optional[str] = None
     razon_social: Optional[str] = None
+    clientBilling: Optional[ClientBilling] = None
     # Login por correo (opcional en API; el registro cliente la envía tras OTP)
     password: Optional[str] = None
 

@@ -328,7 +328,6 @@ def _is_provider_activation_complete(provider: dict) -> bool:
     operator_ok = _has_any_operator(provider)
     bank_ok = _is_bank_data_complete(provider)
     location_ok = _provider_dispatch_location(provider) is not None
-
     return bool(company_ok and machine_ok and operator_ok and bank_ok and location_ok)
 
 

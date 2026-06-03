@@ -1193,6 +1193,65 @@ async def _apply_me_profile_update(body: dict, current_user: dict) -> dict:
     return {"message": "Perfil actualizado", "id": uid, **update_data}
 
 
+async def _apply_me_client_billing_update(body: dict, current_user: dict) -> dict:
+    allowed_fields = {"billingType", "razonSocial", "rut", "giro", "direccion"}
+    billing = {k: body.get(k) for k in allowed_fields if k in body}
+    billing = {k: (str(v).strip() if isinstance(v, str) else v) for k, v in billing.items()}
+    billing_type = billing.get("billingType")
+    if billing_type is not None and billing_type not in {"persona", "empresa"}:
+        raise HTTPException(status_code=400, detail="billingType inválido")
+    if not billing:
+        raise HTTPException(status_code=400, detail="No hay campos válidos para actualizar")
+    uid = current_user["id"]
+    now_iso = datetime.now(timezone.utc).isoformat()
+    billing["updatedAt"] = now_iso
+
+    update_data = {"clientBilling": billing}
+    if billing.get("rut"):
+        update_data["rut"] = billing.get("rut")
+    if billing.get("razonSocial"):
+        update_data["razon_social"] = billing.get("razonSocial")
+
+    result = await db.users.update_one({"id": uid}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return {"message": "Datos de facturación actualizados", "id": uid, **update_data}
+
+
+def _client_profile_status(user_doc: dict) -> dict:
+    email_ok = bool((user_doc.get("email") or "").strip())
+    billing = user_doc.get("clientBilling") if isinstance(user_doc.get("clientBilling"), dict) else {}
+    billing_type = billing.get("billingType")
+    billing_required = billing_type == "empresa"
+    if billing_required:
+        billing_ok = bool(
+            (billing.get("razonSocial") or "").strip()
+            and (billing.get("rut") or "").strip()
+            and (billing.get("giro") or "").strip()
+            and (billing.get("direccion") or "").strip()
+        )
+    else:
+        billing_ok = True
+    missing = []
+    if not email_ok:
+        missing.append("email")
+    if billing_required and not billing_ok:
+        if not (billing.get("razonSocial") or "").strip():
+            missing.append("billing.razonSocial")
+        if not (billing.get("rut") or "").strip():
+            missing.append("billing.rut")
+        if not (billing.get("giro") or "").strip():
+            missing.append("billing.giro")
+        if not (billing.get("direccion") or "").strip():
+            missing.append("billing.direccion")
+    return {
+        "client_profile_complete": email_ok,
+        "client_billing_required": billing_required,
+        "client_billing_complete": billing_ok,
+        "missing_fields": missing,
+    }
+
+
 @router.get("/me")
 async def auth_me(current_user: dict = Depends(get_current_user)):
     """Valida Bearer y devuelve perfil mínimo (hidratación de sesión en el cliente)."""
@@ -1209,12 +1268,27 @@ async def auth_me(current_user: dict = Depends(get_current_user)):
         "phone": current_user.get("phone"),
         "rut": current_user.get("rut"),
         "razon_social": current_user.get("razon_social"),
+        "clientBilling": current_user.get("clientBilling"),
         "legalAcceptedAt": current_user.get("legalAcceptedAt"),
         "role": effective_role,
         "roles": roles,
         "provider_role": pr,
         "owner_id": current_user.get("owner_id"),
     }
+
+
+@router.get("/me/profile-status")
+async def auth_me_profile_status(current_user: dict = Depends(get_current_user)):
+    status = _client_profile_status(current_user)
+    return {"id": current_user["id"], **status}
+
+
+@router.post("/me/client-billing")
+async def auth_post_me_client_billing(
+    body: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+):
+    return await _apply_me_client_billing_update(body, current_user)
 
 
 @router.patch("/me")
