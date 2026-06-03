@@ -146,6 +146,7 @@ function ProviderRegisterScreen() {
   /** UX: saltamos SMS porque el número ya estaba verificado en MAQGO (p. ej. cliente). */
   const [skipOtpBecauseAccountVerified, setSkipOtpBecauseAccountVerified] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [inactiveUser, setInactiveUser] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const resendTimerRef = useRef(null);
   const [errors, setErrors] = useState({
@@ -508,11 +509,16 @@ function ProviderRegisterScreen() {
         setOtpCode('');
         toast.success('Sesión lista. Completa tus datos y contraseña para crear tu perfil de proveedor.');
       } catch (err) {
+        const inactive =
+          err?.response?.status === 403 &&
+          String(err?.response?.data?.detail || '').toLowerCase().includes('inactivo');
+        setInactiveUser(inactive);
         const msg = getHttpErrorMessage(err, {
           fallback: 'No pudimos continuar. Intenta nuevamente.',
           statusMessages: {
             502: 'No pudimos enviarte el código. Intenta nuevamente.',
             429: 'Demasiados intentos. Espera un minuto e intenta de nuevo.',
+            403: 'Tu cuenta está desactivada. Usa otro número o solicita reactivación.',
           },
         });
         setErrors((e) => ({ ...e, celular: msg }));
@@ -578,10 +584,17 @@ function ProviderRegisterScreen() {
         });
       }, 1000);
     } catch (err) {
+      const inactive =
+        err?.response?.status === 403 &&
+        String(err?.response?.data?.detail || '').toLowerCase().includes('inactivo');
+      setInactiveUser(inactive);
       toast.error(
         getHttpErrorMessage(err, {
           fallback: 'No pudimos reenviar el código. Intenta nuevamente.',
-          statusMessages: { 429: 'Demasiados intentos. Espera un minuto e intenta de nuevo.' },
+          statusMessages: {
+            429: 'Demasiados intentos. Espera un minuto e intenta de nuevo.',
+            403: 'Tu cuenta está desactivada. Usa otro número o solicita reactivación.',
+          },
         })
       );
     } finally {
@@ -633,10 +646,17 @@ function ProviderRegisterScreen() {
         setOtpCode(code);
         toast.success('Código verificado. Completa tus datos y contraseña para tu perfil de proveedor.');
       } catch (err) {
+        const inactive =
+          err?.response?.status === 403 &&
+          String(err?.response?.data?.detail || '').toLowerCase().includes('inactivo');
+        setInactiveUser(inactive);
         toast.error(
           getHttpErrorMessage(err, {
             fallback: 'Código incorrecto o expirado.',
-            statusMessages: { 400: 'Código incorrecto o expirado.' },
+            statusMessages: {
+              400: 'Código incorrecto o expirado.',
+              403: 'Tu cuenta está desactivada. Usa otro número o solicita reactivación.',
+            },
           })
         );
         setOtpCode('');
@@ -931,6 +951,7 @@ function ProviderRegisterScreen() {
     setOtpCode('');
     setPhonePreverified(false);
     setSkipOtpBecauseAccountVerified(false);
+    setInactiveUser(false);
   };
 
   const handleBackToWelcome = () => {
@@ -991,12 +1012,78 @@ function ProviderRegisterScreen() {
               value={phoneDigits}
               onDigitsChange={(d) => {
                 setPhoneDigits(d);
+                if (inactiveUser) setInactiveUser(false);
                 if (errors.celular) setErrors((e) => ({ ...e, celular: '' }));
               }}
               ariaLabel="Nueve dígitos del celular, empezando con 9"
             />
             {errors.celular ? (
               <p style={{ color: '#f44336', fontSize: 12, marginTop: 8 }}>{errors.celular}</p>
+            ) : null}
+            {inactiveUser ? (
+              <div
+                data-testid="inactive-user-guide"
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: 12,
+                  padding: '12px 12px',
+                  marginTop: 12,
+                }}
+              >
+                <p style={{ color: '#fff', fontSize: 13, fontWeight: 800, margin: 0, lineHeight: 1.35 }}>
+                  Cuenta desactivada
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.45 }}>
+                  Si el número está mal escrito, corrígelo. Si es tu número real, solicita reactivación a soporte.
+                </p>
+                <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInactiveUser(false);
+                      setErrors((e) => ({ ...e, celular: '' }));
+                      setPhoneDigits('');
+                    }}
+                    style={{
+                      flex: '1 1 160px',
+                      padding: 12,
+                      background: '#EC6819',
+                      border: 'none',
+                      borderRadius: 10,
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Usar otro número
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        window.dispatchEvent(new Event('open-maqgo-assistant'));
+                      } catch {
+                        void 0;
+                      }
+                    }}
+                    style={{
+                      flex: '1 1 160px',
+                      padding: 12,
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.22)',
+                      borderRadius: 10,
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Abrir asistencia
+                  </button>
+                </div>
+              </div>
             ) : null}
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 12, lineHeight: 1.4 }}>
               Si tu celular ya está verificado en MAQGO, solo correo y contraseña de proveedor. Si no,

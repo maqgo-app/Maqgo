@@ -7,7 +7,7 @@ import { useToast } from '../../components/Toast';
 import { playNewRequestSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
 
-import BACKEND_URL from '../../utils/api';
+import BACKEND_URL, { clearLocalSession } from '../../utils/api';
 
 /**
  * Panel del Proveedor
@@ -135,6 +135,19 @@ function ProviderAvailability({ userId: userIdProp }) {
       if (error.response?.status === 404) {
         setIsAvailable(!newStatus);
         toast.error('Tu sesión expiró. Cierra sesión y vuelve a entrar.');
+      } else if (error.response?.status === 403) {
+        const detail = error.response?.data?.detail;
+        const text = typeof detail === 'string' ? detail : '';
+        if (text.toLowerCase().includes('inactivo')) {
+          setIsAvailable(!newStatus);
+          setLoading(false);
+          toast.error('Tu cuenta está desactivada. Usa otro número o solicita reactivación.');
+          clearLocalSession();
+          navigate('/login?inactive=1', { replace: true });
+          return;
+        }
+        setIsAvailable(!newStatus);
+        toast.error(text || 'No se pudo conectar. Intenta de nuevo.');
       } else if (error.response?.status === 409) {
         setIsAvailable(!newStatus);
         const detail = error.response?.data?.detail;

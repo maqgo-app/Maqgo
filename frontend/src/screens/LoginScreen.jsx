@@ -142,6 +142,7 @@ function LoginScreen({ setUserRole, setUserId }) {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [inactiveUser, setInactiveUser] = useState(false);
   /** Mensaje informativo (no error) tras enviar código: p. ej. canal email si SMS falló en backend */
   const [otpHint, setOtpHint] = useState('');
   /** userId temporal para el paso de Step-Up (contraseña tras OTP) */
@@ -160,6 +161,7 @@ function LoginScreen({ setUserRole, setUserId }) {
       setEmail('');
       setPassword('');
       setError('');
+      setInactiveUser(false);
     }
   }, [showEmailPasswordToggle, loginMode]);
 
@@ -436,6 +438,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     }
     setLoading(true);
     setError('');
+    setInactiveUser(false);
     setOtpHint('');
 
     try {
@@ -474,6 +477,10 @@ function LoginScreen({ setUserRole, setUserId }) {
       setOtpHint(hint);
       setStep('otp');
     } catch (e) {
+      const inactive =
+        e?.response?.status === 403 &&
+        String(e?.response?.data?.detail || '').toLowerCase().includes('inactivo');
+      setInactiveUser(inactive);
       setError(
         getHttpErrorMessage(e, {
           fallback: 'No pudimos enviarte el código. Intenta nuevamente.',
@@ -481,6 +488,7 @@ function LoginScreen({ setUserRole, setUserId }) {
             404:
               'Inicio de sesión por celular no disponible (404). Revisa conexión, actualiza la página o confirma que la API en producción incluya login por SMS.',
             429: 'Demasiados intentos. Espera un minuto e intenta de nuevo.',
+            403: 'Tu cuenta está desactivada. Usa otro número o solicita reactivación.',
           },
         })
       );
@@ -498,6 +506,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     }
     setLoading(true);
     setError('');
+    setInactiveUser(false);
     try {
       const res = await axios.post(
         `${BACKEND_URL}/api/auth/login`,
@@ -506,12 +515,17 @@ function LoginScreen({ setUserRole, setUserId }) {
       );
       applySessionAndNavigate(res.data, { authSource: 'email' });
     } catch (e) {
+      const inactive =
+        e?.response?.status === 403 &&
+        String(e?.response?.data?.detail || '').toLowerCase().includes('inactivo');
+      setInactiveUser(inactive);
       setError(
         getHttpErrorMessage(e, {
           fallback: 'No pudimos iniciar sesión. Revisa tus datos e intenta de nuevo.',
           statusMessages: {
             401: 'Correo o contraseña incorrectos.',
             429: 'Demasiados intentos. Espera un momento e intenta de nuevo.',
+            403: 'Tu cuenta está desactivada. Solicita reactivación.',
           },
         })
       );
@@ -528,6 +542,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     if (!phone || digits.length !== 6) return;
     setLoading(true);
     setError('');
+    setInactiveUser(false);
 
     try {
       const nine = String(phone || '').replace(/\D/g, '');
@@ -560,6 +575,10 @@ function LoginScreen({ setUserRole, setUserId }) {
 
       applySessionAndNavigate(res.data, { authSource: 'sms' });
     } catch (e) {
+      const inactive =
+        e?.response?.status === 403 &&
+        String(e?.response?.data?.detail || '').toLowerCase().includes('inactivo');
+      setInactiveUser(inactive);
       setError(
         getHttpErrorMessage(e, {
           fallback: 'El código no es correcto. Intenta nuevamente.',
@@ -567,6 +586,7 @@ function LoginScreen({ setUserRole, setUserId }) {
             400: 'El código no es correcto. Intenta nuevamente.',
             404:
               'No pudimos validar el código (404). Revisa conexión o que la API esté actualizada.',
+            403: 'Tu cuenta está desactivada. Usa otro número o solicita reactivación.',
           },
         })
       );
@@ -579,6 +599,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     if (loading || !password) return;
     setLoading(true);
     setError('');
+    setInactiveUser(false);
     try {
       const deviceId = getDeviceId();
       const payload = {
@@ -597,12 +618,17 @@ function LoginScreen({ setUserRole, setUserId }) {
       );
       applySessionAndNavigate(res.data, { authSource: 'sms' });
     } catch (e) {
+      const inactive =
+        e?.response?.status === 403 &&
+        String(e?.response?.data?.detail || '').toLowerCase().includes('inactivo');
+      setInactiveUser(inactive);
       setError(
         getHttpErrorMessage(e, {
           fallback: 'Contraseña incorrecta. Intenta nuevamente.',
           statusMessages: {
             401: 'Contraseña incorrecta.',
             429: 'Demasiados intentos. Espera un momento.',
+            403: 'Tu cuenta está desactivada. Solicita reactivación.',
           },
         })
       );
@@ -619,6 +645,7 @@ function LoginScreen({ setUserRole, setUserId }) {
 
   const goBackToPhone = () => {
     setError('');
+    setInactiveUser(false);
     setOtpHint('');
     setStep('phone');
     setCode('');
@@ -992,6 +1019,68 @@ function LoginScreen({ setUserRole, setUserId }) {
             <p style={{ color: '#ff6b6b', fontSize: 14, textAlign: 'center', marginTop: 10 }}>
               {error}
             </p>
+          )}
+
+          {inactiveUser && (
+            <div
+              data-testid="inactive-user-guide"
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 12,
+                padding: '14px 12px',
+                marginTop: 14,
+              }}
+            >
+              <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: 0, lineHeight: 1.35 }}>
+                Cuenta desactivada
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.45 }}>
+                Si el número está mal escrito, vuelve y corrígelo. Si es tu número real, MAQGO debe reactivarte la cuenta.
+              </p>
+              <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={goBackToPhone}
+                  style={{
+                    flex: '1 1 160px',
+                    padding: 12,
+                    background: '#EC6819',
+                    border: 'none',
+                    borderRadius: 10,
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Usar otro número
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      window.dispatchEvent(new Event('open-maqgo-assistant'));
+                    } catch {
+                      void 0;
+                    }
+                  }}
+                  style={{
+                    flex: '1 1 160px',
+                    padding: 12,
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.22)',
+                    borderRadius: 10,
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Abrir asistencia
+                </button>
+              </div>
+            </div>
           )}
 
           {loginMode === 'sms' && hasPersistedSession && (

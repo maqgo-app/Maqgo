@@ -43,6 +43,26 @@ test.describe('Smoke crítico: login SMS + embudo cliente', () => {
     await context.close();
   });
 
+  test('login: usuario inactivo muestra guía y permite usar otro número', async ({ browser }) => {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+    });
+    await installApiMocks(context, { loginSmsStartInactive: true });
+    const page = await context.newPage();
+
+    await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.waitForLoadState('load');
+
+    await fillLoginPhone(page, '912345678');
+    await page.getByRole('button', { name: /continuar con tu celular/i }).click();
+
+    await expect(page.getByTestId('inactive-user-guide')).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: /usar otro número/i }).click();
+    await expect(page.locator('#login-phone')).toBeVisible({ timeout: 10_000 });
+
+    await context.close();
+  });
+
   test('P1 maquinaria: CTA Continuar visible (viewport móvil, cliente logueado)', async ({
     browser,
   }) => {

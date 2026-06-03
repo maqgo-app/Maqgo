@@ -6,7 +6,7 @@ import axios from 'axios';
 import { getAndClearProviderReturnUrl } from '../../utils/registrationReturn';
 import MaqgoLogo from '../../components/MaqgoLogo';
 
-import BACKEND_URL from '../../utils/api';
+import BACKEND_URL, { clearLocalSession } from '../../utils/api';
 import { MACHINERY_NAMES, getMachineryCapacityOptions, getProviderSpecLabelShort } from '../../utils/machineryNames';
 import { getObject } from '../../utils/safeStorage';
 import { createMachineInApi, upsertOnboardingMachine } from '../../utils/providerMachines';
@@ -101,6 +101,11 @@ function ReviewScreen() {
         if (status === 409 && emailCandidate) {
           await axios.patch(`${BACKEND_URL}/api/users/${userId}`, payloadBase, { timeout: 20000 });
           toast.warning('El correo ya está asociado a otra cuenta. Finalizamos tu registro sin correo; puedes actualizarlo luego en Perfil.');
+        } else if (status === 403 && detailText.toLowerCase().includes('inactivo')) {
+          toast.error('Tu cuenta está desactivada. Usa otro número o solicita reactivación.');
+          clearLocalSession();
+          navigate('/login?inactive=1', { replace: true });
+          return;
         } else if (status && detailText) {
           toast.error(detailText);
           return;
@@ -204,6 +209,12 @@ function ReviewScreen() {
         const status = e?.response?.status;
         const detail = e?.response?.data?.detail;
         const detailText = typeof detail === 'string' ? detail : '';
+        if (status === 403 && detailText.toLowerCase().includes('inactivo')) {
+          toast.error('Tu cuenta está desactivada. Usa otro número o solicita reactivación.');
+          clearLocalSession();
+          navigate('/login?inactive=1', { replace: true });
+          return;
+        }
         if (status && detailText) toast.error(detailText);
         else toast.error('No pudimos guardar tu registro. Revisa tu conexión e intenta nuevamente.');
         return;

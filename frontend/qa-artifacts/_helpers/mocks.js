@@ -16,6 +16,9 @@ export async function installApiMocks(context, options = {}) {
 
     // --- Login SMS (más específico que /api/auth/login legacy) ---
     if (url.includes('/api/auth/login-sms/start') && method === 'POST') {
+      if (options?.loginSmsStartInactive) {
+        return route.fulfill(json(403, { detail: 'Usuario inactivo' }));
+      }
       return route.fulfill(
         json(200, {
           success: true,
@@ -28,6 +31,9 @@ export async function installApiMocks(context, options = {}) {
       );
     }
     if (url.includes('/api/auth/login-sms/verify') && method === 'POST') {
+      if (options?.loginSmsVerifyInactive) {
+        return route.fulfill(json(403, { detail: 'Usuario inactivo' }));
+      }
       return route.fulfill(
         json(200, {
           id: 'user-sms-1',
