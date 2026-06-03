@@ -58,19 +58,20 @@ function ProviderAddMachineRedirect() {
 function ProviderSensitiveGate({ children }) {
   const location = useLocation();
   let isProvider = false;
-  let hasPassword = false;
+  let hasPassword = true;
   let prefillPhoneDigits = '';
   try {
     const userRole = String(globalThis.localStorage?.getItem('userRole') || '').trim();
     const providerRole = String(globalThis.localStorage?.getItem('providerRole') || '').trim();
     isProvider = userRole === 'provider' || Boolean(providerRole);
-    hasPassword = globalThis.localStorage?.getItem('hasPassword') === '1';
+    const stored = String(globalThis.localStorage?.getItem('hasPassword') || '').trim();
+    hasPassword = stored !== '0';
     const rawPhone = String(globalThis.localStorage?.getItem('userPhone') || '');
     const digits = rawPhone.replace(/\D/g, '').slice(-9);
     if (digits.length === 9 && digits.startsWith('9')) prefillPhoneDigits = digits;
   } catch {
     isProvider = false;
-    hasPassword = false;
+    hasPassword = true;
     prefillPhoneDigits = '';
   }
   if (isProvider && !hasPassword) {
