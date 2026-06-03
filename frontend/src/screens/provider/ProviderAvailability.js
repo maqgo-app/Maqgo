@@ -135,9 +135,13 @@ function ProviderAvailability({ userId: userIdProp }) {
       if (error.response?.status === 404) {
         setIsAvailable(!newStatus);
         toast.error('Tu sesión expiró. Cierra sesión y vuelve a entrar.');
+      } else if (error.response?.status === 409) {
+        setIsAvailable(!newStatus);
+        const detail = error.response?.data?.detail;
+        toast.error(typeof detail === 'string' ? detail : 'Completa tu activación antes de conectarte.');
       } else if (isNetwork) {
-        setIsAvailable(newStatus);
-        toast.success('Sin conexión. Se guardó localmente.');
+        setIsAvailable(!newStatus);
+        toast.error('No se pudo guardar tu disponibilidad. Revisa tu conexión e intenta de nuevo.');
       } else {
         setIsAvailable(!newStatus);
         toast.error('No se pudo conectar. Intenta de nuevo.');
