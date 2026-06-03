@@ -7,7 +7,7 @@ import { useToast } from '../../components/Toast';
 import axios from 'axios';
 
 // Radio máximo para validar llegada (en metros)
-const ARRIVAL_RADIUS_METERS = 150;
+const ARRIVAL_RADIUS_METERS = 300;
 
 // Radio para notificar al cliente (vía MAQGO: chat/push interno)
 const ARRIVING_NOTIFY_RADIUS_METERS = 500;
@@ -26,7 +26,7 @@ import { isPerTripMachineryType } from '../../utils/machineryNames';
  * - Dirección de destino con botón para abrir navegación
  * - ETA estimado
  * - Datos del cliente
- * - Botón para confirmar llegada (requiere GPS ≤150m)
+ * - Botón para confirmar llegada (requiere GPS ≤300m)
  * - Botón para reportar incidente (evita bloqueo por No-Show)
  */
 function EnRouteScreen() {

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from auth_dependency import get_current_user, get_current_admin_strict
 from models.service_request import ServiceRequest, ServiceRequestCreate, Location, calculate_commissions
-from pricing.business_rules import LATE_CANCELLATION_FEE_PERCENT
+from pricing.business_rules import LATE_CANCELLATION_FEE_PERCENT, FREE_CANCELLATION_WINDOW_MINUTES
 from services.utils import haversine_meters
 from services.matching_service import (
     start_matching,
@@ -1170,7 +1170,7 @@ async def cancel_service_client(
         refund_amount = 0
         cancel_event = {"type": "cancelled_client", **base_cancel_event}
     else:
-        if minutes_elapsed > 90:
+        if minutes_elapsed > FREE_CANCELLATION_WINDOW_MINUTES:
             cancelation_fee = int(total_client * LATE_CANCELLATION_FEE_PERCENT)
             refund_amount = total_client - cancelation_fee
             new_status = 'cancelled_with_fee'
@@ -1345,7 +1345,7 @@ async def mark_arrival(
 ):
     """
     Proveedor marca llegada validada por GPS.
-    Distancia máxima 500m desde jobLocation.
+    Distancia máxima 300m desde jobLocation.
     """
     request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
     if not request:
@@ -1410,11 +1410,11 @@ async def mark_arrival(
     lng = float(lng)
     distance_meters = haversine_meters(job_lat, job_lng, lat, lng)
 
-    verified = distance_meters <= 500
+    verified = distance_meters <= 300
     if not verified and source == "gps" and not force_manual:
         raise HTTPException(
             status_code=400,
-            detail=f"Ubicación fuera de rango. Distancia: {distance_meters:.0f}m (máx 500m)"
+            detail=f"Ubicación fuera de rango. Distancia: {distance_meters:.0f}m (máx 300m)"
         )
 
     arrival_location = {

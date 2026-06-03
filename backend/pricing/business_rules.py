@@ -131,7 +131,7 @@ SUSPENSION_DAYS = 7
 # =============================================================================
 
 # Plazo máximo para presentar reclamo (en horas) - vía WhatsApp soporte
-CLAIM_DEADLINE_HOURS = 48  # Reclamos en paralelo, no bloquean pago
+CLAIM_DEADLINE_HOURS = 24  # Reclamos en paralelo, no bloquean pago
 
 # Plazo para resolución de MAQGO (en horas hábiles)
 CLAIM_RESOLUTION_HOURS = 72
