@@ -341,6 +341,7 @@ admin_notifications_router = None
 marketing_kpi_router = None
 marketing_cron_router = None
 chatbot_router = None
+support_router = None
 public_stats_router = None
 bookings_router = None
 machines_router = None
@@ -451,6 +452,11 @@ try:
 except Exception as e:
     logger.error(f"ROUTER FAILED: chatbot - {e}")
 try:
+    from routes.support_tickets import router as support_router  # type: ignore
+    logger.info("ROUTER LOADED: support")
+except Exception as e:
+    logger.error(f"ROUTER FAILED: support - {e}")
+try:
     from routes.public_stats import router as public_stats_router  # type: ignore
     logger.info("ROUTER LOADED: public_stats")
 except Exception as e:
@@ -555,6 +561,7 @@ _include_if_present(admin_notifications_router, "admin_notifications")
 _include_if_present(marketing_kpi_router, "marketing_kpi")
 _include_if_present(marketing_cron_router, "marketing_cron")
 _include_if_present(chatbot_router, "chatbot")
+_include_if_present(support_router, "support")
 _include_if_present(public_stats_router, "public_stats")
 _include_if_present(bookings_router, "bookings")
 

@@ -109,6 +109,7 @@ function ProviderSensitiveGate({ children }) {
 // Code-splitting: pantallas se cargan bajo demanda (menor bundle inicial, carga más rápida)
 // Públicas
 const ServiceChatScreen = lazy(() => import('./screens/ServiceChatScreen.jsx'));
+const SupportAccessScreen = lazy(() => import('./screens/SupportAccessScreen.jsx'));
 
 // Cliente
 const UrgencySelectionScreen = lazy(() => import('./screens/client/UrgencySelectionScreen'));
@@ -340,6 +341,7 @@ function AppContent() {
         <Route path="/welcome" element={<WelcomeScreen />} />
         <Route path="/login" element={<LoginScreen setUserRole={setUserRole} setUserId={setUserId} />} />
         <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
+        <Route path="/support/access" element={<SupportAccessScreen />} />
         <Route path="/select-role" element={<Navigate to="/" replace />} />
         
         {/* Rutas Públicas de Registro y Ayuda */}

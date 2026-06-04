@@ -1059,11 +1059,9 @@ function LoginScreen({ setUserRole, setUserId }) {
                 <button
                   type="button"
                   onClick={() => {
-                    try {
-                      window.dispatchEvent(new Event('open-maqgo-assistant'));
-                    } catch {
-                      void 0;
-                    }
+                    navigate('/support/access?reason=inactive_user', {
+                      state: { reason: 'inactive_user', requestedRole: entry || null, prefillPhoneDigits: phone || lastKnownPhone9() },
+                    });
                   }}
                   style={{
                     flex: '1 1 160px',
@@ -1077,7 +1075,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                     cursor: 'pointer',
                   }}
                 >
-                  Abrir asistencia
+                  Solicitar ayuda
                 </button>
               </div>
             </div>
