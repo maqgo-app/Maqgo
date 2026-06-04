@@ -1033,10 +1033,10 @@ function LoginScreen({ setUserRole, setUserId }) {
               }}
             >
               <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: 0, lineHeight: 1.35 }}>
-                Cuenta desactivada
+                No pudimos validar tu acceso
               </p>
               <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.45 }}>
-                Si el número está mal escrito, vuelve y corrígelo. Si es tu número real, MAQGO debe reactivarte la cuenta.
+                Tu cuenta está desactivada o requiere revisión. Si el número está mal escrito, corrígelo. Si es tu número real, solicita ayuda y lo revisamos.
               </p>
               <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
                 <button
