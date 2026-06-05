@@ -322,10 +322,10 @@ function TeamManagementScreen() {
     const c = String(code || '').trim().toUpperCase();
     if (type === 'master') {
       const link = buildMasterJoinLink(c, permsOverride || masterInvitePermissions);
-      return `Tu código de acceso MAQGO (Gerente) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy gerente”\n3) Ingresa el código\n\nLink directo:\n${link}\n\nVálido por 7 días.\nUso único (1 persona).`;
+      return `Tu código MAQGO para crear usuario Master (Gestión) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy gerente / Master”\n3) Ingresa el código\n\nLuego iniciarás sesión con tu celular usando un código SMS (MAQGO).\n\nLink directo:\n${link}\n\nVálido por 7 días.\nUso único (1 persona).`;
     }
     const link = buildOperatorJoinLink(c);
-    return `Tu código de activación MAQGO (Operador) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy operador (tengo código)”\n3) Ingresa el código\n\nLink directo:\n${link}\n\nVálido por 7 días.`;
+    return `Tu código MAQGO de autenticación (Operador) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy operador (tengo código)”\n3) Ingresa el código\n\nEste código lo genera tu empresa (no es el código SMS).\n\nLink directo:\n${link}\n\nVálido por 7 días.`;
   };
 
   useEffect(() => {
@@ -1218,20 +1218,21 @@ function TeamManagementScreen() {
                   {inviteType === 'master' ? (
                     <>
                       <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
-                        <strong>Acceso de gerentes</strong>: genera un código para que una persona se una como{' '}
-                        <strong>gerente</strong> de tu empresa (cuenta de gestión).
+                        <strong>Creación de usuario Master (gestión)</strong>: genera un código para que una persona cree un{' '}
+                        <strong>usuario master</strong> dentro de tu empresa (cuenta de gestión).
                       </p>
                       <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
-                        Este acceso es para <strong>gestión</strong> (no es operar una máquina).
+                        Este usuario es para <strong>gestión</strong>. Luego inicia sesión con su celular usando <strong>código SMS</strong>.
                       </p>
                     </>
                   ) : (
                     <>
                       <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
-                        <strong>Operadores de maquinaria</strong>: genera un código para que un operador se registre y quede
-                        vinculado a tu empresa.
+                        <strong>Autenticación de operador</strong>: genera un código para que un operador se registre y quede vinculado a tu empresa.
                       </p>
                       <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
+                        Este código lo genera tu empresa (no es el código SMS).
+                        <br />
                         La <strong>asignación operador ↔ máquina</strong> se hace en{' '}
                         <Link to="/provider/machines" style={{ color: '#EC6819', fontWeight: 600 }}>
                           Mis máquinas
@@ -1252,8 +1253,8 @@ function TeamManagementScreen() {
                   }}
                 >
                   {inviteType === 'master'
-                    ? 'Genera un código y compártelo con tu gerente.'
-                    : 'Genera un código y envíaselo a tu operador.'}
+                    ? 'Genera un código y compártelo con la persona que creará el usuario master.'
+                    : 'Genera un código y compártelo con tu operador.'}
                 </p>
 
                 {/* Datos del operador cuando la invitación es para operador */}
@@ -1551,7 +1552,7 @@ function TeamManagementScreen() {
                             onClick={() =>
                               setMasterInvitePermissions((prev) => ({
                                 ...(prev || {}),
-                                [it.k]: !Boolean(prev?.[it.k]),
+                                [it.k]: !prev?.[it.k],
                               }))
                             }
                             style={{
@@ -1592,7 +1593,7 @@ function TeamManagementScreen() {
                         );
                       })}
                       <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, margin: '6px 0 0' }}>
-                        Define los permisos antes de generar el código: viajan en el link y se guardan en el dispositivo del gerente (no backend).
+                        Define los permisos antes de generar el código: viajan en el link y se guardan en el dispositivo del usuario master (no backend).
                       </p>
                     </div>
                   </div>
@@ -1608,8 +1609,8 @@ function TeamManagementScreen() {
                   {inviting
                     ? 'Generando...'
                     : inviteType === 'master'
-                      ? 'Generar código de acceso'
-                      : 'Generar código de activación'}
+                      ? 'Generar código (Master)'
+                      : 'Generar código (Operador)'}
                 </button>
               </>
             ) : (
@@ -1645,7 +1646,7 @@ function TeamManagementScreen() {
                   fontSize: 13, 
                   margin: '0 0 25px'
                 }}>
-                  {inviteType === 'master' ? 'Para nuevo Gerente' : 'Para nuevo Operador'}
+                  {inviteType === 'master' ? 'Para crear usuario Master (gestión)' : 'Para autenticar Operador'}
                 </p>
 
                 {Array.isArray(batchInvites) && batchInvites.length > 1 && (
@@ -1728,7 +1729,7 @@ function TeamManagementScreen() {
                     fontSize: 12, 
                     margin: '12px 0 0'
                   }}>
-                    {inviteType === 'master' ? 'Válido por 7 días · Uso único (1 persona)' : 'Válido por 7 días'}
+                    {inviteType === 'master' ? 'Válido por 7 días · Uso único (1 persona)' : 'Válido por 7 días · Uso único (1 persona)'}
                   </p>
                 </div>
 
@@ -1881,8 +1882,8 @@ function TeamManagementScreen() {
                   </p>
                   <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '6px 0 0' }}>
                     {inviteType === 'master'
-                      ? 'MAQGO no envía este código por WhatsApp ni SMS: debes compartirlo tú con el futuro gerente.'
-                      : 'MAQGO no envía mensajes automáticos al operador.'}
+                      ? 'Este código lo genera tu empresa. MAQGO solo envía el código SMS cuando el usuario master inicia sesión con su celular.'
+                      : 'Este código lo genera tu empresa. El operador queda vinculado a tu empresa al ingresarlo.'}
                   </p>
                 </div>
 

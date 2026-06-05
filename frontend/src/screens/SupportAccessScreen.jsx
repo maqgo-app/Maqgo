@@ -57,16 +57,11 @@ function SupportAccessScreen() {
   const submit = async () => {
     setError('');
     const p9 = normalizePhone9(phone9);
-    if (p9.length !== 9) {
-      setError('Ingresa tu celular (9 dígitos).');
-      setTimeout(() => phoneRef.current?.focus?.(), 0);
-      return;
-    }
     setLoading(true);
     try {
       const payload = {
         reason,
-        phone9: p9,
+        ...(p9.length === 9 ? { phone9: p9 } : {}),
         ...(email.trim() ? { email: email.trim().toLowerCase() } : {}),
         ...(rut.trim() ? { rut: rut.trim() } : {}),
         ...(requestedRole ? { requested_role: requestedRole } : {}),
@@ -123,7 +118,7 @@ function SupportAccessScreen() {
         ) : (
           <>
             <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-              Tu celular <span style={{ color: '#EC6819' }}>*</span>
+              Tu celular (opcional)
             </label>
             <PhoneNationalInput
               value={phone9}
@@ -131,6 +126,9 @@ function SupportAccessScreen() {
               ariaLabel="Nueve dígitos del celular, empezando con 9"
               inputRef={phoneRef}
             />
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
+              Si no ingresas celular o correo, igual creamos el ticket, pero puede ser más difícil contactarte para resolverlo.
+            </p>
 
             <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '14px 0 6px', display: 'block' }}>
               Correo (opcional)
@@ -192,4 +190,3 @@ function SupportAccessScreen() {
 }
 
 export default SupportAccessScreen;
-

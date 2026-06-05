@@ -273,6 +273,11 @@ export async function installApiMocks(context, options = {}) {
       return route.fulfill(json(200, { ok: true }));
     }
 
+    // --- Support tickets (acceso) ---
+    if (url.includes('/api/support/tickets') && method === 'POST') {
+      return route.fulfill(json(200, { success: true, ticket_id: 'test-ticket-1' }));
+    }
+
     // Default: no romper pantallas por endpoints accesorios.
     return route.fulfill(json(200, { ok: true }));
   });

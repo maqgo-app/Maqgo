@@ -179,7 +179,7 @@ function OperatorJoinScreen() {
               margin: '0 0 10px',
               fontFamily: "'Space Grotesk', sans-serif"
             }}>
-              Únete como Operador
+              Autenticación de Operador
             </h1>
             <p style={{ 
               color: 'rgba(255,255,255,0.9)', 
@@ -188,7 +188,7 @@ function OperatorJoinScreen() {
               margin: '0 0 30px',
               lineHeight: 1.5
             }}>
-              Ingresa el código que te compartió tu empresa. En segundos quedas listo para trabajar.
+              Ingresa el código que te compartió tu empresa (no es el código SMS). En segundos quedas listo para trabajar.
             </p>
 
             {/* Input de código */}
@@ -249,7 +249,7 @@ function OperatorJoinScreen() {
 
             <div style={{ marginTop: 30, textAlign: 'center' }}>
               <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-                ¿No tienes código? Pídelo al dueño de la empresa
+                ¿No tienes código? Pídelo al titular (supermaster) de la empresa
               </p>
             </div>
           </>

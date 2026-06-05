@@ -176,10 +176,10 @@ function MasterJoinScreen() {
         </div>
         <MaqgoLogo size="medium" style={{ marginBottom: 24 }} />
         <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 700, textAlign: 'center', margin: '0 0 10px' }}>
-          Acceso de Gerente
+          Creación de usuario Master
         </h2>
         <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, textAlign: 'center', margin: '0 0 22px', lineHeight: 1.45 }}>
-          Ingresa el código que te compartió tu empresa. Luego iniciarás sesión con tu celular.
+          Ingresa el código que te compartió tu empresa para crear tu usuario master (gestión). Luego iniciarás sesión con tu celular usando un código SMS (MAQGO).
         </p>
 
         <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
