@@ -1060,7 +1060,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                   type="button"
                   onClick={() => {
                     navigate('/support/access?reason=inactive_user', {
-                      state: { reason: 'inactive_user', requestedRole: entry || null, prefillPhoneDigits: phone || lastKnownPhone9() },
+                      state: { reason: 'inactive_user', requestedRole: entry || null, prefillPhoneDigits: phone || getHydratedPhoneDigitsFromStorage() },
                     });
                   }}
                   style={{

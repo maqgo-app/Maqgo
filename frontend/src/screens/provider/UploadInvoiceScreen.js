@@ -28,10 +28,7 @@ function UploadInvoiceScreen() {
   const fileInputRef = useRef(null);
   const serviceFromState = location.state?.service;
   const canViewFinances = can('canViewFinances') || can('can_view_finance');
-
-  if (!canViewFinances) {
-    return <Navigate to="/provider/home" replace />;
-  }
+  const blocked = !canViewFinances;
 
   const [service, setService] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -41,6 +38,7 @@ function UploadInvoiceScreen() {
   const [imagePreview, setImagePreview] = useState(null);
 
   const loadService = useCallback(async () => {
+    if (blocked) return;
     if (serviceFromState) {
       setService(normalizeServiceFromVoucher(serviceFromState));
       setLoading(false);
@@ -93,11 +91,12 @@ function UploadInvoiceScreen() {
     } finally {
       setLoading(false);
     }
-  }, [serviceFromState, serviceId]);
+  }, [blocked, serviceFromState, serviceId]);
 
   useEffect(() => {
+    if (blocked) return;
     loadService();
-  }, [loadService]);
+  }, [blocked, loadService]);
 
   const normalizeServiceFromVoucher = (s) => {
     const serviceAmount = s.serviceAmount || 0;
@@ -219,6 +218,10 @@ function UploadInvoiceScreen() {
 
   const formatPrice = (amount) =>
     new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(amount || 0);
+
+  if (blocked) {
+    return <Navigate to="/provider/home" replace />;
+  }
 
   if (loading) {
     return (

@@ -37,6 +37,7 @@ function MyMachinesScreen() {
   const canAssignOperator = hasPermission('canAssignOperator');
   const canManageOperators = hasPermission('canManageOperators');
   const canAssignOperators = canAssignOperator || canManageOperators;
+  const blocked = !canManageMachines;
   const activationEdit = Boolean(location.state?.activationEdit);
   const returnTo = String(location.state?.returnTo || '/provider/home');
   const openOperatorForMachineId = location.state?.openOperatorForMachineId;
@@ -48,13 +49,10 @@ function MyMachinesScreen() {
   const [operatorModal, setOperatorModal] = useState(null);
   const [deleteMachineConfirm, setDeleteMachineConfirm] = useState(null);
 
-  if (!canManageMachines) {
-    return <Navigate to="/provider/home" replace />;
-  }
-
   const loadMachines = () => setMachines(getMachines());
 
   useEffect(() => {
+    if (blocked) return undefined;
     let cancelled = false;
     fetchProviderMachinesFromApi()
       .then((fresh) => {
@@ -66,9 +64,10 @@ function MyMachinesScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [blocked]);
 
   useEffect(() => {
+    if (blocked) return;
     if (!openOperatorForMachineId) return;
     if (!canAssignOperators) {
       navigate(location.pathname, { replace: true, state: { activationEdit, returnTo } });
@@ -79,7 +78,11 @@ function MyMachinesScreen() {
       setOperatorModal({ machine });
       navigate(location.pathname, { replace: true, state: { activationEdit, returnTo } });
     }
-  }, [activationEdit, canAssignOperators, navigate, openOperatorForMachineId, location.pathname, returnTo]);
+  }, [activationEdit, blocked, canAssignOperators, navigate, openOperatorForMachineId, location.pathname, returnTo]);
+
+  if (blocked) {
+    return <Navigate to="/provider/home" replace />;
+  }
 
   const handleResetAllMachines = async () => {
     try {

@@ -658,6 +658,7 @@ function MachineDataScreen() {
   const isEditMode = Boolean(id && location.pathname.includes('edit-machine'));
   const isAddMachineEntry = location.pathname.includes('add-machine');
   const canManageMachines = providerRole === 'super_master' || can('canManageMachines') || can('can_manage_machines');
+  const blockedMaster = providerRole === 'master' && !canManageMachines;
   const editMachine = location.state?.machine ?? (id ? getMachineById(id) : null);
   const [form, setForm] = useState(() => buildMachineForm(isEditMode, editMachine));
 
@@ -676,10 +677,6 @@ function MachineDataScreen() {
   const [inlineLoading, setInlineLoading] = useState(false);
   const [inlineError, setInlineError] = useState('');
   const [inlineReady, setInlineReady] = useState(() => hasProviderRoleInStorage());
-
-  if (providerRole === 'master' && !canManageMachines) {
-    return <Navigate to="/provider/home" replace />;
-  }
 
   useLayoutEffect(() => {
     const editMode = Boolean(id && location.pathname.includes('edit-machine'));
@@ -1110,6 +1107,10 @@ function MachineDataScreen() {
     boxSizing: 'border-box',
   };
   const priceRefPlaceholder = form.machineryType ? refForType.toLocaleString('es-CL') : '';
+
+  if (blockedMaster) {
+    return <Navigate to="/provider/home" replace />;
+  }
 
   if (isAddMachineEntry && !isEditMode) {
     const typeLabel = MACHINERY_TYPES.find((m) => m.id === form.machineryType)?.name || '—';

@@ -89,9 +89,7 @@ function BancoScreen() {
   const toast = useToast();
   const { hasPermission } = useAuth();
   const canViewBankData = hasPermission('canViewBankData');
-  if (!canViewBankData) {
-    return <Navigate to="/provider/home" replace />;
-  }
+  const blocked = !canViewBankData;
   const [saved, setSaved] = useState(false);
   const [rutError, setRutError] = useState('');
   const [data, setData] = useState(buildBancoFormInitial);
@@ -120,13 +118,14 @@ function BancoScreen() {
   // Aplicación inicial y cada vez que cambia banco/holderRut (sin sobreescribir modo manual).
   // Nota: usamos comparación simple dentro de setState para evitar bucles.
   React.useEffect(() => {
+    if (blocked) return;
     if (!shouldAutoVistaEstado) return;
     setData((prev) => {
       const next = applyAutoVistaEstado(prev);
       return next.accountType === prev.accountType && next.accountNumber === prev.accountNumber ? prev : next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldAutoVistaEstado, data.holderRut]);
+  }, [blocked, shouldAutoVistaEstado, data.holderRut]);
 
   const handleRutChange = (e) => {
     const value = e.target.value;
@@ -245,6 +244,10 @@ function BancoScreen() {
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'right 14px center'
   };
+
+  if (blocked) {
+    return <Navigate to="/provider/home" replace />;
+  }
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
