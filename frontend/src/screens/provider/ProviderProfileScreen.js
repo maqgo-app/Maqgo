@@ -88,6 +88,8 @@ function ProviderProfileScreen() {
   const showTeam = can('canManageMasters') || can('canManageOperators') || can('can_manage_operators');
   const showCompanyProfile = can('canEditMasterProfile') || can('can_edit_master_profile') || providerRole === 'super_master';
   const showBank = can('canViewBankData');
+  const canChangePhone = providerRole === 'super_master';
+  const phone9 = String(localStorage.getItem('userPhone') || '').replace(/\D/g, '').slice(-9);
 
   const handleLogout = () => {
     clearAuthSessionPreservingDraft();
@@ -215,6 +217,13 @@ function ProviderProfileScreen() {
                 sublabel={bankComplete ? 'Configurado' : 'Requerido para recibir pagos'}
                 onClick={() => navigate('/provider/profile/banco')}
                 showBadge={!bankComplete}
+              />
+            )}
+            {canChangePhone && (
+              <MenuItem
+                label="Cambiar celular"
+                sublabel={phone9 ? `+56 ${phone9}` : 'Celular no detectado'}
+                onClick={() => navigate('/provider/profile/change-phone')}
               />
             )}
           </>

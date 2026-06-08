@@ -3,7 +3,6 @@ import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
-import PasswordField from '../../components/PasswordField';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../context/authHooks';
 import { createMachineInApi, updateMachine, updateMachineInApi, getMachineById, getMachines } from '../../utils/providerMachines';
@@ -11,9 +10,9 @@ import { getMachineryCapacityOptions, getProviderSpecLabel } from '../../utils/m
 import { getArray, getObject } from '../../utils/safeStorage';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
 import { validateCelularChile } from '../../utils/chileanValidation';
-import { getPasswordHint, validatePassword, PASSWORD_RULES } from '../../utils/passwordValidation';
 import { getUserAuthState } from '../../utils/userAuthState';
 import { submitBecomeProviderMinimal, hasProviderRoleInStorage } from '../../utils/providerBecomeApi';
+import { persistProviderOnboardingDraft } from '../../utils/providerOnboardingDraft';
 import {
   REFERENCE_PRICES,
   REFERENCE_TRANSPORT,
@@ -651,7 +650,6 @@ function MachineDataScreen() {
   const location = useLocation();
   const { login, can, providerRole } = useAuth();
   const toast = useToast();
-  const passwordHintInline = getPasswordHint(false);
   const { id } = useParams();
   const activationEdit = Boolean(location.state?.activationEdit);
   const returnTo = String(location.state?.returnTo || '/provider/home');
@@ -673,7 +671,6 @@ function MachineDataScreen() {
   const [publishError, setPublishError] = useState('');
   const [stepHint, setStepHint] = useState('');
 
-  const [inlinePassword, setInlinePassword] = useState('');
   const [inlineLoading, setInlineLoading] = useState(false);
   const [inlineError, setInlineError] = useState('');
   const [inlineReady, setInlineReady] = useState(() => hasProviderRoleInStorage());
@@ -722,19 +719,17 @@ function MachineDataScreen() {
 
   const handleInlineProviderSubmit = useCallback(async () => {
     setInlineError('');
-    const pwdErr = validatePassword(inlinePassword, passwordHintInline);
     const cel9 = getUserAuthState().phone;
     const celErr = cel9
       ? validateCelularChile(cel9)
       : 'No detectamos tu celular en este dispositivo. Recarga la página (actualiza la sesión) o inicia sesión una vez con celular y código SMS.';
-    if (pwdErr || celErr) {
-      setInlineError(pwdErr || celErr);
+    if (celErr) {
+      setInlineError(celErr);
       return;
     }
     setInlineLoading(true);
     try {
       const res = await submitBecomeProviderMinimal({
-        password: inlinePassword,
         celular: cel9,
       });
       const data = res.data || {};
@@ -763,25 +758,23 @@ function MachineDataScreen() {
     } finally {
       setInlineLoading(false);
     }
-  }, [inlinePassword, login, passwordHintInline, toast]);
+  }, [login, toast]);
 
   const ensureProviderThenPublish = useCallback(async () => {
     setPublishError('');
     setInlineError('');
     if (!hasProviderRoleInStorage()) {
-      const pwdErr = validatePassword(inlinePassword, passwordHintInline);
       const cel9 = getUserAuthState().phone;
       const celErr = cel9
         ? validateCelularChile(cel9)
         : 'No detectamos tu celular en este dispositivo. Recarga la página (actualiza la sesión) o inicia sesión una vez con celular y código SMS.';
-      if (pwdErr || celErr) {
-        setPublishError(pwdErr || celErr);
+      if (celErr) {
+        setPublishError(celErr);
         return false;
       }
       setInlineLoading(true);
       try {
         const res = await submitBecomeProviderMinimal({
-          password: inlinePassword,
           celular: cel9,
         });
         const data = res.data || {};
@@ -808,7 +801,7 @@ function MachineDataScreen() {
       }
     }
     return true;
-  }, [inlinePassword, login, passwordHintInline]);
+  }, [login]);
 
   const handleMachineFirstPublish = useCallback(async () => {
     setPublishError('');
@@ -1023,6 +1016,9 @@ function MachineDataScreen() {
       return;
     }
     localStorage.setItem('machineData', JSON.stringify(form));
+    if (!isEditMode && !activationEdit) {
+      persistProviderOnboardingDraft({ machineData: form }).catch(() => void 0);
+    }
     if (isEditMode && (editMachine?.id || id)) {
       const typeName =
         MACHINERY_TYPES.find((m) => m.id === form.machineryType)?.name ||
@@ -1675,22 +1671,8 @@ function MachineDataScreen() {
                     Cuenta proveedor
                   </p>
                   <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '0 0 12px', lineHeight: 1.4 }}>
-                    Crea tu cuenta aquí. Empresa y banco, después en el perfil.
+                    Al guardar, MAQGO activará tu rol de proveedor con tu celular verificado (SMS). Empresa y banco, después en el perfil.
                   </p>
-                  <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, display: 'block', marginBottom: 6 }}>
-                    Contraseña
-                  </label>
-                  <PasswordField
-                    id="machine-first-inline-pwd"
-                    name="new-password"
-                    placeholder="Letras y números, 8–12 caracteres"
-                    value={inlinePassword}
-                    onChange={(e) => setInlinePassword(e.target.value)}
-                    error={false}
-                    autoComplete="new-password"
-                    minLength={PASSWORD_RULES.minLength}
-                    maxLength={PASSWORD_RULES.maxLength}
-                  />
                 </div>
               ) : null}
 
@@ -1786,22 +1768,8 @@ function MachineDataScreen() {
               Cuenta proveedor (obligatorio para publicar)
             </p>
             <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: '0 0 12px', lineHeight: 1.4 }}>
-              Contraseña de acceso. Los datos de empresa y banco los completas después.
+              Activamos tu rol de proveedor con tu celular verificado (SMS). Los datos de empresa y banco los completas después.
             </p>
-            <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, display: 'block', marginBottom: 6 }}>
-              Contraseña
-            </label>
-            <PasswordField
-              id="machine-inline-provider-pwd"
-              name="new-password"
-              placeholder="Letras y números, 8–12 caracteres"
-              value={inlinePassword}
-              onChange={(e) => setInlinePassword(e.target.value)}
-              error={false}
-              autoComplete="new-password"
-              minLength={PASSWORD_RULES.minLength}
-              maxLength={PASSWORD_RULES.maxLength}
-            />
             {inlineError ? <p style={{ color: '#f44336', fontSize: 12, marginTop: 8 }}>{inlineError}</p> : null}
             <button
               type="button"
@@ -1810,7 +1778,7 @@ function MachineDataScreen() {
               disabled={inlineLoading}
               onClick={() => handleInlineProviderSubmit()}
             >
-              {inlineLoading ? 'Creando cuenta…' : 'Continuar con cuenta proveedor'}
+              {inlineLoading ? 'Activando cuenta…' : 'Activar cuenta proveedor'}
             </button>
           </div>
         ) : null}

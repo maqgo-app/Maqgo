@@ -5,6 +5,7 @@ import { validateRut, formatRut } from '../../utils/chileanValidation';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import { getObject, getArray } from '../../utils/safeStorage';
+import { persistProviderOnboardingDraft } from '../../utils/providerOnboardingDraft';
 
 /**
  * P07 - Datos del Operador
@@ -159,6 +160,7 @@ function OperatorDataScreen() {
       }
     }
 
+    let nextOperators = operators;
     if (sameAsOwner) {
       setOwnerError('');
       if (!ownerRut || !validateRut(ownerRut)) {
@@ -181,10 +183,12 @@ function OperatorDataScreen() {
         photo: null,
         isOwner: true
       }];
+      nextOperators = ownerAsOperator;
       localStorage.setItem('operatorsData', JSON.stringify(ownerAsOperator));
     } else {
       localStorage.setItem('operatorsData', JSON.stringify(operators));
     }
+    persistProviderOnboardingDraft({ operators: nextOperators }).catch(() => void 0);
     localStorage.setItem('providerOnboardingStep', '6');
     navigate('/provider/review');
   };

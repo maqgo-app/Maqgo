@@ -372,6 +372,10 @@ function LoginScreen({ setUserRole, setUserId }) {
         destination: next.path,
       });
     }
+    if (intentRole === 'provider' && !roles.includes('provider')) {
+      navigate('/provider/register', { replace: true, state: { entry: 'provider' } });
+      return true;
+    }
     if (mustChangePassword) {
       navigate('/admin/change-password', { replace: true });
       return true;

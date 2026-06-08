@@ -76,7 +76,7 @@ export function hasProviderRoleInStorage() {
 }
 
 /**
- * @param {{ email: string, password: string, celular?: string, nombreMostrar?: string }} payload
+ * @param {{ email?: string, celular?: string, nombreMostrar?: string }} payload
  * `celular` opcional: el backend valida contra el teléfono del usuario autenticado en BD.
  */
 export async function submitBecomeProviderMinimal(payload) {
@@ -99,7 +99,6 @@ export async function submitBecomeProviderMinimal(payload) {
   }
   const body = {
     email: String(payload.email || '').trim(),
-    password: payload.password,
     ...(Object.keys(provider_data).length ? { provider_data } : {}),
   };
   const celRaw = payload.celular != null ? String(payload.celular).trim() : '';

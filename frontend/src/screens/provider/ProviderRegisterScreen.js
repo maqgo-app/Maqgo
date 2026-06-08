@@ -5,10 +5,8 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import BackToPortadaButton from '../../components/BackToPortadaButton';
 import LoginPhoneChileInput from '../../components/LoginPhoneChileInput';
 import OtpSixDigitsInput from '../../components/OtpSixDigitsInput';
-import PasswordField from '../../components/PasswordField';
 import { validateCelularChile } from '../../utils/chileanValidation';
 import { useToast } from '../../components/Toast';
-import { getPasswordHint, validatePassword, PASSWORD_RULES } from '../../utils/passwordValidation';
 import BACKEND_URL from '../../utils/api';
 import { submitBecomeProviderMinimal, getBecomeProviderUrlForLogs } from '../../utils/providerBecomeApi';
 import { establishSession, persistLoginSessionMetadata } from '../../utils/sessionPersistence';
@@ -27,7 +25,7 @@ import {
   isProviderAccountInStorage,
   isOperatorAccountInStorage,
 } from '../../utils/userAuthState';
-import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
+import { getProviderLandingPath, getProviderOnboardingNextPath } from '../../utils/providerOnboardingStatus';
 import { isAdminRoleStored } from '../../utils/welcomeHome';
 import { ROUTES } from '../../constants';
 
@@ -105,7 +103,7 @@ function maskPhone9(nineDigits) {
 }
 
 /**
- * Registro proveedor en 3 pasos: celular → OTP → cuenta mínima (correo + contraseña).
+ * Registro proveedor en 3 pasos: celular -> OTP -> cuenta mínima.
  * Datos de empresa, máquina, banco, etc. van en onboarding progresivo (/provider/data…).
  */
 function ProviderRegisterScreen() {
@@ -138,7 +136,6 @@ function ProviderRegisterScreen() {
   const [form, setForm] = useState({
     /** Opcional; nombre para mostrar. Empresa/RUT van después en /provider/data. */
     nombreMostrar: '',
-    password: ''
   });
   const [accepted, setAccepted] = useState(false);
   /** True si el alta puede marcar phone_preverified: OTP reciente en Redis o cuenta con celular ya verificado. */
@@ -153,13 +150,11 @@ function ProviderRegisterScreen() {
     nombreMostrar: '',
     email: '',
     celular: '',
-    password: ''
   });
   /** Error global del POST become-provider (toast se va; esto queda visible). */
   const [submitError, setSubmitError] = useState('');
   /** Depuración temporal: detalle crudo del API (quitar cuando estabilice). */
   const [submitErrorDebug, setSubmitErrorDebug] = useState('');
-  const passwordHint = getPasswordHint(false);
   /** Evita doble POST /login-sms/start por doble clic o condiciones de carrera. */
   const smsStartInFlightRef = useRef(false);
 
@@ -346,9 +341,7 @@ function ProviderRegisterScreen() {
           setSkipOtpBecauseAccountVerified(true);
           setStep('details');
           setOtpCode('');
-          toast.success(
-            'Continúa con tus datos y contraseña para crear tu perfil de proveedor.'
-          );
+          toast.success('Continúa con tus datos para crear tu perfil de proveedor.');
           return;
         }
 
@@ -387,9 +380,7 @@ function ProviderRegisterScreen() {
               setSkipOtpBecauseAccountVerified(true);
               setStep('details');
               setOtpCode('');
-              toast.success(
-                'Continúa con tus datos y contraseña para crear tu perfil de proveedor.'
-              );
+              toast.success('Continúa con tus datos para crear tu perfil de proveedor.');
               logProviderUnifiedFlow({
                 requiresOTP: false,
                 roles: enriched.roles,
@@ -459,9 +450,7 @@ function ProviderRegisterScreen() {
           setSkipOtpBecauseAccountVerified(true);
           setStep('details');
           setOtpCode('');
-          toast.success(
-            'Sesión lista. Completa tus datos y contraseña para crear tu perfil de proveedor.'
-          );
+            toast.success('Sesión lista. Completa tus datos para crear tu perfil de proveedor.');
           return;
         }
 
@@ -507,7 +496,7 @@ function ProviderRegisterScreen() {
         setSkipOtpBecauseAccountVerified(true);
         setStep('details');
         setOtpCode('');
-        toast.success('Sesión lista. Completa tus datos y contraseña para crear tu perfil de proveedor.');
+        toast.success('Sesión lista. Completa tus datos para crear tu perfil de proveedor.');
       } catch (err) {
         const inactive =
           err?.response?.status === 403 &&
@@ -565,7 +554,7 @@ function ProviderRegisterScreen() {
         setPhonePreverified(true);
         setSkipOtpBecauseAccountVerified(true);
         setStep('details');
-        toast.success('Sesión lista. Completa tus datos y contraseña para crear tu perfil de proveedor.');
+        toast.success('Sesión lista. Completa tus datos para crear tu perfil de proveedor.');
         return;
       }
       const hint = typeof data.message === 'string' && data.message.trim() ? data.message.trim() : 'Te enviamos un nuevo código.';
@@ -644,7 +633,7 @@ function ProviderRegisterScreen() {
         setSkipOtpBecauseAccountVerified(false);
         setStep('details');
         setOtpCode(code);
-        toast.success('Código verificado. Completa tus datos y contraseña para tu perfil de proveedor.');
+        toast.success('Código verificado. Completa tus datos para tu perfil de proveedor.');
       } catch (err) {
         const inactive =
           err?.response?.status === 403 &&
@@ -671,27 +660,24 @@ function ProviderRegisterScreen() {
     if (!accepted) return;
     const nm = String(form.nombreMostrar || '').trim();
     const celularErr = validateCelularChile(celularStorage);
-    const passwordErr = validatePassword(form.password, passwordHint);
     let nombreErr = '';
     if (nm.length > 120) {
       nombreErr = 'Usa un texto más corto (máx. 120 caracteres).';
     }
-    if (celularErr || passwordErr || nombreErr) {
+    if (celularErr || nombreErr) {
       setErrors({
         nombreMostrar: nombreErr,
         celular: celularErr,
-        password: passwordErr
       });
       return;
     }
-    setErrors({ nombreMostrar: '', celular: '', password: '' });
+    setErrors({ nombreMostrar: '', celular: '' });
     setSubmitError('');
     setSubmitErrorDebug('');
     setLoading(true);
 
     const profilePayload = {
       celular: celularStorage,
-      password: form.password,
       nombreMostrar: nm,
     };
     const endpointUsed = getBecomeProviderUrlForLogs();
@@ -721,7 +707,6 @@ function ProviderRegisterScreen() {
           nombreMostrar: nm,
           email: '',
           celular: celularStorage,
-          password: form.password,
           role: 'provider'
         })
       );
@@ -761,7 +746,7 @@ function ProviderRegisterScreen() {
         navigate(getProviderLandingPath(), { replace: true });
       } else {
         toast.success('Cuenta lista. Completa los datos de tu empresa en los siguientes pasos.');
-        navigate(getProviderLandingPath(), { replace: true });
+        navigate(getProviderOnboardingNextPath(), { replace: true });
       }
     } catch (e) {
       console.error('PROVIDER_ERROR_RAW', {
@@ -796,17 +781,16 @@ function ProviderRegisterScreen() {
       const detail = data?.detail;
 
       const mapValidationRowsToErrors = (rows) => {
-        const next = { nombreMostrar: '', email: '', celular: '', password: '' };
+        const next = { nombreMostrar: '', email: '', celular: '' };
         if (!Array.isArray(rows)) return null;
         for (const row of rows) {
           const last = row.loc && row.loc[row.loc.length - 1];
           const text = typeof row.msg === 'string' ? row.msg : '';
-          if (last === 'password') next.password = text;
-          else if (last === 'email') next.email = text;
+          if (last === 'email') next.email = text;
           else if (last === 'celular') next.celular = text;
           else if (last === 'nombre' || last === 'apellido') next.nombreMostrar = text || next.nombreMostrar;
         }
-        if (next.password || next.email || next.celular || next.nombreMostrar) return next;
+        if (next.email || next.celular || next.nombreMostrar) return next;
         return null;
       };
 
@@ -841,12 +825,6 @@ function ProviderRegisterScreen() {
 
       if (typeof detail === 'string' && detail.trim()) {
         const d = detail.trim();
-        if (/contraseña|cuenta maqgo|password/i.test(d)) {
-          setErrors((prev) => ({ ...prev, password: d }));
-          setSubmitError('');
-          setSubmitErrorDebug('');
-          return;
-        }
         if (/correo|email|registrad/i.test(d)) {
           setErrors((prev) => ({ ...prev, email: d }));
           setSubmitError('');
@@ -892,16 +870,6 @@ function ProviderRegisterScreen() {
         }
       }
 
-      if (Array.isArray(detail)) {
-        const pwdErr = detail.find((m) => m.loc && m.loc[m.loc.length - 1] === 'password');
-        if (pwdErr?.msg) {
-          setErrors((prev) => ({ ...prev, password: pwdErr.msg || passwordHint }));
-          setSubmitError('');
-          setSubmitErrorDebug('');
-          return;
-        }
-      }
-
       const fallbackMsg = !e.response
         ? `Sin respuesta HTTP (${e.code || 'red'}). ${e.message || ''}${
             e.PROVIDER_REGISTER_ALSO_FAILED
@@ -933,15 +901,10 @@ function ProviderRegisterScreen() {
   const isPhoneValid = /^9\d{8}$/.test(String(phoneDigits || '').replace(/\D/g, ''));
   const otpDigits = String(otpCode || '').replace(/\D/g, '').slice(0, 6);
   const isOtpValid = otpDigits.length === 6;
-  const pwdErrLive = validatePassword(form.password, passwordHint);
-  const isDetailsValid =
-    !pwdErrLive &&
-    celularStorage.length === 9 &&
-    accepted;
+  const isDetailsValid = celularStorage.length === 9 && accepted;
 
   const detailsBlockers = [];
   if (step === 'details') {
-    if (pwdErrLive) detailsBlockers.push('Contraseña (8–12 caracteres, letras y números)');
     if (celularStorage.length !== 9) detailsBlockers.push('Celular verificado');
     if (!accepted) detailsBlockers.push('Aceptar términos y política de privacidad');
   }
@@ -1084,8 +1047,8 @@ function ProviderRegisterScreen() {
               </div>
             ) : null}
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 12, lineHeight: 1.4 }}>
-              Si tu celular ya está verificado en MAQGO, solo correo y contraseña de proveedor. Si no,
-              te enviaremos un código SMS; empresa, máquina y banco los completas después en el panel.
+              Si tu celular ya está verificado en MAQGO, continúas directo con tu alta de proveedor.
+              Si no, te enviaremos un código SMS; empresa, máquina y banco los completas después en el panel.
             </p>
           </>
         )}
@@ -1202,8 +1165,8 @@ function ProviderRegisterScreen() {
               }}
             >
               {skipOtpBecauseAccountVerified
-                ? 'Este número ya estaba verificado en tu cuenta MAQGO. Solo elige correo y contraseña de acceso; los datos de empresa los completas después.'
-                : `Celular verificado: ${maskPhone9(phoneDigits)}. Correo y contraseña para tu perfil proveedor; el resto es progresivo.`}
+                ? 'Este número ya estaba verificado en tu cuenta MAQGO. Continúa con tu alta de proveedor; los datos de empresa los completas después.'
+                : `Celular verificado: ${maskPhone9(phoneDigits)}. Ahora confirmas tu alta de proveedor y luego completas empresa, máquina y banco en el panel.`}
             </p>
 
             {submitError || submitErrorDebug ? (
@@ -1270,39 +1233,6 @@ function ProviderRegisterScreen() {
             </p>
             {errors.nombreMostrar ? (
               <p style={{ color: '#f44336', fontSize: 12, marginTop: -6, marginBottom: 8 }}>{errors.nombreMostrar}</p>
-            ) : null}
-
-            <label
-              htmlFor="provider-register-password"
-              style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
-            >
-              {skipOtpBecauseAccountVerified ? (
-                <>
-                  Contraseña de tu cuenta MAQGO <span style={{ color: '#EC6819' }}>*</span>
-                </>
-              ) : (
-                <>
-                  Contraseña <span style={{ color: '#EC6819' }}>*</span>
-                </>
-              )}
-            </label>
-            <PasswordField
-              id="provider-register-password"
-              name={skipOtpBecauseAccountVerified ? 'password' : 'new-password'}
-              placeholder="Letras y números, 8–12 caracteres"
-              value={form.password}
-              onChange={(e) => update('password', e.target.value)}
-              style={{ marginBottom: errors.password ? 8 : 12 }}
-              error={Boolean(errors.password)}
-              autoComplete={skipOtpBecauseAccountVerified ? 'current-password' : 'new-password'}
-              minLength={PASSWORD_RULES.minLength}
-              maxLength={PASSWORD_RULES.maxLength}
-            />
-            {errors.password ? <p style={{ color: '#f44336', fontSize: 12, marginTop: -8, marginBottom: 8 }}>{errors.password}</p> : null}
-            {skipOtpBecauseAccountVerified ? (
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: -4, marginBottom: 12, lineHeight: 1.35 }}>
-                Usa la misma contraseña con la que inicias sesión; así confirmamos que eres tú.
-              </p>
             ) : null}
 
             <div className="maqgo-checkbox-row">

@@ -164,6 +164,7 @@ const MyMachinesScreen = lazy(() => import('./screens/provider/MyMachinesScreen'
 const ProviderDashboardSimple = lazy(() => import('./screens/provider/ProviderDashboardSimple'));
 const ProviderHistoryScreen = lazy(() => import('./screens/provider/ProviderHistoryScreen'));
 const ProviderProfileScreen = lazy(() => import('./screens/provider/ProviderProfileScreen'));
+const ProviderChangePhoneScreen = lazy(() => import('./screens/provider/ProviderChangePhoneScreen'));
 const UploadInvoiceScreen = lazy(() => import('./screens/provider/UploadInvoiceScreen'));
 const PublishMachinery = lazy(() => import('./screens/provider/PublishMachinery'));
 const TariffsScreen = lazy(() => import('./screens/provider/TariffsScreen'));
@@ -532,6 +533,14 @@ function AppContent() {
         <Route path="/provider/dashboard" element={<ProviderDashboardSimple />} />
         <Route path="/provider/history" element={<ProviderHistoryScreen />} />
         <Route path="/provider/profile" element={<ProviderProfileScreen />} />
+        <Route
+          path="/provider/profile/change-phone"
+          element={
+            <ProviderSensitiveGate>
+              <ProviderChangePhoneScreen />
+            </ProviderSensitiveGate>
+          }
+        />
         <Route
           path="/provider/upload-invoice/:serviceId"
           element={

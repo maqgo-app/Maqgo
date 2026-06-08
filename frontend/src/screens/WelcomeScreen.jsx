@@ -331,22 +331,13 @@ function WelcomeScreen() {
                 /* ignore */
               }
               const fromWelcome = true;
-              let finalRoute = '/provider/data';
-              try {
-                const raw = localStorage.getItem('providerData');
-                const providerData = raw ? JSON.parse(raw) : {};
-                const companyComplete = Boolean(providerData?.businessName && providerData?.rut);
-                finalRoute = companyComplete ? '/provider/machine-data' : '/provider/data';
-              } catch {
-                finalRoute = '/provider/data';
-              }
               try {
                 localStorage.setItem('providerCameFromWelcome', 'true');
               } catch {
                 /* ignore */
               }
-              console.log('PROVIDER FLOW ENTRY', { fromWelcome, finalRoute });
-              navigate(finalRoute);
+              console.log('PROVIDER FLOW ENTRY', { fromWelcome, finalRoute: '/login', entry: 'provider' });
+              navigate('/login', { state: { entry: 'provider' } });
             }}
             className="welcome-cta-secondary welcome-reveal"
             style={{ '--welcome-d': '270ms' }}

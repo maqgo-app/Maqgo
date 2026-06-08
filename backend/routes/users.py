@@ -57,13 +57,15 @@ def _user_roles_list(doc: dict) -> list:
 class BecomeProviderBody(BaseModel):
     """Upgrade cliente → proveedor sobre el mismo user_id (sesión OTP/JWT)."""
     email: Optional[EmailStr] = None
-    password: str = Field(..., min_length=8, max_length=12)
+    password: Optional[str] = Field(None, min_length=8, max_length=12)
     provider_data: Optional[Dict[str, Any]] = None
     celular: Optional[str] = None
 
     @field_validator("password")
     @classmethod
-    def password_complexity(cls, v: str) -> str:
+    def password_complexity(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
         if not re.search(r"[A-Za-z]", v) or not re.search(r"\d", v):
             raise ValueError("La contraseña debe incluir letras y números")
         return v
@@ -448,12 +450,13 @@ async def become_provider(
 
     new_roles = list(dict.fromkeys(roles + ["provider"]))
     set_fields: dict = {
-        "password": _hash_password(body.password),
         "roles": new_roles,
         "role": "provider",
         "isAvailable": False,
         "phoneVerified": True,
     }
+    if body.password:
+        set_fields["password"] = _hash_password(body.password)
     if email_low:
         set_fields["email"] = email_low
     if not doc.get("provider_role"):

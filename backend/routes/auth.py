@@ -47,6 +47,7 @@ from services.risk_auth_service import (
     too_many_recent_login_failures,
     upsert_trusted_device,
 )
+from utils.rbac import is_super_master
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -605,7 +606,7 @@ async def verify_otp_auth(request: Request, body: VerifyOtpRequest):
             await ensure_trusted_device_indexes(db)
             phone9 = _normalize_phone_last9(phone_e164)
             if len(phone9) == 9:
-                user = await db.users.find_one({"phone": {"$regex": f"{phone9}$"}}, {"_id": 0})
+                user = await _find_best_user_by_phone9(phone9, raw_phone=phone_e164, projection={"_id": 0})
                 if user:
                     if body.user_id and user.get("id") != body.user_id:
                         log_ops_event(
@@ -642,10 +643,7 @@ async def verify_otp_auth(request: Request, body: VerifyOtpRequest):
             phone9_sess = _normalize_phone_last9(phone_e164)
             user_doc = None
             if len(phone9_sess) == 9:
-                user_doc = await db.users.find_one(
-                    {"phone": {"$regex": f"{phone9_sess}$"}},
-                    {"_id": 0},
-                )
+                user_doc = await _find_best_user_by_phone9(phone9_sess, raw_phone=phone_e164, projection={"_id": 0})
             now_sess = datetime.now(timezone.utc).isoformat()
             if not user_doc:
                 user_id_new = f"user_{secrets.token_hex(8)}"
@@ -737,7 +735,7 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
         )
 
     # Identidad base: teléfono único (últimos 9 dígitos) — evita duplicados por email.
-    existing = await db.users.find_one({"phone": {"$regex": f"{phone9}$"}}, {"_id": 0})
+    existing = await _find_best_user_by_phone9(phone9, raw_phone=raw_phone, projection={"_id": 0})
     now = datetime.now(timezone.utc).isoformat()
 
     if existing:
@@ -745,8 +743,8 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
         logger.info("LOGIN_SMS_START reuse userId=%s phone9=%s", user_id, phone9)
         req_role = (body.requested_role or "").strip().lower()
         roles = _user_roles(existing)
-        u_status = existing.get("status") or "active"
-        if existing.get("deleted") is True or u_status != "active":
+        u_status = _normalized_user_status(existing)
+        if not _is_active_user_doc(existing):
             log_ops_event(
                 logger,
                 event="login_sms_start_inactive_user",
@@ -951,7 +949,7 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
         country = get_client_country(request)
         ua_hdr = get_client_user_agent(request)
 
-        user = await db.users.find_one({"phone": {"$regex": f"{phone9}$"}}, {"_id": 0})
+        user = await _find_best_user_by_phone9(phone9, raw_phone=raw_phone, projection={"_id": 0})
         if not user:
             logger.warning("LOGIN_SMS_VERIFY user_not_found phone9=%s", phone9)
             log_ops_event(
@@ -969,8 +967,8 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 detail="Tu cuenta está temporalmente bloqueada por seguridad. Intenta en 15 minutos.",
             )
 
-        u_status = user.get("status") or "active"
-        if user.get("deleted") is True or u_status != "active":
+        u_status = _normalized_user_status(user)
+        if not _is_active_user_doc(user):
             log_ops_event(
                 logger,
                 event="login_sms_verify_inactive_user",
@@ -1129,8 +1127,7 @@ async def verify_sms_password(request: Request, body: StepUpVerifyRequest):
     roles = _user_roles(user)
     is_admin = "admin" in roles
     if not is_admin:
-        u_status = user.get("status") or "active"
-        if user.get("deleted") is True or u_status != "active":
+        if not _is_active_user_doc(user):
             raise HTTPException(status_code=403, detail="Usuario inactivo")
 
     if not verify_password(body.password, user.get("password", "")):
@@ -1197,8 +1194,8 @@ async def check_device(request: Request, body: CheckDeviceRequest):
     if len(phone9) != 9:
         raise HTTPException(status_code=400, detail="Celular inválido")
 
-    user = await db.users.find_one({"phone": {"$regex": f"{phone9}$"}}, {"_id": 0})
-    if not user or user.get("id") != body.user_id:
+    user = await db.users.find_one({"id": body.user_id}, {"_id": 0})
+    if not user or _normalize_phone_last9(user.get("phone", "")) != phone9:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     device_norm = normalize_device_id(body.device_id)
@@ -1368,11 +1365,243 @@ async def auth_post_me_profile(
     return await _apply_me_profile_update(body, current_user)
 
 
+PHONE_CHANGE_PENDING_TTL_SECONDS = 420
+
+
+def _get_phone_change_redis():
+    redis_url = str(os.environ.get("REDIS_URL", "")).strip()
+    if not redis_url:
+        return None
+    try:
+        import redis
+
+        return redis.from_url(redis_url, decode_responses=True)
+    except Exception:
+        return None
+
+
+def _phone_change_pending_key(user_id: str) -> str:
+    return f"phone_change_pending:{user_id}"
+
+
+class PhoneChangeStartRequest(BaseModel):
+    celular: str = Field(
+        ...,
+        validation_alias=AliasChoices(
+            "celular",
+            "new_celular",
+            "newCelular",
+            "phone",
+            "new_phone",
+            "newPhone",
+        ),
+    )
+
+
+class PhoneChangeVerifyRequest(BaseModel):
+    celular: str = Field(
+        ...,
+        validation_alias=AliasChoices(
+            "celular",
+            "new_celular",
+            "newCelular",
+            "phone",
+            "new_phone",
+            "newPhone",
+        ),
+    )
+    code: str = Field(..., min_length=6, max_length=6)
+
+
+@router.post("/me/phone-change/start")
+@limiter.limit("5/minute")
+async def auth_me_phone_change_start(
+    request: Request,
+    body: PhoneChangeStartRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Cambio de celular (solo super_master):
+    - Envía OTP al nuevo número
+    - Guarda un "pending change" ligado al user_id (TTL corto)
+    """
+    if not is_super_master(current_user):
+        raise HTTPException(status_code=403, detail="Solo el titular puede cambiar el celular.")
+
+    uid = current_user.get("id")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Sesión inválida")
+
+    try:
+        new_phone = _normalize_login_celular_e164(str(body.celular))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Celular inválido. Usa 9 dígitos (ej: 912345678).")
+
+    cur_phone = str(current_user.get("phone") or "").strip()
+    if cur_phone and new_phone == cur_phone:
+        return {"success": True, "already": True, "message": "Este ya es tu celular actual."}
+
+    other = await db.users.find_one(
+        {"phone": new_phone, "id": {"$ne": uid}},
+        {"_id": 0, "id": 1, "status": 1, "deleted": 1},
+    )
+    if other:
+        raise HTTPException(
+            status_code=409,
+            detail="Este celular ya está asociado a otra cuenta. Si es tu número, solicita ayuda para recuperar acceso.",
+        )
+
+    r = _get_phone_change_redis()
+    if not r:
+        raise HTTPException(status_code=500, detail="OTP no configurado. Intenta nuevamente más tarde.")
+
+    sms = send_sms_otp(new_phone, "sms")
+    if not sms.get("success"):
+        err = str(sms.get("error") or "No se pudo enviar el código SMS.")
+        code = 429 if "demasiados" in err.lower() else 400
+        raise HTTPException(status_code=code, detail=err)
+
+    ttl = int(sms.get("ttl_seconds") or 300)
+    ttl_store = max(PHONE_CHANGE_PENDING_TTL_SECONDS, ttl + 60)
+    try:
+        r.setex(_phone_change_pending_key(uid), ttl_store, new_phone)
+    except Exception:
+        raise HTTPException(status_code=500, detail="No se pudo iniciar el cambio de celular. Intenta nuevamente.")
+
+    return {
+        "success": True,
+        "reused": bool(sms.get("reused")),
+        "ttl_seconds": int(sms.get("ttl_seconds") or 300),
+        "message": "Enviamos un código SMS a tu nuevo celular. Ingresa el código para confirmar el cambio.",
+    }
+
+
+@router.post("/me/phone-change/verify")
+@limiter.limit("10/minute")
+async def auth_me_phone_change_verify(
+    request: Request,
+    body: PhoneChangeVerifyRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    if not is_super_master(current_user):
+        raise HTTPException(status_code=403, detail="Solo el titular puede cambiar el celular.")
+
+    uid = current_user.get("id")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Sesión inválida")
+
+    try:
+        new_phone = _normalize_login_celular_e164(str(body.celular))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Celular inválido. Usa 9 dígitos (ej: 912345678).")
+
+    r = _get_phone_change_redis()
+    if not r:
+        raise HTTPException(status_code=500, detail="OTP no configurado. Intenta nuevamente más tarde.")
+
+    pending = None
+    try:
+        pending = r.get(_phone_change_pending_key(uid))
+    except Exception:
+        pending = None
+
+    if not pending:
+        raise HTTPException(status_code=400, detail="No hay un cambio de celular pendiente. Solicita un nuevo código.")
+    if str(pending).strip() != new_phone:
+        raise HTTPException(status_code=400, detail="El celular no coincide con el cambio pendiente.")
+
+    other = await db.users.find_one(
+        {"phone": new_phone, "id": {"$ne": uid}},
+        {"_id": 0, "id": 1},
+    )
+    if other:
+        raise HTTPException(
+            status_code=409,
+            detail="Este celular ya está asociado a otra cuenta. Solicita ayuda para recuperar acceso.",
+        )
+
+    v = verify_sms_otp(new_phone, str(body.code))
+    if not v.get("success") or not v.get("valid"):
+        raise HTTPException(status_code=400, detail=str(v.get("error") or "Código inválido o expirado."))
+
+    try:
+        await db.users.update_one(
+            {"id": uid},
+            {"$set": {"phone": new_phone, "phoneVerified": True}},
+        )
+    except DuplicateKeyError:
+        raise HTTPException(status_code=409, detail="Este celular ya está asociado a otra cuenta.")
+
+    try:
+        r.delete(_phone_change_pending_key(uid))
+    except Exception:
+        pass
+
+    return {"success": True, "phone": new_phone, "message": "Celular actualizado."}
+
+
 def _normalize_phone_last9(phone: str) -> str:
     digits = ''.join(c for c in str(phone or '') if c.isdigit())
     if digits.startswith('56') and len(digits) >= 11:
         digits = digits[2:]
     return digits[-9:] if len(digits) >= 9 else digits
+
+
+def _normalized_user_status(user: dict) -> str:
+    return str((user or {}).get("status") or "active").strip().lower() or "active"
+
+
+def _is_active_user_doc(user: dict) -> bool:
+    if not user:
+        return False
+    if user.get("deleted") is True:
+        return False
+    return _normalized_user_status(user) == "active"
+
+
+def _best_user_match_for_phone(users: list[dict], *, raw_phone: Optional[str] = None) -> Optional[dict]:
+    if not users:
+        return None
+
+    def score(u: dict) -> tuple[int, str]:
+        s = 0
+        if raw_phone and str(u.get("phone") or "").strip() == str(raw_phone).strip():
+            s += 100
+        if _is_active_user_doc(u):
+            s += 50
+        roles = _user_roles(u)
+        if "provider" in roles:
+            s += 10
+        if "admin" in roles:
+            s += 5
+        if u.get("phoneVerified") is True:
+            s += 1
+        if u.get("deleted") is True:
+            s -= 1000
+        if _normalized_user_status(u) != "active":
+            s -= 500
+        ts = str(u.get("updatedAt") or u.get("createdAt") or "")
+        return (s, ts)
+
+    return sorted(users, key=score, reverse=True)[0]
+
+
+async def _find_best_user_by_phone9(
+    phone9: str,
+    *,
+    raw_phone: Optional[str] = None,
+    projection: Optional[dict] = None,
+    limit: int = 200,
+) -> Optional[dict]:
+    phone9 = str(phone9 or "").strip()
+    if len(phone9) != 9:
+        return None
+    proj = projection if projection is not None else {"_id": 0}
+    rows = await db.users.find(
+        {"phone": {"$regex": f"{re.escape(phone9)}$"}},
+        proj,
+    ).to_list(length=limit)
+    return _best_user_match_for_phone(rows, raw_phone=raw_phone)
 
 
 def _normalize_identifier(identifier: str) -> str:
@@ -1458,7 +1687,7 @@ async def _find_user_for_recovery(identifier: str) -> tuple[Optional[dict], Opti
     phone_e164 = _normalize_phone_for_lookup(ident)
     if phone_e164:
         phone9 = _normalize_phone_last9(phone_e164)
-        user = await db.users.find_one({"phone": {"$regex": f"{phone9}$"}})
+        user = await _find_best_user_by_phone9(phone9, raw_phone=phone_e164, projection=None)
         return user, "sms", phone_e164
 
     return None, None, None
@@ -1644,7 +1873,7 @@ async def _find_user_for_password_reset(identifier: str) -> Optional[dict]:
     # fallback: celular (últimos 9 dígitos)
     phone9 = _normalize_phone_last9(ident)
     if len(phone9) == 9:
-        return await db.users.find_one({"phone": {"$regex": f"{phone9}$"}})
+        return await _find_best_user_by_phone9(phone9, raw_phone=_format_phone(phone9), projection=None)
     return None
 
 
@@ -1796,9 +2025,10 @@ async def provider_register_status(request: Request, body: ProviderRegisterStatu
     phone9 = _normalize_phone_last9(phone_e164 or body.celular)
     if len(phone9) != 9:
         raise HTTPException(status_code=400, detail="Celular inválido")
-    existing = await db.users.find_one(
-        {"phone": {"$regex": f"{phone9}$"}},
-        {"_id": 0, "id": 1, "roles": 1, "role": 1, "phoneVerified": 1},
+    existing = await _find_best_user_by_phone9(
+        phone9,
+        raw_phone=phone_e164,
+        projection={"_id": 0, "id": 1, "roles": 1, "role": 1, "phoneVerified": 1, "status": 1, "deleted": 1, "phone": 1},
     )
     if not existing:
         return {
@@ -1831,9 +2061,10 @@ async def provider_register_establish_session(request: Request, body: ProviderRe
     phone9 = _normalize_phone_last9(phone_e164 or body.celular)
     if len(phone9) != 9:
         raise HTTPException(status_code=400, detail="Celular inválido")
-    existing = await db.users.find_one(
-        {"phone": {"$regex": f"{phone9}$"}},
-        {"_id": 0, "id": 1, "roles": 1, "role": 1, "phoneVerified": 1},
+    existing = await _find_best_user_by_phone9(
+        phone9,
+        raw_phone=phone_e164,
+        projection={"_id": 0, "id": 1, "roles": 1, "role": 1, "phoneVerified": 1, "status": 1, "deleted": 1, "phone": 1},
     )
     if not existing:
         raise HTTPException(
@@ -1899,7 +2130,7 @@ async def _register_impl(request: Request, body: RegisterRequest):
     # Teléfono primero; email solo si coincide el mismo celular (evita fusionar cuentas distintas).
     existing = None
     if len(phone9) == 9:
-        existing = await db.users.find_one({"phone": {"$regex": f"{phone9}$"}})
+        existing = await _find_best_user_by_phone9(phone9, raw_phone=phone_e164 or body.celular, projection=None)
     if not existing:
         cand = await db.users.find_one({"email": email_low})
         if cand:
@@ -2100,7 +2331,7 @@ async def _register_impl(request: Request, body: RegisterRequest):
                 status_code=409,
                 detail="Ya existe una cuenta con este teléfono o correo. Inicia sesión.",
             ) from None
-        merged = await db.users.find_one({"phone": {"$regex": f"{phone9}$"}})
+        merged = await _find_best_user_by_phone9(phone9, raw_phone=phone_e164 or body.celular, projection=None)
         if not merged:
             merged = await db.users.find_one({"email": email_low})
         if merged:
@@ -2177,8 +2408,7 @@ async def login(request: Request, body: LoginRequest):
     roles = _user_roles(user)
     is_admin = "admin" in roles
     if not is_admin:
-        u_status = user.get("status") or "active"
-        if user.get("deleted") is True or u_status != "active":
+        if not _is_active_user_doc(user):
             raise HTTPException(status_code=403, detail="Usuario inactivo")
 
     # Migración: si el hash es SHA256 legacy, actualizar a bcrypt

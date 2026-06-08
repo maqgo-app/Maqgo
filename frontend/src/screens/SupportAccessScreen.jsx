@@ -82,10 +82,10 @@ function SupportAccessScreen() {
   };
 
   return (
-    <div className="maqgo-login-container">
-      <div className="maqgo-login-card">
-        <MaqgoLogo style={{ width: 140, margin: '0 auto 18px', display: 'block' }} />
-        <h2 style={{ color: '#fff', textAlign: 'center', marginBottom: 8 }}>{title}</h2>
+    <div className="maqgo-app maqgo-provider-funnel">
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 120px' }}>
+        <MaqgoLogo size="small" style={{ marginBottom: 18 }} />
+        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 8 }}>{title}</h1>
         <p style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginTop: 0, marginBottom: 18, lineHeight: 1.45 }}>
           {subtitle}
         </p>

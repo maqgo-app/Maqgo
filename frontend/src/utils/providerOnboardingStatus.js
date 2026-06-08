@@ -1,11 +1,17 @@
 /**
- * Completitud onboarding proveedor (misma regla que ProviderHomeScreen — checklist activación).
- * Solo lectura de localStorage; sin llamadas API (login/OTP/sesión intactos).
+ * Onboarding proveedor.
+ *
+ * Regla de negocio actual:
+ * - El primer onboarding deja al titular listo en una sola pasada:
+ *   empresa -> maquina -> operador -> banco.
+ * - El reingreso normal del proveedor siempre aterriza en /provider/home.
+ * - Si el primer onboarding quedo interrumpido, la reanudacion manual retoma
+ *   el siguiente paso pendiente del wizard.
+ *
+ * Solo lectura de localStorage; sin llamadas API.
  */
 import { getArray, getObject } from './safeStorage';
 import { getMachines } from './providerMachines';
-
-const MACHINE_FIRST_ENTRY = '/provider/machine-data';
 
 function isBankDataComplete(bankData) {
   return (
@@ -15,14 +21,6 @@ function isBankDataComplete(bankData) {
     !!bankData?.holderName &&
     !!bankData?.holderRut
   );
-}
-
-function isProviderCameFromWelcomeFlag() {
-  try {
-    return globalThis.localStorage?.getItem('providerCameFromWelcome') === 'true';
-  } catch {
-    return false;
-  }
 }
 
 function normalizeMachineOperators(raw = []) {
@@ -89,21 +87,12 @@ export function isProviderOnboardingCompleteFromStorage() {
 }
 
 /**
- * Post-login / home / "Completar registro":
- * - CTA "Ofrecer mi maquinaria" (Welcome): `providerCameFromWelcome` → continuar/agregar en `/provider/machine-data`;
- *   el flag se elimina al completar publicación/onboarding para no bloquear `/provider/home` después.
- * - Sin Welcome: orden clásico (empresa → máquina → …) o `/provider/home` si onboarding completo.
+ * Primer onboarding / reanudacion manual del wizard:
+ * empresa -> maquina -> operador -> banco -> home.
  */
-export function getProviderLandingPath() {
+export function getProviderOnboardingNextPath() {
   if (isProviderOnboardingCompleteFromStorage()) {
     return '/provider/home';
-  }
-  if (isProviderCameFromWelcomeFlag()) {
-    const machines = getMachines();
-    const hasRegisteredMachine = Array.isArray(machines)
-      ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))
-      : false;
-    if (hasRegisteredMachine) return MACHINE_FIRST_ENTRY;
   }
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});
@@ -117,5 +106,15 @@ export function getProviderLandingPath() {
   if (!machineComplete) return '/provider/machine-data';
   if (!operatorComplete) return '/provider/machines';
   if (!bankComplete) return '/provider/profile/banco';
+  return '/provider/home';
+}
+
+/**
+ * Reingreso normal del proveedor:
+ * - Si el onboarding ya termino, entra al dashboard.
+ * - Si el onboarding sigue inconcluso, igual entra al dashboard y desde ahi
+ *   puede continuar manualmente el siguiente paso pendiente.
+ */
+export function getProviderLandingPath() {
   return '/provider/home';
 }

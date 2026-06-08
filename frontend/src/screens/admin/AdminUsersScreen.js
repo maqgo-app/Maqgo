@@ -106,6 +106,28 @@ function AdminUsersScreen() {
     return typeof v === 'string' ? (v.trim() || '-') : '-';
   };
 
+  const getStatusMeta = (user) => {
+    const st = String(user?.status || 'active');
+    const isDel = Boolean(user?.deleted) || st === 'deleted';
+    const label = isDel ? 'Eliminado' : st === 'test' ? 'Test' : st === 'suspended' ? 'Suspendido' : st === 'inactive' ? 'Inactivo' : 'Activo';
+    const bg = isDel ? 'rgba(220, 53, 69, 0.18)' : st === 'test' ? 'rgba(143, 179, 201, 0.18)' : st === 'inactive' || st === 'suspended' ? 'rgba(217, 161, 90, 0.18)' : 'rgba(102, 187, 106, 0.16)';
+    const fg = isDel ? ADMIN_PALETTE.danger : st === 'test' ? ADMIN_PALETTE.info : st === 'inactive' || st === 'suspended' ? ADMIN_PALETTE.warning : ADMIN_PALETTE.success;
+    return { st, isDel, label, bg, fg };
+  };
+
+  const getProviderRoleLabel = (providerRole) => {
+    if (providerRole === 'super_master') return 'Titular';
+    if (providerRole === 'master') return 'Gerente';
+    if (providerRole === 'operator') return 'Operador';
+    return providerRole || '-';
+  };
+
+  const getRolesLabel = (user) => {
+    const roles = Array.isArray(user?.roles) ? user.roles.filter(Boolean) : [];
+    if (roles.length > 0) return roles.join(', ');
+    return user?.role ? String(user.role) : '-';
+  };
+
   const users = useMemo(() => {
     if (tab === 'clients') return data.clients;
     if (tab === 'providers') return data.providers;
@@ -963,6 +985,7 @@ function AdminUsersScreen() {
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Teléfono</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Estado</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Diagnóstico acceso</th>
                       {tab === 'providers' && (
                         <>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinarias</th>
@@ -989,15 +1012,26 @@ function AdminUsersScreen() {
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.phone || '-'}</td>
                         <td style={{ padding: 14 }}>
                           {(() => {
-                            const st = String(u?.status || 'active');
-                            const isDel = Boolean(u?.deleted) || st === 'deleted';
-                            const label = isDel ? 'Eliminado' : st === 'test' ? 'Test' : st === 'suspended' ? 'Suspendido' : st === 'inactive' ? 'Inactivo' : 'Activo';
-                            const bg = isDel ? 'rgba(220, 53, 69, 0.18)' : st === 'test' ? 'rgba(143, 179, 201, 0.18)' : st === 'inactive' || st === 'suspended' ? 'rgba(217, 161, 90, 0.18)' : 'rgba(102, 187, 106, 0.16)';
-                            const fg = isDel ? ADMIN_PALETTE.danger : st === 'test' ? ADMIN_PALETTE.info : st === 'inactive' || st === 'suspended' ? ADMIN_PALETTE.warning : ADMIN_PALETTE.success;
+                            const meta = getStatusMeta(u);
                             return (
-                              <span style={{ padding: '4px 8px', borderRadius: 6, fontSize: 13, fontWeight: 700, background: bg, color: fg }}>
-                                {label}
+                              <span style={{ padding: '4px 8px', borderRadius: 6, fontSize: 13, fontWeight: 700, background: meta.bg, color: meta.fg }}>
+                                {meta.label}
                               </span>
+                            );
+                          })()}
+                        </td>
+                        <td style={{ padding: 14, color: 'rgba(255,255,255,0.82)', fontSize: 12, lineHeight: 1.5 }}>
+                          {(() => {
+                            const meta = getStatusMeta(u);
+                            return (
+                              <>
+                                <div><strong style={{ color: '#fff' }}>status:</strong> {meta.st}</div>
+                                <div><strong style={{ color: '#fff' }}>deleted:</strong> {meta.isDel ? 'true' : 'false'}</div>
+                                <div><strong style={{ color: '#fff' }}>roles:</strong> {getRolesLabel(u)}</div>
+                                {tab === 'providers' ? (
+                                  <div><strong style={{ color: '#fff' }}>provider_role:</strong> {u?.provider_role || '-'}</div>
+                                ) : null}
+                              </>
                             );
                           })()}
                         </td>
@@ -1035,13 +1069,7 @@ function AdminUsersScreen() {
                               </span>
                             </td>
                             <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-                              {u.provider_role === 'super_master'
-                                ? 'Titular'
-                                : u.provider_role === 'master'
-                                  ? 'Gerente'
-                                  : u.provider_role === 'operator'
-                                    ? 'Operador'
-                                    : u.provider_role || '-'}
+                              {getProviderRoleLabel(u.provider_role)}
                             </td>
                           </>
                         )}
@@ -1065,9 +1093,8 @@ function AdminUsersScreen() {
                               Editar
                             </button>
                             {(() => {
-                              const st = String(u?.status || 'active');
-                              const isDel = Boolean(u?.deleted) || st === 'deleted';
-                              if (isDel) {
+                              const meta = getStatusMeta(u);
+                              if (meta.isDel) {
                                 return (
                                   <>
                                     <button
@@ -1107,7 +1134,7 @@ function AdminUsersScreen() {
                               }
                               return (
                                 <>
-                                  {st !== 'active' && (
+                                  {meta.st !== 'active' && (
                                     <button
                                       type="button"
                                       onClick={() => applyUserAdminStatus(u, 'active')}
@@ -1173,7 +1200,7 @@ function AdminUsersScreen() {
                                   >
                                     Marcar test
                                   </button>
-                                  {st === 'test' && (
+                                  {meta.st === 'test' && (
                                     <button
                                       type="button"
                                       onClick={() => setPurgeTarget(u)}
@@ -1234,6 +1261,21 @@ function AdminUsersScreen() {
               {editKind === 'machine' ? 'Editar maquinaria' : `Editar ${tab === 'clients' ? 'cliente' : 'proveedor'}`}
             </h3>
             <div style={{ display: 'grid', gap: 12 }}>
+              {editKind !== 'machine' ? (
+                <div style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 10, padding: 12 }}>
+                  <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 8 }}>Diagnóstico de acceso</div>
+                  <div style={{ display: 'grid', gap: 4, color: 'rgba(255,255,255,0.88)', fontSize: 13, lineHeight: 1.45 }}>
+                    <div><strong style={{ color: '#fff' }}>user.id:</strong> {editingUser?.id || '-'}</div>
+                    <div><strong style={{ color: '#fff' }}>phone:</strong> {editingUser?.phone || '-'}</div>
+                    <div><strong style={{ color: '#fff' }}>status:</strong> {String(editingUser?.status || 'active')}</div>
+                    <div><strong style={{ color: '#fff' }}>deleted:</strong> {editingUser?.deleted ? 'true' : 'false'}</div>
+                    <div><strong style={{ color: '#fff' }}>roles:</strong> {getRolesLabel(editingUser)}</div>
+                    {tab === 'providers' ? (
+                      <div><strong style={{ color: '#fff' }}>provider_role:</strong> {editingUser?.provider_role || '-'}</div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
               {editKind !== 'machine' ? (
                 <>
                   <label style={{ display: 'grid', gap: 6 }}>

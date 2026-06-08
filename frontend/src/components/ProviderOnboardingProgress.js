@@ -1,7 +1,7 @@
 /**
  * Indicador de progreso del onboarding proveedor
  * Misma línea segmentada que el flujo de reserva cliente (`StepProgressSegments`).
- * Por defecto: 5 pasos (empresa → máquina → fotos+tarifas → operador → revisión)
+ * Por defecto: 6 pasos (empresa -> maquina -> fotos+tarifas -> operador -> revision -> banco)
  * Opcional: `steps` para subflujos (p. ej. machine-first 3 pasos, servicio terminado 2 pasos)
  */
 import StepProgressSegments from './StepProgressSegments';
@@ -12,6 +12,7 @@ const DEFAULT_PROVIDER_STEPS = [
   { label: 'Fotos y tarifas' },
   { label: 'Operador' },
   { label: 'Revisión' },
+  { label: 'Banco' },
 ];
 
 function ProviderOnboardingProgress({ currentStep, steps: stepsOverride }) {

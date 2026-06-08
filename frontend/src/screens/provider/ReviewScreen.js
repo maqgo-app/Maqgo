@@ -3,14 +3,12 @@ import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useNavigate } from 'react-router-dom';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import axios from 'axios';
-import { getAndClearProviderReturnUrl } from '../../utils/registrationReturn';
 import MaqgoLogo from '../../components/MaqgoLogo';
 
 import BACKEND_URL, { clearLocalSession } from '../../utils/api';
 import { MACHINERY_NAMES, getMachineryCapacityOptions, getProviderSpecLabelShort } from '../../utils/machineryNames';
 import { getObject } from '../../utils/safeStorage';
 import { createMachineInApi, upsertOnboardingMachine } from '../../utils/providerMachines';
-import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
 import { useToast } from '../../components/Toast';
 
 /**
@@ -58,14 +56,10 @@ function ReviewScreen() {
       const userId = localStorage.getItem('userId');
       if (!userId) {
         if (isDev) {
-          localStorage.setItem('providerOnboardingCompleted', 'true');
-          localStorage.removeItem('providerOnboardingStep');
-          try {
-            localStorage.removeItem('providerCameFromWelcome');
-          } catch {
-            /* ignore */
-          }
-          navigate(getProviderLandingPath());
+          navigate('/provider/profile/banco', {
+            replace: true,
+            state: { finalizeOnboarding: true, returnTo: '/provider/home' },
+          });
           return;
         }
         toast.error('Tu sesión expiró. Inicia sesión nuevamente para finalizar el registro.');
@@ -92,7 +86,6 @@ function ReviewScreen() {
         providerData,
         machineData: machinePayload,
         operators: operatorsPayload,
-        onboarding_completed: true,
       };
       if (machineData?.machineryType) payloadBase.machineryType = machineData.machineryType;
 
@@ -151,66 +144,13 @@ function ReviewScreen() {
         }
       }
 
-      // Publicar al proveedor para pruebas reales: dejar disponible tras completar onboarding.
-      // (La disponibilidad se puede desactivar luego desde el toggle.)
-      try {
-        await axios.put(
-          `${BACKEND_URL}/api/users/${userId}/availability`,
-          { isAvailable: true, machineryType: machineData?.machineryType || undefined },
-          { timeout: 8000 }
-        );
-      } catch (e) {
-        // No bloquear: el perfil quedó guardado; si falla disponibilidad, el toggle la repara.
-        if (import.meta.env.DEV) {
-          console.warn('ReviewScreen: no se pudo activar disponibilidad:', e?.response?.status || e?.message);
-        }
-      }
-      
-      // Marcar onboarding como completado y limpiar paso
-      localStorage.setItem('providerOnboardingCompleted', 'true');
-      localStorage.removeItem('providerOnboardingStep');
-      try {
-        localStorage.removeItem('providerCameFromWelcome');
-      } catch {
-        /* ignore */
-      }
-
       // Sincronizar onboarding -> Mis Máquinas (fuente de UI local del proveedor)
       upsertOnboardingMachine(machineData, pricing, operatorsPayload);
-
-      try {
-        localStorage.removeItem('machineData');
-        localStorage.removeItem('machinePricing');
-        localStorage.removeItem('machinePhotos');
-      } catch {
-        void 0;
-      }
-      
-      const returnUrl = getAndClearProviderReturnUrl();
-      let machineFirst = false;
-      try {
-        machineFirst = sessionStorage.getItem('machineFirstFlow') === '1';
-      } catch {
-        machineFirst = false;
-      }
-      if (machineFirst) {
-        try {
-          sessionStorage.removeItem('machineFirstFlow');
-        } catch {
-          /* ignore */
-        }
-        try {
-          localStorage.setItem('providerAvailable', 'true');
-        } catch {
-          /* ignore */
-        }
-        toast.success('Tu máquina ha sido ingresada correctamente');
-        navigate('/provider/home', { replace: true, state: { showProfilePaymentsBanner: true } });
-      } else if (returnUrl && returnUrl.startsWith('/provider/')) {
-        navigate(returnUrl);
-      } else {
-        navigate(getProviderLandingPath());
-      }
+      localStorage.setItem('providerOnboardingStep', '7');
+      navigate('/provider/profile/banco', {
+        replace: true,
+        state: { finalizeOnboarding: true, returnTo: '/provider/home' },
+      });
     } catch (e) {
       if (import.meta.env.PROD) {
         const status = e?.response?.status;
@@ -226,47 +166,11 @@ function ReviewScreen() {
         else toast.error('No pudimos guardar tu registro. Revisa tu conexión e intenta nuevamente.');
         return;
       }
-
-      localStorage.setItem('providerOnboardingCompleted', 'true');
-      localStorage.removeItem('providerOnboardingStep');
-      try {
-        localStorage.removeItem('providerCameFromWelcome');
-      } catch {
-        /* ignore */
-      }
-
-      let machineFirst = false;
-      try {
-        machineFirst = sessionStorage.getItem('machineFirstFlow') === '1';
-      } catch {
-        machineFirst = false;
-      }
-      const returnUrl = getAndClearProviderReturnUrl();
-      try {
-        localStorage.removeItem('machineData');
-        localStorage.removeItem('machinePricing');
-        localStorage.removeItem('machinePhotos');
-      } catch {
-        void 0;
-      }
-      if (machineFirst) {
-        try {
-          sessionStorage.removeItem('machineFirstFlow');
-        } catch {
-          /* ignore */
-        }
-        try {
-          localStorage.setItem('providerAvailable', 'true');
-        } catch {
-          /* ignore */
-        }
-        toast.success('Tu máquina ha sido ingresada correctamente');
-        navigate('/provider/home', { replace: true, state: { showProfilePaymentsBanner: true } });
-      } else if (returnUrl && returnUrl.startsWith('/provider/')) {
-        navigate(returnUrl);
-      } else {
-        navigate(getProviderLandingPath());
-      }
+      localStorage.setItem('providerOnboardingStep', '7');
+      navigate('/provider/profile/banco', {
+        replace: true,
+        state: { finalizeOnboarding: true, returnTo: '/provider/home' },
+      });
     } finally {
       setLoading(false);
     }

@@ -10,6 +10,7 @@ export const PROVIDER_ONBOARDING_STEP_ROUTES = {
   '4': '/provider/machine-photos-pricing',
   '5': '/provider/operator-data',
   '6': '/provider/review',
+  '7': '/provider/profile/banco',
 };
 
 export function getProviderOnboardingRoute(step) {

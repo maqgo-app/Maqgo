@@ -12,7 +12,8 @@ import { traceRedirectToLogin } from '../../utils/traceLoginRedirect';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { getMachines } from '../../utils/providerMachines';
 import { getProviderOnboardingRoute } from '../../utils/providerOnboarding';
-import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
+import { getProviderOnboardingNextPath } from '../../utils/providerOnboardingStatus';
+import { fetchAndHydrateProviderOnboardingDraft } from '../../utils/providerOnboardingDraft';
 import { useAuth } from '../../context/authHooks';
 
 /** Sin valor guardado → ON (optimización primera solicitud); backend/local sync pueden corregir después. */
@@ -165,17 +166,17 @@ function ProviderHomeScreen() {
     const userId = localStorage.getItem('userId');
     const isDemoId = userId && (userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-'));
     if (userId && !isDemoId) {
-      axios.get(`${BACKEND_URL}/api/users/${userId}`, { timeout: 5000 })
-        .then((res) => {
-          const onboardingDb = Boolean(res.data?.onboarding_completed);
+      fetchAndHydrateProviderOnboardingDraft(userId)
+        .then((user) => {
+          const onboardingDb = Boolean(user?.onboarding_completed);
           setOnboardingCompleted(onboardingDb || completedLocal);
           if (onboardingDb) localStorage.setItem('providerOnboardingCompleted', 'true');
 
-          const avail = res.data?.isAvailable ?? res.data?.available ?? false;
+          const avail = user?.isAvailable ?? user?.available ?? false;
           setAvailable(!!avail);
           localStorage.setItem('providerAvailable', (!!avail).toString());
 
-          const bankFromDb = res.data?.providerData?.bankData;
+          const bankFromDb = user?.providerData?.bankData;
           if (bankFromDb && typeof bankFromDb === 'object') {
             localStorage.setItem('bankData', JSON.stringify(bankFromDb));
             setBankDataComplete(isBankComplete(bankFromDb));
@@ -468,17 +469,8 @@ function ProviderHomeScreen() {
   };
 
   const goToOnboarding = () => {
-    try {
-      if (localStorage.getItem('providerCameFromWelcome') === 'true') {
-        navigate(getProviderLandingPath());
-        return;
-      }
-    } catch {
-      /* ignore */
-    }
-    const savedStep = localStorage.getItem('providerOnboardingStep');
-    const route = getProviderOnboardingRoute(savedStep);
-    navigate(route || '/provider/data');
+    const route = getProviderOnboardingNextPath();
+    navigate(route || getProviderOnboardingRoute(localStorage.getItem('providerOnboardingStep')));
   };
 
   // Sin sesión → login.
@@ -491,14 +483,6 @@ function ProviderHomeScreen() {
         state={{ entry: 'provider', redirect: '/provider/home' }}
       />
     );
-  }
-
-  // Con sesión pero onboarding incompleto → forzar wizard en orden (una vez).
-  if (bootstrapped && hasPersistedSessionCredentials() && !onboardingCompleted) {
-    const target = getProviderLandingPath();
-    if (target && target !== '/provider/home') {
-      return <Navigate to={target} replace />;
-    }
   }
 
   if (!bootstrapped) {

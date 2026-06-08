@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
 import { getObject } from '../../utils/safeStorage';
 import BACKEND_URL from '../../utils/api';
@@ -97,6 +98,7 @@ function BancoScreen() {
   const [manualAccountEntry, setManualAccountEntry] = useState(false);
   const isNaturalPerson = !looksLikeCompany(provider.businessName);
   const activationEdit = Boolean(location.state?.activationEdit);
+  const finalizeOnboarding = Boolean(location.state?.finalizeOnboarding);
   const returnTo = String(location.state?.returnTo || '/provider/home');
 
   const shouldAutoVistaEstado =
@@ -172,7 +174,10 @@ function BancoScreen() {
         };
         await axios.patch(
           `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`,
-          { providerData: nextProviderData },
+          {
+            providerData: nextProviderData,
+            ...(finalizeOnboarding ? { onboarding_completed: true } : {}),
+          },
           { timeout: 8000 }
         );
         localStorage.setItem('providerData', JSON.stringify(nextProviderData));
@@ -186,7 +191,7 @@ function BancoScreen() {
       return;
     }
 
-    if (activationEdit) {
+    if (activationEdit || finalizeOnboarding) {
       try {
         const userId = localStorage.getItem('userId');
         const isDemoId =
@@ -207,12 +212,26 @@ function BancoScreen() {
       }
     }
 
+    if (finalizeOnboarding) {
+      try {
+        localStorage.setItem('providerOnboardingCompleted', 'true');
+        localStorage.removeItem('providerOnboardingStep');
+        localStorage.removeItem('providerCameFromWelcome');
+        localStorage.removeItem('machineData');
+        localStorage.removeItem('machinePricing');
+        localStorage.removeItem('machinePhotos');
+        localStorage.setItem('providerAvailable', 'true');
+      } catch {
+        void 0;
+      }
+    }
+
     setSaved(true);
     setTimeout(
       () =>
-        navigate(activationEdit ? returnTo : '/provider/profile', {
-          replace: activationEdit,
-          state: activationEdit ? { activationCongrats: true } : undefined,
+        navigate(finalizeOnboarding ? '/provider/home' : activationEdit ? returnTo : '/provider/profile', {
+          replace: activationEdit || finalizeOnboarding,
+          state: activationEdit || finalizeOnboarding ? { activationCongrats: true } : undefined,
         }),
       800
     );
@@ -255,7 +274,7 @@ function BancoScreen() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
           <button 
-            onClick={() => navigate(activationEdit ? returnTo : '/provider/profile')}
+            onClick={() => navigate(finalizeOnboarding ? '/provider/review' : activationEdit ? returnTo : '/provider/profile')}
             style={{
               background: 'none',
               border: 'none',
@@ -272,6 +291,8 @@ function BancoScreen() {
             Datos bancarios
           </h1>
         </div>
+
+        {finalizeOnboarding ? <ProviderOnboardingProgress currentStep={6} /> : null}
 
         <div style={{
           background: 'rgba(144, 189, 211, 0.1)',

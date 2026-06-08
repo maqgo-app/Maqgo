@@ -6,10 +6,10 @@ import { installApiMocks } from './_helpers/mocks.js';
 
 const BASE_URL = resolvePlaywrightBaseUrl();
 const OUT_DIR = path.resolve(process.cwd(), 'qa-artifacts/out');
-const SCREENSHOT_PATH = path.join(OUT_DIR, 'provider-register-password.png');
+const SCREENSHOT_PATH = path.join(OUT_DIR, 'provider-register-details-otp-only.png');
 
 test.describe('Provider register (evidence)', () => {
-  test('step details muestra campo Contraseña', async ({ browser }) => {
+  test('step details ya no pide contraseña (OTP-only)', async ({ browser }) => {
     fs.mkdirSync(OUT_DIR, { recursive: true });
 
     const context = await browser.newContext();
@@ -32,7 +32,7 @@ test.describe('Provider register (evidence)', () => {
     await page.waitForLoadState('load');
 
     await expect(page.getByRole('heading', { name: /Tu cuenta de proveedor/i })).toBeVisible();
-    await expect(page.getByRole('textbox', { name: /Contraseña/i })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: /Contraseña/i })).toHaveCount(0);
 
     await page.screenshot({ path: SCREENSHOT_PATH, fullPage: true });
     await context.close();

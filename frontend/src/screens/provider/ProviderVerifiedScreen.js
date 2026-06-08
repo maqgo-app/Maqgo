@@ -6,7 +6,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import BACKEND_URL, { hasPersistedSessionCredentials } from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
 import { useAuth } from '../../context/authHooks';
-import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
+import { getProviderOnboardingNextPath } from '../../utils/providerOnboardingStatus';
 
 const JSON_POST_TIMEOUT = {
   timeout: 20000,
@@ -201,7 +201,7 @@ function ProviderVerifiedScreen({ setUserRole, setUserId }) {
         }
         if (cancelled) return;
         setPhase('done');
-        navigate(getProviderLandingPath(), { replace: true });
+        navigate(getProviderOnboardingNextPath(), { replace: true });
       } catch {
         if (!cancelled) {
           setPhase('error');
@@ -290,7 +290,7 @@ function ProviderVerifiedScreen({ setUserRole, setUserId }) {
         <button
           type="button"
           className="maqgo-btn-primary"
-          onClick={() => navigate(getProviderLandingPath(), { replace: true })}
+          onClick={() => navigate(getProviderOnboardingNextPath(), { replace: true })}
           disabled={!sessionOk}
           style={{ width: '100%', maxWidth: 320, opacity: sessionOk ? 1 : 0.5 }}
         >
@@ -304,7 +304,7 @@ function ProviderVerifiedScreen({ setUserRole, setUserId }) {
             onClick={() => {
               navigate('/provider/register', {
                 replace: true,
-                state: { redirect: getProviderLandingPath() },
+                state: { redirect: getProviderOnboardingNextPath() },
               });
             }}
             style={{

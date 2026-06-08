@@ -18,6 +18,7 @@ import {
   PRICE_CAP_RULE_LABEL,
 } from '../../utils/pricing';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
+import { persistProviderOnboardingDraft } from '../../utils/providerOnboardingDraft';
 
 /**
  * Onboarding proveedor: fotos (opcional) + tarifas en una sola vista.
@@ -331,6 +332,11 @@ function MachinePhotosPricingScreen() {
       machineType,
     };
     localStorage.setItem('machinePricing', JSON.stringify(pricing));
+    persistProviderOnboardingDraft({
+      machineData: machineDataSnapshot,
+      machinePricing: pricing,
+      machinePhotos: photosRef.current,
+    }).catch(() => void 0);
     // Misma numeración que PricingScreen legacy: tras tarifas → paso 5 (operador).
     localStorage.setItem('providerOnboardingStep', '5');
     navigate('/provider/operator-data');

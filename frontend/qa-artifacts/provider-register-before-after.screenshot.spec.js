@@ -12,7 +12,7 @@ function out(name) {
 }
 
 test.describe('Provider register (before/after)', () => {
-  test('capturas phone → otp → details (contraseña)', async ({ browser }) => {
+  test('capturas phone → otp → details (OTP-only)', async ({ browser }) => {
     fs.mkdirSync(OUT_DIR, { recursive: true });
 
     const context = await browser.newContext();
@@ -46,7 +46,7 @@ test.describe('Provider register (before/after)', () => {
     await page.keyboard.type('123456');
 
     await expect(page.getByRole('heading', { name: /Tu cuenta de proveedor/i })).toBeVisible();
-    await expect(page.getByRole('textbox', { name: /Contraseña/i })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: /Contraseña/i })).toHaveCount(0);
     await page.screenshot({ path: out('provider-register-03-details-after-otp.png'), fullPage: true });
 
     await context.close();
@@ -75,7 +75,7 @@ test.describe('Provider register (before/after)', () => {
     await page.waitForLoadState('load');
 
     await expect(page.getByRole('heading', { name: /Tu cuenta de proveedor/i })).toBeVisible();
-    await expect(page.getByRole('textbox', { name: /Contraseña/i })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: /Contraseña/i })).toHaveCount(0);
     await page.screenshot({ path: out('provider-register-04-details-skip-otp.png'), fullPage: true });
 
     await context.close();

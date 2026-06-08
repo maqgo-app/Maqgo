@@ -17,6 +17,17 @@ Regla operativa: no se despliega sin quality gate en verde y validacion final.
 
 ## Historial
 
+- Fecha: 2026-06-08
+- Entorno: production (backend + frontend)
+- Responsable: GPT-5.4
+- Commit/Version: workspace local (auth celular + soporte responsive + onboarding proveedor)
+- Quality gate: PASS (`./scripts/deploy-cto.sh`; lint con warnings no bloqueantes)
+- Pre-deploy: PASS
+- Health check backend (`/api/`): pendiente verificación post-push/deploy
+- Smoke test frontend: PASS local focalizado (`support-access-blank-ticket.spec.js`)
+- Riesgos observados: producción debe confirmarse con pantalla 2 real y celular del usuario tras deploy
+- Resultado final: listo para commit/push a `main`
+
 - Fecha: 2026-05-19
 - Entorno: production (backend + frontend)
 - Cambio: eliminación Twilio (OTP solo LabsMobile+Redis); gestión equipo proveedor (invites batch, operadores).

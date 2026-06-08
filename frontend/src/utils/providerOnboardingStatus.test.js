@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   getProviderLandingPath,
+  getProviderOnboardingNextPath,
   isProviderActivationCompleteFromStorage,
   isProviderOnboardingCompleteFromStorage,
 } from './providerOnboardingStatus.js';
@@ -54,16 +55,18 @@ describe('providerOnboardingStatus', () => {
     }
   });
 
-  it('sin datos, sin Welcome → clásico /provider/data', () => {
+  it('sin datos: reingreso normal va a home y onboarding va a /provider/data', () => {
     installLocalStorageMock({});
-    expect(getProviderLandingPath()).toBe('/provider/data');
+    expect(getProviderLandingPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/data');
     expect(isProviderActivationCompleteFromStorage()).toBe(false);
     expect(isProviderOnboardingCompleteFromStorage()).toBe(false);
   });
 
-  it('sin datos + providerCameFromWelcome → /provider/data', () => {
+  it('sin datos + providerCameFromWelcome mantiene onboarding en /provider/data', () => {
     installLocalStorageMock({ providerCameFromWelcome: 'true' });
-    expect(getProviderLandingPath()).toBe('/provider/data');
+    expect(getProviderLandingPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/data');
   });
 
   it('cuatro pilares en LS → home', () => {
@@ -71,41 +74,46 @@ describe('providerOnboardingStatus', () => {
     expect(isProviderActivationCompleteFromStorage()).toBe(true);
     expect(isProviderOnboardingCompleteFromStorage()).toBe(true);
     expect(getProviderLandingPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/home');
   });
 
   it('providerOnboardingCompleted=true sin LS → completo', () => {
     installLocalStorageMock({ providerOnboardingCompleted: 'true' });
     expect(isProviderOnboardingCompleteFromStorage()).toBe(true);
     expect(getProviderLandingPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/home');
   });
 
-  it('Welcome (providerCameFromWelcome): sin máquina registrada sigue orden clásico', () => {
+  it('onboarding manual: sin máquina registrada sigue orden clásico', () => {
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
     });
-    expect(getProviderLandingPath()).toBe('/provider/machine-data');
+    expect(getProviderLandingPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/machine-data');
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
       machineData: JSON.stringify({ machineryType: 'x', licensePlate: 'ZZ99' }),
     });
-    expect(getProviderLandingPath()).toBe('/provider/machines');
+    expect(getProviderLandingPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/machines');
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
       machineData: JSON.stringify({ machineryType: 'x', licensePlate: 'ZZ99' }),
-      operatorsData: JSON.stringify([{ id: '1' }]),
+      operatorsData: JSON.stringify([{ id: '1', name: 'Operador Uno' }]),
     });
-    expect(getProviderLandingPath()).toBe('/provider/machines');
+    expect(getProviderLandingPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/profile/banco');
   });
 
-  it('Welcome + máquina registrada → /provider/machine-data (agregar rápida)', () => {
+  it('máquina registrada sin completar onboarding: reingreso va a home', () => {
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerMachines: JSON.stringify([{ id: 'mach_1', machineryType: 'x', licensePlate: 'ZZ99', operators: [] }]),
     });
-    expect(getProviderLandingPath()).toBe('/provider/machine-data');
+    expect(getProviderLandingPath()).toBe('/provider/home');
   });
 
   it('Welcome + onboarding completo en LS → /provider/home', () => {
@@ -115,6 +123,7 @@ describe('providerOnboardingStatus', () => {
       ...completePayload,
     });
     expect(getProviderLandingPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/home');
   });
 
   it('tras quitar flag Welcome + onboarding completo → /provider/home', () => {
@@ -123,16 +132,18 @@ describe('providerOnboardingStatus', () => {
       ...completePayload,
     });
     expect(getProviderLandingPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/home');
   });
 
-  it('clásico: solo empresa en LS → /provider/machine-data', () => {
+  it('onboarding: solo empresa en LS → /provider/machine-data', () => {
     installLocalStorageMock({
       providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
     });
-    expect(getProviderLandingPath()).toBe('/provider/machine-data');
+    expect(getProviderLandingPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/machine-data');
   });
 
-  it('empresa + máquina sin operador asignado → /provider/machines', () => {
+  it('empresa + máquina sin operador asignado → onboarding va a /provider/machines', () => {
     installLocalStorageMock({
       providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
       machineData: JSON.stringify({ machineryType: 'x', licensePlate: 'ZZ99' }),
@@ -140,7 +151,8 @@ describe('providerOnboardingStatus', () => {
         { id: 'mach_1', machineryType: 'x', licensePlate: 'ZZ99', operators: [] },
       ]),
     });
-    expect(getProviderLandingPath()).toBe('/provider/machines');
+    expect(getProviderLandingPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/machines');
     expect(isProviderActivationCompleteFromStorage()).toBe(false);
   });
 });
