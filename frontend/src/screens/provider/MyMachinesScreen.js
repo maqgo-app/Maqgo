@@ -77,11 +77,36 @@ function getOperatorStableId(operator = {}, fallback = '') {
   return String(fallback || '').trim();
 }
 
+function normalizeMachineOperator(machine, operator = {}, fallback = '') {
+  if (!operator || typeof operator !== 'object') return null;
+  const merged = mergeOwnerPhoneFallback(operator);
+  const currentOperators = Array.isArray(machine?.operators) ? machine.operators : [];
+  const { id: ownerId, phone: ownerPhone } = getCurrentOwnerOperator();
+  const shouldAssumeOwner =
+    currentOperators.length === 1 &&
+    !merged?.phone &&
+    !!ownerPhone;
+  const next = shouldAssumeOwner
+    ? {
+        ...merged,
+        id: String(merged?.id || ownerId || fallback || '').trim(),
+        phone: ownerPhone,
+        isOwner: true,
+      }
+    : merged;
+  const stableId = getOperatorStableId(next, fallback);
+  if (!stableId) return null;
+  return {
+    ...next,
+    id: stableId,
+  };
+}
+
 function getEffectiveDefaultOperatorId(machine, defaultByMachinery = {}) {
   const mid = toMachineryId(machine?.type);
   const configuredId = String(defaultByMachinery?.[mid] || '').trim();
   if (configuredId) return configuredId;
-  const firstOperatorId = getOperatorStableId(machine?.operators?.[0], '');
+  const firstOperatorId = normalizeMachineOperator(machine, machine?.operators?.[0], '')?.id || '';
   return firstOperatorId;
 }
 
@@ -178,10 +203,7 @@ function MyMachinesScreen() {
     const nextOperators = Array.isArray(operators)
       ? operators
           .map((op, index) => {
-            const merged = mergeOwnerPhoneFallback(op);
-            if (!merged) return null;
-            const stableId = getOperatorStableId(merged, `op-manual-${machineId}-${index}`);
-            return stableId ? { ...merged, id: stableId } : null;
+            return normalizeMachineOperator(machine, op, `op-manual-${machineId}-${index}`);
           })
           .filter(Boolean)
       : [];
@@ -212,6 +234,13 @@ function MyMachinesScreen() {
   const toggleAvailability = async (machineId) => {
     const machine = machines.find(m => m.id === machineId);
     if (!machine) return;
+    const normalizedOperators = (Array.isArray(machine.operators) ? machine.operators : [])
+      .map((op, index) => normalizeMachineOperator(machine, op, `op-toggle-${machineId}-${index}`))
+      .filter(Boolean);
+    if (normalizedOperators.length === 0) {
+      toast.warning('Esta maquina debe tener al menos un operador.');
+      return;
+    }
     try {
       await updateMachineInApi(machineId, { available: !machine.available });
       updateMachine(machineId, { available: !machine.available });
@@ -281,20 +310,17 @@ function MyMachinesScreen() {
           <button
             onClick={handleAddMachine}
             style={{
-              background: '#EC6819',
-              border: 'none',
+              background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.18)',
               borderRadius: 8,
               padding: '10px 16px',
-              color: '#fff',
+              color: 'rgba(255,255,255,0.92)',
               fontSize: 13,
               fontWeight: 600,
               cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
             }}
           >
-            + Agregar
+            Agregar máquina
           </button>
         </div>
       </div>
@@ -348,14 +374,20 @@ function MyMachinesScreen() {
               + Agregar mi primera máquina
             </button>
           </div>
-        ) : machines.map(machine => (
+        ) : machines.map(machine => {
+          const normalizedOperators = (Array.isArray(machine.operators) ? machine.operators : [])
+            .map((op, index) => normalizeMachineOperator(machine, op, `op-list-${machine.id}-${index}`))
+            .filter(Boolean);
+          const hasAssignedOperator = normalizedOperators.length > 0;
+          const effectiveAvailable = Boolean(machine.available) && hasAssignedOperator;
+          return (
           <div
             key={machine.id}
             style={{
               background: '#1A1A1F',
               borderRadius: 12,
               padding: 16,
-              border: machine.available ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(244, 67, 54, 0.3)'
+              border: effectiveAvailable ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(244, 67, 54, 0.3)'
             }}
           >
             {/* Header máquina */}
@@ -370,19 +402,21 @@ function MyMachinesScreen() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
                   onClick={() => toggleAvailability(machine.id)}
-                  title={machine.available ? 'Marcar como no disponible' : 'Marcar como disponible'}
+                  title={!hasAssignedOperator ? 'Asigna un operador para habilitar esta máquina' : effectiveAvailable ? 'Marcar como no disponible' : 'Marcar como disponible'}
+                  disabled={!hasAssignedOperator}
                   style={{
-                    background: machine.available ? 'rgba(236, 104, 25, 0.15)' : 'rgba(244, 67, 54, 0.15)',
-                    color: machine.available ? '#EC6819' : '#F44336',
+                    background: effectiveAvailable ? 'rgba(236, 104, 25, 0.15)' : 'rgba(244, 67, 54, 0.15)',
+                    color: effectiveAvailable ? '#EC6819' : '#F44336',
                     fontSize: 12,
                     fontWeight: 600,
                     padding: '4px 8px',
                     borderRadius: 6,
                     border: 'none',
-                    cursor: 'pointer'
+                    cursor: !hasAssignedOperator ? 'not-allowed' : 'pointer',
+                    opacity: !hasAssignedOperator ? 0.9 : 1
                   }}
                 >
-                  {machine.available ? 'Disponible' : 'No disponible'}
+                  {!hasAssignedOperator ? 'Operador requerido' : effectiveAvailable ? 'Disponible' : 'No disponible'}
                 </button>
                 <button
                   onClick={() => setDeleteMachineConfirm(machine)}
@@ -451,13 +485,13 @@ function MyMachinesScreen() {
             {/* Operadores */}
             <div style={{ marginBottom: 12 }}>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Operadores ({(machine.operators || []).length})
+                Operadores ({normalizedOperators.length})
               </p>
-              {(machine.operators || []).length > 0 ? (
+              {normalizedOperators.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {(machine.operators || []).map(op => {
-                    const displayOp = mergeOwnerPhoneFallback(op);
-                    const isDefault = getEffectiveDefaultOperatorId(machine, defaultByMachinery) === getOperatorStableId(displayOp);
+                  {normalizedOperators.map(displayOp => {
+                    const mid = toMachineryId(machine.type);
+                    const isDefault = getEffectiveDefaultOperatorId(machine, defaultByMachinery) === displayOp.id;
                     return (
                       <div
                         key={displayOp.id}
@@ -559,7 +593,7 @@ function MyMachinesScreen() {
               </button>
             </div>
           </div>
-        ))}
+        )})}
       </div>
 
       {editPricingModal && (
@@ -678,7 +712,13 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
   const [loading, setLoading] = useState(true);
   const [teamOperators, setTeamOperators] = useState([]);
   const [pendingInvitations, setPendingInvitations] = useState([]);
-  const [selectedIds, setSelectedIds] = useState(() => new Set((machine.operators || []).map((o, index) => getOperatorStableId(o, `op-selected-${index}`)).filter(Boolean)));
+  const [selectedIds, setSelectedIds] = useState(() =>
+    new Set(
+      (machine.operators || [])
+        .map((o, index) => normalizeMachineOperator(machine, o, `op-selected-${index}`)?.id)
+        .filter(Boolean)
+    )
+  );
   const [error, setError] = useState('');
   const [newOperatorName, setNewOperatorName] = useState('');
   const [newOperatorRut, setNewOperatorRut] = useState('');
@@ -764,14 +804,13 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
     const byId = new Map();
     const currentOperators = Array.isArray(machine.operators) ? machine.operators : [];
     currentOperators.forEach((op, index) => {
-      const stableId = getOperatorStableId(op, `op-current-${index}`);
-      if (!stableId) return;
-      const merged = mergeOwnerPhoneFallback(op);
-      byId.set(stableId, {
-        id: stableId,
-        name: merged?.name || op.name || 'Operador',
-        phone: merged?.phone || '',
-        rut: merged?.rut || op.rut || '',
+      const normalized = normalizeMachineOperator(machine, op, `op-current-${index}`);
+      if (!normalized) return;
+      byId.set(normalized.id, {
+        id: normalized.id,
+        name: normalized.name || op.name || 'Operador',
+        phone: normalized.phone || '',
+        rut: normalized.rut || op.rut || '',
       });
     });
     teamOperators.forEach((op, index) => {
@@ -792,11 +831,11 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
   const missingAssigned = useMemo(() => {
     return (Array.isArray(machine.operators) ? machine.operators : []).filter(
       (op, index) => {
-        const stableId = getOperatorStableId(op, `op-missing-${index}`);
+        const stableId = normalizeMachineOperator(machine, op, `op-missing-${index}`)?.id;
         return stableId && !selectableIds.has(stableId);
       }
     );
-  }, [machine.operators, selectableIds]);
+  }, [machine, machine.operators, selectableIds]);
   const overduePendingInvitations = useMemo(
     () => getOverdueOperatorInvitations(pendingInvitations),
     [pendingInvitations]
