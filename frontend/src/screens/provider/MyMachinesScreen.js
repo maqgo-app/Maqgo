@@ -452,7 +452,7 @@ function MyMachinesScreen() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
                   }}
                 >
-                  {(machine.operators || []).length > 0 ? 'Editar operadores' : 'Asignar operadores'}
+                  {'Agregar / modificar operadores'}
                 </button>
               )}
             </div>
@@ -694,7 +694,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0 }}>
-            {(machine.operators || []).length > 0 ? 'Editar operadores' : 'Asignar operadores'}
+            {'Agregar / modificar operadores'}
           </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: 4 }}>✕</button>
         </div>
