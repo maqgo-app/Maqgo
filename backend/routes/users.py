@@ -561,6 +561,15 @@ async def patch_user(
         update_data["isAvailable"] = False
         update_data["phoneVerified"] = True
 
+    # Mantener progreso de onboarding: PATCH parcial no debe borrar subcampos ya guardados.
+    if isinstance(update_data.get("providerData"), dict):
+        existing_provider = doc.get("providerData") if isinstance(doc.get("providerData"), dict) else {}
+        update_data["providerData"] = {**existing_provider, **update_data["providerData"]}
+
+    if isinstance(update_data.get("machineData"), dict):
+        existing_machine = doc.get("machineData") if isinstance(doc.get("machineData"), dict) else {}
+        update_data["machineData"] = {**existing_machine, **update_data["machineData"]}
+
     # Para matching: si viene machineData con machineryType, sincronizar a nivel raíz
     if 'machineData' in update_data and isinstance(update_data['machineData'], dict):
         mt = update_data['machineData'].get('machineryType')
