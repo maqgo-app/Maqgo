@@ -35,6 +35,7 @@ function EnRouteScreen() {
   const [eta, setEta] = useState(15);
   const [serviceData, setServiceData] = useState({});
   const [assignedOperator, setAssignedOperator] = useState(null);
+  const [canChangeAssignedOperator, setCanChangeAssignedOperator] = useState(false);
   const [showIncidentModal, setShowIncidentModal] = useState(false);
   const [incidentReason, setIncidentReason] = useState('');
   const [gpsError, setGpsError] = useState('');
@@ -70,6 +71,7 @@ function EnRouteScreen() {
     // Cargar operador asignado
     const operator = getObject('assignedOperator', {});
     setAssignedOperator(operator);
+    setCanChangeAssignedOperator(getArray('assignableServiceOperators', []).length > 1);
   }, []);
 
   // Obtener ubicación real del operador (GPS)
@@ -554,6 +556,26 @@ function EnRouteScreen() {
                 </div>
               </div>
             </div>
+            {canChangeAssignedOperator && (
+              <button
+                type="button"
+                onClick={() => navigate('/provider/select-operator', { state: { fromEnRoute: true } })}
+                style={{
+                  width: '100%',
+                  marginTop: 12,
+                  padding: 10,
+                  background: 'transparent',
+                  border: '1px solid rgba(236, 104, 25, 0.45)',
+                  borderRadius: 10,
+                  color: '#EC6819',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Cambiar operador
+              </button>
+            )}
           </div>
         )}
 

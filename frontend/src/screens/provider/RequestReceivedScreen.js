@@ -13,8 +13,74 @@ import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNa
 import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/AddressAutocomplete';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
+import { getMachines } from '../../utils/providerMachines';
 import { useAuth } from '../../context/authHooks';
 const MIN_HOURS_FOR_LUNCH = 6;
+
+function normalizeMachineryKey(raw) {
+  return String(raw || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    .trim();
+}
+
+function normalizeOperatorForAssignment(operator = {}, index = 0) {
+  if (!operator || typeof operator !== 'object') return null;
+  const rawName = String(
+    operator.nombre ||
+    operator.name ||
+    `${operator.firstName || operator.operatorFirstName || ''} ${operator.lastName || operator.operatorLastName || ''}`
+  ).trim();
+  if (!rawName) return null;
+  const nombre = String(operator.nombre || rawName).trim();
+  const apellido = String(operator.apellido || '').trim();
+  return {
+    id: String(operator.id || `service-operator-${Date.now()}-${index}`),
+    nombre,
+    apellido,
+    name: `${nombre} ${apellido}`.trim(),
+    rut: String(operator.rut || operator.operatorRut || '').trim(),
+    phone: String(operator.phone || operator.telefono || '').trim(),
+    isOwner: Boolean(operator.isOwner),
+    licenseType: operator.licenseType || '',
+    photo: operator.photo || null,
+  };
+}
+
+function getAssignableOperatorsForRequest(request) {
+  const machines = getMachines();
+  const requestMachineId = String(request?.machineId || request?.machine_id || '').trim();
+  const requestMachineryKey = normalizeMachineryKey(
+    request?.machineryId || request?.machineryType || request?.machinery_type
+  );
+
+  let matchedMachine = null;
+  if (requestMachineId) {
+    matchedMachine = machines.find((machine) => String(machine?.id || '').trim() === requestMachineId) || null;
+  }
+  if (!matchedMachine && requestMachineryKey) {
+    matchedMachine =
+      machines.find(
+        (machine) =>
+          normalizeMachineryKey(machine?.machineryType || machine?.type || machine?.id) === requestMachineryKey
+      ) || null;
+  }
+
+  const machineOperators = Array.isArray(matchedMachine?.operators) ? matchedMachine.operators : [];
+  const normalizedMachineOperators = machineOperators
+    .map((operator, index) => normalizeOperatorForAssignment(operator, index))
+    .filter(Boolean);
+  if (normalizedMachineOperators.length > 0) {
+    return normalizedMachineOperators;
+  }
+
+  return getArray('operatorsData', [])
+    .map((operator, index) => normalizeOperatorForAssignment(operator, index))
+    .filter(Boolean);
+}
 
 function parseIsoToMs(value) {
   if (!value) return null;
@@ -208,12 +274,14 @@ function RequestReceivedScreen() {
       localStorage.setItem('currentServiceId', request?.id || `demo-${Date.now()}`);
       localStorage.setItem('activeServiceRequest', JSON.stringify(request));
 
-      // Verificar si hay múltiples operadores para mostrar pantalla de selección
-      const savedOperators = getArray('operatorsData', []);
-      if (savedOperators.length > 1) {
+      const assignableOperators = getAssignableOperatorsForRequest(request);
+      localStorage.setItem('assignableServiceOperators', JSON.stringify(assignableOperators));
+
+      // Si hay varios operadores asociados a la máquina, el proveedor debe elegir cuál irá.
+      if (assignableOperators.length !== 1) {
         navigate('/provider/select-operator');
       } else {
-        const operator = savedOperators[0] || {};
+        const operator = assignableOperators[0];
         localStorage.setItem('assignedOperator', JSON.stringify(operator));
         void syncAssignedOperatorToApi(operator);
         navigate('/provider/en-route');

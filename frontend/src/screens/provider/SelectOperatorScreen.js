@@ -1,6 +1,6 @@
 import React, { useState, useLayoutEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import PhoneNationalInput from '../../components/PhoneNationalInput';
 import { validateCelularChile } from '../../utils/chileanValidation';
@@ -18,8 +18,29 @@ import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
  */
 const STORAGE_KEY_DEFAULT_BY_MACHINERY = 'defaultOperatorByMachinery';
 
+function normalizeStoredOperator(operator = {}, index = 0) {
+  if (!operator || typeof operator !== 'object') return null;
+  const nombre = String(operator.nombre || operator.name || '').trim();
+  const apellido = String(operator.apellido || '').trim();
+  const fullName = `${nombre} ${apellido}`.trim();
+  const fallbackName = String(operator.name || '').trim();
+  const finalName = fullName || fallbackName;
+  if (!finalName) return null;
+  return {
+    ...operator,
+    id: String(operator.id || `op-${index}`),
+    nombre: nombre || finalName,
+    apellido,
+    name: finalName,
+    rut: String(operator.rut || '').trim(),
+    phone: String(operator.phone || operator.telefono || '').trim(),
+    isOwner: Boolean(operator.isOwner),
+  };
+}
+
 function SelectOperatorScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const [operators, setOperators] = useState([]);
   const [selectedOperator, setSelectedOperator] = useState(null);
@@ -27,6 +48,7 @@ function SelectOperatorScreen() {
   const [loading, setLoading] = useState(false);
   const [useAsDefault, setUseAsDefault] = useState(false);
   const [showBackModal, setShowBackModal] = useState(false);
+  const fromEnRoute = Boolean(location.state?.fromEnRoute);
   const [machineryId] = useState(() => {
     const accepted = getObjectFirst(['acceptedRequest', 'incomingRequest'], {});
     const raw = (accepted.machineryId || accepted.machineryType || 'retroexcavadora').toString();
@@ -41,7 +63,10 @@ function SelectOperatorScreen() {
   const [ownerPhone] = useState(() => getObject('registerData', {}).phone || '');
 
   useLayoutEffect(() => {
-    const savedOperators = getArray('operatorsData', []);
+    const serviceOperators = getArray('assignableServiceOperators', []);
+    const savedOperators = (serviceOperators.length > 0 ? serviceOperators : getArray('operatorsData', []))
+      .map((op, index) => normalizeStoredOperator(op, index))
+      .filter(Boolean);
 
     if (savedOperators.length === 0) {
       const registerData = getObject('registerData', {});
@@ -59,10 +84,7 @@ function SelectOperatorScreen() {
       return;
     }
 
-    const operatorsWithIds = savedOperators.map((op, index) => ({
-      ...op,
-      id: op.id || `op-${index}`
-    }));
+    const operatorsWithIds = savedOperators;
     setOperators(operatorsWithIds);
 
     const defaults = getObject(STORAGE_KEY_DEFAULT_BY_MACHINERY, {});
@@ -77,6 +99,14 @@ function SelectOperatorScreen() {
       setSelectedOperator(null);
     }
   }, [machineryId]);
+
+  useLayoutEffect(() => {
+    if (!selectedOperator || selectedOperator.isOwner) {
+      setOperatorPhone('');
+      return;
+    }
+    setOperatorPhone(String(selectedOperator.phone || '').replace(/\D/g, '').slice(-9));
+  }, [selectedOperator]);
 
   const handleConfirm = () => {
     if (!selectedOperator) return;
@@ -115,13 +145,17 @@ function SelectOperatorScreen() {
     // Guardar celular del dueño para notificaciones paralelas
     localStorage.setItem('ownerPhone', ownerPhone);
     
-    navigate('/provider/en-route');
+    navigate('/provider/en-route', { replace: fromEnRoute });
   };
 
   const handleBackClick = () => setShowBackModal(true);
 
   const handleBackConfirm = () => {
     setShowBackModal(false);
+    if (fromEnRoute) {
+      navigate('/provider/en-route', { replace: true });
+      return;
+    }
     localStorage.removeItem('acceptedRequest');
     localStorage.removeItem('incomingRequest');
     navigate(getProviderLandingPath());
@@ -372,9 +406,13 @@ function SelectOperatorScreen() {
         <ConfirmModal
           open={showBackModal}
           onClose={() => setShowBackModal(false)}
-          title="Cancelar aceptación"
-          message="¿Cancelar la aceptación de la reserva? Volverás al inicio sin asignar operador."
-          confirmLabel="Sí, cancelar"
+          title={fromEnRoute ? 'Volver al servicio' : 'Cancelar aceptación'}
+          message={
+            fromEnRoute
+              ? '¿Volver al servicio sin cambiar el operador asignado?'
+              : '¿Cancelar la aceptación de la reserva? Volverás al inicio sin asignar operador.'
+          }
+          confirmLabel={fromEnRoute ? 'Sí, volver' : 'Sí, cancelar'}
           cancelLabel="No, continuar"
           onConfirm={handleBackConfirm}
           variant="danger"

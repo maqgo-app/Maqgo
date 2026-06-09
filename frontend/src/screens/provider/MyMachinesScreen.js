@@ -46,6 +46,24 @@ function buildOperatorJoinLink(code) {
   return `${origin}/operator/join?code=${encodeURIComponent(c)}`;
 }
 
+function getCurrentOwnerOperator() {
+  const id = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+  const phone = normalizePhoneForChannel(localStorage.getItem('userPhone') || '');
+  return { id, phone };
+}
+
+function mergeOwnerPhoneFallback(operator = {}) {
+  if (!operator || typeof operator !== 'object') return operator;
+  const { id: ownerId, phone: ownerPhone } = getCurrentOwnerOperator();
+  const operatorId = String(operator.id || '').trim();
+  if (!ownerId || !ownerPhone) return operator;
+  if (operator.phone) return operator;
+  if (operator.isOwner || operatorId === ownerId) {
+    return { ...operator, phone: ownerPhone };
+  }
+  return operator;
+}
+
 function MyMachinesScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -136,16 +154,19 @@ function MyMachinesScreen() {
     const machines = getMachines();
     const machine = machines.find(m => m.id === machineId);
     if (!machine) return;
+    const nextOperators = Array.isArray(operators)
+      ? operators.map((op) => mergeOwnerPhoneFallback(op)).filter(Boolean)
+      : [];
 
     const mid = toMachineryId(machine.type);
-    const selectedIds = new Set((operators || []).map(o => o.id));
+    const selectedIds = new Set(nextOperators.map(o => o.id));
     if (defaultByMachinery[mid] && !selectedIds.has(defaultByMachinery[mid])) {
       setDefaultOperator(mid, '');
     }
 
     try {
-      await updateMachineInApi(machineId, { operators: operators || [] });
-      updateMachine(machineId, { operators: operators || [] });
+      await updateMachineInApi(machineId, { operators: nextOperators });
+      updateMachine(machineId, { operators: nextOperators });
       loadMachines();
       setOperatorModal(null);
       if (activationEdit) navigate(returnTo, { replace: true });
@@ -401,11 +422,12 @@ function MyMachinesScreen() {
               {(machine.operators || []).length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(machine.operators || []).map(op => {
+                    const displayOp = mergeOwnerPhoneFallback(op);
                     const mid = toMachineryId(machine.type);
-                    const isDefault = defaultByMachinery[mid] === op.id;
+                    const isDefault = defaultByMachinery[mid] === displayOp.id;
                     return (
                       <div
-                        key={op.id}
+                        key={displayOp.id}
                         style={{
                           display: 'flex',
                           justifyContent: 'space-between',
@@ -419,7 +441,7 @@ function MyMachinesScreen() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div>
                             <p style={{ color: '#fff', fontSize: 13, margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                              {op.name}
+                              {displayOp.name}
                               {isDefault && (
                                 <span style={{ fontSize: 9, background: '#EC6819', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
                                   Por defecto
@@ -427,14 +449,14 @@ function MyMachinesScreen() {
                               )}
                             </p>
                             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>
-                              {op.phone || 'Sin celular'}
+                              {displayOp.phone || 'Sin celular'}
                             </p>
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           {canAssignOperators && (machine.operators || []).length > 1 && (
                             <button
-                              onClick={() => setDefaultOperator(mid, isDefault ? '' : op.id)}
+                              onClick={() => setDefaultOperator(mid, isDefault ? '' : displayOp.id)}
                               title={isDefault ? 'Quitar como predeterminado' : 'Usar por defecto'}
                               style={{
                                 background: isDefault ? '#EC6819' : 'transparent',
@@ -629,17 +651,14 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
   const [newOperatorPhone, setNewOperatorPhone] = useState('');
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [recentInvite, setRecentInvite] = useState(null);
+  const [showInlineInviteForm, setShowInlineInviteForm] = useState(false);
 
   const ownerId = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
-  const ownerPhone = (localStorage.getItem('userPhone') || '').trim();
-  const ownerOption = ownerId
-    ? {
-        id: ownerId,
-        name: 'Tu (dueno)',
-        phone: ownerPhone,
-        rut: '',
-      }
-    : null;
+  const assignedOwnerOperator = useMemo(() => {
+    const currentOperators = Array.isArray(machine.operators) ? machine.operators : [];
+    const ownerOp = currentOperators.find((op) => op?.isOwner || String(op?.id || '').trim() === ownerId);
+    return ownerOp ? mergeOwnerPhoneFallback(ownerOp) : null;
+  }, [machine.operators, ownerId]);
 
   const copyTextToClipboard = async (text, successMessage) => {
     const value = String(text || '').trim();
@@ -691,19 +710,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
   };
 
   const handleSave = () => {
-    const ownerId = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
-    const ownerPhone = (localStorage.getItem('userPhone') || '').trim();
-    const ownerOption = ownerId
-      ? {
-          id: ownerId,
-          name: 'Tú (dueño)',
-          phone: ownerPhone,
-          rut: '',
-        }
-      : null;
-
     const byId = new Map();
-    if (ownerOption) byId.set(ownerOption.id, ownerOption);
     teamOperators.forEach((op) => {
       if (op?.id) {
         byId.set(op.id, {
@@ -716,13 +723,15 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
     });
 
     const selected = Array.from(byId.values()).filter((op) => selectedIds.has(op.id));
+    if (assignedOwnerOperator?.id && selectedIds.has(assignedOwnerOperator.id)) {
+      selected.unshift(assignedOwnerOperator);
+    }
     onSave(selected);
     toast.success('Operadores asignados');
   };
 
   const selectableOperators = (() => {
     const byId = new Map();
-    if (ownerOption) byId.set(ownerOption.id, ownerOption);
     teamOperators.forEach((op) => {
       if (!op?.id) return;
       byId.set(op.id, { id: op.id, name: op.name, phone: op.phone || '', rut: op.rut || '' });
@@ -732,8 +741,13 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
 
   const selectableIds = useMemo(() => new Set(selectableOperators.map((o) => o.id)), [selectableOperators]);
   const missingAssigned = useMemo(() => {
-    return (Array.isArray(machine.operators) ? machine.operators : []).filter((op) => op?.id && !selectableIds.has(op.id));
-  }, [machine.operators, selectableIds]);
+    return (Array.isArray(machine.operators) ? machine.operators : []).filter(
+      (op) =>
+        op?.id &&
+        !selectableIds.has(op.id) &&
+        String(op.id || '').trim() !== String(assignedOwnerOperator?.id || '').trim()
+    );
+  }, [assignedOwnerOperator?.id, machine.operators, selectableIds]);
   const overduePendingInvitations = useMemo(
     () => getOverdueOperatorInvitations(pendingInvitations),
     [pendingInvitations]
@@ -742,8 +756,9 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
   const handleCreateInlineInvite = async () => {
     const fullName = String(newOperatorName || '').trim();
     const rut = String(newOperatorRut || '').trim();
-    if (!fullName || !rut) {
-      toast.warning('Ingresa nombre completo y RUT del operador.');
+    const normalizedPhone = normalizePhoneForChannel(newOperatorPhone);
+    if (!fullName || !rut || !normalizedPhone) {
+      toast.warning('Ingresa nombre completo, RUT y celular del operador.');
       return;
     }
     if (!ownerId) {
@@ -753,19 +768,18 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
 
     setCreatingInvite(true);
     try {
-      const normalizedPhone = normalizePhoneForChannel(newOperatorPhone);
       const payload = {
         owner_id: ownerId,
         operator_name: fullName,
         operator_rut: rut,
-        operator_phone: normalizedPhone || undefined,
+        operator_phone: normalizedPhone,
       };
       const response = await axios.post(`${BACKEND_URL}/api/operators/invite`, payload, { timeout: 8000 });
       const invite = {
         code: response?.data?.code || '',
         operator_name: fullName,
         operator_rut: rut,
-        operator_phone: normalizedPhone || undefined,
+        operator_phone: normalizedPhone,
         created_at: new Date().toISOString(),
         status: 'pending',
         invite_type: 'operator',
@@ -783,6 +797,8 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
     }
   };
 
+  const shouldShowInlineInviteForm = canManageOperators && (showInlineInviteForm || !!recentInvite);
+
   const createInvitePanel = (
     <div
       style={{
@@ -794,10 +810,10 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
       }}
     >
       <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
-        Agregar operador nuevo
+        Generar código
       </div>
       <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 1.45, margin: '0 0 12px' }}>
-        Genera aqui mismo su codigo de activacion. El operador debe enrolarlo en la app para quedar disponible y luego lo podras asignar a esta maquina.
+        Completa estos datos y comparte el código con tu operador.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <input
@@ -816,7 +832,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
         />
         <input
           className="maqgo-input"
-          placeholder="Celular (opcional)"
+          placeholder="Celular"
           value={newOperatorPhone}
           onChange={(e) => setNewOperatorPhone(e.target.value)}
           style={{ width: '100%' }}
@@ -827,7 +843,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
           disabled={creatingInvite}
           style={{ ...btnPrimary, width: '100%', flex: 'none', opacity: creatingInvite ? 0.7 : 1 }}
         >
-          {creatingInvite ? 'Generando codigo...' : 'Generar codigo de activacion'}
+          {creatingInvite ? 'Generando...' : 'Generar código'}
         </button>
       </div>
       {recentInvite?.code ? (
@@ -847,7 +863,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
             {recentInvite.code}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 6 }}>
-            Comparte este codigo o el link directo para que termine su enrolamiento.
+            Compártelo para que lo ingrese en MAQGO.
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <button
@@ -880,6 +896,32 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
     </div>
   );
 
+  const renderInlineInviteEntry = (label = 'Generar código') =>
+    canManageOperators ? (
+      shouldShowInlineInviteForm ? (
+        createInvitePanel
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowInlineInviteForm(true)}
+          style={{
+            width: '100%',
+            padding: 12,
+            background: 'rgba(236, 104, 25, 0.12)',
+            border: '1px solid rgba(236, 104, 25, 0.35)',
+            borderRadius: 12,
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            marginBottom: 16,
+          }}
+        >
+          {label}
+        </button>
+      )
+    ) : null;
+
   return (
     <ModalOverlay onClick={onClose}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
@@ -889,13 +931,9 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
           </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: 4 }}>✕</button>
         </div>
-        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '0 0 14px' }}>{machine.type}</p>
-
-        <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 12, marginBottom: 16 }}>
-          <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
-            Para asignar un operador, debe <strong>enrolarse con su código de activación</strong> en la app. Así podemos usar su <strong>GPS</strong> durante el servicio (el cliente ve dónde viene la maquinaria y mejora la experiencia).
-          </p>
-        </div>
+        <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '0 0 14px' }}>
+          {machine.type}. Marca los operadores ya activos o genera un código nuevo.
+        </p>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: 24 }}>
@@ -917,21 +955,20 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
                 Ir a Código de activación
               </button>
             ) : null}
-            {canManageOperators ? createInvitePanel : null}
+            {renderInlineInviteEntry()}
           </div>
         ) : selectableOperators.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 20 }}>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, margin: '0 0 10px' }}>
               No tienes operadores disponibles para asignar.
             </p>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
-              Puedes generar aqui mismo el codigo de activacion y compartirlo con tu operador.
-            </p>
-            {canManageOperators ? createInvitePanel : null}
+            <div style={{ marginTop: 16 }}>
+              {renderInlineInviteEntry()}
+            </div>
           </div>
         ) : (
           <>
-            {canManageOperators ? createInvitePanel : null}
+            {renderInlineInviteEntry()}
             {overduePendingInvitations.length > 0 && (
               <div
                 style={{
@@ -1005,45 +1042,25 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
                 <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
                   Códigos pendientes ({pendingInvitations.length})
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto' }}>
-                  {pendingInvitations.map((inv) => {
-                    const warning = getOperatorInvitationWarning(inv);
-                    return (
-                      <div
-                        key={inv.code || inv.created_at || String(Math.random())}
-                        style={{
-                          background: warning?.overdue ? 'rgba(255, 167, 38, 0.10)' : 'rgba(255,255,255,0.05)',
-                          border: warning?.overdue ? '1px solid rgba(255, 167, 38, 0.35)' : '1px solid rgba(255,255,255,0.12)',
-                          borderRadius: 10,
-                          padding: 12,
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
-                          <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
-                            {inv.operator_name || 'Operador'}
-                          </div>
-                          <div style={{ color: '#EC6819', fontSize: 12, fontWeight: 800 }}>
-                            {inv.code || ''}
-                          </div>
-                        </div>
-                        <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 4 }}>
-                          {(inv.operator_rut ? `RUT ${inv.operator_rut} · ` : '')}{inv.operator_phone || 'Sin celular'} · Pendiente de activación
-                        </div>
-                        {warning ? (
-                          <div
-                            style={{
-                              marginTop: 8,
-                              color: warning.overdue ? '#FFA726' : 'rgba(255,255,255,0.72)',
-                              fontSize: 12,
-                              fontWeight: warning.overdue ? 700 : 500,
-                            }}
-                          >
-                            {warning.message}
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
+                <div
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 10,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, lineHeight: 1.4 }}>
+                    Tienes {pendingInvitations.length} código{pendingInvitations.length === 1 ? '' : 's'} pendiente{pendingInvitations.length === 1 ? '' : 's'}.
+                  </div>
+                  {canManageOperators ? (
+                    <button
+                      onClick={() => { onClose(); navigate('/provider/team?mode=operator&tab=invite'); }}
+                      style={{ ...btnPrimary, marginTop: 12, width: '100%' }}
+                    >
+                      Ver códigos
+                    </button>
+                  ) : null}
                 </div>
               </div>
             )}
