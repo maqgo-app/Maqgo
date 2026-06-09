@@ -3,6 +3,7 @@ import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import ConfirmModal from '../../components/ConfirmModal';
 import { useAuth } from '../../context/authHooks';
 import { useToast } from '../../components/Toast';
 
@@ -82,6 +83,13 @@ function TeamManagementScreen() {
   const [financeSummary, setFinanceSummary] = useState({ facturado: 0, porCobrar: 0, pagado: 0 });
   const [worksByMaster, setWorksByMaster] = useState({});
   const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [editMember, setEditMember] = useState(null);
+  const [editMemberType, setEditMemberType] = useState('operator');
+  const [editName, setEditName] = useState('');
+  const [editRut, setEditRut] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [savingMember, setSavingMember] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
   const GPS_FRESH_MINUTES = 10;
   const GPS_STALE_MINUTES = 120;
 
@@ -175,6 +183,14 @@ function TeamManagementScreen() {
       .filter(Boolean)
       .join(' ')
       .trim();
+
+  const normalizeEditablePhoneDraft = (raw, required = false) => {
+    if (!String(raw || '').trim()) return required ? '+569' : '';
+    return normalizeChileanMobileDraft(raw);
+  };
+
+  const getTeamMemberEndpoint = (ownerId, memberType, memberId) =>
+    `${BACKEND_URL}/api/users/${encodeURIComponent(ownerId)}/${memberType === 'master' ? 'masters' : 'operators'}/${encodeURIComponent(memberId)}`;
 
   const base64UrlEncodeJson = (obj) => {
     try {
@@ -281,6 +297,84 @@ function TeamManagementScreen() {
     }
     const link = buildOperatorJoinLink(c);
     return `Tu código MAQGO para agregar operador es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy operador (tengo código)”\n3) Ingresa el código\n\nLink directo:\n${link}\n\nVálido por 7 días.`;
+  };
+
+  const openEditMember = (memberType, member) => {
+    setEditMember(member || null);
+    setEditMemberType(memberType);
+    setEditName(String(member?.name || '').trim());
+    setEditRut(sanitizeRutInput(member?.rut || ''));
+    setEditPhone(String(member?.phone || '').trim());
+  };
+
+  const closeEditMember = () => {
+    setEditMember(null);
+    setEditMemberType('operator');
+    setEditName('');
+    setEditRut('');
+    setEditPhone('');
+    setSavingMember(false);
+  };
+
+  const saveMemberEdit = async () => {
+    if (!editMember?.id) return;
+    const ownerId = localStorage.getItem('ownerId') || localStorage.getItem('userId');
+    if (!ownerId) {
+      toast.error('No pudimos identificar la empresa.');
+      return;
+    }
+    const memberLabel = editMemberType === 'master' ? 'usuario master' : 'operador';
+    if (!editName.trim()) {
+      toast.warning(`Ingresa el nombre del ${memberLabel}.`);
+      return;
+    }
+    if (!validatePersonRut(editRut)) {
+      toast.warning(`Ingresa un RUT de persona válido para el ${memberLabel}.`);
+      return;
+    }
+    const normalizedPhone = normalizeChileanMobileE164(editPhone);
+    if (editMemberType === 'master' && !normalizedPhone) {
+      toast.warning('Completa un celular válido para el usuario master.');
+      return;
+    }
+    if (editMemberType !== 'master' && editPhone.trim() && !normalizedPhone) {
+      toast.warning('Ingresa un celular válido para el operador o déjalo vacío.');
+      return;
+    }
+
+    setSavingMember(true);
+    try {
+      const payload = {
+        name: editName.trim(),
+        rut: formatRut(editRut),
+        phone: normalizedPhone || '',
+      };
+      const res = await fetchWithAuth(
+        getTeamMemberEndpoint(ownerId, editMemberType, editMember.id),
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+        15000
+      );
+      if (!res.ok) {
+        let detail = '';
+        try {
+          const data = await res.json();
+          detail = data?.detail ? String(data.detail) : '';
+        } catch {
+          void 0;
+        }
+        throw new Error(detail || `No pudimos actualizar el ${memberLabel}.`);
+      }
+      toast.success(`${editMemberType === 'master' ? 'Usuario master' : 'Operador'} actualizado`);
+      closeEditMember();
+      loadTeam();
+    } catch (e) {
+      toast.error(e?.message || `No pudimos actualizar el ${memberLabel}.`);
+      setSavingMember(false);
+    }
   };
 
   useEffect(() => {
@@ -464,16 +558,24 @@ function TeamManagementScreen() {
     await copyInviteMessage(code, inviteType, inviteType === 'master' ? masterInvitePermissions : null);
   };
 
-  const deleteOperator = async (operatorId, operatorName) => {
-    const userId = localStorage.getItem('userId');
-    const ownerId = localStorage.getItem('ownerId') || userId;
-    if (!ownerId || !operatorId) return;
-    const confirmText = `¿Eliminar a ${operatorName || 'este operador'}? Esta acción no se puede deshacer.`;
-    if (!window.confirm(confirmText)) return;
+  const executeConfirmAction = async () => {
+    if (!confirmAction?.memberId || !confirmAction?.memberType) return;
+    const ownerId = localStorage.getItem('ownerId') || localStorage.getItem('userId');
+    if (!ownerId) {
+      toast.error('No pudimos identificar la empresa.');
+      return;
+    }
+    const memberLabel = confirmAction.memberType === 'master' ? 'usuario master' : 'operador';
     try {
       const res = await fetchWithAuth(
-        `${BACKEND_URL}/api/users/${encodeURIComponent(ownerId)}/operators/${encodeURIComponent(operatorId)}`,
-        { method: 'DELETE' },
+        getTeamMemberEndpoint(ownerId, confirmAction.memberType, confirmAction.memberId),
+        confirmAction.action === 'deactivate'
+          ? {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'inactive' }),
+            }
+          : { method: 'DELETE' },
         15000
       );
       if (!res.ok) {
@@ -484,12 +586,27 @@ function TeamManagementScreen() {
         } catch {
           void 0;
         }
-        throw new Error(detail || 'No pudimos eliminar el operador.');
+        throw new Error(
+          detail ||
+            (confirmAction.action === 'deactivate'
+              ? `No pudimos desactivar el ${memberLabel}.`
+              : `No pudimos eliminar el ${memberLabel}.`)
+        );
       }
-      toast.success('Operador eliminado');
+      toast.success(
+        confirmAction.action === 'deactivate'
+          ? `${confirmAction.memberType === 'master' ? 'Usuario master' : 'Operador'} desactivado`
+          : `${confirmAction.memberType === 'master' ? 'Usuario master' : 'Operador'} eliminado`
+      );
+      setConfirmAction(null);
       loadTeam();
     } catch (e) {
-      toast.error(e?.message || 'No pudimos eliminar el operador.');
+      toast.error(
+        e?.message ||
+          (confirmAction.action === 'deactivate'
+            ? `No pudimos desactivar el ${memberLabel}.`
+            : `No pudimos eliminar el ${memberLabel}.`)
+      );
     }
   };
 
@@ -583,13 +700,13 @@ function TeamManagementScreen() {
       items: [
         {
           k: 'can_view_work_details',
-          label: 'Puede ver solicitudes y su detalle',
-          help: 'Permite entrar y revisar la solicitud, pero no decidir sobre ella.',
+          label: 'Puede ver solicitudes de servicio y su detalle',
+          help: 'Permite revisar solicitudes que llegan desde clientes, pero no decidir sobre ellas.',
         },
         {
           k: 'can_create_work',
-          label: 'Puede aceptar o rechazar solicitudes',
-          help: 'Permite tomar la decisión operativa sobre una solicitud.',
+          label: 'Puede aceptar o rechazar solicitudes de servicio',
+          help: 'Permite tomar la decisión operativa sobre una solicitud de cliente.',
         },
       ],
     },
@@ -796,18 +913,78 @@ function TeamManagementScreen() {
                               </p>
                             </div>
                           </div>
-                          <span
-                            style={{
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            <span
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 20,
+                                background: 'rgba(156, 39, 176, 0.2)',
+                                color: '#9C27B0',
+                                fontSize: 13,
+                                fontWeight: 600,
+                              }}
+                            >
+                              Usuario master
+                            </span>
+                            <span style={{
                               padding: '4px 10px',
                               borderRadius: 20,
-                              background: 'rgba(156, 39, 176, 0.2)',
-                              color: '#9C27B0',
+                              background: 'rgba(76, 175, 80, 0.18)',
+                              color: '#4CAF50',
                               fontSize: 13,
                               fontWeight: 600,
-                            }}
-                          >
-                            Usuario master
-                          </span>
+                            }}>
+                              Activo
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openEditMember('master', member)}
+                              style={{
+                                padding: '6px 10px',
+                                background: 'rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: 8,
+                                color: '#fff',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmAction({ action: 'deactivate', memberType: 'master', memberId: member.id, memberName: member.name })}
+                              style={{
+                                padding: '6px 10px',
+                                background: 'rgba(255, 167, 38, 0.18)',
+                                border: '1px solid rgba(255, 167, 38, 0.35)',
+                                borderRadius: 8,
+                                color: '#FFA726',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Desactivar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmAction({ action: 'delete', memberType: 'master', memberId: member.id, memberName: member.name })}
+                              style={{
+                                padding: '6px 10px',
+                                background: 'rgba(244, 67, 54, 0.18)',
+                                border: '1px solid rgba(244, 67, 54, 0.35)',
+                                borderRadius: 8,
+                                color: '#F44336',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Eliminar
+                            </button>
+                          </div>
                         </div>
                       ))
                     ) : (
@@ -857,12 +1034,15 @@ function TeamManagementScreen() {
                           <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
                             {op.name}
                           </p>
-                          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                          <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
                             {op.rut && (
                               <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
                                 RUT: {op.rut}
                               </p>
                             )}
+                            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
+                              {op.phone || 'Sin celular'}
+                            </p>
                             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
                               {op.services_completed || 0} servicios
                             </p>
@@ -888,7 +1068,39 @@ function TeamManagementScreen() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => deleteOperator(op.id, op.name)}
+                            onClick={() => openEditMember('operator', op)}
+                            style={{
+                              padding: '6px 10px',
+                              background: 'rgba(255,255,255,0.08)',
+                              border: '1px solid rgba(255,255,255,0.15)',
+                              borderRadius: 8,
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmAction({ action: 'deactivate', memberType: 'operator', memberId: op.id, memberName: op.name })}
+                            style={{
+                              padding: '6px 10px',
+                              background: 'rgba(255, 167, 38, 0.18)',
+                              border: '1px solid rgba(255, 167, 38, 0.35)',
+                              borderRadius: 8,
+                              color: '#FFA726',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Desactivar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmAction({ action: 'delete', memberType: 'operator', memberId: op.id, memberName: op.name })}
                             style={{
                               padding: '6px 10px',
                               background: 'rgba(244, 67, 54, 0.18)',
@@ -1599,6 +1811,106 @@ function TeamManagementScreen() {
             )}
           </div>
         )}
+
+        {editMember ? (
+          <div className="maqgo-modal-overlay" role="dialog" aria-modal="true" onClick={closeEditMember}>
+            <div
+              className="maqgo-modal-dialog"
+              style={{ width: 'min(92vw, 520px)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 800, margin: '0 0 14px' }}>
+                {editMemberType === 'master' ? 'Editar usuario master' : 'Editar operador'}
+              </h3>
+              <div style={{ display: 'grid', gap: 12 }}>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>Nombre y apellido *</span>
+                  <input
+                    className="maqgo-input"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder={editMemberType === 'master' ? 'Ej: María Soto' : 'Ej: Juan Pérez'}
+                  />
+                </label>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>RUT *</span>
+                  <input
+                    className="maqgo-input"
+                    value={formatRut(editRut)}
+                    onChange={(e) => setEditRut(sanitizeRutInput(e.target.value))}
+                    placeholder="12.345.678-9"
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  />
+                </label>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>
+                    {editMemberType === 'master' ? 'Celular *' : 'Celular'}
+                  </span>
+                  <input
+                    className="maqgo-input"
+                    type="tel"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(normalizeEditablePhoneDraft(e.target.value, editMemberType === 'master'))}
+                    placeholder="+56 9 1234 5678"
+                  />
+                </label>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={closeEditMember}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.25)',
+                    color: 'rgba(255,255,255,0.95)',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={saveMemberEdit}
+                  disabled={savingMember}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    background: '#EC6819',
+                    border: 'none',
+                    color: '#fff',
+                    cursor: savingMember ? 'default' : 'pointer',
+                    fontWeight: 700,
+                    opacity: savingMember ? 0.6 : 1,
+                  }}
+                >
+                  {savingMember ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <ConfirmModal
+          open={Boolean(confirmAction)}
+          onClose={() => setConfirmAction(null)}
+          title={
+            confirmAction?.action === 'deactivate'
+              ? `Desactivar ${confirmAction?.memberType === 'master' ? 'usuario master' : 'operador'}`
+              : `Eliminar ${confirmAction?.memberType === 'master' ? 'usuario master' : 'operador'}`
+          }
+          message={
+            confirmAction?.action === 'deactivate'
+              ? `Desactivar a ${confirmAction?.memberName || 'este usuario'} para que ya no aparezca en la lista activa?`
+              : `Eliminar a ${confirmAction?.memberName || 'este usuario'}? Esta acción no se puede deshacer.`
+          }
+          confirmLabel={confirmAction?.action === 'deactivate' ? 'Desactivar' : 'Eliminar'}
+          cancelLabel="Cancelar"
+          onConfirm={executeConfirmAction}
+          variant={confirmAction?.action === 'deactivate' ? 'primary' : 'danger'}
+        />
       </div>
     </div>
   );

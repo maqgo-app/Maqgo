@@ -91,6 +91,46 @@ def _normalize_rut(value: str) -> str:
     return f"{body}-{dv}"
 
 
+def _calculate_rut_verifier(body: str) -> str:
+    total = 0
+    multiplier = 2
+    for ch in reversed(body):
+        total += int(ch) * multiplier
+        multiplier = 2 if multiplier == 7 else multiplier + 1
+    remainder = 11 - (total % 11)
+    if remainder == 11:
+        return "0"
+    if remainder == 10:
+        return "K"
+    return str(remainder)
+
+
+def _is_valid_rut(value: str) -> bool:
+    rut_norm = _normalize_rut(value)
+    if not rut_norm:
+        return False
+    body, verifier = rut_norm.split("-", 1)
+    if not body.isdigit():
+        return False
+    return _calculate_rut_verifier(body) == verifier
+
+
+def _is_company_rut(value: str) -> bool:
+    rut_norm = _normalize_rut(value)
+    if not rut_norm:
+        return False
+    body = rut_norm.split("-", 1)[0]
+    return body.isdigit() and int(body) >= 50000000
+
+
+def _ensure_person_rut(value: str, *, label: str) -> str:
+    if not _is_valid_rut(value):
+        raise HTTPException(status_code=400, detail=f"Ingresa un {label} válido.")
+    if _is_company_rut(value):
+        raise HTTPException(status_code=400, detail=f"El {label} debe ser de persona natural, no de empresa.")
+    return _normalize_rut(value)
+
+
 def _rut_loose_regex(rut_norm: str) -> str:
     cleaned = re.sub(r"[^0-9kK]", "", rut_norm)
     if len(cleaned) < 2:
@@ -754,6 +794,123 @@ async def delete_operator(
         'success': True,
         'message': f"Operador eliminado"
     }
+
+
+def _team_member_update_fields(body: dict, *, role_label: str) -> dict:
+    update_data = {}
+
+    if "name" in body:
+        name = str(body.get("name") or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail=f"Ingresa el nombre del {role_label}.")
+        update_data["name"] = name
+
+    if "rut" in body:
+        rut = str(body.get("rut") or "").strip()
+        if not rut:
+            raise HTTPException(status_code=400, detail=f"Ingresa el RUT del {role_label}.")
+        update_data["rut"] = _ensure_person_rut(rut, label=f"RUT del {role_label}")
+
+    if "phone" in body:
+        update_data["phone"] = str(body.get("phone") or "").strip()
+
+    if "status" in body:
+        status = str(body.get("status") or "").strip().lower()
+        if status not in {"active", "inactive"}:
+            raise HTTPException(status_code=400, detail="Estado inválido.")
+        update_data["status"] = status
+        if status != "active":
+            update_data["isAvailable"] = False
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No hay campos válidos para actualizar.")
+
+    return update_data
+
+
+@router.patch("/{owner_id}/operators/{operator_id}", response_model=dict)
+async def patch_operator(
+    owner_id: str,
+    operator_id: str,
+    body: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_owner_scope(current_user, owner_id)
+    operator = await db.users.find_one(
+        {
+            "id": operator_id,
+            "owner_id": owner_id,
+            "provider_role": "operator",
+        },
+        {"_id": 0, "id": 1},
+    )
+    if not operator:
+        raise HTTPException(status_code=404, detail="Operador no encontrado o no te pertenece")
+
+    update_data = _team_member_update_fields(body, role_label="operador")
+    update_data["updatedAt"] = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one({"id": operator_id}, {"$set": update_data})
+    return {"success": True, "message": "Operador actualizado"}
+
+
+@router.patch("/{owner_id}/masters/{master_id}", response_model=dict)
+async def patch_master(
+    owner_id: str,
+    master_id: str,
+    body: dict = Body(...),
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_owner_scope(current_user, owner_id)
+    master = await db.users.find_one(
+        {
+            "id": master_id,
+            "owner_id": owner_id,
+            "provider_role": "master",
+        },
+        {"_id": 0, "id": 1},
+    )
+    if not master:
+        raise HTTPException(status_code=404, detail="Usuario master no encontrado o no te pertenece")
+
+    update_data = _team_member_update_fields(body, role_label="usuario master")
+    update_data["updatedAt"] = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one({"id": master_id}, {"$set": update_data})
+    return {"success": True, "message": "Usuario master actualizado"}
+
+
+@router.delete("/{owner_id}/masters/{master_id}", response_model=dict)
+async def delete_master(
+    owner_id: str,
+    master_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    AccessPolicy.assert_owner_scope(current_user, owner_id)
+    master = await db.users.find_one(
+        {
+            "id": master_id,
+            "owner_id": owner_id,
+            "provider_role": "master",
+        },
+        {"_id": 0, "id": 1},
+    )
+    if not master:
+        raise HTTPException(status_code=404, detail="Usuario master no encontrado o no te pertenece")
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one(
+        {"id": master_id},
+        {
+            "$set": {
+                "status": "deleted",
+                "deleted": True,
+                "deletedAt": now,
+                "deletedBy": current_user.get("id"),
+                "deleteReason": "owner_delete_master",
+                "isAvailable": False,
+            }
+        },
+    )
+    return {"success": True, "message": "Usuario master eliminado"}
 
 
 @router.get("/{user_id}/role", response_model=dict)

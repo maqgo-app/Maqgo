@@ -654,7 +654,11 @@ async def get_team(
     masters = await db.users.find(
         {
             "owner_id": owner_id,
-            "provider_role": "master"
+            "provider_role": "master",
+            "$and": [
+                {"$or": [{"status": {"$exists": False}}, {"status": "active"}]},
+                {"$or": [{"deleted": {"$exists": False}}, {"deleted": False}]},
+            ],
         },
         {"_id": 0}
     ).to_list(100)
@@ -663,7 +667,11 @@ async def get_team(
     operators = await db.users.find(
         {
             "owner_id": owner_id,
-            "provider_role": "operator"
+            "provider_role": "operator",
+            "$and": [
+                {"$or": [{"status": {"$exists": False}}, {"status": "active"}]},
+                {"$or": [{"deleted": {"$exists": False}}, {"deleted": False}]},
+            ],
         },
         {"_id": 0}
     ).to_list(100)
