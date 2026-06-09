@@ -29,6 +29,23 @@ function toMachineryId(type) {
   return MACHINERY_TYPES.find(m => m.id === t || m.name.toLowerCase().includes(t))?.id || 'retroexcavadora';
 }
 
+function normalizePhoneForChannel(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  const digits = s.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('56')) return `+${digits}`;
+  if (digits.length === 9) return `+56${digits}`;
+  return `+${digits}`;
+}
+
+function buildOperatorJoinLink(code) {
+  const c = String(code || '').trim().toUpperCase();
+  if (!c) return '';
+  const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+  return `${origin}/operator/join?code=${encodeURIComponent(c)}`;
+}
+
 function MyMachinesScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -607,22 +624,61 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
   const [pendingInvitations, setPendingInvitations] = useState([]);
   const [selectedIds, setSelectedIds] = useState(() => new Set((machine.operators || []).map(o => o.id)));
   const [error, setError] = useState('');
+  const [newOperatorName, setNewOperatorName] = useState('');
+  const [newOperatorRut, setNewOperatorRut] = useState('');
+  const [newOperatorPhone, setNewOperatorPhone] = useState('');
+  const [creatingInvite, setCreatingInvite] = useState(false);
+  const [recentInvite, setRecentInvite] = useState(null);
+
+  const ownerId = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+  const ownerPhone = (localStorage.getItem('userPhone') || '').trim();
+  const ownerOption = ownerId
+    ? {
+        id: ownerId,
+        name: 'Tu (dueno)',
+        phone: ownerPhone,
+        rut: '',
+      }
+    : null;
+
+  const copyTextToClipboard = async (text, successMessage) => {
+    const value = String(text || '').trim();
+    if (!value) return false;
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(successMessage);
+      return true;
+    } catch {
+      window.prompt('Copia este texto:', value);
+      return false;
+    }
+  };
+
+  const loadAssignableData = async () => {
+    if (!ownerId) {
+      setTeamOperators([]);
+      setPendingInvitations([]);
+      setLoading(false);
+      setError('Tu sesion expiro. Inicia sesion nuevamente.');
+      return;
+    }
+    setError('');
+    try {
+      const r = await axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 8000 });
+      const ops = (r.data?.operators || []).filter((o) => (o?.provider_role || '') === 'operator' || !o?.provider_role);
+      setTeamOperators(ops);
+      setPendingInvitations(Array.isArray(r.data?.pending_invitations) ? r.data.pending_invitations : []);
+    } catch {
+      setTeamOperators([]);
+      setPendingInvitations([]);
+      setError('No pudimos cargar los operadores de tu empresa.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const ownerId = localStorage.getItem('ownerId') || localStorage.getItem('userId');
-    axios
-      .get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 8000 })
-      .then((r) => {
-        const ops = (r.data?.operators || []).filter((o) => (o?.provider_role || '') === 'operator' || !o?.provider_role);
-        setTeamOperators(ops);
-        setPendingInvitations(Array.isArray(r.data?.pending_invitations) ? r.data.pending_invitations : []);
-      })
-      .catch(() => {
-        setTeamOperators([]);
-        setPendingInvitations([]);
-        setError('No pudimos cargar los operadores de tu empresa.');
-      })
-      .finally(() => setLoading(false));
+    loadAssignableData();
   }, []);
 
   const toggle = (opId) => {
@@ -664,17 +720,6 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
     toast.success('Operadores asignados');
   };
 
-  const ownerId = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
-  const ownerPhone = (localStorage.getItem('userPhone') || '').trim();
-  const ownerOption = ownerId
-    ? {
-        id: ownerId,
-        name: 'Tú (dueño)',
-        phone: ownerPhone,
-        rut: '',
-      }
-    : null;
-
   const selectableOperators = (() => {
     const byId = new Map();
     if (ownerOption) byId.set(ownerOption.id, ownerOption);
@@ -692,6 +737,147 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
   const overduePendingInvitations = useMemo(
     () => getOverdueOperatorInvitations(pendingInvitations),
     [pendingInvitations]
+  );
+
+  const handleCreateInlineInvite = async () => {
+    const fullName = String(newOperatorName || '').trim();
+    const rut = String(newOperatorRut || '').trim();
+    if (!fullName || !rut) {
+      toast.warning('Ingresa nombre completo y RUT del operador.');
+      return;
+    }
+    if (!ownerId) {
+      toast.error('Tu sesion expiro. Inicia sesion nuevamente.');
+      return;
+    }
+
+    setCreatingInvite(true);
+    try {
+      const normalizedPhone = normalizePhoneForChannel(newOperatorPhone);
+      const payload = {
+        owner_id: ownerId,
+        operator_name: fullName,
+        operator_rut: rut,
+        operator_phone: normalizedPhone || undefined,
+      };
+      const response = await axios.post(`${BACKEND_URL}/api/operators/invite`, payload, { timeout: 8000 });
+      const invite = {
+        code: response?.data?.code || '',
+        operator_name: fullName,
+        operator_rut: rut,
+        operator_phone: normalizedPhone || undefined,
+        created_at: new Date().toISOString(),
+        status: 'pending',
+        invite_type: 'operator',
+      };
+      setRecentInvite(invite);
+      setNewOperatorName('');
+      setNewOperatorRut('');
+      setNewOperatorPhone('');
+      await loadAssignableData();
+      toast.success('Codigo de activacion generado');
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'No se pudo generar el codigo del operador.');
+    } finally {
+      setCreatingInvite(false);
+    }
+  };
+
+  const createInvitePanel = (
+    <div
+      style={{
+        background: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 16,
+      }}
+    >
+      <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
+        Agregar operador nuevo
+      </div>
+      <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 1.45, margin: '0 0 12px' }}>
+        Genera aqui mismo su codigo de activacion. El operador debe enrolarlo en la app para quedar disponible y luego lo podras asignar a esta maquina.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <input
+          className="maqgo-input"
+          placeholder="Nombre completo"
+          value={newOperatorName}
+          onChange={(e) => setNewOperatorName(e.target.value)}
+          style={{ width: '100%' }}
+        />
+        <input
+          className="maqgo-input"
+          placeholder="RUT"
+          value={newOperatorRut}
+          onChange={(e) => setNewOperatorRut(e.target.value)}
+          style={{ width: '100%' }}
+        />
+        <input
+          className="maqgo-input"
+          placeholder="Celular (opcional)"
+          value={newOperatorPhone}
+          onChange={(e) => setNewOperatorPhone(e.target.value)}
+          style={{ width: '100%' }}
+        />
+        <button
+          type="button"
+          onClick={handleCreateInlineInvite}
+          disabled={creatingInvite}
+          style={{ ...btnPrimary, width: '100%', flex: 'none', opacity: creatingInvite ? 0.7 : 1 }}
+        >
+          {creatingInvite ? 'Generando codigo...' : 'Generar codigo de activacion'}
+        </button>
+      </div>
+      {recentInvite?.code ? (
+        <div
+          style={{
+            marginTop: 12,
+            background: 'rgba(236, 104, 25, 0.10)',
+            border: '1px solid rgba(236, 104, 25, 0.35)',
+            borderRadius: 10,
+            padding: 12,
+          }}
+        >
+          <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
+            Codigo listo para {recentInvite.operator_name}
+          </div>
+          <div style={{ color: '#EC6819', fontSize: 18, fontWeight: 800, letterSpacing: 1.2, marginTop: 6 }}>
+            {recentInvite.code}
+          </div>
+          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 6 }}>
+            Comparte este codigo o el link directo para que termine su enrolamiento.
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => copyTextToClipboard(recentInvite.code, 'Codigo copiado')}
+              style={{ ...btnPrimary, flex: '1 1 120px', padding: 10, fontSize: 12 }}
+            >
+              Copiar codigo
+            </button>
+            <button
+              type="button"
+              onClick={() => copyTextToClipboard(buildOperatorJoinLink(recentInvite.code), 'Link copiado')}
+              style={{
+                flex: '1 1 120px',
+                padding: 10,
+                background: 'rgba(144, 189, 211, 0.14)',
+                border: '1px solid rgba(144, 189, 211, 0.35)',
+                borderRadius: 10,
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Copiar link
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 
   return (
@@ -731,6 +917,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
                 Ir a Código de activación
               </button>
             ) : null}
+            {canManageOperators ? createInvitePanel : null}
           </div>
         ) : selectableOperators.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 20 }}>
@@ -738,16 +925,13 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
               No tienes operadores disponibles para asignar.
             </p>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
-              Genera un código, compártelo con tu operador y cuando lo use en la app aparecerá para asignación.
+              Puedes generar aqui mismo el codigo de activacion y compartirlo con tu operador.
             </p>
-            {canManageOperators ? (
-              <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>
-                Ir a Código de activación
-              </button>
-            ) : null}
+            {canManageOperators ? createInvitePanel : null}
           </div>
         ) : (
           <>
+            {canManageOperators ? createInvitePanel : null}
             {overduePendingInvitations.length > 0 && (
               <div
                 style={{
