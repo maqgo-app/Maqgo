@@ -642,7 +642,7 @@ function TeamManagementScreen() {
                   }}
                   data-testid="tab-team"
                 >
-                  {inviteType === 'master' ? `Usuarios master (${teamCount})` : `Operadores (${teamCount})`}
+                  {`Lista (${teamCount})`}
                 </button>
                 <button
                   onClick={() => {
@@ -679,8 +679,8 @@ function TeamManagementScreen() {
               <>
                 {inviteType === 'master' ? (
                   <div style={{ marginBottom: 20 }}>
-                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
-                      Usuarios master ({team.masters?.length || 0})
+                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
+                        Lista de usuarios master ({team.masters?.length || 0})
                     </p>
                     {team.masters && team.masters.length > 0 ? (
                       team.masters.map((member, idx) => (
@@ -761,7 +761,7 @@ function TeamManagementScreen() {
                   <div style={{ marginBottom: 20 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
                       <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', margin: 0 }}>
-                        Operadores ({team.operators?.length || 0})
+                        Lista de operadores ({team.operators?.length || 0})
                       </p>
                       <button
                         type="button"
