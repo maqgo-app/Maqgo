@@ -1039,7 +1039,7 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
               ) : null}
             </p>
             {canManageOperators ? (
-              <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 16 }}>
+              <button onClick={() => { onClose(); navigate('/provider/team?mode=operator&tab=invite'); }} style={{ ...btnPrimary, marginTop: 16 }}>
                 Ir a Código de activación
               </button>
             ) : null}
@@ -1087,7 +1087,7 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
                   {' '}Revísalos en Ver códigos.
                 </div>
                 {canManageOperators ? (
-                  <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 12 }}>
+                  <button onClick={() => { onClose(); navigate('/provider/team?mode=operator&tab=invite'); }} style={{ ...btnPrimary, marginTop: 12 }}>
                     Ver códigos
                   </button>
                 ) : null}
