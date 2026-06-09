@@ -64,11 +64,24 @@ function mergeOwnerPhoneFallback(operator = {}) {
   return operator;
 }
 
+function getOperatorStableId(operator = {}, fallback = '') {
+  if (!operator || typeof operator !== 'object') return String(fallback || '').trim();
+  const directId = String(operator.id || '').trim();
+  if (directId) return directId;
+  const rut = String(operator.rut || '').trim().toLowerCase();
+  if (rut) return `op-rut-${rut}`;
+  const phone = normalizePhoneForChannel(operator.phone || operator.telefono || '');
+  if (phone) return `op-phone-${phone}`;
+  const fullName = String(operator.name || `${operator.nombre || ''} ${operator.apellido || ''}`.trim()).trim().toLowerCase();
+  if (fullName) return `op-name-${fullName.replace(/\s+/g, '-')}`;
+  return String(fallback || '').trim();
+}
+
 function getEffectiveDefaultOperatorId(machine, defaultByMachinery = {}) {
   const mid = toMachineryId(machine?.type);
   const configuredId = String(defaultByMachinery?.[mid] || '').trim();
   if (configuredId) return configuredId;
-  const firstOperatorId = String(machine?.operators?.[0]?.id || '').trim();
+  const firstOperatorId = getOperatorStableId(machine?.operators?.[0], '');
   return firstOperatorId;
 }
 
@@ -163,7 +176,14 @@ function MyMachinesScreen() {
     const machine = machines.find(m => m.id === machineId);
     if (!machine) return;
     const nextOperators = Array.isArray(operators)
-      ? operators.map((op) => mergeOwnerPhoneFallback(op)).filter(Boolean)
+      ? operators
+          .map((op, index) => {
+            const merged = mergeOwnerPhoneFallback(op);
+            if (!merged) return null;
+            const stableId = getOperatorStableId(merged, `op-manual-${machineId}-${index}`);
+            return stableId ? { ...merged, id: stableId } : null;
+          })
+          .filter(Boolean)
       : [];
     if (nextOperators.length === 0) {
       toast.warning('Esta maquina debe tener al menos un operador.');
@@ -437,7 +457,7 @@ function MyMachinesScreen() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(machine.operators || []).map(op => {
                     const displayOp = mergeOwnerPhoneFallback(op);
-                    const isDefault = getEffectiveDefaultOperatorId(machine, defaultByMachinery) === displayOp.id;
+                    const isDefault = getEffectiveDefaultOperatorId(machine, defaultByMachinery) === getOperatorStableId(displayOp);
                     return (
                       <div
                         key={displayOp.id}
@@ -658,7 +678,7 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
   const [loading, setLoading] = useState(true);
   const [teamOperators, setTeamOperators] = useState([]);
   const [pendingInvitations, setPendingInvitations] = useState([]);
-  const [selectedIds, setSelectedIds] = useState(() => new Set((machine.operators || []).map(o => o.id)));
+  const [selectedIds, setSelectedIds] = useState(() => new Set((machine.operators || []).map((o, index) => getOperatorStableId(o, `op-selected-${index}`)).filter(Boolean)));
   const [error, setError] = useState('');
   const [newOperatorName, setNewOperatorName] = useState('');
   const [newOperatorRut, setNewOperatorRut] = useState('');
@@ -719,10 +739,11 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
 
   const handleSave = () => {
     const byId = new Map();
-    operatorOptions.forEach((op) => {
-      if (op?.id) {
-        byId.set(op.id, {
-          id: op.id,
+    operatorOptions.forEach((op, index) => {
+      const stableId = getOperatorStableId(op, `op-option-${index}`);
+      if (stableId) {
+        byId.set(stableId, {
+          id: stableId,
           name: op.name,
           phone: op.phone || '',
           rut: op.rut || '',
@@ -742,21 +763,23 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
   const operatorOptions = useMemo(() => {
     const byId = new Map();
     const currentOperators = Array.isArray(machine.operators) ? machine.operators : [];
-    currentOperators.forEach((op) => {
-      if (!op?.id) return;
+    currentOperators.forEach((op, index) => {
+      const stableId = getOperatorStableId(op, `op-current-${index}`);
+      if (!stableId) return;
       const merged = mergeOwnerPhoneFallback(op);
-      byId.set(op.id, {
-        id: op.id,
+      byId.set(stableId, {
+        id: stableId,
         name: merged?.name || op.name || 'Operador',
         phone: merged?.phone || '',
         rut: merged?.rut || op.rut || '',
       });
     });
-    teamOperators.forEach((op) => {
-      if (!op?.id) return;
-      const prev = byId.get(op.id) || {};
-      byId.set(op.id, {
-        id: op.id,
+    teamOperators.forEach((op, index) => {
+      const stableId = getOperatorStableId(op, `op-team-${index}`);
+      if (!stableId) return;
+      const prev = byId.get(stableId) || {};
+      byId.set(stableId, {
+        id: stableId,
         name: op.name || prev.name || 'Operador',
         phone: op.phone || prev.phone || '',
         rut: op.rut || prev.rut || '',
@@ -768,9 +791,10 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
   const selectableIds = useMemo(() => new Set(operatorOptions.map((o) => o.id)), [operatorOptions]);
   const missingAssigned = useMemo(() => {
     return (Array.isArray(machine.operators) ? machine.operators : []).filter(
-      (op) =>
-        op?.id &&
-        !selectableIds.has(op.id)
+      (op, index) => {
+        const stableId = getOperatorStableId(op, `op-missing-${index}`);
+        return stableId && !selectableIds.has(stableId);
+      }
     );
   }, [machine.operators, selectableIds]);
   const overduePendingInvitations = useMemo(
