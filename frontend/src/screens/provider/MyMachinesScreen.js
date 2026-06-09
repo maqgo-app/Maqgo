@@ -152,12 +152,12 @@ function MyMachinesScreen() {
       navigate(location.pathname, { replace: true, state: { activationEdit, returnTo } });
       return;
     }
-    const machine = getMachines().find((m) => m?.id === openOperatorForMachineId);
+    const machine = (Array.isArray(machines) ? machines : []).find((m) => m?.id === openOperatorForMachineId);
     if (machine) {
       setOperatorModal({ machine });
       navigate(location.pathname, { replace: true, state: { activationEdit, returnTo } });
     }
-  }, [activationEdit, blocked, canAssignOperators, navigate, openOperatorForMachineId, location.pathname, returnTo]);
+  }, [activationEdit, blocked, canAssignOperators, machines, navigate, openOperatorForMachineId, location.pathname, returnTo]);
 
   if (blocked) {
     return <Navigate to="/provider/home" replace />;
@@ -194,8 +194,7 @@ function MyMachinesScreen() {
   };
 
   const saveMachineOperators = async (machineId, operators) => {
-    const machines = getMachines();
-    const machine = machines.find(m => m.id === machineId);
+    const machine = (Array.isArray(machines) ? machines : []).find(m => m.id === machineId);
     if (!machine) return;
     const nextOperators = Array.isArray(operators)
       ? operators
@@ -229,7 +228,7 @@ function MyMachinesScreen() {
   };
 
   const toggleAvailability = async (machineId) => {
-    const machine = machines.find(m => m.id === machineId);
+    const machine = (Array.isArray(machines) ? machines : []).find(m => m.id === machineId);
     if (!machine) return;
     const normalizedOperators = (Array.isArray(machine.operators) ? machine.operators : [])
       .map((op, index) => normalizeMachineOperator(machine, op, `op-toggle-${machineId}-${index}`))
