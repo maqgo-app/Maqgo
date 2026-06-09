@@ -64,6 +64,14 @@ function mergeOwnerPhoneFallback(operator = {}) {
   return operator;
 }
 
+function getEffectiveDefaultOperatorId(machine, defaultByMachinery = {}) {
+  const mid = toMachineryId(machine?.type);
+  const configuredId = String(defaultByMachinery?.[mid] || '').trim();
+  if (configuredId) return configuredId;
+  const firstOperatorId = String(machine?.operators?.[0]?.id || '').trim();
+  return firstOperatorId;
+}
+
 function MyMachinesScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -157,11 +165,17 @@ function MyMachinesScreen() {
     const nextOperators = Array.isArray(operators)
       ? operators.map((op) => mergeOwnerPhoneFallback(op)).filter(Boolean)
       : [];
+    if (nextOperators.length === 0) {
+      toast.warning('Esta maquina debe tener al menos un operador.');
+      return;
+    }
 
     const mid = toMachineryId(machine.type);
     const selectedIds = new Set(nextOperators.map(o => o.id));
-    if (defaultByMachinery[mid] && !selectedIds.has(defaultByMachinery[mid])) {
-      setDefaultOperator(mid, '');
+    if (!selectedIds.has(getEffectiveDefaultOperatorId(machine, defaultByMachinery))) {
+      setDefaultOperator(mid, nextOperators[0]?.id || '');
+    } else if (!defaultByMachinery[mid]) {
+      setDefaultOperator(mid, getEffectiveDefaultOperatorId(machine, defaultByMachinery));
     }
 
     try {
@@ -423,8 +437,7 @@ function MyMachinesScreen() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(machine.operators || []).map(op => {
                     const displayOp = mergeOwnerPhoneFallback(op);
-                    const mid = toMachineryId(machine.type);
-                    const isDefault = defaultByMachinery[mid] === displayOp.id;
+                    const isDefault = getEffectiveDefaultOperatorId(machine, defaultByMachinery) === displayOp.id;
                     return (
                       <div
                         key={displayOp.id}
@@ -543,6 +556,7 @@ function MyMachinesScreen() {
       {operatorModal && (
         <AssignOperatorsModal
           machine={operatorModal.machine}
+          defaultOperatorId={getEffectiveDefaultOperatorId(operatorModal.machine, defaultByMachinery)}
           onSave={(operators) => saveMachineOperators(operatorModal.machine.id, operators)}
           onClose={() => setOperatorModal(null)}
         />
@@ -636,7 +650,7 @@ function EditPricingModal({ machine, priceVal: initialPrice, transportVal: initi
   );
 }
 
-function AssignOperatorsModal({ machine, onSave, onClose }) {
+function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
   const navigate = useNavigate();
   const toast = useToast();
   const { hasPermission } = useAuth();
@@ -654,12 +668,6 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
   const [showInlineInviteForm, setShowInlineInviteForm] = useState(false);
 
   const ownerId = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
-  const assignedOwnerOperator = useMemo(() => {
-    const currentOperators = Array.isArray(machine.operators) ? machine.operators : [];
-    const ownerOp = currentOperators.find((op) => op?.isOwner || String(op?.id || '').trim() === ownerId);
-    return ownerOp ? mergeOwnerPhoneFallback(ownerOp) : null;
-  }, [machine.operators, ownerId]);
-
   const copyTextToClipboard = async (text, successMessage) => {
     const value = String(text || '').trim();
     if (!value) return false;
@@ -711,7 +719,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
 
   const handleSave = () => {
     const byId = new Map();
-    teamOperators.forEach((op) => {
+    operatorOptions.forEach((op) => {
       if (op?.id) {
         byId.set(op.id, {
           id: op.id,
@@ -723,31 +731,48 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
     });
 
     const selected = Array.from(byId.values()).filter((op) => selectedIds.has(op.id));
-    if (assignedOwnerOperator?.id && selectedIds.has(assignedOwnerOperator.id)) {
-      selected.unshift(assignedOwnerOperator);
+    if (selected.length === 0) {
+      toast.warning('Esta maquina debe tener al menos un operador.');
+      return;
     }
     onSave(selected);
     toast.success('Operadores asignados');
   };
 
-  const selectableOperators = (() => {
+  const operatorOptions = useMemo(() => {
     const byId = new Map();
+    const currentOperators = Array.isArray(machine.operators) ? machine.operators : [];
+    currentOperators.forEach((op) => {
+      if (!op?.id) return;
+      const merged = mergeOwnerPhoneFallback(op);
+      byId.set(op.id, {
+        id: op.id,
+        name: merged?.name || op.name || 'Operador',
+        phone: merged?.phone || '',
+        rut: merged?.rut || op.rut || '',
+      });
+    });
     teamOperators.forEach((op) => {
       if (!op?.id) return;
-      byId.set(op.id, { id: op.id, name: op.name, phone: op.phone || '', rut: op.rut || '' });
+      const prev = byId.get(op.id) || {};
+      byId.set(op.id, {
+        id: op.id,
+        name: op.name || prev.name || 'Operador',
+        phone: op.phone || prev.phone || '',
+        rut: op.rut || prev.rut || '',
+      });
     });
     return Array.from(byId.values());
-  })();
+  }, [machine.operators, teamOperators]);
 
-  const selectableIds = useMemo(() => new Set(selectableOperators.map((o) => o.id)), [selectableOperators]);
+  const selectableIds = useMemo(() => new Set(operatorOptions.map((o) => o.id)), [operatorOptions]);
   const missingAssigned = useMemo(() => {
     return (Array.isArray(machine.operators) ? machine.operators : []).filter(
       (op) =>
         op?.id &&
-        !selectableIds.has(op.id) &&
-        String(op.id || '').trim() !== String(assignedOwnerOperator?.id || '').trim()
+        !selectableIds.has(op.id)
     );
-  }, [assignedOwnerOperator?.id, machine.operators, selectableIds]);
+  }, [machine.operators, selectableIds]);
   const overduePendingInvitations = useMemo(
     () => getOverdueOperatorInvitations(pendingInvitations),
     [pendingInvitations]
@@ -813,7 +838,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
         Generar código
       </div>
       <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 1.45, margin: '0 0 12px' }}>
-        Completa estos datos y comparte el código con tu operador.
+        Te mostraremos un codigo para que lo compartas con el operador.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <input
@@ -896,7 +921,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
     </div>
   );
 
-  const renderInlineInviteEntry = (label = 'Generar código') =>
+  const renderInlineInviteEntry = (label = 'Agregar operador') =>
     canManageOperators ? (
       shouldShowInlineInviteForm ? (
         createInvitePanel
@@ -927,12 +952,12 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0 }}>
-            {'Agregar / modificar operadores'}
+            {'Operadores de esta máquina'}
           </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: 4 }}>✕</button>
         </div>
         <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '0 0 14px' }}>
-          {machine.type}. Marca los operadores ya activos o genera un código nuevo.
+          Aquí puedes agregar o modificar operadores.
         </p>
 
         {loading ? (
@@ -957,10 +982,10 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
             ) : null}
             {renderInlineInviteEntry()}
           </div>
-        ) : selectableOperators.length === 0 ? (
+        ) : operatorOptions.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 20 }}>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, margin: '0 0 10px' }}>
-              No tienes operadores disponibles para asignar.
+              Esta máquina debe tener al menos un operador.
             </p>
             <div style={{ marginTop: 16 }}>
               {renderInlineInviteEntry()}
@@ -996,8 +1021,7 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
                 </div>
                 <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, lineHeight: 1.45 }}>
                   {missingAssigned.map((op) => op?.name).filter(Boolean).join(', ')}.
-                  {' '}
-                  Deben usar su código de activación para poder editarlos y asignarlos correctamente.
+                  {' '}Revísalos en Ver códigos.
                 </div>
                 {canManageOperators ? (
                   <button onClick={() => { onClose(); navigate('/provider/team'); }} style={{ ...btnPrimary, marginTop: 12 }}>
@@ -1007,7 +1031,10 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto', marginBottom: 16 }}>
-              {selectableOperators.map((op) => (
+              {operatorOptions.map((op) => {
+                const isOnlySelected = selectedIds.size === 1 && selectedIds.has(op.id);
+                const isDefault = String(defaultOperatorId || '').trim() === String(op.id || '').trim();
+                return (
                 <label
                   key={op.id}
                   style={{
@@ -1024,17 +1051,25 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
                   <input
                     type="checkbox"
                     checked={selectedIds.has(op.id)}
+                    disabled={isOnlySelected}
                     onChange={() => toggle(op.id)}
                     style={{ width: 18, height: 18 }}
                   />
                   <div style={{ flex: 1 }}>
-                    <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{op.name}</div>
+                    <div style={{ color: '#fff', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {op.name}
+                      {isDefault ? (
+                        <span style={{ fontSize: 9, background: '#EC6819', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
+                          Por defecto
+                        </span>
+                      ) : null}
+                    </div>
                     <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 2 }}>
                       {(op.rut ? `RUT ${op.rut} · ` : '')}{op.phone || 'Sin celular'}
                     </div>
                   </div>
                 </label>
-              ))}
+              )})}
             </div>
 
             {pendingInvitations.length > 0 && (
