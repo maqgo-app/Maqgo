@@ -399,7 +399,7 @@ function ReviewScreen() {
                 Datos bancarios
               </div>
               <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, lineHeight: 1.4 }}>
-                Después de confirmar, podrás agregar tus datos bancarios en la sección <strong style={{ color: '#fff' }}>Perfil</strong>.
+                Después de confirmar, te pediremos tus datos bancarios en el siguiente paso.
               </div>
             </div>
           </div>
