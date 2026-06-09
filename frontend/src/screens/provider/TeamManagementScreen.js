@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import axios from 'axios';
+import MaqgoLogo from '../../components/MaqgoLogo';
 import { useAuth } from '../../context/authHooks';
 import { useToast } from '../../components/Toast';
 
@@ -562,10 +563,8 @@ function TeamManagementScreen() {
   );
   const currentMembers = inviteType === 'master' ? (team.masters || []) : (team.operators || []);
   const currentCount = currentMembers.length;
-  const createLabel = inviteType === 'master' ? 'Crear usuario master' : 'Agregar operador';
+  const createLabel = inviteType === 'master' ? 'Crear usuario master' : 'Crear operador';
   const listTitle = inviteType === 'master' ? 'Usuarios master creados' : 'Operadores creados';
-  const emptyCreateNote =
-    inviteType === 'master' ? 'Aún no hay usuarios master creados.' : 'Aún no hay operadores creados.';
   const masterPermissionGroups = [
     {
       title: 'Mis máquinas',
@@ -591,8 +590,8 @@ function TeamManagementScreen() {
     {
       title: 'Solicitudes',
       items: [
-        { k: 'can_view_work_details', label: 'Ver detalle de solicitudes' },
-        { k: 'can_create_work', label: 'Crear solicitudes' },
+        { k: 'can_view_work_details', label: 'Ver solicitudes' },
+        { k: 'can_create_work', label: 'Gestionar solicitudes' },
       ],
     },
   ];
@@ -604,13 +603,7 @@ function TeamManagementScreen() {
   return (
     <div className="maqgo-app maqgo-provider-funnel">
       <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 12, 
-          marginBottom: 14,
-          marginTop: 10
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
           <button 
             onClick={() => navigate(-1)}
             style={{
@@ -621,39 +614,45 @@ function TeamManagementScreen() {
               padding: 8
             }}
             data-testid="back-btn"
+            aria-label="Volver"
           >
             <BackArrowIcon />
           </button>
-          <h1 style={{ 
-            color: '#fff', 
-            fontSize: 20, 
-            fontWeight: 700, 
-            margin: 0,
-            fontFamily: "'Space Grotesk', sans-serif"
-          }}>
-            {showCode
-              ? 'Código listo'
-              : activeTab === 'invite'
-                ? inviteType === 'master'
-                  ? 'Crear usuario master'
-                  : 'Agregar operador'
-                : 'Usuarios y accesos'}
-          </h1>
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <MaqgoLogo size="small" />
+          </div>
+          <div style={{ width: 24 }}></div>
         </div>
+
+        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 18 }}>
+          {showCode
+            ? 'Codigo listo'
+            : activeTab === 'invite'
+              ? inviteType === 'master'
+                ? 'Crear usuario master'
+                : 'Crear operador'
+              : 'Usuarios y accesos'}
+        </h1>
 
         {isSuperMasterUser && (
           <div style={{ marginBottom: 18 }}>
-            <p style={{ color: 'rgba(255,255,255,0.80)', fontSize: 12, margin: '0 0 10px', fontWeight: 800, textTransform: 'uppercase' }}>
-              Tipo de acceso
-            </p>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                padding: 4,
+                borderRadius: 14,
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.10)',
+              }}
+            >
             <button
               type="button"
               onClick={() => navigate(`/provider/team?mode=operator&tab=${encodeURIComponent(activeTab)}`, { replace: true })}
               style={{
                 flex: 1,
-                padding: 12,
-                background: inviteType === 'operator' ? '#EC6819' : '#2A2A2A',
+                padding: '10px 12px',
+                background: inviteType === 'operator' ? '#EC6819' : 'transparent',
                 border: 'none',
                 borderRadius: 10,
                 color: '#fff',
@@ -669,8 +668,8 @@ function TeamManagementScreen() {
               onClick={() => navigate(`/provider/team?mode=master&tab=${encodeURIComponent(activeTab)}`, { replace: true })}
               style={{
                 flex: 1,
-                padding: 12,
-                background: inviteType === 'master' ? '#EC6819' : '#2A2A2A',
+                padding: '10px 12px',
+                background: inviteType === 'master' ? '#EC6819' : 'transparent',
                 border: 'none',
                 borderRadius: 10,
                 color: '#fff',
@@ -685,17 +684,17 @@ function TeamManagementScreen() {
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20 }}>
-          <div>
-            <p style={{ color: 'rgba(255,255,255,0.80)', fontSize: 12, margin: 0, textTransform: 'uppercase', fontWeight: 800 }}>
-              {activeTab === 'invite' ? createLabel : listTitle}
-            </p>
-            <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '4px 0 0' }}>
-              {activeTab === 'invite'
-                ? 'Completa solo lo necesario.'
-                : `${currentCount} creados`}
-            </p>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: activeTab === 'invite' ? 'flex-end' : 'space-between', gap: 12, marginBottom: 20 }}>
+          {activeTab === 'team' && (
+            <div>
+              <p style={{ color: '#fff', fontSize: 16, margin: 0, fontWeight: 700 }}>
+                {listTitle}
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '4px 0 0' }}>
+                {`${currentCount} creados`}
+              </p>
+            </div>
+          )}
           {activeTab === 'team' ? (
             <button
               onClick={() => {
@@ -754,11 +753,6 @@ function TeamManagementScreen() {
               <>
                 {inviteType === 'master' ? (
                   <div style={{ marginBottom: 20 }}>
-                    {team.masters && team.masters.length > 0 && (
-                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
-                        Lista de usuarios master ({team.masters?.length || 0})
-                      </p>
-                    )}
                     {team.masters && team.masters.length > 0 ? (
                       team.masters.map((member, idx) => (
                         <div
@@ -820,23 +814,16 @@ function TeamManagementScreen() {
                     ) : (
                       <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 18 }}>
                         <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: 0 }}>
-                          Crea usuarios master cuando quieras delegar.
+                          Aun no tienes usuarios master creados.
                         </p>
                         <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
-                          El titular supermaster no se muestra en esta lista.
+                          El titular supermaster no aparece aqui.
                         </p>
                       </div>
                     )}
                   </div>
                 ) : (
                   <div style={{ marginBottom: 20 }}>
-                    {team.operators && team.operators.length > 0 && (
-                      <div style={{ marginBottom: 10 }}>
-                        <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', margin: 0 }}>
-                          Lista de operadores ({team.operators?.length || 0})
-                        </p>
-                      </div>
-                    )}
                   {team.operators && team.operators.length > 0 ? (
                     team.operators.map((op, idx) => (
                       (() => {
@@ -928,10 +915,7 @@ function TeamManagementScreen() {
                       padding: 18
                     }}>
                       <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: 0 }}>
-                        Agrega operadores.
-                      </p>
-                      <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
-                        En Mis máquinas eliges qué máquina puede operar cada uno.
+                        Aun no tienes operadores creados.
                       </p>
                     </div>
                   )}
@@ -1127,59 +1111,22 @@ function TeamManagementScreen() {
           <div>
             {!showCode ? (
               <>
-                {currentCount === 0 && (
-                  <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: '0 0 16px', textAlign: 'center' }}>
-                    {emptyCreateNote}
-                  </p>
-                )}
-
-                <p
-                  style={{
-                    color: 'rgba(255,255,255,0.92)',
-                    fontSize: 13,
-                    textAlign: 'center',
-                    margin: '0 0 18px',
-                    lineHeight: 1.45,
-                  }}
-                >
-                  {inviteType === 'master'
-                    ? 'Genera el código y compártelo.'
-                    : (
-                      <>
-                        Completa los datos y genera el código. En{' '}
-                        <Link to="/provider/machines" style={{ color: '#EC6819', fontWeight: 600 }}>
-                          Mis máquinas
-                        </Link>
-                        {' '}eliges qué máquina puede operar.
-                      </>
-                    )}
-                </p>
-
                 {/* Datos del operador cuando la invitación es para operador */}
                 {inviteType === 'operator' && (
                   <div style={{ marginBottom: 20 }}>
-                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
-                      Datos del operador
-                    </p>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                       <div>
                         <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
                           Nombre *
                         </label>
                         <input
+                          className="maqgo-input"
                           type="text"
                           value={operatorFirstName}
                           onChange={(e) => setOperatorFirstName(e.target.value)}
                           placeholder="Ej: Juan"
                           style={{
-                            width: '100%',
-                            padding: '10px 12px',
-                            borderRadius: 8,
                             border: didAttemptInvite && !operatorFirstName.trim() ? '1px solid #F44336' : '1px solid #444',
-                            background: '#1F1F1F',
-                            color: '#fff',
-                            fontSize: 14,
-                            outline: 'none'
                           }}
                         />
                       </div>
@@ -1188,19 +1135,13 @@ function TeamManagementScreen() {
                           Apellido *
                         </label>
                         <input
+                          className="maqgo-input"
                           type="text"
                           value={operatorLastName}
                           onChange={(e) => setOperatorLastName(e.target.value)}
                           placeholder="Ej: Pérez"
                           style={{
-                            width: '100%',
-                            padding: '10px 12px',
-                            borderRadius: 8,
                             border: didAttemptInvite && !operatorLastName.trim() ? '1px solid #F44336' : '1px solid #444',
-                            background: '#1F1F1F',
-                            color: '#fff',
-                            fontSize: 14,
-                            outline: 'none'
                           }}
                         />
                       </div>
@@ -1210,19 +1151,13 @@ function TeamManagementScreen() {
                         RUT *
                       </label>
                       <input
+                        className="maqgo-input"
                         type="text"
                         value={operatorRut}
                         onChange={(e) => setOperatorRut(e.target.value)}
                         placeholder="12.345.678-9"
                         style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 8,
                           border: didAttemptInvite && !operatorRut.trim() ? '1px solid #F44336' : '1px solid #444',
-                          background: '#1F1F1F',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none',
                           fontFamily: "'JetBrains Mono', monospace"
                         }}
                       />
@@ -1232,20 +1167,12 @@ function TeamManagementScreen() {
                         Celular
                       </label>
                       <input
+                        className="maqgo-input"
                         type="tel"
                         value={operatorPhone}
                         onChange={(e) => setOperatorPhone(e.target.value)}
                         placeholder="+56 9 1234 5678"
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          border: '1px solid #444',
-                          background: '#1F1F1F',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none',
-                        }}
+                        style={{ border: '1px solid #444' }}
                       />
                     </div>
                     {didAttemptInvite && missingInviteFields.length > 0 && (
@@ -1258,9 +1185,6 @@ function TeamManagementScreen() {
 
                 {inviteType === 'master' && (
                   <div style={{ marginBottom: 20 }}>
-                    <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
-                      Datos del usuario master
-                    </p>
                     <div style={{ marginBottom: 10 }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div>
@@ -1268,19 +1192,13 @@ function TeamManagementScreen() {
                             Nombre *
                           </label>
                           <input
+                            className="maqgo-input"
                             type="text"
                             value={masterFirstName}
                             onChange={(e) => setMasterFirstName(e.target.value)}
                             placeholder="Ej: María"
                             style={{
-                              width: '100%',
-                              padding: '10px 12px',
-                              borderRadius: 8,
                               border: didAttemptInvite && !masterFirstName.trim() ? '1px solid #F44336' : '1px solid #444',
-                              background: '#1F1F1F',
-                              color: '#fff',
-                              fontSize: 14,
-                              outline: 'none'
                             }}
                           />
                         </div>
@@ -1289,19 +1207,13 @@ function TeamManagementScreen() {
                             Apellido *
                           </label>
                           <input
+                            className="maqgo-input"
                             type="text"
                             value={masterLastName}
                             onChange={(e) => setMasterLastName(e.target.value)}
                             placeholder="Ej: Soto"
                             style={{
-                              width: '100%',
-                              padding: '10px 12px',
-                              borderRadius: 8,
                               border: didAttemptInvite && !masterLastName.trim() ? '1px solid #F44336' : '1px solid #444',
-                              background: '#1F1F1F',
-                              color: '#fff',
-                              fontSize: 14,
-                              outline: 'none'
                             }}
                           />
                         </div>
@@ -1312,19 +1224,13 @@ function TeamManagementScreen() {
                         RUT *
                       </label>
                       <input
+                        className="maqgo-input"
                         type="text"
                         value={masterRut}
                         onChange={(e) => setMasterRut(e.target.value)}
                         placeholder="12.345.678-9"
                         style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 8,
                           border: didAttemptInvite && !masterRut.trim() ? '1px solid #F44336' : '1px solid #444',
-                          background: '#1F1F1F',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none',
                           fontFamily: "'JetBrains Mono', monospace"
                         }}
                       />
@@ -1334,37 +1240,33 @@ function TeamManagementScreen() {
                         Celular *
                       </label>
                       <input
+                        className="maqgo-input"
                         type="tel"
                         value={masterPhone}
                         onChange={(e) => setMasterPhone(e.target.value)}
                         placeholder="+56 9 1234 5678"
                         style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 8,
                           border: didAttemptInvite && !normalizePhoneForChannel(masterPhone) ? '1px solid #F44336' : '1px solid #444',
-                          background: '#1F1F1F',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none',
                         }}
                       />
                     </div>
 
                     <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', margin: '8px 0 10px' }}>
-                      Permisos del usuario master
+                      Permisos
                     </p>
-                    <div
-                      style={{
-                        borderRadius: 12,
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        background: 'rgba(255,255,255,0.06)',
-                        padding: 12,
-                      }}
-                    >
+                    <div>
                       {masterPermissionGroups.map((group) => (
-                        <div key={group.title} style={{ marginBottom: 12 }}>
-                          <p style={{ color: 'rgba(255,255,255,0.76)', fontSize: 11, margin: '0 0 8px', textTransform: 'uppercase', fontWeight: 800 }}>
+                        <div
+                          key={group.title}
+                          style={{
+                            marginBottom: 12,
+                            background: '#2A2A2A',
+                            borderRadius: 12,
+                            padding: 12,
+                            border: '1px solid rgba(255,255,255,0.10)',
+                          }}
+                        >
+                          <p style={{ color: '#fff', fontSize: 13, margin: '0 0 10px', fontWeight: 700 }}>
                             {group.title}
                           </p>
                           {group.items.map((it) => {
@@ -1388,7 +1290,7 @@ function TeamManagementScreen() {
                                   padding: '10px 12px',
                                   borderRadius: 10,
                                   border: '1px solid rgba(255,255,255,0.10)',
-                                  background: checked ? 'rgba(156, 39, 176, 0.16)' : 'rgba(0,0,0,0.12)',
+                                  background: checked ? 'rgba(236, 104, 25, 0.18)' : 'rgba(255,255,255,0.04)',
                                   cursor: 'pointer',
                                   marginBottom: 8,
                                   textAlign: 'left',
@@ -1400,8 +1302,8 @@ function TeamManagementScreen() {
                                     width: 18,
                                     height: 18,
                                     borderRadius: 4,
-                                    border: checked ? '1px solid #9C27B0' : '1px solid rgba(255,255,255,0.35)',
-                                    background: checked ? '#9C27B0' : 'transparent',
+                                    border: checked ? '1px solid #EC6819' : '1px solid rgba(255,255,255,0.35)',
+                                    background: checked ? '#EC6819' : 'transparent',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
@@ -1418,9 +1320,6 @@ function TeamManagementScreen() {
                           })}
                         </div>
                       ))}
-                      <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, margin: '6px 0 0' }}>
-                        Los permisos usan los mismos conceptos de la app.
-                      </p>
                     </div>
                     {didAttemptInvite && missingInviteFields.length > 0 && (
                       <p style={{ color: '#F44336', fontSize: 12, margin: '10px 0 0' }}>
