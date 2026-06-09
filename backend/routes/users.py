@@ -264,7 +264,7 @@ async def update_availability(
     if desired_available and not _is_provider_activation_complete({**doc, **{"isAvailable": desired_available}}):
         raise HTTPException(
             status_code=409,
-            detail="Antes de conectarte, completa tu activación (empresa, máquina, operador, banco y ubicación).",
+            detail="Antes de conectarte, completa tu activación (empresa, máquina, operador y banco).",
         )
 
     update_data = {
@@ -587,7 +587,7 @@ async def patch_user(
         if not _is_provider_activation_complete(candidate):
             raise HTTPException(
                 status_code=409,
-                detail="Antes de conectarte, completa tu activación (empresa, máquina, operador, banco y ubicación).",
+                detail="Antes de conectarte, completa tu activación (empresa, máquina, operador y banco).",
             )
 
     if not update_data:
