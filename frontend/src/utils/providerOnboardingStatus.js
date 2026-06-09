@@ -35,18 +35,6 @@ function normalizeMachineOperators(raw = []) {
     .filter(Boolean);
 }
 
-export function hasDispatchLocationFromStorage() {
-  const providerData = getObject('providerData', {});
-  const loc = getObject('location', {});
-  const pLat = providerData?.addressLat;
-  const pLng = providerData?.addressLng;
-  const lLat = loc?.lat;
-  const lLng = loc?.lng;
-  const hasProviderCoords = pLat !== null && pLat !== undefined && pLng !== null && pLng !== undefined;
-  const hasLocationCoords = lLat !== null && lLat !== undefined && lLng !== null && lLng !== undefined;
-  return Boolean(hasProviderCoords || hasLocationCoords);
-}
-
 function hasRegisteredMachineFromStorage() {
   const machineData = getObject('machineData', {});
   if (machineData?.machineryType && machineData?.licensePlate) return true;
@@ -88,8 +76,7 @@ export function isProviderActivationCompleteFromStorage() {
   const machineComplete = hasRegisteredMachineFromStorage();
   const operatorComplete = hasAssignedMachineOperatorFromStorage();
   const bankComplete = isBankDataComplete(bankData);
-  const locationComplete = hasDispatchLocationFromStorage();
-  return companyComplete && machineComplete && operatorComplete && bankComplete && locationComplete;
+  return companyComplete && machineComplete && operatorComplete && bankComplete;
 }
 
 /**
@@ -121,10 +108,8 @@ export function getProviderOnboardingNextPath() {
   const machineComplete = hasRegisteredMachineFromStorage();
   const operatorComplete = hasAssignedMachineOperatorFromStorage();
   const bankComplete = isBankDataComplete(bankData);
-  const locationComplete = hasDispatchLocationFromStorage();
 
   if (!companyComplete) return '/provider/data';
-  if (!locationComplete) return '/provider/data';
   if (!machineComplete) return '/provider/machine-data';
   if (!operatorComplete) return '/provider/machines';
   if (!bankComplete) return '/provider/profile/banco';
