@@ -524,6 +524,12 @@ function TeamManagementScreen() {
     () => inviteType === 'operator' ? getOverdueOperatorInvitations(visiblePendingInvitations) : [],
     [inviteType, visiblePendingInvitations]
   );
+  const currentMembers = inviteType === 'master' ? (team.masters || []) : (team.operators || []);
+  const currentCount = currentMembers.length;
+  const createLabel = inviteType === 'master' ? 'Crear usuario master' : 'Agregar operador';
+  const listTitle = inviteType === 'master' ? 'Usuarios master creados' : 'Operadores creados';
+  const emptyCreateNote =
+    inviteType === 'master' ? 'Aún no hay usuarios master creados.' : 'Aún no hay operadores creados.';
 
   if (inviteType === 'master' && !isSuperMasterUser) {
     return <Navigate to="/provider/team" replace />;
@@ -563,7 +569,7 @@ function TeamManagementScreen() {
               ? 'Código listo'
               : activeTab === 'invite'
                 ? inviteType === 'master'
-                  ? 'Invitar usuario master'
+                  ? 'Crear usuario master'
                   : 'Agregar operador'
                 : 'Usuarios y accesos'}
           </h1>
@@ -613,61 +619,64 @@ function TeamManagementScreen() {
           </div>
         )}
 
-        <div style={{
-          display: 'flex',
-          gap: 10,
-          marginBottom: 20
-        }}>
-          {(() => {
-            const teamCount = inviteType === 'master' ? (team.masters?.length || 0) : (team.operators?.length || 0);
-            return (
-              <>
-                <button
-                  onClick={() => {
-                    setActiveTab('team');
-                    setShowCode(false);
-                    const modeQs = inviteType === 'master' ? 'master' : 'operator';
-                    navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=team`, { replace: true });
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: 12,
-                    background: activeTab === 'team' ? '#EC6819' : '#2A2A2A',
-                    border: 'none',
-                    borderRadius: 10,
-                    color: '#fff',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                  data-testid="tab-team"
-                >
-                  {`Lista (${teamCount})`}
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveTab('invite');
-                    const modeQs = inviteType === 'master' ? 'master' : 'operator';
-                    navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=invite`, { replace: true });
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: 12,
-                    background: activeTab === 'invite' ? '#EC6819' : '#2A2A2A',
-                    border: 'none',
-                    borderRadius: 10,
-                    color: '#fff',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                  data-testid="tab-invite"
-                >
-                  {inviteType === 'master' ? 'Invitar usuario master' : 'Agregar operador'}
-                </button>
-              </>
-            );
-          })()}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20 }}>
+          <div>
+            <p style={{ color: 'rgba(255,255,255,0.80)', fontSize: 12, margin: 0, textTransform: 'uppercase', fontWeight: 800 }}>
+              {activeTab === 'invite' ? createLabel : listTitle}
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '4px 0 0' }}>
+              {activeTab === 'invite'
+                ? 'Completa solo lo necesario.'
+                : `${currentCount} creados`}
+            </p>
+          </div>
+          {activeTab === 'team' ? (
+            <button
+              onClick={() => {
+                setActiveTab('invite');
+                setShowCode(false);
+                const modeQs = inviteType === 'master' ? 'master' : 'operator';
+                navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=invite`, { replace: true });
+              }}
+              style={{
+                padding: '10px 14px',
+                background: '#EC6819',
+                border: 'none',
+                borderRadius: 10,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+              data-testid="tab-invite"
+            >
+              {createLabel}
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setActiveTab('team');
+                setShowCode(false);
+                const modeQs = inviteType === 'master' ? 'master' : 'operator';
+                navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=team`, { replace: true });
+              }}
+              style={{
+                padding: '10px 14px',
+                background: '#2A2A2A',
+                border: '1px solid rgba(255,255,255,0.14)',
+                borderRadius: 10,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+              data-testid="tab-team"
+            >
+              Volver a lista
+            </button>
+          )}
         </div>
 
         {/* Tab: Equipo */}
@@ -679,9 +688,11 @@ function TeamManagementScreen() {
               <>
                 {inviteType === 'master' ? (
                   <div style={{ marginBottom: 20 }}>
+                    {team.masters && team.masters.length > 0 && (
                       <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
                         Lista de usuarios master ({team.masters?.length || 0})
-                    </p>
+                      </p>
+                    )}
                     {team.masters && team.masters.length > 0 ? (
                       team.masters.map((member, idx) => (
                         <div
@@ -734,55 +745,25 @@ function TeamManagementScreen() {
                         </div>
                       ))
                     ) : (
-                      <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 30, textAlign: 'center' }}>
-                        <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, margin: 0 }}>
-                          No hay usuarios master registrados
+                      <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 18 }}>
+                        <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: 0 }}>
+                          Crea usuarios master cuando quieras delegar.
                         </p>
-                        <button
-                          onClick={() => setActiveTab('invite')}
-                          style={{
-                            marginTop: 12,
-                            padding: '10px 20px',
-                            background: '#EC6819',
-                            border: 'none',
-                            borderRadius: 20,
-                            color: '#fff',
-                            fontSize: 13,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Invitar usuario master
-                        </button>
+                        <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
+                          El titular supermaster no se muestra en esta lista.
+                        </p>
                       </div>
                     )}
                   </div>
                 ) : (
                   <div style={{ marginBottom: 20 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
-                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', margin: 0 }}>
-                        Lista de operadores ({team.operators?.length || 0})
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('invite');
-                          navigate('/provider/team?mode=operator&tab=invite', { replace: true });
-                        }}
-                        style={{
-                          padding: '8px 12px',
-                          background: 'rgba(236, 104, 25, 0.12)',
-                          border: '1px solid rgba(236, 104, 25, 0.35)',
-                          borderRadius: 8,
-                          color: '#fff',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Agregar operador
-                      </button>
-                    </div>
+                    {team.operators && team.operators.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', margin: 0 }}>
+                          Lista de operadores ({team.operators?.length || 0})
+                        </p>
+                      </div>
+                    )}
                   {team.operators && team.operators.length > 0 ? (
                     team.operators.map((op, idx) => (
                       (() => {
@@ -871,28 +852,14 @@ function TeamManagementScreen() {
                     <div style={{
                       background: '#2A2A2A',
                       borderRadius: 12,
-                      padding: 30,
-                      textAlign: 'center'
+                      padding: 18
                     }}>
-                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, margin: 0 }}>
-                        No hay operadores registrados
+                      <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: 0 }}>
+                        Agrega operadores.
                       </p>
-                      <button
-                        onClick={() => setActiveTab('invite')}
-                        style={{
-                          marginTop: 12,
-                          padding: '10px 20px',
-                          background: '#EC6819',
-                          border: 'none',
-                          borderRadius: 20,
-                          color: '#fff',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Agregar operador
-                      </button>
+                      <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
+                        Luego los asignas en Mis máquinas.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1085,53 +1052,32 @@ function TeamManagementScreen() {
           <div>
             {!showCode ? (
               <>
-                <div
-                  style={{
-                    marginBottom: 20,
-                    padding: 14,
-                    borderRadius: 12,
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                  }}
-                >
-                  {inviteType === 'master' ? (
-                    <>
-                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
-                        <strong>Creación de usuario Master (gestión)</strong>: genera un código para que una persona cree un{' '}
-                        <strong>usuario master</strong> dentro de tu empresa (cuenta de gestión).
-                      </p>
-                      <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
-                        Este usuario es para <strong>gestión</strong>. Luego inicia sesión con su celular usando <strong>código SMS</strong>.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
-                        Genera un código para agregar un operador a tu empresa.
-                      </p>
-                      <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
-                        Luego la asignación operador ↔ máquina se hace en{' '}
-                        <Link to="/provider/machines" style={{ color: '#EC6819', fontWeight: 600 }}>
-                          Mis máquinas
-                        </Link>
-                        .
-                      </p>
-                    </>
-                  )}
-                </div>
+                {currentCount === 0 && (
+                  <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: '0 0 16px', textAlign: 'center' }}>
+                    {emptyCreateNote}
+                  </p>
+                )}
 
                 <p
                   style={{
                     color: 'rgba(255,255,255,0.92)',
-                    fontSize: 14,
+                    fontSize: 13,
                     textAlign: 'center',
-                    marginBottom: 20,
+                    margin: '0 0 18px',
                     lineHeight: 1.45,
                   }}
                 >
                   {inviteType === 'master'
-                    ? 'Genera un código y compártelo con la persona que creará el usuario master.'
-                    : 'Completa los datos y genera el código.'}
+                    ? 'Genera el código y compártelo.'
+                    : (
+                      <>
+                        Completa los datos y genera el código. La asignación a máquina se hace en{' '}
+                        <Link to="/provider/machines" style={{ color: '#EC6819', fontWeight: 600 }}>
+                          Mis máquinas
+                        </Link>
+                        .
+                      </>
+                    )}
                 </p>
 
                 {/* Datos del operador cuando la invitación es para operador */}
@@ -1215,7 +1161,7 @@ function TeamManagementScreen() {
                 {inviteType === 'master' && (
                   <div style={{ marginBottom: 20 }}>
                     <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
-                      Datos del usuario master (opcional)
+                      Datos opcionales
                     </p>
                     <div style={{ marginBottom: 10 }}>
                       <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
@@ -1330,7 +1276,7 @@ function TeamManagementScreen() {
                         );
                       })}
                       <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, margin: '6px 0 0' }}>
-                        Define los permisos antes de generar el código: viajan en el link y se guardan en el dispositivo del usuario master (no backend).
+                        Define los permisos antes de generar el código.
                       </p>
                     </div>
                   </div>
@@ -1345,9 +1291,7 @@ function TeamManagementScreen() {
                 >
                   {inviting
                     ? 'Generando...'
-                    : inviteType === 'master'
-                      ? 'Generar código para usuario master'
-                      : 'Generar código'}
+                    : 'Generar código'}
                 </button>
               </>
             ) : (
@@ -1383,7 +1327,7 @@ function TeamManagementScreen() {
                   fontSize: 13, 
                   margin: '0 0 25px'
                 }}>
-                  {inviteType === 'master' ? 'Para crear usuario master' : 'Para autenticar operador'}
+                  {inviteType === 'master' ? 'Para crear usuario master' : 'Para agregar operador'}
                 </p>
 
                 {Array.isArray(batchInvites) && batchInvites.length > 1 && (
@@ -1482,7 +1426,7 @@ function TeamManagementScreen() {
                     Link directo
                   </p>
                   <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '8px 0 10px', lineHeight: 1.45 }}>
-                    Úsalo si la otra persona prefiere entrar tocando un link (igual puede pegar solo el código).
+                    También puede entrar solo con el código.
                   </p>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <div style={{
@@ -1615,12 +1559,12 @@ function TeamManagementScreen() {
                   marginBottom: 20
                 }}>
                   <p style={{ color: '#EC6819', fontSize: 13, margin: 0 }}>
-                    Este código lo comparte la oficina por su canal interno (WhatsApp, SMS, llamada o correo).
+                    Comparte este código por tu canal interno.
                   </p>
                   <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '6px 0 0' }}>
                     {inviteType === 'master'
-                      ? 'Este código lo genera tu empresa. MAQGO solo envía el código SMS cuando el usuario master inicia sesión con su celular.'
-                      : 'Compártelo con el operador para que lo ingrese en MAQGO y quede vinculado a tu empresa.'}
+                      ? 'El SMS aparece después, cuando el usuario master inicie sesión con su celular.'
+                      : 'El operador debe ingresarlo en MAQGO para quedar vinculado a tu empresa.'}
                   </p>
                 </div>
 
