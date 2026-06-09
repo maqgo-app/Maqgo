@@ -60,6 +60,52 @@ def _normalize_rut(rut: str) -> str:
     s = "".join(ch for ch in s if ch.isdigit() or ch in ("k", "K"))
     return s.upper()
 
+
+def _calculate_rut_verifier(body: str) -> str:
+    total = 0
+    multiplier = 2
+    for ch in reversed(body):
+        total += int(ch) * multiplier
+        multiplier = 2 if multiplier == 7 else multiplier + 1
+    remainder = 11 - (total % 11)
+    if remainder == 11:
+        return "0"
+    if remainder == 10:
+        return "K"
+    return str(remainder)
+
+
+def _is_valid_rut(rut: str) -> bool:
+    clean = _normalize_rut(rut)
+    if len(clean) < 8 or len(clean) > 9:
+        return False
+    body = clean[:-1]
+    verifier = clean[-1]
+    if not body.isdigit():
+        return False
+    if not (verifier.isdigit() or verifier == "K"):
+        return False
+    return _calculate_rut_verifier(body) == verifier
+
+
+def _is_company_rut(rut: str) -> bool:
+    clean = _normalize_rut(rut)
+    if len(clean) < 2:
+        return False
+    body = clean[:-1]
+    if not body.isdigit():
+        return False
+    return int(body) >= 50000000
+
+
+def _ensure_person_rut(rut: str, *, label: str) -> str:
+    clean = str(rut or "").strip()
+    if not _is_valid_rut(clean):
+        raise HTTPException(status_code=400, detail=f"Ingresa un {label} válido.")
+    if _is_company_rut(clean):
+        raise HTTPException(status_code=400, detail=f"El {label} debe ser de persona natural, no de empresa.")
+    return clean
+
 async def _generate_unique_code() -> str:
     code = generate_invite_code()
     while await db.invitations.find_one({"code": code}):
@@ -98,18 +144,19 @@ async def create_invitation(
             status_code=400,
             detail="Debes ingresar nombre y RUT del operador para generar el código."
         )
+    operator_rut = _ensure_person_rut(data.operator_rut, label="RUT del operador")
     
     code = await _generate_unique_code()
     
     # Crear invitación
-    rut_norm = _normalize_rut(data.operator_rut)
+    rut_norm = _normalize_rut(operator_rut)
     invitation = {
         "code": code,
         "owner_id": data.owner_id,
         "owner_name": owner.get("name", ""),
         "operator_name": data.operator_name,
         "operator_phone": data.operator_phone,
-        "operator_rut": data.operator_rut,
+        "operator_rut": operator_rut,
         "operator_rut_norm": rut_norm,
         "status": "pending",  # pending, used, expired
         "created_at": datetime.now(timezone.utc),
@@ -150,6 +197,7 @@ async def create_invitations_batch(
         phone = str(item.operator_phone or "").strip() or None
         if not name or not rut:
             raise HTTPException(status_code=400, detail="Cada operador debe tener nombre y RUT.")
+        rut = _ensure_person_rut(rut, label="RUT del operador")
         rut_norm = _normalize_rut(rut)
         existing = await db.invitations.find_one(
             {
@@ -255,6 +303,8 @@ async def use_invitation(data: InvitationUse):
             detail="Esta invitación no tiene nombre o RUT del operador. Pide a tu empresa un código nuevo."
         )
 
+    operator_rut = _ensure_person_rut(data.operator_rut or invitation.get("operator_rut"), label="RUT del operador")
+
     # Crear cuenta de operador
     import uuid
     operator_id = str(uuid.uuid4())
@@ -266,7 +316,7 @@ async def use_invitation(data: InvitationUse):
         "owner_id": invitation["owner_id"],
         "name": data.operator_name or invitation.get("operator_name") or "Operador",
         "phone": data.operator_phone or invitation.get("operator_phone") or "",
-        "rut": data.operator_rut or invitation.get("operator_rut"),
+        "rut": operator_rut,
         "email": "",
         "isAvailable": False,
         "rating": 5.0,
@@ -461,6 +511,12 @@ async def create_master_invitation(
     provider_role = owner.get("provider_role", "owner")
     if provider_role not in ["super_master", "owner"]:
         raise HTTPException(status_code=403, detail="Solo el dueño de la empresa puede invitar Masters")
+    if not data.master_name or not data.master_last_name or not data.master_rut or not data.master_phone:
+        raise HTTPException(
+            status_code=400,
+            detail="Completa nombre, apellido, RUT y celular del usuario master para generar el código.",
+        )
+    master_rut = _ensure_person_rut(data.master_rut, label="RUT del usuario master")
     
     # Generar código único
     code = generate_invite_code()
@@ -475,7 +531,7 @@ async def create_master_invitation(
         "invite_type": "master",  # Tipo de invitación
         "master_name": data.master_name,
         "master_last_name": data.master_last_name,
-        "master_rut": data.master_rut,
+        "master_rut": master_rut,
         "master_phone": data.master_phone,
         "status": "pending",
         "created_at": datetime.now(timezone.utc),
@@ -528,6 +584,9 @@ async def use_master_invitation(data: MasterInvitationUse):
     full_name = " ".join(part for part in [first_name, last_name] if part).strip() or first_name
     phone = str(data.master_phone or invitation.get("master_phone") or "").strip()
     rut = str(data.master_rut or invitation.get("master_rut") or "").strip()
+    if not rut:
+        raise HTTPException(status_code=400, detail="Falta el RUT del usuario master")
+    rut = _ensure_person_rut(rut, label="RUT del usuario master")
 
     if not full_name:
         raise HTTPException(status_code=400, detail="Falta el nombre del usuario master")

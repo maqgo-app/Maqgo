@@ -6,6 +6,13 @@ import BackToPortadaButton from '../../components/BackToPortadaButton';
 import BACKEND_URL from '../../utils/api';
 import { getDeviceId } from '../../utils/deviceId';
 import { getHttpErrorMessage } from '../../utils/httpErrors';
+import {
+  formatRut,
+  normalizeChileanMobileDraft,
+  normalizeChileanMobileE164,
+  sanitizeRutInput,
+  validatePersonRut,
+} from '../../utils/chileanValidation';
 
 function safeJsonParse(raw, fallback) {
   try {
@@ -28,14 +35,6 @@ function base64UrlDecodeToJson(raw) {
   } catch {
     return null;
   }
-}
-
-function normalizePhoneForBackend(raw) {
-  const d = String(raw || '').replace(/\D/g, '');
-  const last9 = d.length >= 9 ? d.slice(-9) : '';
-  if (/^9\d{8}$/.test(last9)) return `+56${last9}`;
-  if (String(raw || '').trim().startsWith('+')) return String(raw).trim();
-  return '';
 }
 
 function persistRegisterDataPhoneDigits(phoneE164) {
@@ -103,7 +102,7 @@ function MasterJoinScreen() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [rut, setRut] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState('+569');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -124,7 +123,7 @@ function MasterJoinScreen() {
       return;
     }
     const name = joinDisplayName(firstName, lastName);
-    const phoneE164 = normalizePhoneForBackend(phone);
+    const phoneE164 = normalizeChileanMobileE164(phone);
     if (!firstName.trim()) {
       setError('Ingresa tu nombre');
       return;
@@ -135,6 +134,10 @@ function MasterJoinScreen() {
     }
     if (!rut.trim()) {
       setError('Ingresa tu RUT');
+      return;
+    }
+    if (!validatePersonRut(rut)) {
+      setError('Ingresa un RUT de persona válido. No se acepta RUT empresa.');
       return;
     }
     if (!phoneE164) {
@@ -148,7 +151,7 @@ function MasterJoinScreen() {
         code: c,
         master_name: firstName.trim(),
         master_last_name: lastName.trim(),
-        master_rut: rut.trim(),
+        master_rut: formatRut(rut.trim()),
         master_phone: phoneE164,
         ...(String(email || '').trim() ? { master_email: String(email).trim() } : {}),
       };
@@ -222,14 +225,18 @@ function MasterJoinScreen() {
               Nombre
             </label>
             <input
-              value={firstName}
+              value={formatRut(rut)}
               onChange={(e) => {
                 setError('');
-                setFirstName(e.target.value);
+                setRut(sanitizeRutInput(e.target.value));
               }}
               placeholder="Tu nombre"
               className="maqgo-input"
-              style={{ width: '100%', marginBottom: 0 }}
+              style={{
+                width: '100%',
+                marginBottom: 0,
+                borderColor: rut && !validatePersonRut(rut) ? 'var(--maqgo-orange)' : undefined,
+              }}
             />
           </div>
           <div>
@@ -253,14 +260,18 @@ function MasterJoinScreen() {
           RUT
         </label>
         <input
-          value={rut}
+          value={formatRut(rut)}
           onChange={(e) => {
             setError('');
-            setRut(e.target.value);
+            setRut(sanitizeRutInput(e.target.value));
           }}
           placeholder="12.345.678-9"
           className="maqgo-input"
-          style={{ width: '100%', marginBottom: 12 }}
+          style={{
+            width: '100%',
+            marginBottom: 12,
+            borderColor: rut && !validatePersonRut(rut) ? 'var(--maqgo-orange)' : undefined,
+          }}
         />
 
         <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
@@ -270,14 +281,17 @@ function MasterJoinScreen() {
           value={phone}
           onChange={(e) => {
             setError('');
-            setPhone(e.target.value);
+            setPhone(normalizeChileanMobileDraft(e.target.value));
           }}
           placeholder="+56 9 1234 5678"
           className="maqgo-input"
-          style={{ width: '100%', marginBottom: 12 }}
+          style={{
+            width: '100%',
+            marginBottom: 12,
+            borderColor: phone !== '+569' && !normalizeChileanMobileE164(phone) ? 'var(--maqgo-orange)' : undefined,
+          }}
           inputMode="tel"
         />
-
         <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
           Correo (opcional)
         </label>

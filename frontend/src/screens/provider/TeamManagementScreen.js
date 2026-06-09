@@ -8,6 +8,13 @@ import { useToast } from '../../components/Toast';
 
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { getOperatorInvitationWarning, getOverdueOperatorInvitations } from '../../utils/operatorInvitations';
+import {
+  formatRut,
+  normalizeChileanMobileDraft,
+  normalizeChileanMobileE164,
+  sanitizeRutInput,
+  validatePersonRut,
+} from '../../utils/chileanValidation';
 
 /**
  * Pantalla: Gestión de equipo (Mis operadores)
@@ -56,11 +63,11 @@ function TeamManagementScreen() {
   const [operatorFirstName, setOperatorFirstName] = useState('');
   const [operatorLastName, setOperatorLastName] = useState('');
   const [operatorRut, setOperatorRut] = useState('');
-  const [operatorPhone, setOperatorPhone] = useState('');
+  const [operatorPhone, setOperatorPhone] = useState('+569');
   const [masterFirstName, setMasterFirstName] = useState('');
   const [masterLastName, setMasterLastName] = useState('');
   const [masterRut, setMasterRut] = useState('');
-  const [masterPhone, setMasterPhone] = useState('');
+  const [masterPhone, setMasterPhone] = useState('+569');
   const [masterInvitePermissions, setMasterInvitePermissions] = useState({
     can_view_finance: false,
     can_manage_machines: false,
@@ -91,11 +98,11 @@ function TeamManagementScreen() {
     setOperatorFirstName('');
     setOperatorLastName('');
     setOperatorRut('');
-    setOperatorPhone('');
+    setOperatorPhone('+569');
     setMasterFirstName('');
     setMasterLastName('');
     setMasterRut('');
-    setMasterPhone('');
+    setMasterPhone('+569');
     setMasterInvitePermissions({
       can_view_finance: false,
       can_manage_machines: false,
@@ -161,19 +168,6 @@ function TeamManagementScreen() {
   }, [refreshKey]);
 
   const loadTeam = () => setRefreshKey(k => k + 1);
-
-  const normalizePhoneForChannel = (raw) => {
-    const s = String(raw || '').trim();
-    if (!s) return '';
-    if (s.startsWith('+')) {
-      return `+${s.slice(1).replace(/\D/g, '')}`;
-    }
-    const digits = s.replace(/\D/g, '');
-    if (!digits) return '';
-    if (digits.startsWith('56')) return `+${digits}`;
-    if (digits.length === 9) return `+56${digits}`;
-    return `+${digits}`;
-  };
 
   const joinDisplayName = (...parts) =>
     parts
@@ -357,16 +351,26 @@ function TeamManagementScreen() {
           setInviting(false);
           return;
         }
-        const normalizedPhone = normalizePhoneForChannel(operatorPhone);
+        if (!validatePersonRut(operatorRut)) {
+          toast.warning('Ingresa un RUT de persona válido para el operador. No se acepta RUT empresa.');
+          setInviting(false);
+          return;
+        }
+        const normalizedPhone = normalizeChileanMobileE164(operatorPhone);
         payload = {
           owner_id: ownerId,
           operator_name: fullName,
           operator_phone: normalizedPhone || undefined,
-          operator_rut: operatorRut.trim(),
+          operator_rut: formatRut(operatorRut.trim()),
         };
       } else if (inviteType === 'master') {
         const fullName = joinDisplayName(masterFirstName, masterLastName);
-        const normalizedPhone = normalizePhoneForChannel(masterPhone);
+        if (!validatePersonRut(masterRut)) {
+          toast.warning('Ingresa un RUT de persona válido para el usuario master. No se acepta RUT empresa.');
+          setInviting(false);
+          return;
+        }
+        const normalizedPhone = normalizeChileanMobileE164(masterPhone);
         if (!masterFirstName.trim() || !masterLastName.trim() || !masterRut.trim() || !normalizedPhone) {
           toast.warning('Completa nombre, apellido, RUT y celular del usuario master antes de generar el código.');
           setInviting(false);
@@ -376,7 +380,7 @@ function TeamManagementScreen() {
           owner_id: ownerId,
           master_name: masterFirstName.trim(),
           master_last_name: masterLastName.trim(),
-          master_rut: masterRut.trim(),
+          master_rut: formatRut(masterRut.trim()),
           master_phone: normalizedPhone,
           master_full_name: fullName,
         };
@@ -394,11 +398,11 @@ function TeamManagementScreen() {
       setOperatorFirstName('');
       setOperatorLastName('');
       setOperatorRut('');
-      setOperatorPhone('');
+      setOperatorPhone('+569');
       setMasterFirstName('');
       setMasterLastName('');
       setMasterRut('');
-      setMasterPhone('');
+      setMasterPhone('+569');
       setDidAttemptInvite(false);
       loadTeam(); // Recargar para ver la invitación pendiente
     } catch (e) {
@@ -447,55 +451,17 @@ function TeamManagementScreen() {
     toast.warning('No se pudo copiar automáticamente. Copia el texto manualmente.');
   };
 
-  const shareCode = async (channel) => {
-    const code = String(inviteCode || '').trim().toUpperCase();
-    if (!code) return;
-    const text = buildInviteMessage(code, inviteType);
-    const phone = normalizePhoneForChannel(inviteType === 'master' ? masterPhone : operatorPhone);
-    if (channel === 'system') {
-      if (navigator?.share) {
-        try {
-          await navigator.share({ text });
-          return;
-        } catch {
-          void 0;
-        }
-      }
-      toast.warning('No se pudo abrir el menú de compartir. Usa Copiar código.');
-      return;
-    }
-    if (channel === 'whatsapp') {
-      const base = phone ? `https://wa.me/${phone.replace('+', '')}` : 'https://wa.me/';
-      window.open(`${base}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    if (channel === 'sms') {
-      const target = phone ? phone : '';
-      const url = `sms:${encodeURIComponent(target)}?&body=${encodeURIComponent(text)}`;
-      window.location.href = url;
-    }
-  };
-
-  const shareInvite = async (channel, code, phone, type) => {
+  const copyInviteMessage = async (code, type, perms = null) => {
     const c = String(code || '').trim().toUpperCase();
     if (!c) return;
-    const permsByCode = type === 'master' ? loadMasterInvitePermissionsByCode() : null;
-    const text = buildInviteMessage(c, type, permsByCode && permsByCode[c] ? permsByCode[c] : null);
-    const normalized = normalizePhoneForChannel(phone);
-    if (channel === 'whatsapp') {
-      const base = normalized ? `https://wa.me/${normalized.replace('+', '')}` : 'https://wa.me/';
-      window.open(`${base}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    if (channel === 'sms') {
-      const target = normalized ? normalized : '';
-      const url = `sms:${encodeURIComponent(target)}?&body=${encodeURIComponent(text)}`;
-      window.location.href = url;
-      return;
-    }
-    if (channel === 'copy') {
-      await copyTextToClipboard(c, 'Código copiado');
-    }
+    const text = buildInviteMessage(c, type, perms);
+    await copyTextToClipboard(text, 'Mensaje copiado');
+  };
+
+  const copyCurrentInviteMessage = async () => {
+    const code = String(inviteCode || '').trim().toUpperCase();
+    if (!code) return;
+    await copyInviteMessage(code, inviteType, inviteType === 'master' ? masterInvitePermissions : null);
   };
 
   const deleteOperator = async (operatorId, operatorName) => {
@@ -543,13 +509,14 @@ function TeamManagementScreen() {
   if (inviteType === 'operator') {
     if (!operatorFirstName.trim()) missingInviteFields.push('Nombre');
     if (!operatorLastName.trim()) missingInviteFields.push('Apellido');
-    if (!operatorRut.trim()) missingInviteFields.push('RUT');
+    if (!validatePersonRut(operatorRut)) missingInviteFields.push('RUT persona');
+    if (operatorPhone !== '+569' && !normalizeChileanMobileE164(operatorPhone)) missingInviteFields.push('Celular válido');
   }
   if (inviteType === 'master') {
     if (!masterFirstName.trim()) missingInviteFields.push('Nombre');
     if (!masterLastName.trim()) missingInviteFields.push('Apellido');
-    if (!masterRut.trim()) missingInviteFields.push('RUT');
-    if (!normalizePhoneForChannel(masterPhone)) missingInviteFields.push('Celular');
+    if (!validatePersonRut(masterRut)) missingInviteFields.push('RUT persona');
+    if (!normalizeChileanMobileE164(masterPhone)) missingInviteFields.push('Celular');
   }
   const isInviteFormValid =
     missingInviteFields.length === 0;
@@ -997,7 +964,7 @@ function TeamManagementScreen() {
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             <button
                               type="button"
-                              onClick={() => shareInvite('copy', inv.code, inv.invite_type === 'master' ? inv.master_phone : inv.operator_phone, inv.invite_type)}
+                              onClick={() => copyTextToClipboard(String(inv.code || '').trim().toUpperCase(), 'Código copiado')}
                               style={{
                                 padding: '6px 10px',
                                 background: 'rgba(255,255,255,0.08)',
@@ -1037,22 +1004,6 @@ function TeamManagementScreen() {
                               }}
                             >
                               Copiar link
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => shareInvite('whatsapp', inv.code, inv.invite_type === 'master' ? inv.master_phone : inv.operator_phone, inv.invite_type)}
-                              style={{
-                                padding: '6px 10px',
-                                background: 'rgba(37, 211, 102, 0.14)',
-                                border: '1px solid rgba(37, 211, 102, 0.35)',
-                                borderRadius: 6,
-                                color: 'rgba(255,255,255,0.92)',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: 700
-                              }}
-                            >
-                              WhatsApp
                             </button>
                             <button
                               onClick={() => cancelInvitation(inv.code)}
@@ -1153,11 +1104,11 @@ function TeamManagementScreen() {
                       <input
                         className="maqgo-input"
                         type="text"
-                        value={operatorRut}
-                        onChange={(e) => setOperatorRut(e.target.value)}
+                        value={formatRut(operatorRut)}
+                        onChange={(e) => setOperatorRut(sanitizeRutInput(e.target.value))}
                         placeholder="12.345.678-9"
                         style={{
-                          border: didAttemptInvite && !operatorRut.trim() ? '1px solid #F44336' : '1px solid #444',
+                          border: didAttemptInvite && !validatePersonRut(operatorRut) ? '1px solid #F44336' : '1px solid #444',
                           fontFamily: "'JetBrains Mono', monospace"
                         }}
                       />
@@ -1170,9 +1121,14 @@ function TeamManagementScreen() {
                         className="maqgo-input"
                         type="tel"
                         value={operatorPhone}
-                        onChange={(e) => setOperatorPhone(e.target.value)}
+                        onChange={(e) => setOperatorPhone(normalizeChileanMobileDraft(e.target.value))}
                         placeholder="+56 9 1234 5678"
-                        style={{ border: '1px solid #444' }}
+                        style={{
+                          border:
+                            didAttemptInvite && operatorPhone !== '+569' && !normalizeChileanMobileE164(operatorPhone)
+                              ? '1px solid #F44336'
+                              : '1px solid #444',
+                        }}
                       />
                     </div>
                     {didAttemptInvite && missingInviteFields.length > 0 && (
@@ -1226,11 +1182,11 @@ function TeamManagementScreen() {
                       <input
                         className="maqgo-input"
                         type="text"
-                        value={masterRut}
-                        onChange={(e) => setMasterRut(e.target.value)}
+                        value={formatRut(masterRut)}
+                        onChange={(e) => setMasterRut(sanitizeRutInput(e.target.value))}
                         placeholder="12.345.678-9"
                         style={{
-                          border: didAttemptInvite && !masterRut.trim() ? '1px solid #F44336' : '1px solid #444',
+                          border: didAttemptInvite && !validatePersonRut(masterRut) ? '1px solid #F44336' : '1px solid #444',
                           fontFamily: "'JetBrains Mono', monospace"
                         }}
                       />
@@ -1243,10 +1199,10 @@ function TeamManagementScreen() {
                         className="maqgo-input"
                         type="tel"
                         value={masterPhone}
-                        onChange={(e) => setMasterPhone(e.target.value)}
+                        onChange={(e) => setMasterPhone(normalizeChileanMobileDraft(e.target.value))}
                         placeholder="+56 9 1234 5678"
                         style={{
-                          border: didAttemptInvite && !normalizePhoneForChannel(masterPhone) ? '1px solid #F44336' : '1px solid #444',
+                          border: didAttemptInvite && !normalizeChileanMobileE164(masterPhone) ? '1px solid #F44336' : '1px solid #444',
                         }}
                       />
                     </div>
@@ -1548,12 +1504,12 @@ function TeamManagementScreen() {
                 <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
                   <button
                     type="button"
-                    onClick={() => shareCode('whatsapp')}
+                    onClick={copyCurrentInviteMessage}
                     style={{
                       flex: '1 1 160px',
                       padding: 12,
-                      background: 'rgba(37, 211, 102, 0.14)',
-                      border: '1px solid rgba(37, 211, 102, 0.35)',
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.15)',
                       borderRadius: 10,
                       color: '#fff',
                       fontSize: 13,
@@ -1561,41 +1517,7 @@ function TeamManagementScreen() {
                       cursor: 'pointer',
                     }}
                   >
-                    Enviar por WhatsApp
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => shareCode('sms')}
-                    style={{
-                      flex: '1 1 160px',
-                      padding: 12,
-                      background: 'rgba(144, 189, 211, 0.14)',
-                      border: '1px solid rgba(144, 189, 211, 0.35)',
-                      borderRadius: 10,
-                      color: '#fff',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Enviar por SMS
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => shareCode('system')}
-                    style={{
-                      flex: '1 1 160px',
-                      padding: 12,
-                      background: 'transparent',
-                      border: '1px solid rgba(255,255,255,0.22)',
-                      borderRadius: 10,
-                      color: 'rgba(255,255,255,0.92)',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Compartir…
+                    Copiar mensaje
                   </button>
                 </div>
 
@@ -1616,7 +1538,11 @@ function TeamManagementScreen() {
                 </div>
 
                 <button
-                  onClick={() => { setShowCode(false); setInviteCode(''); }}
+                  onClick={() => {
+                    setShowCode(false);
+                    setInviteCode('');
+                    setActiveTab('team');
+                  }}
                   style={{
                     width: '100%',
                     padding: 14,
@@ -1628,7 +1554,7 @@ function TeamManagementScreen() {
                     cursor: 'pointer'
                   }}
                 >
-                  Generar otro código
+                  Volver a lista
                 </button>
               </div>
             )}

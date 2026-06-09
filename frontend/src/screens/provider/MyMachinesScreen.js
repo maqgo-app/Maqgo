@@ -20,6 +20,13 @@ import { vibrate } from '../../utils/uberUX';
 import BACKEND_URL from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
 import { getOperatorInvitationWarning, getOverdueOperatorInvitations } from '../../utils/operatorInvitations';
+import {
+  formatRut,
+  normalizeChileanMobileDraft,
+  normalizeChileanMobileE164,
+  sanitizeRutInput,
+  validatePersonRut,
+} from '../../utils/chileanValidation';
 
 const STORAGE_KEY_DEFAULT_BY_MACHINERY = 'defaultOperatorByMachinery';
 
@@ -27,16 +34,6 @@ function toMachineryId(type) {
   if (!type) return 'retroexcavadora';
   const t = type.toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
   return MACHINERY_TYPES.find(m => m.id === t || m.name.toLowerCase().includes(t))?.id || 'retroexcavadora';
-}
-
-function normalizePhoneForChannel(raw) {
-  const s = String(raw || '').trim();
-  if (!s) return '';
-  const digits = s.replace(/\D/g, '');
-  if (!digits) return '';
-  if (digits.startsWith('56')) return `+${digits}`;
-  if (digits.length === 9) return `+56${digits}`;
-  return `+${digits}`;
 }
 
 function buildOperatorJoinLink(code) {
@@ -48,7 +45,7 @@ function buildOperatorJoinLink(code) {
 
 function getCurrentOwnerOperator() {
   const id = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
-  const phone = normalizePhoneForChannel(localStorage.getItem('userPhone') || '');
+  const phone = normalizeChileanMobileE164(localStorage.getItem('userPhone') || '');
   return { id, phone };
 }
 
@@ -70,7 +67,7 @@ function getOperatorStableId(operator = {}, fallback = '') {
   if (directId) return directId;
   const rut = String(operator.rut || '').trim().toLowerCase();
   if (rut) return `op-rut-${rut}`;
-  const phone = normalizePhoneForChannel(operator.phone || operator.telefono || '');
+  const phone = normalizeChileanMobileE164(operator.phone || operator.telefono || '');
   if (phone) return `op-phone-${phone}`;
   const fullName = String(operator.name || `${operator.nombre || ''} ${operator.apellido || ''}`.trim()).trim().toLowerCase();
   if (fullName) return `op-name-${fullName.replace(/\s+/g, '-')}`;
@@ -722,7 +719,7 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
   const [error, setError] = useState('');
   const [newOperatorName, setNewOperatorName] = useState('');
   const [newOperatorRut, setNewOperatorRut] = useState('');
-  const [newOperatorPhone, setNewOperatorPhone] = useState('');
+  const [newOperatorPhone, setNewOperatorPhone] = useState('+569');
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [recentInvite, setRecentInvite] = useState(null);
   const [showInlineInviteForm, setShowInlineInviteForm] = useState(false);
@@ -844,9 +841,13 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
   const handleCreateInlineInvite = async () => {
     const fullName = String(newOperatorName || '').trim();
     const rut = String(newOperatorRut || '').trim();
-    const normalizedPhone = normalizePhoneForChannel(newOperatorPhone);
+    const normalizedPhone = normalizeChileanMobileE164(newOperatorPhone);
     if (!fullName || !rut || !normalizedPhone) {
       toast.warning('Ingresa nombre completo, RUT y celular del operador.');
+      return;
+    }
+    if (!validatePersonRut(rut)) {
+      toast.warning('Ingresa un RUT de persona válido para el operador. No se acepta RUT empresa.');
       return;
     }
     if (!ownerId) {
@@ -859,7 +860,7 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
       const payload = {
         owner_id: ownerId,
         operator_name: fullName,
-        operator_rut: rut,
+        operator_rut: formatRut(rut),
         operator_phone: normalizedPhone,
       };
       const response = await axios.post(`${BACKEND_URL}/api/operators/invite`, payload, { timeout: 8000 });
@@ -875,7 +876,7 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
       setRecentInvite(invite);
       setNewOperatorName('');
       setNewOperatorRut('');
-      setNewOperatorPhone('');
+      setNewOperatorPhone('+569');
       await loadAssignableData();
       toast.success('Codigo de activacion generado');
     } catch (e) {
@@ -914,15 +915,15 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
         <input
           className="maqgo-input"
           placeholder="RUT"
-          value={newOperatorRut}
-          onChange={(e) => setNewOperatorRut(e.target.value)}
+          value={formatRut(newOperatorRut)}
+          onChange={(e) => setNewOperatorRut(sanitizeRutInput(e.target.value))}
           style={{ width: '100%' }}
         />
         <input
           className="maqgo-input"
           placeholder="Celular"
           value={newOperatorPhone}
-          onChange={(e) => setNewOperatorPhone(e.target.value)}
+          onChange={(e) => setNewOperatorPhone(normalizeChileanMobileDraft(e.target.value))}
           style={{ width: '100%' }}
         />
         <button

@@ -60,6 +60,10 @@ export function sanitizeRutInput(value) {
   return clean.slice(0, RUT_MAX_LENGTH);
 }
 
+function normalizeRutValue(rut) {
+  return String(rut || '').replace(/[.\-\s]/g, '').toUpperCase();
+}
+
 /**
  * Validates Chilean RUT format and checksum
  * Accepts formats: 12.345.678-9, 12345678-9, 123456789
@@ -70,7 +74,7 @@ export function validateRut(rut) {
   if (!rut || typeof rut !== 'string') return false;
   
   // Clean RUT: remove dots, dashes, spaces
-  const cleanRut = rut.replace(/[.\-\s]/g, '').toUpperCase();
+  const cleanRut = normalizeRutValue(rut);
   
   // Check minimum length
   if (cleanRut.length < 8 || cleanRut.length > 9) return false;
@@ -89,6 +93,61 @@ export function validateRut(rut) {
   const expectedVerifier = calculateRutVerifier(body);
   
   return verifier === expectedVerifier;
+}
+
+/**
+ * Detecta RUT empresa/jurídico para flujos donde se exige persona natural.
+ * En MAQGO bloqueamos cuerpos desde 50.000.000 hacia arriba.
+ * @param {string} rut
+ * @returns {boolean}
+ */
+export function isCompanyRut(rut) {
+  const cleanRut = normalizeRutValue(rut);
+  if (cleanRut.length < 2) return false;
+  const body = cleanRut.slice(0, -1);
+  if (!/^\d+$/.test(body)) return false;
+  return Number(body) >= 50000000;
+}
+
+/**
+ * Valida RUT de persona natural: checksum correcto y no empresa.
+ * @param {string} rut
+ * @returns {boolean}
+ */
+export function validatePersonRut(rut) {
+  return validateRut(rut) && !isCompanyRut(rut);
+}
+
+/**
+ * Normaliza celular chileno a E.164 solo si está completo y es móvil válido.
+ * Acepta: 912345678, +56912345678, +56 9 1234 5678
+ * @param {string} raw
+ * @returns {string}
+ */
+export function normalizeChileanMobileE164(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const local = digits.startsWith('56') ? digits.slice(2) : digits.slice(-9);
+  if (!/^9\d{8}$/.test(local)) return '';
+  return `+56${local}`;
+}
+
+/**
+ * Mantiene el draft del input móvil con prefijo chileno visible: +569...
+ * @param {string} raw
+ * @returns {string}
+ */
+export function normalizeChileanMobileDraft(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return '+569';
+  let local = digits.startsWith('56') ? digits.slice(2) : digits;
+  if (!local) return '+569';
+  if (local.startsWith('9')) {
+    local = local.slice(0, 9);
+  } else {
+    local = `9${local.slice(0, 8)}`;
+  }
+  return `+56${local}`;
 }
 
 /**
