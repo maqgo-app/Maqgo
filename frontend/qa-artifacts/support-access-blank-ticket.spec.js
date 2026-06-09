@@ -40,7 +40,7 @@ test.describe('Support access', () => {
     await page.waitForLoadState('load');
 
     await expect(page.getByRole('heading', { name: /Recuperar acceso/i })).toBeVisible();
-    await page.getByRole('button', { name: /Enviar solicitud/i }).click();
+    await page.getByRole('button', { name: /Solicitar revisión/i }).click();
     await expect(page.getByText(/Recibimos tu solicitud/i)).toBeVisible();
 
     await context.close();

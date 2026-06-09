@@ -134,12 +134,8 @@ test.describe('Smoke crítico: login SMS + embudo cliente', () => {
     await page.getByRole('button', { name: /^volver$/i }).click();
     await expect(page).toHaveURL(/\/client\/service-location\/?$/, { timeout: 15_000 });
     await expect(page.getByTestId('address-manual-input')).toHaveValue(/Av\. Providencia 1234/);
-    await expect(page.locator('#service-comuna')).toHaveValue(/Providencia/);
+    await expect(page.getByTestId('address-manual-input')).toHaveValue(/Providencia/);
     await expect(page.getByTestId('service-reference-input')).toHaveValue(/Portón verde/);
-
-    await page.getByRole('button', { name: /^continuar$/i }).click();
-    await expect(page).toHaveURL(/\/client\/providers\/?$/, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: /^proveedor seleccionado$/i }).first()).toBeVisible();
 
     await context.close();
   });

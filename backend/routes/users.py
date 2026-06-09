@@ -13,6 +13,7 @@ from auth_dependency import verify_user_access, get_current_user
 from security.policy import AccessPolicy
 from models.user import User, UserCreate, ProviderAvailabilityUpdate
 from utils.rbac import has_permission
+from services.provider_activation_service import is_provider_activation_complete
 from motor.motor_asyncio import AsyncIOMotorClient
 import bcrypt
 
@@ -357,16 +358,7 @@ def _is_provider_activation_complete(user_doc: dict) -> bool:
         return False
     if user_doc.get("provider_role") == "operator":
         return False
-    if not bool(user_doc.get("onboarding_completed")):
-        return False
-    pdata = user_doc.get("providerData") if isinstance(user_doc.get("providerData"), dict) else {}
-    mdata = user_doc.get("machineData") if isinstance(user_doc.get("machineData"), dict) else {}
-    company_ok = bool((pdata.get("businessName") or "").strip()) and bool((pdata.get("rut") or "").strip())
-    machine_ok = bool((mdata.get("machineryType") or "").strip()) and bool((mdata.get("licensePlate") or "").strip())
-    operator_ok = _has_any_operator(user_doc)
-    bank_ok = _is_bank_data_complete(user_doc)
-    location_ok = _provider_dispatch_location(user_doc) is not None
-    return bool(company_ok and machine_ok and operator_ok and bank_ok and location_ok)
+    return is_provider_activation_complete(user_doc)
 
 @router.put("/{user_id}/profile", response_model=dict)
 async def update_profile(

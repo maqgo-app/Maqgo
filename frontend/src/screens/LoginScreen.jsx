@@ -22,9 +22,10 @@ import {
   getPostLoginNavigation,
   normalizeProviderPostLoginRedirect,
 } from '../utils/postLoginNavigation';
-import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
+import { getProviderLandingPath, getProviderOnboardingNextPath } from '../utils/providerOnboardingStatus';
 import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
 import { peekReturnUrl } from '../utils/registrationReturn';
+import { fetchAndHydrateProviderOnboardingDraft } from '../utils/providerOnboardingDraft';
 
 /** OTP (Redis + LabsMobile): 30s evita cortar antes que el backend; sin reintentos (evita SMS duplicado). */
 const LOGIN_SMS_START_TIMEOUT_MS = 30000;
@@ -142,7 +143,7 @@ function LoginScreen({ setUserRole, setUserId }) {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [inactiveUser, setInactiveUser] = useState(false);
+  const [accessReview, setAccessReview] = useState(null);
   /** Mensaje informativo (no error) tras enviar código: p. ej. canal email si SMS falló en backend */
   const [otpHint, setOtpHint] = useState('');
   /** userId temporal para el paso de Step-Up (contraseña tras OTP) */
@@ -161,7 +162,7 @@ function LoginScreen({ setUserRole, setUserId }) {
       setEmail('');
       setPassword('');
       setError('');
-      setInactiveUser(false);
+      setAccessReview(null);
     }
   }, [showEmailPasswordToggle, loginMode]);
 
@@ -250,7 +251,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     navigate(normalizeProviderPostLoginRedirect(raw), { replace: true });
   }, [navigate, redirectTo, searchParams, location.state, setUserRole]);
 
-  const applySessionAndNavigate = (data, options = {}) => {
+  const applySessionAndNavigate = async (data, options = {}) => {
     const authSource = options.authSource || 'unknown';
     if (!data || !data.token) {
       setError('No se generó sesión. Intenta nuevamente.');
@@ -380,6 +381,22 @@ function LoginScreen({ setUserRole, setUserId }) {
       navigate('/admin/change-password', { replace: true });
       return true;
     }
+    if (
+      next.path === '/provider/home' &&
+      effectiveRole === 'provider' &&
+      String(data.provider_role || '').trim() !== 'operator'
+    ) {
+      try {
+        await fetchAndHydrateProviderOnboardingDraft(uid);
+        const pending = getProviderOnboardingNextPath();
+        if (pending && pending !== '/provider/home') {
+          navigate(pending, { replace: true });
+          return true;
+        }
+      } catch {
+        void 0;
+      }
+    }
     navigate(next.path, { replace: true });
     return true;
   };
@@ -440,19 +457,18 @@ function LoginScreen({ setUserRole, setUserId }) {
       setError('Ingresa un celular válido (9XXXXXXXX)');
       return;
     }
+    const requestedRole =
+      localStorage.getItem('desiredRole') ||
+      location.state?.entry ||
+      null;
     setLoading(true);
     setError('');
-    setInactiveUser(false);
+      setAccessReview(null);
     setOtpHint('');
 
     try {
       const celular = `+56${nine}`;
       const deviceId = getDeviceId();
-      const requestedRole =
-        localStorage.getItem('desiredRole') ||
-        location.state?.entry ||
-        null;
-
       const res = await axios.post(
         `${BACKEND_URL}/api/auth/login-sms/start`,
         {
@@ -470,7 +486,7 @@ function LoginScreen({ setUserRole, setUserId }) {
       // puede devolver sesión sin SMS (requires_otp false) si el número/dispositivo ya es confiable.
 
       if (result?.requires_otp === false && result?.token) {
-      applySessionAndNavigate(result, { logSmsTrustedRouting: true, authSource: 'sms' });
+      await applySessionAndNavigate(result, { logSmsTrustedRouting: true, authSource: 'sms' });
         return;
       }
 
@@ -481,18 +497,25 @@ function LoginScreen({ setUserRole, setUserId }) {
       setOtpHint(hint);
       setStep('otp');
     } catch (e) {
-      const inactive =
-        e?.response?.status === 403 &&
-        String(e?.response?.data?.detail || '').toLowerCase().includes('inactivo');
-      setInactiveUser(inactive);
+      const st = e?.response?.status;
+      const detail = e?.response?.data?.detail;
+      const errCode = typeof detail === 'object' && detail ? String(detail.error || '') : '';
+      const needsReview =
+        (st === 423 && errCode === 'phone_blocked') ||
+        (st === 429 && errCode === 'temporary_lock') ||
+        (st === 403 && errCode === 'inactive_user_requires_review');
+      if (needsReview) {
+        setAccessReview({
+          reason: st === 423 ? 'phone_blocked' : st === 429 ? 'temporary_lock' : 'inactive_user',
+          requestedRole: requestedRole || '',
+        });
+      }
       setError(
         getHttpErrorMessage(e, {
           fallback: 'No pudimos enviarte el código. Intenta nuevamente.',
           statusMessages: {
             404:
               'Inicio de sesión por celular no disponible (404). Revisa conexión, actualiza la página o confirma que la API en producción incluya login por SMS.',
-            429: 'Demasiados intentos. Espera un minuto e intenta de nuevo.',
-            403: 'Tu cuenta está desactivada. Usa otro número o solicita reactivación.',
           },
         })
       );
@@ -510,26 +533,34 @@ function LoginScreen({ setUserRole, setUserId }) {
     }
     setLoading(true);
     setError('');
-    setInactiveUser(false);
+    setAccessReview(null);
     try {
       const res = await axios.post(
         `${BACKEND_URL}/api/auth/login`,
         { identifier: em, password },
         { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
       );
-      applySessionAndNavigate(res.data, { authSource: 'email' });
+      await applySessionAndNavigate(res.data, { authSource: 'email' });
     } catch (e) {
-      const inactive =
-        e?.response?.status === 403 &&
-        String(e?.response?.data?.detail || '').toLowerCase().includes('inactivo');
-      setInactiveUser(inactive);
+      const st = e?.response?.status;
+      const detail = e?.response?.data?.detail;
+      const errCode = typeof detail === 'object' && detail ? String(detail.error || '') : '';
+      const needsReview =
+        (st === 423 && errCode === 'phone_blocked') ||
+        (st === 429 && errCode === 'temporary_lock') ||
+        (st === 403 && errCode === 'inactive_user_requires_review');
+      if (needsReview) {
+        setAccessReview({
+          reason: st === 423 ? 'phone_blocked' : st === 429 ? 'temporary_lock' : 'inactive_user',
+          requestedRole: '',
+        });
+      }
       setError(
         getHttpErrorMessage(e, {
           fallback: 'No pudimos iniciar sesión. Revisa tus datos e intenta de nuevo.',
           statusMessages: {
             401: 'Correo o contraseña incorrectos.',
             429: 'Demasiados intentos. Espera un momento e intenta de nuevo.',
-            403: 'Tu cuenta está desactivada. Solicita reactivación.',
           },
         })
       );
@@ -544,9 +575,10 @@ function LoginScreen({ setUserRole, setUserId }) {
       .replace(/\D/g, '')
       .slice(0, 6);
     if (!phone || digits.length !== 6) return;
+    const requestedRole = localStorage.getItem('desiredRole') || location.state?.entry || null;
     setLoading(true);
     setError('');
-    setInactiveUser(false);
+    setAccessReview(null);
 
     try {
       const nine = String(phone || '').replace(/\D/g, '');
@@ -556,7 +588,6 @@ function LoginScreen({ setUserRole, setUserId }) {
         return;
       }
       const deviceId = getDeviceId();
-      const requestedRole = localStorage.getItem('desiredRole') || location.state?.entry || null;
       
       const payload = {
         celular: `+56${nine}`,
@@ -577,12 +608,21 @@ function LoginScreen({ setUserRole, setUserId }) {
         return;
       }
 
-      applySessionAndNavigate(res.data, { authSource: 'sms' });
+      await applySessionAndNavigate(res.data, { authSource: 'sms' });
     } catch (e) {
-      const inactive =
-        e?.response?.status === 403 &&
-        String(e?.response?.data?.detail || '').toLowerCase().includes('inactivo');
-      setInactiveUser(inactive);
+      const st = e?.response?.status;
+      const detail = e?.response?.data?.detail;
+      const errCode = typeof detail === 'object' && detail ? String(detail.error || '') : '';
+      const needsReview =
+        (st === 423 && errCode === 'phone_blocked') ||
+        (st === 429 && errCode === 'temporary_lock') ||
+        (st === 403 && errCode === 'inactive_user_requires_review');
+      if (needsReview) {
+        setAccessReview({
+          reason: st === 423 ? 'phone_blocked' : st === 429 ? 'temporary_lock' : 'inactive_user',
+          requestedRole: requestedRole || '',
+        });
+      }
       setError(
         getHttpErrorMessage(e, {
           fallback: 'El código no es correcto. Intenta nuevamente.',
@@ -590,7 +630,6 @@ function LoginScreen({ setUserRole, setUserId }) {
             400: 'El código no es correcto. Intenta nuevamente.',
             404:
               'No pudimos validar el código (404). Revisa conexión o que la API esté actualizada.',
-            403: 'Tu cuenta está desactivada. Usa otro número o solicita reactivación.',
           },
         })
       );
@@ -603,7 +642,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     if (loading || !password) return;
     setLoading(true);
     setError('');
-    setInactiveUser(false);
+    setAccessReview(null);
     try {
       const deviceId = getDeviceId();
       const payload = {
@@ -620,19 +659,27 @@ function LoginScreen({ setUserRole, setUserId }) {
           headers: { 'Content-Type': 'application/json' },
         }
       );
-      applySessionAndNavigate(res.data, { authSource: 'sms' });
+      await applySessionAndNavigate(res.data, { authSource: 'sms' });
     } catch (e) {
-      const inactive =
-        e?.response?.status === 403 &&
-        String(e?.response?.data?.detail || '').toLowerCase().includes('inactivo');
-      setInactiveUser(inactive);
+      const st = e?.response?.status;
+      const detail = e?.response?.data?.detail;
+      const errCode = typeof detail === 'object' && detail ? String(detail.error || '') : '';
+      const needsReview =
+        (st === 423 && errCode === 'phone_blocked') ||
+        (st === 429 && errCode === 'temporary_lock') ||
+        (st === 403 && errCode === 'inactive_user_requires_review');
+      if (needsReview) {
+        setAccessReview({
+          reason: st === 423 ? 'phone_blocked' : st === 429 ? 'temporary_lock' : 'inactive_user',
+          requestedRole: '',
+        });
+      }
       setError(
         getHttpErrorMessage(e, {
           fallback: 'Contraseña incorrecta. Intenta nuevamente.',
           statusMessages: {
             401: 'Contraseña incorrecta.',
             429: 'Demasiados intentos. Espera un momento.',
-            403: 'Tu cuenta está desactivada. Solicita reactivación.',
           },
         })
       );
@@ -649,7 +696,7 @@ function LoginScreen({ setUserRole, setUserId }) {
 
   const goBackToPhone = () => {
     setError('');
-    setInactiveUser(false);
+    setAccessReview(null);
     setOtpHint('');
     setStep('phone');
     setCode('');
@@ -1025,7 +1072,7 @@ function LoginScreen({ setUserRole, setUserId }) {
             </p>
           )}
 
-          {inactiveUser && (
+          {accessReview && (
             <div
               data-testid="inactive-user-guide"
               style={{
@@ -1040,7 +1087,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                 No pudimos validar tu acceso
               </p>
               <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.45 }}>
-                Tu cuenta está desactivada o requiere revisión. Si el número está mal escrito, corrígelo. Si es tu número real, solicita ayuda y lo revisamos.
+                Tu acceso requiere revisión. Si el número está mal escrito, corrígelo. Si es tu número real, solicita revisión y lo revisamos.
               </p>
               <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
                 <button
@@ -1063,8 +1110,9 @@ function LoginScreen({ setUserRole, setUserId }) {
                 <button
                   type="button"
                   onClick={() => {
-                    navigate('/support/access?reason=inactive_user', {
-                      state: { reason: 'inactive_user', requestedRole: entry || null, prefillPhoneDigits: phone || getHydratedPhoneDigitsFromStorage() },
+                    const rr = accessReview?.requestedRole || entry || null;
+                    navigate(`/support/access?reason=${encodeURIComponent(accessReview?.reason || 'inactive_user')}`, {
+                      state: { reason: accessReview?.reason || 'inactive_user', requestedRole: rr, prefillPhoneDigits: phone || getHydratedPhoneDigitsFromStorage() },
                     });
                   }}
                   style={{
@@ -1079,7 +1127,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                     cursor: 'pointer',
                   }}
                 >
-                  Solicitar ayuda
+                  Solicitar revisión
                 </button>
               </div>
             </div>

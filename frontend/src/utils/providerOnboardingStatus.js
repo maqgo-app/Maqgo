@@ -35,6 +35,18 @@ function normalizeMachineOperators(raw = []) {
     .filter(Boolean);
 }
 
+function hasDispatchLocationFromStorage() {
+  const providerData = getObject('providerData', {});
+  const loc = getObject('location', {});
+  const pLat = providerData?.addressLat;
+  const pLng = providerData?.addressLng;
+  const lLat = loc?.lat;
+  const lLng = loc?.lng;
+  const hasProviderCoords = pLat !== null && pLat !== undefined && pLng !== null && pLng !== undefined;
+  const hasLocationCoords = lLat !== null && lLat !== undefined && lLng !== null && lLng !== undefined;
+  return Boolean(hasProviderCoords || hasLocationCoords);
+}
+
 function hasAssignedMachineOperatorFromStorage() {
   const machines = getMachines();
   const onboardingOperators = normalizeMachineOperators(getArray('operatorsData', []));
@@ -68,7 +80,8 @@ export function isProviderActivationCompleteFromStorage() {
   const machineComplete = !!(machineData?.machineryType && machineData?.licensePlate);
   const operatorComplete = hasAssignedMachineOperatorFromStorage();
   const bankComplete = isBankDataComplete(bankData);
-  return companyComplete && machineComplete && operatorComplete && bankComplete;
+  const locationComplete = hasDispatchLocationFromStorage();
+  return companyComplete && machineComplete && operatorComplete && bankComplete && locationComplete;
 }
 
 /**
@@ -78,7 +91,7 @@ export function isProviderActivationCompleteFromStorage() {
 export function isProviderOnboardingCompleteFromStorage() {
   try {
     if (globalThis.localStorage?.getItem('providerOnboardingCompleted') === 'true') {
-      return true;
+      return isProviderActivationCompleteFromStorage();
     }
   } catch {
     /* ignore */
@@ -101,8 +114,10 @@ export function getProviderOnboardingNextPath() {
   const machineComplete = !!(machineData?.machineryType && machineData?.licensePlate);
   const operatorComplete = hasAssignedMachineOperatorFromStorage();
   const bankComplete = isBankDataComplete(bankData);
+  const locationComplete = hasDispatchLocationFromStorage();
 
   if (!companyComplete) return '/provider/data';
+  if (!locationComplete) return '/provider/data';
   if (!machineComplete) return '/provider/machine-data';
   if (!operatorComplete) return '/provider/machines';
   if (!bankComplete) return '/provider/profile/banco';

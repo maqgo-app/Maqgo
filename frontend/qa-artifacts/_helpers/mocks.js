@@ -17,7 +17,14 @@ export async function installApiMocks(context, options = {}) {
     // --- Login SMS (más específico que /api/auth/login legacy) ---
     if (url.includes('/api/auth/login-sms/start') && method === 'POST') {
       if (options?.loginSmsStartInactive) {
-        return route.fulfill(json(403, { detail: 'Usuario inactivo' }));
+        return route.fulfill(
+          json(403, {
+            detail: {
+              error: 'inactive_user_requires_review',
+              message: 'Tu acceso requiere revisión manual. Solicita ayuda y lo revisamos.',
+            },
+          })
+        );
       }
       return route.fulfill(
         json(200, {
@@ -32,7 +39,14 @@ export async function installApiMocks(context, options = {}) {
     }
     if (url.includes('/api/auth/login-sms/verify') && method === 'POST') {
       if (options?.loginSmsVerifyInactive) {
-        return route.fulfill(json(403, { detail: 'Usuario inactivo' }));
+        return route.fulfill(
+          json(403, {
+            detail: {
+              error: 'inactive_user_requires_review',
+              message: 'Tu acceso requiere revisión manual. Solicita ayuda y lo revisamos.',
+            },
+          })
+        );
       }
       return route.fulfill(
         json(200, {

@@ -118,6 +118,15 @@ function AdminDashboard() {
       return 'today';
     }
   });
+  const [accessTickets, setAccessTickets] = useState(null);
+  const [accessTicketsLoading, setAccessTicketsLoading] = useState(false);
+  const [accessTicketsError, setAccessTicketsError] = useState('');
+  const [blockedPhones, setBlockedPhones] = useState(null);
+  const [blockedPhonesLoading, setBlockedPhonesLoading] = useState(false);
+  const [blockedPhonesError, setBlockedPhonesError] = useState('');
+  const [blockPhone9, setBlockPhone9] = useState('');
+  const [blockPhoneReason, setBlockPhoneReason] = useState('security');
+  const [blockingPhone, setBlockingPhone] = useState(false);
 
   useEffect(() => {
     try {
@@ -144,6 +153,47 @@ function AdminDashboard() {
       setAdminMachinesLoading(false);
     }
   }, [actionsLocked, setAdminMachines, setAdminMachinesLoading, setAdminMachinesError]);
+
+  const fetchAccessTickets = useCallback(async () => {
+    if (actionsLocked) return;
+    setAccessTicketsLoading(true);
+    setAccessTicketsError('');
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/support/tickets?status=open`, { method: 'GET' }, 15000);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.detail || `No se pudieron cargar tickets (${res.status})`);
+      setAccessTickets(Array.isArray(data?.items) ? data.items : []);
+    } catch (e) {
+      setAccessTicketsError(friendlyFetchError(e, 'No se pudieron cargar tickets de acceso.'));
+      setAccessTickets(null);
+    } finally {
+      setAccessTicketsLoading(false);
+    }
+  }, [actionsLocked]);
+
+  const fetchBlockedPhones = useCallback(async () => {
+    if (actionsLocked) return;
+    setBlockedPhonesLoading(true);
+    setBlockedPhonesError('');
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/support/blocked-phones?active=true`, { method: 'GET' }, 15000);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.detail || `No se pudieron cargar bloqueos (${res.status})`);
+      setBlockedPhones(Array.isArray(data?.items) ? data.items : []);
+    } catch (e) {
+      setBlockedPhonesError(friendlyFetchError(e, 'No se pudieron cargar teléfonos bloqueados.'));
+      setBlockedPhones(null);
+    } finally {
+      setBlockedPhonesLoading(false);
+    }
+  }, [actionsLocked]);
+
+  useEffect(() => {
+    if (adminArea !== 'access') return;
+    if (actionsLocked) return;
+    if (accessTickets == null) fetchAccessTickets();
+    if (blockedPhones == null) fetchBlockedPhones();
+  }, [adminArea, actionsLocked, accessTickets, blockedPhones, fetchAccessTickets, fetchBlockedPhones]);
 
   useEffect(() => {
     if (adminArea !== 'platform') return;
@@ -1200,6 +1250,23 @@ function AdminDashboard() {
                 >
                   Plataforma
                 </button>
+              <button
+                type="button"
+                onClick={() => setAdminArea('access')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: adminArea === 'access' ? 'rgba(255,255,255,0.08)' : 'transparent',
+                  color: adminArea === 'access' ? '#fff' : 'rgba(255,255,255,0.75)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Acceso
+              </button>
             </div>
             <button
               type="button"
@@ -2702,6 +2769,336 @@ function AdminDashboard() {
           </div>
         )}
 
+          </>
+        )}
+
+        {adminArea === 'access' && (
+          <>
+            <h2
+              style={{
+                color: '#ffffff',
+                fontSize: 16,
+                fontWeight: 700,
+                margin: '24px 0 8px',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}
+            >
+              Acceso (bloqueos y tickets)
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '0 0 10px' }}>
+              Bandeja operacional de ingresos bloqueados/sospechosos y solicitudes de revisión. Se genera solo cuando el sistema bloquea el acceso.
+            </p>
+
+            <div
+              style={{
+                background: ADMIN_THEME.panelBg,
+                borderRadius: 12,
+                padding: 20,
+                marginBottom: 16,
+                border: `1px solid ${ADMIN_THEME.border}`,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 800 }}>Tickets abiertos</div>
+                <button
+                  type="button"
+                  onClick={fetchAccessTickets}
+                  disabled={actionsLocked || accessTicketsLoading}
+                  style={{
+                    padding: '8px 12px',
+                    background: 'transparent',
+                    border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                    borderRadius: 10,
+                    color: '#fff',
+                    cursor: actionsLocked || accessTicketsLoading ? 'default' : 'pointer',
+                    opacity: actionsLocked || accessTicketsLoading ? 0.6 : 1,
+                    fontSize: 13,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {accessTicketsLoading ? 'Actualizando…' : 'Actualizar'}
+                </button>
+              </div>
+
+              {accessTicketsError ? (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 12,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: 'rgba(229,115,115,0.12)',
+                    border: '1px solid rgba(229,115,115,0.35)',
+                    color: 'rgba(255,255,255,0.95)',
+                    fontSize: 13,
+                  }}
+                >
+                  {accessTicketsError}
+                </div>
+              ) : null}
+
+              {!accessTicketsLoading && Array.isArray(accessTickets) && accessTickets.length === 0 ? (
+                <div style={{ marginTop: 12, color: ADMIN_THEME.textMuted, fontSize: 13 }}>
+                  No hay tickets abiertos.
+                </div>
+              ) : null}
+
+              {!accessTicketsLoading && Array.isArray(accessTickets) && accessTickets.length > 0 ? (
+                <div style={{ marginTop: 14, overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', color: 'rgba(255,255,255,0.7)' }}>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Fecha</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Motivo</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Teléfono</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Rol</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {accessTickets.slice(0, 200).map((t) => (
+                        <tr key={String(t?.id)} style={{ borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+                          <td style={{ padding: '10px 10px', color: 'rgba(255,255,255,0.9)' }}>
+                            {t?.created_at ? new Date(String(t.created_at)).toLocaleString('es-CL') : '—'}
+                          </td>
+                          <td style={{ padding: '10px 10px', color: 'rgba(255,255,255,0.9)', fontWeight: 800 }}>
+                            {t?.reason || '—'}
+                          </td>
+                          <td style={{ padding: '10px 10px', color: 'rgba(255,255,255,0.9)' }}>
+                            {t?.phone9 ? `9${String(t.phone9).slice(-8)}` : '—'}
+                          </td>
+                          <td style={{ padding: '10px 10px', color: 'rgba(255,255,255,0.9)' }}>
+                            {t?.requested_role || '—'}
+                          </td>
+                          <td style={{ padding: '10px 10px' }}>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const res = await fetchWithAuth(
+                                    `${BACKEND_URL}/api/support/tickets/${encodeURIComponent(t.id)}`,
+                                    {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ status: 'resolved', resolution: '' }),
+                                    },
+                                    15000
+                                  );
+                                  const data = await res.json().catch(() => ({}));
+                                  if (!res.ok) throw new Error(data?.detail || `No se pudo resolver (${res.status})`);
+                                  toast.success('Ticket resuelto.');
+                                  fetchAccessTickets();
+                                } catch (e) {
+                                  toast.error(friendlyFetchError(e, 'No se pudo resolver el ticket.'));
+                                }
+                              }}
+                              style={{
+                                padding: '8px 10px',
+                                background: 'rgba(255,255,255,0.06)',
+                                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                                borderRadius: 10,
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 800,
+                              }}
+                            >
+                              Resolver
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+
+            <div
+              style={{
+                background: ADMIN_THEME.panelBg,
+                borderRadius: 12,
+                padding: 20,
+                marginBottom: 24,
+                border: `1px solid ${ADMIN_THEME.border}`,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 800 }}>Teléfonos bloqueados</div>
+                <button
+                  type="button"
+                  onClick={fetchBlockedPhones}
+                  disabled={actionsLocked || blockedPhonesLoading}
+                  style={{
+                    padding: '8px 12px',
+                    background: 'transparent',
+                    border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                    borderRadius: 10,
+                    color: '#fff',
+                    cursor: actionsLocked || blockedPhonesLoading ? 'default' : 'pointer',
+                    opacity: actionsLocked || blockedPhonesLoading ? 0.6 : 1,
+                    fontSize: 13,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {blockedPhonesLoading ? 'Actualizando…' : 'Actualizar'}
+                </button>
+              </div>
+
+              <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <input
+                  className="maqgo-input"
+                  placeholder="Celular (9 dígitos)"
+                  value={blockPhone9}
+                  onChange={(e) => setBlockPhone9(e.target.value)}
+                  style={{ flex: '1 1 220px' }}
+                />
+                <input
+                  className="maqgo-input"
+                  placeholder="Motivo (ej: fraude)"
+                  value={blockPhoneReason}
+                  onChange={(e) => setBlockPhoneReason(e.target.value)}
+                  style={{ flex: '2 1 260px' }}
+                />
+                <button
+                  type="button"
+                  disabled={actionsLocked || blockingPhone}
+                  onClick={async () => {
+                    if (actionsLocked) return;
+                    const p9 = String(blockPhone9 || '').replace(/\D/g, '').slice(-9);
+                    if (!/^9\d{8}$/.test(p9)) {
+                      toast.error('Celular inválido.');
+                      return;
+                    }
+                    const reason = String(blockPhoneReason || '').trim();
+                    if (!reason) {
+                      toast.error('Motivo requerido.');
+                      return;
+                    }
+                    setBlockingPhone(true);
+                    try {
+                      const res = await fetchWithAuth(
+                        `${BACKEND_URL}/api/support/blocked-phones`,
+                        {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ phone9: p9, reason }),
+                        },
+                        15000
+                      );
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) throw new Error(data?.detail || `No se pudo bloquear (${res.status})`);
+                      toast.success('Teléfono bloqueado.');
+                      setBlockPhone9('');
+                      fetchBlockedPhones();
+                    } catch (e) {
+                      toast.error(friendlyFetchError(e, 'No se pudo bloquear el teléfono.'));
+                    } finally {
+                      setBlockingPhone(false);
+                    }
+                  }}
+                  style={{
+                    padding: '10px 14px',
+                    background: ADMIN_PALETTE.danger,
+                    border: 'none',
+                    borderRadius: 10,
+                    color: '#fff',
+                    cursor: actionsLocked || blockingPhone ? 'default' : 'pointer',
+                    opacity: actionsLocked || blockingPhone ? 0.6 : 1,
+                    fontSize: 13,
+                    fontWeight: 900,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {blockingPhone ? 'Bloqueando…' : 'Bloquear'}
+                </button>
+              </div>
+
+              {blockedPhonesError ? (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 12,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: 'rgba(229,115,115,0.12)',
+                    border: '1px solid rgba(229,115,115,0.35)',
+                    color: 'rgba(255,255,255,0.95)',
+                    fontSize: 13,
+                  }}
+                >
+                  {blockedPhonesError}
+                </div>
+              ) : null}
+
+              {!blockedPhonesLoading && Array.isArray(blockedPhones) && blockedPhones.length === 0 ? (
+                <div style={{ marginTop: 12, color: ADMIN_THEME.textMuted, fontSize: 13 }}>
+                  No hay teléfonos bloqueados.
+                </div>
+              ) : null}
+
+              {!blockedPhonesLoading && Array.isArray(blockedPhones) && blockedPhones.length > 0 ? (
+                <div style={{ marginTop: 14, overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', color: 'rgba(255,255,255,0.7)' }}>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Teléfono</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Motivo</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Actualizado</th>
+                        <th style={{ padding: '10px 10px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {blockedPhones.slice(0, 200).map((b) => (
+                        <tr key={String(b?.id)} style={{ borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+                          <td style={{ padding: '10px 10px', color: 'rgba(255,255,255,0.9)', fontWeight: 800 }}>
+                            {b?.phone9 ? `9${String(b.phone9).slice(-8)}` : '—'}
+                          </td>
+                          <td style={{ padding: '10px 10px', color: 'rgba(255,255,255,0.9)' }}>
+                            {b?.reason || '—'}
+                          </td>
+                          <td style={{ padding: '10px 10px', color: ADMIN_THEME.textMuted }}>
+                            {b?.updated_at ? new Date(String(b.updated_at)).toLocaleString('es-CL') : '—'}
+                          </td>
+                          <td style={{ padding: '10px 10px' }}>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const res = await fetchWithAuth(
+                                    `${BACKEND_URL}/api/support/blocked-phones/${encodeURIComponent(b.phone9)}`,
+                                    { method: 'DELETE' },
+                                    15000
+                                  );
+                                  const data = await res.json().catch(() => ({}));
+                                  if (!res.ok) throw new Error(data?.detail || `No se pudo desbloquear (${res.status})`);
+                                  toast.success('Teléfono desbloqueado.');
+                                  fetchBlockedPhones();
+                                } catch (e) {
+                                  toast.error(friendlyFetchError(e, 'No se pudo desbloquear el teléfono.'));
+                                }
+                              }}
+                              style={{
+                                padding: '8px 10px',
+                                background: 'rgba(255,255,255,0.06)',
+                                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                                borderRadius: 10,
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 800,
+                              }}
+                            >
+                              Desbloquear
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
           </>
         )}
 

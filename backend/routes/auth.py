@@ -48,6 +48,7 @@ from services.risk_auth_service import (
     upsert_trusted_device,
 )
 from utils.rbac import is_super_master
+from services.access_block_service import find_active_phone_block
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -726,12 +727,26 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
     await ensure_trusted_device_indexes(db)
     device_norm = normalize_device_id(body.device_id)
     trusted = None
+    phone_block = await find_active_phone_block(db, phone9)
+
+    if phone_block:
+        logger.warning("LOGIN_SMS_START phone_blocked phone=%s", _phone_tail_log(raw_phone))
+        raise HTTPException(
+            status_code=423,
+            detail={
+                "error": "phone_blocked",
+                "message": "Tu acceso requiere revisión manual. Solicita ayuda y lo revisamos.",
+            },
+        )
 
     if is_hard_locked(raw_phone):
         logger.warning("LOGIN_SMS_START hard_locked phone=%s", _phone_tail_log(raw_phone))
         raise HTTPException(
             status_code=429,
-            detail="Tu cuenta está temporalmente bloqueada por seguridad. Intenta en 15 minutos.",
+            detail={
+                "error": "temporary_lock",
+                "message": "Tu acceso está temporalmente bloqueado por seguridad. Intenta en 15 minutos o solicita revisión.",
+            },
         )
 
     # Identidad base: teléfono único (últimos 9 dígitos) — evita duplicados por email.
@@ -744,7 +759,8 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
         req_role = (body.requested_role or "").strip().lower()
         roles = _user_roles(existing)
         u_status = _normalized_user_status(existing)
-        if not _is_active_user_doc(existing):
+        recoverable_deleted = _is_recoverable_deleted_user(existing)
+        if not _is_active_user_doc(existing) and not recoverable_deleted:
             log_ops_event(
                 logger,
                 event="login_sms_start_inactive_user",
@@ -753,7 +769,15 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
                 success=False,
                 reason=u_status,
             )
-            raise HTTPException(status_code=403, detail="Usuario inactivo")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "inactive_user_requires_review",
+                    "message": "Tu acceso requiere revisión manual. Solicita ayuda y lo revisamos.",
+                },
+            )
+        if recoverable_deleted:
+            logger.info("LOGIN_SMS_START recoverable_deleted userId=%s phone9=%s", user_id, phone9)
         if req_role:
             logger.info(
                 "LOGIN_SMS_START requested_role userId=%s requested_role=%s user_roles=%s",
@@ -948,6 +972,16 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
         ip = get_client_ip(request)
         country = get_client_country(request)
         ua_hdr = get_client_user_agent(request)
+        phone_block = await find_active_phone_block(db, phone9)
+
+        if phone_block:
+            raise HTTPException(
+                status_code=423,
+                detail={
+                    "error": "phone_blocked",
+                    "message": "Tu acceso requiere revisión manual. Solicita ayuda y lo revisamos.",
+                },
+            )
 
         user = await _find_best_user_by_phone9(phone9, raw_phone=raw_phone, projection={"_id": 0})
         if not user:
@@ -964,11 +998,15 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
         if is_hard_locked(raw_phone):
             raise HTTPException(
                 status_code=429,
-                detail="Tu cuenta está temporalmente bloqueada por seguridad. Intenta en 15 minutos.",
+                detail={
+                    "error": "temporary_lock",
+                    "message": "Tu acceso está temporalmente bloqueado por seguridad. Intenta en 15 minutos o solicita revisión.",
+                },
             )
 
         u_status = _normalized_user_status(user)
-        if not _is_active_user_doc(user):
+        recoverable_deleted = _is_recoverable_deleted_user(user)
+        if not _is_active_user_doc(user) and not recoverable_deleted:
             log_ops_event(
                 logger,
                 event="login_sms_verify_inactive_user",
@@ -977,7 +1015,13 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 success=False,
                 reason=u_status,
             )
-            raise HTTPException(status_code=403, detail="Usuario inactivo")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "inactive_user_requires_review",
+                    "message": "Tu acceso requiere revisión manual. Solicita ayuda y lo revisamos.",
+                },
+            )
 
         result = verify_sms_otp(raw_phone, body.code)
         if not result.get("success"):
@@ -1057,6 +1101,10 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 }
 
         token = generate_token()
+        if recoverable_deleted:
+            await _reactivate_recoverable_user(user["id"])
+            user["status"] = "active"
+            user["deleted"] = False
         await db.sessions.insert_one(
             {
                 "userId": user["id"],
@@ -1557,6 +1605,31 @@ def _is_active_user_doc(user: dict) -> bool:
     if user.get("deleted") is True:
         return False
     return _normalized_user_status(user) == "active"
+
+
+def _is_recoverable_deleted_user(user: dict) -> bool:
+    if not user or not isinstance(user, dict):
+        return False
+    return user.get("deleted") is True or _normalized_user_status(user) == "deleted"
+
+
+async def _reactivate_recoverable_user(user_id: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one(
+        {"id": user_id},
+        {
+            "$set": {
+                "status": "active",
+                "deleted": False,
+                "updatedAt": now,
+            },
+            "$unset": {
+                "deletedAt": "",
+                "deletedBy": "",
+                "deleteReason": "",
+            },
+        },
+    )
 
 
 def _best_user_match_for_phone(users: list[dict], *, raw_phone: Optional[str] = None) -> Optional[dict]:

@@ -24,7 +24,7 @@ function installLocalStorageMock(seed = {}) {
 }
 
 const completePayload = {
-  providerData: JSON.stringify({ businessName: 'Empresa', rut: '12.345.678-9' }),
+  providerData: JSON.stringify({ businessName: 'Empresa', rut: '12.345.678-9', addressLat: -33.4, addressLng: -70.6 }),
   machineData: JSON.stringify({ machineryType: 'retroexcavadora', licensePlate: 'ABCD12' }),
   providerMachines: JSON.stringify([
     {
@@ -77,30 +77,30 @@ describe('providerOnboardingStatus', () => {
     expect(getProviderOnboardingNextPath()).toBe('/provider/home');
   });
 
-  it('providerOnboardingCompleted=true sin LS → completo', () => {
+  it('providerOnboardingCompleted=true sin LS → NO completo (requiere datos reales)', () => {
     installLocalStorageMock({ providerOnboardingCompleted: 'true' });
-    expect(isProviderOnboardingCompleteFromStorage()).toBe(true);
+    expect(isProviderOnboardingCompleteFromStorage()).toBe(false);
     expect(getProviderLandingPath()).toBe('/provider/home');
-    expect(getProviderOnboardingNextPath()).toBe('/provider/home');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/data');
   });
 
   it('onboarding manual: sin máquina registrada sigue orden clásico', () => {
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
-      providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
+      providerData: JSON.stringify({ businessName: 'E', rut: '1-9', addressLat: -33.4, addressLng: -70.6 }),
     });
     expect(getProviderLandingPath()).toBe('/provider/home');
     expect(getProviderOnboardingNextPath()).toBe('/provider/machine-data');
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
-      providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
+      providerData: JSON.stringify({ businessName: 'E', rut: '1-9', addressLat: -33.4, addressLng: -70.6 }),
       machineData: JSON.stringify({ machineryType: 'x', licensePlate: 'ZZ99' }),
     });
     expect(getProviderLandingPath()).toBe('/provider/home');
     expect(getProviderOnboardingNextPath()).toBe('/provider/machines');
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
-      providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
+      providerData: JSON.stringify({ businessName: 'E', rut: '1-9', addressLat: -33.4, addressLng: -70.6 }),
       machineData: JSON.stringify({ machineryType: 'x', licensePlate: 'ZZ99' }),
       operatorsData: JSON.stringify([{ id: '1', name: 'Operador Uno' }]),
     });
@@ -137,7 +137,7 @@ describe('providerOnboardingStatus', () => {
 
   it('onboarding: solo empresa en LS → /provider/machine-data', () => {
     installLocalStorageMock({
-      providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
+      providerData: JSON.stringify({ businessName: 'E', rut: '1-9', addressLat: -33.4, addressLng: -70.6 }),
     });
     expect(getProviderLandingPath()).toBe('/provider/home');
     expect(getProviderOnboardingNextPath()).toBe('/provider/machine-data');
@@ -145,7 +145,7 @@ describe('providerOnboardingStatus', () => {
 
   it('empresa + máquina sin operador asignado → onboarding va a /provider/machines', () => {
     installLocalStorageMock({
-      providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
+      providerData: JSON.stringify({ businessName: 'E', rut: '1-9', addressLat: -33.4, addressLng: -70.6 }),
       machineData: JSON.stringify({ machineryType: 'x', licensePlate: 'ZZ99' }),
       providerMachines: JSON.stringify([
         { id: 'mach_1', machineryType: 'x', licensePlate: 'ZZ99', operators: [] },

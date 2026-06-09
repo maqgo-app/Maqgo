@@ -21,6 +21,10 @@ from services.provider_match_list import (
     enforce_diversity_ranked,
 )
 from services.machines_service import is_recent_machine, migrate_legacy_machine_data, serialize_machine
+from services.provider_activation_service import (
+    is_provider_activation_complete,
+    is_provider_activation_complete_for_machine,
+)
 
 router = APIRouter(prefix="/providers", tags=["Providers"])
 logger = logging.getLogger(__name__)
@@ -249,16 +253,7 @@ def _is_provider_activation_complete(provider: dict) -> bool:
         return False
     if provider.get("provider_role") == "operator":
         return False
-    if not bool(provider.get("onboarding_completed")):
-        return False
-    pdata = provider.get("providerData") if isinstance(provider.get("providerData"), dict) else {}
-    mdata = provider.get("machineData") if isinstance(provider.get("machineData"), dict) else {}
-    company_ok = bool((pdata.get("businessName") or "").strip()) and bool((pdata.get("rut") or "").strip())
-    machine_ok = bool((mdata.get("machineryType") or "").strip()) and bool((mdata.get("licensePlate") or "").strip())
-    operator_ok = _has_any_operator(provider)
-    bank_ok = _is_bank_data_complete(provider)
-    location_ok = _has_real_provider_coords(provider)
-    return bool(company_ok and machine_ok and operator_ok and bank_ok and location_ok)
+    return is_provider_activation_complete(provider)
 
 
 def _is_provider_activation_complete_for_machine(provider: dict, machine_data: dict) -> bool:
@@ -266,15 +261,7 @@ def _is_provider_activation_complete_for_machine(provider: dict, machine_data: d
         return False
     if provider.get("provider_role") == "operator":
         return False
-    if not bool(provider.get("onboarding_completed")):
-        return False
-    pdata = provider.get("providerData") if isinstance(provider.get("providerData"), dict) else {}
-    company_ok = bool((pdata.get("businessName") or "").strip()) and bool((pdata.get("rut") or "").strip())
-    machine_ok = bool((machine_data.get("machineryType") or "").strip()) and bool((machine_data.get("licensePlate") or "").strip())
-    operator_ok = _has_any_operator_for_machine(provider, machine_data)
-    bank_ok = _is_bank_data_complete(provider)
-    location_ok = _has_real_provider_coords(provider)
-    return bool(company_ok and machine_ok and operator_ok and bank_ok and location_ok)
+    return is_provider_activation_complete_for_machine(provider, machine_data)
 
 @router.get("/match")
 async def match_providers(

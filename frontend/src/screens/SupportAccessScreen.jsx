@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../components/MaqgoLogo';
-import PhoneNationalInput from '../components/PhoneNationalInput';
 import BACKEND_URL from '../utils/api';
 import { getHttpErrorMessage } from '../utils/httpErrors';
 
@@ -13,16 +12,13 @@ function normalizePhone9(value) {
 function SupportAccessScreen() {
   const navigate = useNavigate();
   const location = useLocation();
-  const phoneRef = useRef(null);
+  const buttonRef = useRef(null);
 
   const params = useMemo(() => new URLSearchParams(location.search || ''), [location.search]);
   const reason = String(params.get('reason') || location.state?.reason || 'other');
   const requestedRole = String(params.get('role') || location.state?.requestedRole || '');
 
   const [phone9, setPhone9] = useState('');
-  const [email, setEmail] = useState('');
-  const [rut, setRut] = useState('');
-  const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
@@ -37,12 +33,14 @@ function SupportAccessScreen() {
   }, [location.state, params]);
 
   useEffect(() => {
-    setTimeout(() => phoneRef.current?.focus?.(), 0);
+    setTimeout(() => buttonRef.current?.focus?.(), 0);
   }, []);
 
   const title = (() => {
     if (reason === 'inactive_user') return 'Recuperar acceso';
     if (reason === 'phone_in_use') return 'Recuperar acceso';
+    if (reason === 'phone_blocked') return 'Recuperar acceso';
+    if (reason === 'temporary_lock') return 'Recuperar acceso';
     if (reason === 'otp_not_received') return 'Ayuda con el código';
     return 'Solicitar ayuda';
   })();
@@ -51,6 +49,8 @@ function SupportAccessScreen() {
     if (reason === 'inactive_user') return 'Tu cuenta está desactivada. Envíanos esta solicitud y lo revisamos.';
     if (reason === 'phone_in_use') return 'Este número ya está registrado. Envíanos esta solicitud y te ayudamos a recuperar acceso.';
     if (reason === 'otp_not_received') return 'Si el código no llega, revisamos tu caso y te ayudamos.';
+    if (reason === 'phone_blocked') return 'Detectamos un bloqueo de seguridad. Envíanos esta solicitud y lo revisamos.';
+    if (reason === 'temporary_lock') return 'Tu acceso está temporalmente bloqueado por seguridad. Envíanos esta solicitud y lo revisamos.';
     return 'Cuéntanos el problema y te ayudamos a resolverlo.';
   })();
 
@@ -62,10 +62,7 @@ function SupportAccessScreen() {
       const payload = {
         reason,
         ...(p9.length === 9 ? { phone9: p9 } : {}),
-        ...(email.trim() ? { email: email.trim().toLowerCase() } : {}),
-        ...(rut.trim() ? { rut: rut.trim() } : {}),
         ...(requestedRole ? { requested_role: requestedRole } : {}),
-        ...(notes.trim() ? { notes: notes.trim() } : {}),
       };
       await axios.post(`${BACKEND_URL}/api/support/tickets`, payload, { timeout: 12000 });
       setSent(true);
@@ -117,47 +114,6 @@ function SupportAccessScreen() {
           </>
         ) : (
           <>
-            <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-              Tu celular (opcional)
-            </label>
-            <PhoneNationalInput
-              value={phone9}
-              onDigitsChange={(d) => setPhone9(d)}
-              ariaLabel="Nueve dígitos del celular, empezando con 9"
-              inputRef={phoneRef}
-            />
-            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
-              Si no ingresas celular o correo, igual creamos el ticket, pero puede ser más difícil contactarte para resolverlo.
-            </p>
-
-            <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '14px 0 6px', display: 'block' }}>
-              Correo (opcional)
-            </label>
-            <input
-              className="maqgo-input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@correo.cl"
-              autoComplete="email"
-            />
-
-            <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '14px 0 6px', display: 'block' }}>
-              RUT empresa (opcional)
-            </label>
-            <input className="maqgo-input" value={rut} onChange={(e) => setRut(e.target.value)} placeholder="Ej: 76.873.366-K" />
-
-            <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '14px 0 6px', display: 'block' }}>
-              Detalle (opcional)
-            </label>
-            <textarea
-              className="maqgo-input"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ej: No me llega el código / Me aparece cuenta desactivada / Cambié de número"
-              rows={3}
-              style={{ resize: 'vertical' }}
-            />
-
             {error ? (
               <p style={{ color: '#ff6b6b', fontSize: 13, textAlign: 'center', marginTop: 12, lineHeight: 1.45 }}>
                 {error}
@@ -165,13 +121,14 @@ function SupportAccessScreen() {
             ) : null}
 
             <button
+              ref={buttonRef}
               type="button"
               className="maqgo-btn-primary"
               disabled={loading}
               onClick={submit}
               style={{ width: '100%', marginTop: 14 }}
             >
-              {loading ? 'Enviando…' : 'Enviar solicitud'}
+              {loading ? 'Enviando…' : 'Solicitar revisión'}
             </button>
 
             <button

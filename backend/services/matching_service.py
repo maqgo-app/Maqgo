@@ -19,6 +19,7 @@ from services.matching_score import (
     responsiveness_rate_from_provider,
 )
 from services.provider_match_list import get_response_penalty
+from services.provider_activation_service import is_provider_activation_complete as _is_activation_complete
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import math
@@ -317,18 +318,7 @@ def _is_provider_activation_complete(provider: dict) -> bool:
         return False
     if provider.get('provider_role') == 'operator':
         return False
-    if not bool(provider.get('onboarding_completed')):
-        return False
-
-    pd = provider.get('providerData') if isinstance(provider.get('providerData'), dict) else {}
-    md = provider.get('machineData') if isinstance(provider.get('machineData'), dict) else {}
-
-    company_ok = bool((pd.get('businessName') or '').strip()) and bool((pd.get('rut') or '').strip())
-    machine_ok = bool((md.get('machineryType') or '').strip()) and bool((md.get('licensePlate') or '').strip())
-    operator_ok = _has_any_operator(provider)
-    bank_ok = _is_bank_data_complete(provider)
-    location_ok = _provider_dispatch_location(provider) is not None
-    return bool(company_ok and machine_ok and operator_ok and bank_ok and location_ok)
+    return _is_activation_complete(provider)
 
 
 def _distance_to_provider_km(provider: dict, request_location: dict) -> float:
