@@ -85,6 +85,14 @@ function normalizeMasterPermissions(input) {
   };
 }
 
+function joinDisplayName(...parts) {
+  return parts
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+}
+
 function MasterJoinScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -92,7 +100,9 @@ function MasterJoinScreen() {
   const permsParam = searchParams.get('p');
 
   const [code, setCode] = useState(fromUrlCode);
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [rut, setRut] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -113,10 +123,18 @@ function MasterJoinScreen() {
       setError('Ingresa el código completo');
       return;
     }
-    const name = String(fullName || '').trim();
+    const name = joinDisplayName(firstName, lastName);
     const phoneE164 = normalizePhoneForBackend(phone);
-    if (!name) {
+    if (!firstName.trim()) {
       setError('Ingresa tu nombre');
+      return;
+    }
+    if (!lastName.trim()) {
+      setError('Ingresa tu apellido');
+      return;
+    }
+    if (!rut.trim()) {
+      setError('Ingresa tu RUT');
       return;
     }
     if (!phoneE164) {
@@ -128,7 +146,9 @@ function MasterJoinScreen() {
     try {
       const payload = {
         code: c,
-        master_name: name,
+        master_name: firstName.trim(),
+        master_last_name: lastName.trim(),
+        master_rut: rut.trim(),
         master_phone: phoneE164,
         ...(String(email || '').trim() ? { master_email: String(email).trim() } : {}),
       };
@@ -179,7 +199,7 @@ function MasterJoinScreen() {
           Creación de usuario Master
         </h2>
         <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, textAlign: 'center', margin: '0 0 22px', lineHeight: 1.45 }}>
-          Ingresa el código que te compartió tu empresa para crear tu usuario master (gestión). Luego iniciarás sesión con tu celular usando un código SMS (MAQGO).
+          Ingresa el código y completa tu identidad para crear tu usuario master. Luego iniciarás sesión con tu celular usando un código SMS (MAQGO).
         </p>
 
         <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
@@ -200,12 +220,40 @@ function MasterJoinScreen() {
           Nombre
         </label>
         <input
-          value={fullName}
+          value={firstName}
           onChange={(e) => {
             setError('');
-            setFullName(e.target.value);
+            setFirstName(e.target.value);
           }}
           placeholder="Tu nombre"
+          className="maqgo-input"
+          style={{ width: '100%', marginBottom: 12 }}
+        />
+
+        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+          Apellido
+        </label>
+        <input
+          value={lastName}
+          onChange={(e) => {
+            setError('');
+            setLastName(e.target.value);
+          }}
+          placeholder="Tu apellido"
+          className="maqgo-input"
+          style={{ width: '100%', marginBottom: 12 }}
+        />
+
+        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+          RUT
+        </label>
+        <input
+          value={rut}
+          onChange={(e) => {
+            setError('');
+            setRut(e.target.value);
+          }}
+          placeholder="12.345.678-9"
           className="maqgo-input"
           style={{ width: '100%', marginBottom: 12 }}
         />

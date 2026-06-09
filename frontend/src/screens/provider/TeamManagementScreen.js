@@ -55,6 +55,10 @@ function TeamManagementScreen() {
   const [operatorNombreCompleto, setOperatorNombreCompleto] = useState('');
   const [operatorRut, setOperatorRut] = useState('');
   const [operatorPhone, setOperatorPhone] = useState('');
+  const [masterFirstName, setMasterFirstName] = useState('');
+  const [masterLastName, setMasterLastName] = useState('');
+  const [masterRut, setMasterRut] = useState('');
+  const [masterPhone, setMasterPhone] = useState('');
   const [masterInvitePermissions, setMasterInvitePermissions] = useState({
     can_view_finance: false,
     can_manage_machines: false,
@@ -85,6 +89,10 @@ function TeamManagementScreen() {
     setOperatorNombreCompleto('');
     setOperatorRut('');
     setOperatorPhone('');
+    setMasterFirstName('');
+    setMasterLastName('');
+    setMasterRut('');
+    setMasterPhone('');
     setMasterInvitePermissions({
       can_view_finance: false,
       can_manage_machines: false,
@@ -163,6 +171,13 @@ function TeamManagementScreen() {
     if (digits.length === 9) return `+56${digits}`;
     return `+${digits}`;
   };
+
+  const joinDisplayName = (...parts) =>
+    parts
+      .map((part) => String(part || '').trim())
+      .filter(Boolean)
+      .join(' ')
+      .trim();
 
   const base64UrlEncodeJson = (obj) => {
     try {
@@ -347,12 +362,20 @@ function TeamManagementScreen() {
           operator_rut: operatorRut.trim(),
         };
       } else if (inviteType === 'master') {
-        const fullName = operatorNombreCompleto.trim();
-        const normalizedPhone = normalizePhoneForChannel(operatorPhone);
+        const fullName = joinDisplayName(masterFirstName, masterLastName);
+        const normalizedPhone = normalizePhoneForChannel(masterPhone);
+        if (!masterFirstName.trim() || !masterLastName.trim() || !masterRut.trim() || !normalizedPhone) {
+          toast.warning('Completa nombre, apellido, RUT y celular del usuario master antes de generar el código.');
+          setInviting(false);
+          return;
+        }
         payload = {
           owner_id: ownerId,
-          master_name: fullName || undefined,
-          master_phone: normalizedPhone || undefined,
+          master_name: masterFirstName.trim(),
+          master_last_name: masterLastName.trim(),
+          master_rut: masterRut.trim(),
+          master_phone: normalizedPhone,
+          master_full_name: fullName,
         };
       }
 
@@ -368,6 +391,10 @@ function TeamManagementScreen() {
       setOperatorNombreCompleto('');
       setOperatorRut('');
       setOperatorPhone('');
+      setMasterFirstName('');
+      setMasterLastName('');
+      setMasterRut('');
+      setMasterPhone('');
       setDidAttemptInvite(false);
       loadTeam(); // Recargar para ver la invitación pendiente
     } catch (e) {
@@ -420,7 +447,7 @@ function TeamManagementScreen() {
     const code = String(inviteCode || '').trim().toUpperCase();
     if (!code) return;
     const text = buildInviteMessage(code, inviteType);
-    const phone = normalizePhoneForChannel(operatorPhone);
+    const phone = normalizePhoneForChannel(inviteType === 'master' ? masterPhone : operatorPhone);
     if (channel === 'system') {
       if (navigator?.share) {
         try {
@@ -513,8 +540,13 @@ function TeamManagementScreen() {
     if (!operatorNombreCompleto.trim()) missingInviteFields.push('Nombre completo');
     if (!operatorRut.trim()) missingInviteFields.push('RUT');
   }
+  if (inviteType === 'master') {
+    if (!masterFirstName.trim()) missingInviteFields.push('Nombre');
+    if (!masterLastName.trim()) missingInviteFields.push('Apellido');
+    if (!masterRut.trim()) missingInviteFields.push('RUT');
+    if (!normalizePhoneForChannel(masterPhone)) missingInviteFields.push('Celular');
+  }
   const isInviteFormValid =
-    inviteType !== 'operator' ||
     missingInviteFields.length === 0;
   const visiblePendingInvitations = (team.pending_invitations || []).filter((inv) => {
     const t = inv?.invite_type || 'operator';
@@ -530,6 +562,36 @@ function TeamManagementScreen() {
   const listTitle = inviteType === 'master' ? 'Usuarios master creados' : 'Operadores creados';
   const emptyCreateNote =
     inviteType === 'master' ? 'Aún no hay usuarios master creados.' : 'Aún no hay operadores creados.';
+  const masterPermissionGroups = [
+    {
+      title: 'Mis máquinas',
+      items: [
+        { k: 'can_manage_machines', label: 'Gestionar máquinas' },
+        { k: 'can_assign_operator', label: 'Asignar operador en servicios' },
+      ],
+    },
+    {
+      title: 'Mi empresa',
+      items: [
+        { k: 'can_edit_master_profile', label: 'Editar datos de empresa' },
+        { k: 'can_view_finance', label: 'Ver pagos y facturas' },
+      ],
+    },
+    {
+      title: 'Usuarios y accesos',
+      items: [
+        { k: 'can_manage_operators', label: 'Gestionar operadores' },
+        { k: 'can_delete_master', label: 'Eliminar usuario master' },
+      ],
+    },
+    {
+      title: 'Solicitudes',
+      items: [
+        { k: 'can_view_work_details', label: 'Ver detalle de solicitudes' },
+        { k: 'can_create_work', label: 'Crear solicitudes' },
+      ],
+    },
+  ];
 
   if (inviteType === 'master' && !isSuperMasterUser) {
     return <Navigate to="/provider/team" replace />;
@@ -726,9 +788,16 @@ function TeamManagementScreen() {
                             <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
                               {member.name}
                             </p>
-                            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
-                              {member.phone || 'Sin celular'}
-                            </p>
+                            <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
+                              {member.rut && (
+                                <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
+                                  RUT: {member.rut}
+                                </p>
+                              )}
+                              <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: 0 }}>
+                                {member.phone || 'Sin celular'}
+                              </p>
+                            </div>
                           </div>
                           <span
                             style={{
@@ -858,7 +927,7 @@ function TeamManagementScreen() {
                         Agrega operadores.
                       </p>
                       <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
-                        Luego los asignas en Mis máquinas.
+                        En Mis máquinas eliges qué máquina puede operar cada uno.
                       </p>
                     </div>
                   )}
@@ -926,7 +995,9 @@ function TeamManagementScreen() {
                             </p>
                             {inv.invite_type === 'master' && inv.master_name && (
                               <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '6px 0 0' }}>
-                                {inv.master_name}{inv.master_phone ? ` · ${inv.master_phone}` : ''}
+                                {joinDisplayName(inv.master_name, inv.master_last_name)}
+                                {inv.master_rut ? ` · RUT ${inv.master_rut}` : ''}
+                                {inv.master_phone ? ` · ${inv.master_phone}` : ''}
                               </p>
                             )}
                             {inv.invite_type !== 'master' && inv.operator_name && (
@@ -1071,11 +1142,11 @@ function TeamManagementScreen() {
                     ? 'Genera el código y compártelo.'
                     : (
                       <>
-                        Completa los datos y genera el código. La asignación a máquina se hace en{' '}
+                        Completa los datos y genera el código. En{' '}
                         <Link to="/provider/machines" style={{ color: '#EC6819', fontWeight: 600 }}>
                           Mis máquinas
                         </Link>
-                        .
+                        {' '}eliges qué máquina puede operar.
                       </>
                     )}
                 </p>
@@ -1161,22 +1232,22 @@ function TeamManagementScreen() {
                 {inviteType === 'master' && (
                   <div style={{ marginBottom: 20 }}>
                     <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
-                      Datos opcionales
+                      Datos del usuario master
                     </p>
                     <div style={{ marginBottom: 10 }}>
                       <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        Nombre
+                        Nombre *
                       </label>
                       <input
                         type="text"
-                        value={operatorNombreCompleto}
-                        onChange={(e) => setOperatorNombreCompleto(e.target.value)}
-                        placeholder="Ej: Juan Pérez"
+                        value={masterFirstName}
+                        onChange={(e) => setMasterFirstName(e.target.value)}
+                        placeholder="Ej: María"
                         style={{
                           width: '100%',
                           padding: '10px 12px',
                           borderRadius: 8,
-                          border: '1px solid #444',
+                          border: didAttemptInvite && !masterFirstName.trim() ? '1px solid #F44336' : '1px solid #444',
                           background: '#1F1F1F',
                           color: '#fff',
                           fontSize: 14,
@@ -1184,20 +1255,63 @@ function TeamManagementScreen() {
                         }}
                       />
                     </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                        Apellido *
+                      </label>
+                      <input
+                        type="text"
+                        value={masterLastName}
+                        onChange={(e) => setMasterLastName(e.target.value)}
+                        placeholder="Ej: Soto"
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          border: didAttemptInvite && !masterLastName.trim() ? '1px solid #F44336' : '1px solid #444',
+                          background: '#1F1F1F',
+                          color: '#fff',
+                          fontSize: 14,
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                        RUT *
+                      </label>
+                      <input
+                        type="text"
+                        value={masterRut}
+                        onChange={(e) => setMasterRut(e.target.value)}
+                        placeholder="12.345.678-9"
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          border: didAttemptInvite && !masterRut.trim() ? '1px solid #F44336' : '1px solid #444',
+                          background: '#1F1F1F',
+                          color: '#fff',
+                          fontSize: 14,
+                          outline: 'none',
+                          fontFamily: "'JetBrains Mono', monospace"
+                        }}
+                      />
+                    </div>
                     <div style={{ marginBottom: 12 }}>
                       <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        Celular
+                        Celular *
                       </label>
                       <input
                         type="tel"
-                        value={operatorPhone}
-                        onChange={(e) => setOperatorPhone(e.target.value)}
+                        value={masterPhone}
+                        onChange={(e) => setMasterPhone(e.target.value)}
                         placeholder="+56 9 1234 5678"
                         style={{
                           width: '100%',
                           padding: '10px 12px',
                           borderRadius: 8,
-                          border: '1px solid #444',
+                          border: didAttemptInvite && !normalizePhoneForChannel(masterPhone) ? '1px solid #F44336' : '1px solid #444',
                           background: '#1F1F1F',
                           color: '#fff',
                           fontSize: 14,
@@ -1217,68 +1331,71 @@ function TeamManagementScreen() {
                         padding: 12,
                       }}
                     >
-                      {[
-                        { k: 'can_view_finance', label: 'Ver finanzas' },
-                        { k: 'can_manage_machines', label: 'Gestionar máquinas' },
-                        { k: 'can_manage_operators', label: 'Gestionar operadores' },
-                        { k: 'can_create_work', label: 'Crear WORK' },
-                        { k: 'can_assign_operator', label: 'Asignar operador' },
-                        { k: 'can_view_work_details', label: 'Ver detalle de WORK' },
-                        { k: 'can_edit_master_profile', label: 'Editar perfil' },
-                        { k: 'can_delete_master', label: 'Eliminar usuario master' },
-                      ].map((it) => {
-                        const checked = Boolean(masterInvitePermissions?.[it.k]);
-                        return (
-                          <button
-                            key={it.k}
-                            type="button"
-                            onClick={() =>
-                              setMasterInvitePermissions((prev) => ({
-                                ...(prev || {}),
-                                [it.k]: !prev?.[it.k],
-                              }))
-                            }
-                            style={{
-                              width: '100%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: 12,
-                              padding: '10px 12px',
-                              borderRadius: 10,
-                              border: '1px solid rgba(255,255,255,0.10)',
-                              background: checked ? 'rgba(156, 39, 176, 0.16)' : 'rgba(0,0,0,0.12)',
-                              cursor: 'pointer',
-                              marginBottom: 8,
-                              textAlign: 'left',
-                            }}
-                          >
-                            <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{it.label}</span>
-                            <span
-                              style={{
-                                width: 18,
-                                height: 18,
-                                borderRadius: 4,
-                                border: checked ? '1px solid #9C27B0' : '1px solid rgba(255,255,255,0.35)',
-                                background: checked ? '#9C27B0' : 'transparent',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0,
-                                color: '#fff',
-                                fontSize: 12,
-                                fontWeight: 900,
-                              }}
-                            >
-                              {checked ? '✓' : ''}
-                            </span>
-                          </button>
-                        );
-                      })}
+                      {masterPermissionGroups.map((group) => (
+                        <div key={group.title} style={{ marginBottom: 12 }}>
+                          <p style={{ color: 'rgba(255,255,255,0.76)', fontSize: 11, margin: '0 0 8px', textTransform: 'uppercase', fontWeight: 800 }}>
+                            {group.title}
+                          </p>
+                          {group.items.map((it) => {
+                            const checked = Boolean(masterInvitePermissions?.[it.k]);
+                            return (
+                              <button
+                                key={it.k}
+                                type="button"
+                                onClick={() =>
+                                  setMasterInvitePermissions((prev) => ({
+                                    ...(prev || {}),
+                                    [it.k]: !prev?.[it.k],
+                                  }))
+                                }
+                                style={{
+                                  width: '100%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: 12,
+                                  padding: '10px 12px',
+                                  borderRadius: 10,
+                                  border: '1px solid rgba(255,255,255,0.10)',
+                                  background: checked ? 'rgba(156, 39, 176, 0.16)' : 'rgba(0,0,0,0.12)',
+                                  cursor: 'pointer',
+                                  marginBottom: 8,
+                                  textAlign: 'left',
+                                }}
+                              >
+                                <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{it.label}</span>
+                                <span
+                                  style={{
+                                    width: 18,
+                                    height: 18,
+                                    borderRadius: 4,
+                                    border: checked ? '1px solid #9C27B0' : '1px solid rgba(255,255,255,0.35)',
+                                    background: checked ? '#9C27B0' : 'transparent',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                    color: '#fff',
+                                    fontSize: 12,
+                                    fontWeight: 900,
+                                  }}
+                                >
+                                  {checked ? '✓' : ''}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ))}
                       <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, margin: '6px 0 0' }}>
-                        Define los permisos antes de generar el código.
+                        Los permisos usan los mismos conceptos de la app.
                       </p>
                     </div>
+                    {didAttemptInvite && missingInviteFields.length > 0 && (
+                      <p style={{ color: '#F44336', fontSize: 12, margin: '10px 0 0' }}>
+                        Falta completar: {missingInviteFields.join(', ')}.
+                      </p>
+                    )}
                   </div>
                 )}
 

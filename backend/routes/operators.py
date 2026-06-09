@@ -425,13 +425,17 @@ async def get_operator_stats(
 class MasterInvitationCreate(BaseModel):
     owner_id: str
     master_name: Optional[str] = None
+    master_last_name: Optional[str] = None
+    master_rut: Optional[str] = None
     master_phone: Optional[str] = None
 
 
 class MasterInvitationUse(BaseModel):
     code: str
-    master_name: str
-    master_phone: str
+    master_name: Optional[str] = None
+    master_last_name: Optional[str] = None
+    master_rut: Optional[str] = None
+    master_phone: Optional[str] = None
     master_email: Optional[str] = None
 
 
@@ -470,6 +474,8 @@ async def create_master_invitation(
         "owner_name": owner.get("name", ""),
         "invite_type": "master",  # Tipo de invitación
         "master_name": data.master_name,
+        "master_last_name": data.master_last_name,
+        "master_rut": data.master_rut,
         "master_phone": data.master_phone,
         "status": "pending",
         "created_at": datetime.now(timezone.utc),
@@ -517,6 +523,17 @@ async def use_master_invitation(data: MasterInvitationUse):
         )
         raise HTTPException(status_code=400, detail="Código expirado")
     
+    first_name = str(data.master_name or invitation.get("master_name") or "").strip()
+    last_name = str(data.master_last_name or invitation.get("master_last_name") or "").strip()
+    full_name = " ".join(part for part in [first_name, last_name] if part).strip() or first_name
+    phone = str(data.master_phone or invitation.get("master_phone") or "").strip()
+    rut = str(data.master_rut or invitation.get("master_rut") or "").strip()
+
+    if not full_name:
+        raise HTTPException(status_code=400, detail="Falta el nombre del usuario master")
+    if not phone:
+        raise HTTPException(status_code=400, detail="Falta el celular del usuario master")
+
     # Crear cuenta de Master
     import uuid
     master_id = str(uuid.uuid4())
@@ -526,8 +543,9 @@ async def use_master_invitation(data: MasterInvitationUse):
         "role": "provider",
         "provider_role": "master",  # ROL MASTER
         "owner_id": invitation["owner_id"],
-        "name": data.master_name,
-        "phone": data.master_phone,
+        "name": full_name,
+        "rut": rut,
+        "phone": phone,
         "email": data.master_email or "",
         "isAvailable": False,
         "rating": 5.0,
