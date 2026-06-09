@@ -323,7 +323,7 @@ function TeamManagementScreen() {
     const c = String(code || '').trim().toUpperCase();
     if (type === 'master') {
       const link = buildMasterJoinLink(c, permsOverride || masterInvitePermissions);
-      return `Tu código MAQGO para crear usuario Master (Gestión) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy gerente / Master”\n3) Ingresa el código\n\nLuego iniciarás sesión con tu celular usando un código SMS (MAQGO).\n\nLink directo:\n${link}\n\nVálido por 7 días.\nUso único (1 persona).`;
+      return `Tu código MAQGO para crear usuario master es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy usuario master”\n3) Ingresa el código\n\nLuego iniciarás sesión con tu celular usando un código SMS (MAQGO).\n\nLink directo:\n${link}\n\nVálido por 7 días.\nUso único (1 persona).`;
     }
     const link = buildOperatorJoinLink(c);
     return `Tu código MAQGO de autenticación (Operador) es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy operador (tengo código)”\n3) Ingresa el código\n\nEste código lo genera tu empresa (no es el código SMS).\n\nLink directo:\n${link}\n\nVálido por 7 días.`;
@@ -684,14 +684,20 @@ function TeamManagementScreen() {
             margin: 0,
             fontFamily: "'Space Grotesk', sans-serif"
           }}>
-            {showCode ? 'Código listo' : activeTab === 'invite' ? 'Invitar' : 'Equipo'}
+            {showCode
+              ? 'Código listo'
+              : activeTab === 'invite'
+                ? inviteType === 'master'
+                  ? 'Invitar usuario master'
+                  : 'Invitar operador'
+                : 'Usuarios y accesos'}
           </h1>
         </div>
 
         {isSuperMasterUser && (
           <div style={{ marginBottom: 18 }}>
             <p style={{ color: 'rgba(255,255,255,0.80)', fontSize: 12, margin: '0 0 10px', fontWeight: 800, textTransform: 'uppercase' }}>
-              ¿A quién vas a invitar?
+              Tipo de acceso
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
             <button
@@ -726,7 +732,7 @@ function TeamManagementScreen() {
                 cursor: 'pointer',
               }}
             >
-              Gerentes
+              Usuario master
             </button>
             </div>
           </div>
@@ -761,7 +767,7 @@ function TeamManagementScreen() {
                   }}
                   data-testid="tab-team"
                 >
-                  {`Equipo (${teamCount})`}
+                  {inviteType === 'master' ? `Usuarios master (${teamCount})` : `Operadores (${teamCount})`}
                 </button>
                 <button
                   onClick={() => {
@@ -782,7 +788,7 @@ function TeamManagementScreen() {
                   }}
                   data-testid="tab-invite"
                 >
-                  Invitar
+                  {inviteType === 'master' ? 'Invitar usuario master' : 'Invitar operador'}
                 </button>
               </>
             );
@@ -798,59 +804,8 @@ function TeamManagementScreen() {
               <>
                 {inviteType === 'master' ? (
                   <div style={{ marginBottom: 20 }}>
-                    {isSuperMasterUser && (
-                      <div
-                        style={{
-                          background: 'rgba(255,255,255,0.06)',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          borderRadius: 14,
-                          padding: 14,
-                          marginBottom: 14,
-                        }}
-                      >
-                        <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: 0, fontWeight: 800, textTransform: 'uppercase' }}>
-                          Finanzas (Empresa)
-                        </p>
-                        <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-                          <div style={{ flex: '1 1 140px', background: 'rgba(0,0,0,0.25)', borderRadius: 12, padding: 12, border: '1px solid rgba(255,255,255,0.10)' }}>
-                            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: 0 }}>Total facturado</p>
-                            <p style={{ color: '#fff', fontSize: 18, fontWeight: 800, margin: '6px 0 0' }}>{formatClp(financeSummary.facturado)}</p>
-                          </div>
-                          <div style={{ flex: '1 1 140px', background: 'rgba(0,0,0,0.25)', borderRadius: 12, padding: 12, border: '1px solid rgba(255,255,255,0.10)' }}>
-                            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: 0 }}>Por cobrar</p>
-                            <p style={{ color: '#fff', fontSize: 18, fontWeight: 800, margin: '6px 0 0' }}>{formatClp(financeSummary.porCobrar)}</p>
-                          </div>
-                          <div style={{ flex: '1 1 140px', background: 'rgba(0,0,0,0.25)', borderRadius: 12, padding: 12, border: '1px solid rgba(255,255,255,0.10)' }}>
-                            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: 0 }}>Pagado</p>
-                            <p style={{ color: '#fff', fontSize: 18, fontWeight: 800, margin: '6px 0 0' }}>{formatClp(financeSummary.pagado)}</p>
-                          </div>
-                        </div>
-                        <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                          <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, margin: 0 }}>
-                            {dashboardLoading ? 'Actualizando…' : 'Desglose interno por gerente (WORKs aceptados)'}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => navigate('/provider/cobros')}
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: 999,
-                              border: '1px solid rgba(255,255,255,0.16)',
-                              background: 'rgba(0,0,0,0.20)',
-                              color: '#fff',
-                              fontSize: 12,
-                              fontWeight: 800,
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            Ver cobros
-                          </button>
-                        </div>
-                      </div>
-                    )}
                     <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
-                      Gerentes ({team.masters?.length || 0})
+                      Usuarios master ({team.masters?.length || 0})
                     </p>
                     {team.masters && team.masters.length > 0 ? (
                       team.masters.map((member, idx) => (
@@ -888,18 +843,6 @@ function TeamManagementScreen() {
                             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '2px 0 0' }}>
                               {member.phone || 'Sin celular'}
                             </p>
-                            {isSuperMasterUser && worksByMaster[String(member.id || '')] && (
-                              <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: '6px 0 0' }}>
-                                Facturado:{' '}
-                                <strong style={{ color: '#fff' }}>{formatClp(worksByMaster[String(member.id)].facturado || 0)}</strong>
-                                {' · '}
-                                Por cobrar:{' '}
-                                <strong style={{ color: '#fff' }}>{formatClp(worksByMaster[String(member.id)].porCobrar || 0)}</strong>
-                                {' · '}
-                                Pagado:{' '}
-                                <strong style={{ color: '#fff' }}>{formatClp(worksByMaster[String(member.id)].pagado || 0)}</strong>
-                              </p>
-                            )}
                           </div>
                           <span
                             style={{
@@ -911,14 +854,14 @@ function TeamManagementScreen() {
                               fontWeight: 600,
                             }}
                           >
-                            Gerente
+                            Usuario master
                           </span>
                         </div>
                       ))
                     ) : (
                       <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 30, textAlign: 'center' }}>
                         <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, margin: 0 }}>
-                          No hay gerentes registrados
+                          No hay usuarios master registrados
                         </p>
                         <button
                           onClick={() => setActiveTab('invite')}
@@ -934,7 +877,7 @@ function TeamManagementScreen() {
                             cursor: 'pointer',
                           }}
                         >
-                          Invitar gerente
+                          Invitar usuario master
                         </button>
                       </div>
                     )}
@@ -1116,7 +1059,7 @@ function TeamManagementScreen() {
                               {inv.code}
                             </p>
                             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
-                              {inv.invite_type === 'master' ? 'Para Gerente' : 'Para Operador'}
+                              {inv.invite_type === 'master' ? 'Para usuario master' : 'Para operador'}
                             </p>
                             {inv.invite_type === 'master' && inv.master_name && (
                               <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '6px 0 0' }}>
@@ -1518,7 +1461,7 @@ function TeamManagementScreen() {
                 {inviteType === 'master' && (
                   <div style={{ marginBottom: 20 }}>
                     <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
-                      Datos del gerente (opcional)
+                      Datos del usuario master (opcional)
                     </p>
                     <div style={{ marginBottom: 10 }}>
                       <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
@@ -1564,7 +1507,7 @@ function TeamManagementScreen() {
                     </div>
 
                     <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', margin: '8px 0 10px' }}>
-                      Permisos del gerente
+                      Permisos del usuario master
                     </p>
                     <div
                       style={{
@@ -1582,7 +1525,7 @@ function TeamManagementScreen() {
                         { k: 'can_assign_operator', label: 'Asignar operador' },
                         { k: 'can_view_work_details', label: 'Ver detalle de WORK' },
                         { k: 'can_edit_master_profile', label: 'Editar perfil' },
-                        { k: 'can_delete_master', label: 'Eliminar gerente' },
+                        { k: 'can_delete_master', label: 'Eliminar usuario master' },
                       ].map((it) => {
                         const checked = Boolean(masterInvitePermissions?.[it.k]);
                         return (
@@ -1649,8 +1592,8 @@ function TeamManagementScreen() {
                   {inviting
                     ? 'Generando...'
                     : inviteType === 'master'
-                      ? 'Generar código (Master)'
-                      : 'Generar código (Operador)'}
+                      ? 'Generar código para usuario master'
+                      : 'Generar código para operador'}
                 </button>
               </>
             ) : (
@@ -1686,7 +1629,7 @@ function TeamManagementScreen() {
                   fontSize: 13, 
                   margin: '0 0 25px'
                 }}>
-                  {inviteType === 'master' ? 'Para crear usuario Master (gestión)' : 'Para autenticar Operador'}
+                  {inviteType === 'master' ? 'Para crear usuario master' : 'Para autenticar operador'}
                 </p>
 
                 {Array.isArray(batchInvites) && batchInvites.length > 1 && (
