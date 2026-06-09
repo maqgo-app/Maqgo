@@ -19,6 +19,7 @@ import { REFERENCE_PRICES, REFERENCE_TRANSPORT, MAX_PRICE_ABOVE_MARKET_PCT, getP
 import { vibrate } from '../../utils/uberUX';
 import BACKEND_URL from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
+import { getOperatorInvitationWarning, getOverdueOperatorInvitations } from '../../utils/operatorInvitations';
 
 const STORAGE_KEY_DEFAULT_BY_MACHINERY = 'defaultOperatorByMachinery';
 
@@ -688,6 +689,10 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
   const missingAssigned = useMemo(() => {
     return (Array.isArray(machine.operators) ? machine.operators : []).filter((op) => op?.id && !selectableIds.has(op.id));
   }, [machine.operators, selectableIds]);
+  const overduePendingInvitations = useMemo(
+    () => getOverdueOperatorInvitations(pendingInvitations),
+    [pendingInvitations]
+  );
 
   return (
     <ModalOverlay onClick={onClose}>
@@ -743,6 +748,26 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
           </div>
         ) : (
           <>
+            {overduePendingInvitations.length > 0 && (
+              <div
+                style={{
+                  background: 'rgba(255, 167, 38, 0.12)',
+                  border: '1px solid rgba(255, 167, 38, 0.42)',
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 14,
+                }}
+              >
+                <div style={{ color: '#FFA726', fontSize: 13, fontWeight: 800, marginBottom: 6 }}>
+                  Warning de enrolamiento
+                </div>
+                <div style={{ color: 'rgba(255,255,255,0.86)', fontSize: 12, lineHeight: 1.45 }}>
+                  {overduePendingInvitations.length === 1
+                    ? 'Hay 1 operador que lleva mas de 24 horas sin enrolar su codigo de activacion.'
+                    : `Hay ${overduePendingInvitations.length} operadores que llevan mas de 24 horas sin enrolar su codigo de activacion.`}
+                </div>
+              </div>
+            )}
             {missingAssigned.length > 0 && (
               <div style={{ background: 'rgba(236, 104, 25, 0.1)', border: '1px solid rgba(236, 104, 25, 0.35)', borderRadius: 12, padding: 12, marginBottom: 14 }}>
                 <div style={{ color: '#EC6819', fontSize: 13, fontWeight: 800, marginBottom: 6 }}>
@@ -797,29 +822,44 @@ function AssignOperatorsModal({ machine, onSave, onClose }) {
                   Códigos pendientes ({pendingInvitations.length})
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto' }}>
-                  {pendingInvitations.map((inv) => (
-                    <div
-                      key={inv.code || inv.created_at || String(Math.random())}
-                      style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        borderRadius: 10,
-                        padding: 12,
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
-                        <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
-                          {inv.operator_name || 'Operador'}
+                  {pendingInvitations.map((inv) => {
+                    const warning = getOperatorInvitationWarning(inv);
+                    return (
+                      <div
+                        key={inv.code || inv.created_at || String(Math.random())}
+                        style={{
+                          background: warning?.overdue ? 'rgba(255, 167, 38, 0.10)' : 'rgba(255,255,255,0.05)',
+                          border: warning?.overdue ? '1px solid rgba(255, 167, 38, 0.35)' : '1px solid rgba(255,255,255,0.12)',
+                          borderRadius: 10,
+                          padding: 12,
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
+                          <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                            {inv.operator_name || 'Operador'}
+                          </div>
+                          <div style={{ color: '#EC6819', fontSize: 12, fontWeight: 800 }}>
+                            {inv.code || ''}
+                          </div>
                         </div>
-                        <div style={{ color: '#EC6819', fontSize: 12, fontWeight: 800 }}>
-                          {inv.code || ''}
+                        <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 4 }}>
+                          {(inv.operator_rut ? `RUT ${inv.operator_rut} · ` : '')}{inv.operator_phone || 'Sin celular'} · Pendiente de activación
                         </div>
+                        {warning ? (
+                          <div
+                            style={{
+                              marginTop: 8,
+                              color: warning.overdue ? '#FFA726' : 'rgba(255,255,255,0.72)',
+                              fontSize: 12,
+                              fontWeight: warning.overdue ? 700 : 500,
+                            }}
+                          >
+                            {warning.message}
+                          </div>
+                        ) : null}
                       </div>
-                      <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 4 }}>
-                        {(inv.operator_rut ? `RUT ${inv.operator_rut} · ` : '')}{inv.operator_phone || 'Sin celular'} · Pendiente de activación
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

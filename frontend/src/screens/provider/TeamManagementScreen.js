@@ -6,6 +6,7 @@ import { useAuth } from '../../context/authHooks';
 import { useToast } from '../../components/Toast';
 
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
+import { getOperatorInvitationWarning, getOverdueOperatorInvitations } from '../../utils/operatorInvitations';
 
 /**
  * Pantalla: Gestión de equipo (Mis operadores)
@@ -644,6 +645,10 @@ function TeamManagementScreen() {
     const t = inv?.invite_type || 'operator';
     return inviteType === 'master' ? t === 'master' : t !== 'master';
   });
+  const overduePendingInvitations = useMemo(
+    () => inviteType === 'operator' ? getOverdueOperatorInvitations(visiblePendingInvitations) : [],
+    [inviteType, visiblePendingInvitations]
+  );
 
   if (inviteType === 'master' && !isSuperMasterUser) {
     return <Navigate to="/provider/team" replace />;
@@ -1057,6 +1062,26 @@ function TeamManagementScreen() {
                 {/* Invitaciones pendientes */}
                 {visiblePendingInvitations.length > 0 && (
                   <div>
+                    {inviteType === 'operator' && overduePendingInvitations.length > 0 && (
+                      <div
+                        style={{
+                          background: 'rgba(255, 167, 38, 0.12)',
+                          border: '1px solid rgba(255, 167, 38, 0.42)',
+                          borderRadius: 14,
+                          padding: 14,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div style={{ color: '#FFA726', fontSize: 13, fontWeight: 800, marginBottom: 6 }}>
+                          Warning de enrolamiento
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.86)', fontSize: 12, lineHeight: 1.45 }}>
+                          {overduePendingInvitations.length === 1
+                            ? 'Hay 1 operador con mas de 24 horas sin enrolar su codigo de activacion.'
+                            : `Hay ${overduePendingInvitations.length} operadores con mas de 24 horas sin enrolar su codigo de activacion.`}
+                        </div>
+                      </div>
+                    )}
                     <p style={{ 
                       color: 'rgba(255,255,255,0.95)', 
                       fontSize: 12, 
@@ -1065,15 +1090,17 @@ function TeamManagementScreen() {
                     }}>
                       Invitaciones pendientes ({visiblePendingInvitations.length})
                     </p>
-                    {visiblePendingInvitations.map((inv, idx) => (
+                    {visiblePendingInvitations.map((inv, idx) => {
+                      const warning = getOperatorInvitationWarning(inv);
+                      return (
                       <div 
                         key={inv.code || idx}
                         style={{
-                          background: '#2A2A2A',
+                          background: warning?.overdue ? 'rgba(255, 167, 38, 0.10)' : '#2A2A2A',
                           borderRadius: 12,
                           padding: 14,
                           marginBottom: 10,
-                          borderLeft: '4px solid #FFA726'
+                          borderLeft: warning?.overdue ? '4px solid #FFA726' : '4px solid rgba(255,255,255,0.18)'
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1191,9 +1218,22 @@ function TeamManagementScreen() {
                           }}>
                             Pendiente
                           </span>
+                          {warning ? (
+                            <div
+                              style={{
+                                marginTop: 8,
+                                color: warning.overdue ? '#FFA726' : 'rgba(255,255,255,0.72)',
+                                fontSize: 12,
+                                fontWeight: warning.overdue ? 700 : 500,
+                              }}
+                            >
+                              {warning.message}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </>
