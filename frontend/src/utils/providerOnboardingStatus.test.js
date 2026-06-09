@@ -116,6 +116,43 @@ describe('providerOnboardingStatus', () => {
     expect(getProviderLandingPath()).toBe('/provider/home');
   });
 
+  it('maquina desde inventario real cuenta como maquina completa aunque machineData este vacio', () => {
+    installLocalStorageMock({
+      providerData: JSON.stringify({ businessName: 'E', rut: '1-9', addressLat: -33.4, addressLng: -70.6 }),
+      providerMachines: JSON.stringify([
+        { id: 'mach_1', machineryType: 'x', licensePlate: 'ZZ99', operators: [{ id: '1', name: 'Operador Uno' }] },
+      ]),
+      bankData: JSON.stringify({
+        bank: 'b',
+        accountType: 'c',
+        accountNumber: '123',
+        holderName: 'H',
+        holderRut: '1-9',
+      }),
+    });
+    expect(isProviderActivationCompleteFromStorage()).toBe(true);
+    expect(getProviderOnboardingNextPath()).toBe('/provider/home');
+  });
+
+  it('ubicacion guardada fuera de providerData tambien cuenta para activacion', () => {
+    installLocalStorageMock({
+      providerData: JSON.stringify({ businessName: 'E', rut: '1-9' }),
+      location: JSON.stringify({ lat: -33.4, lng: -70.6 }),
+      providerMachines: JSON.stringify([
+        { id: 'mach_1', machineryType: 'x', licensePlate: 'ZZ99', operators: [{ id: '1', name: 'Operador Uno' }] },
+      ]),
+      bankData: JSON.stringify({
+        bank: 'b',
+        accountType: 'c',
+        accountNumber: '123',
+        holderName: 'H',
+        holderRut: '1-9',
+      }),
+    });
+    expect(isProviderActivationCompleteFromStorage()).toBe(true);
+    expect(getProviderOnboardingNextPath()).toBe('/provider/home');
+  });
+
   it('Welcome + onboarding completo en LS → /provider/home', () => {
     installLocalStorageMock({
       providerCameFromWelcome: 'true',

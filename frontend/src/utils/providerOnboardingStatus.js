@@ -35,7 +35,7 @@ function normalizeMachineOperators(raw = []) {
     .filter(Boolean);
 }
 
-function hasDispatchLocationFromStorage() {
+export function hasDispatchLocationFromStorage() {
   const providerData = getObject('providerData', {});
   const loc = getObject('location', {});
   const pLat = providerData?.addressLat;
@@ -45,6 +45,15 @@ function hasDispatchLocationFromStorage() {
   const hasProviderCoords = pLat !== null && pLat !== undefined && pLng !== null && pLng !== undefined;
   const hasLocationCoords = lLat !== null && lLat !== undefined && lLng !== null && lLng !== undefined;
   return Boolean(hasProviderCoords || hasLocationCoords);
+}
+
+function hasRegisteredMachineFromStorage() {
+  const machineData = getObject('machineData', {});
+  if (machineData?.machineryType && machineData?.licensePlate) return true;
+  const machines = getMachines();
+  return Array.isArray(machines)
+    ? machines.some((m) => Boolean(m?.machineryType && String(m?.licensePlate || '').trim()))
+    : false;
 }
 
 function hasAssignedMachineOperatorFromStorage() {
@@ -74,10 +83,9 @@ function hasAssignedMachineOperatorFromStorage() {
  */
 export function isProviderActivationCompleteFromStorage() {
   const providerData = getObject('providerData', {});
-  const machineData = getObject('machineData', {});
   const bankData = getObject('bankData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
-  const machineComplete = !!(machineData?.machineryType && machineData?.licensePlate);
+  const machineComplete = hasRegisteredMachineFromStorage();
   const operatorComplete = hasAssignedMachineOperatorFromStorage();
   const bankComplete = isBankDataComplete(bankData);
   const locationComplete = hasDispatchLocationFromStorage();
@@ -108,10 +116,9 @@ export function getProviderOnboardingNextPath() {
     return '/provider/home';
   }
   const providerData = getObject('providerData', {});
-  const machineData = getObject('machineData', {});
   const bankData = getObject('bankData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
-  const machineComplete = !!(machineData?.machineryType && machineData?.licensePlate);
+  const machineComplete = hasRegisteredMachineFromStorage();
   const operatorComplete = hasAssignedMachineOperatorFromStorage();
   const bankComplete = isBankDataComplete(bankData);
   const locationComplete = hasDispatchLocationFromStorage();

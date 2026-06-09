@@ -12,7 +12,7 @@ import { traceRedirectToLogin } from '../../utils/traceLoginRedirect';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { getMachines } from '../../utils/providerMachines';
 import { getProviderOnboardingRoute } from '../../utils/providerOnboarding';
-import { getProviderOnboardingNextPath } from '../../utils/providerOnboardingStatus';
+import { getProviderOnboardingNextPath, hasDispatchLocationFromStorage } from '../../utils/providerOnboardingStatus';
 import { fetchAndHydrateProviderOnboardingDraft } from '../../utils/providerOnboardingDraft';
 import { useAuth } from '../../context/authHooks';
 
@@ -51,7 +51,9 @@ function ProviderHomeScreen() {
   const [machineSyncFailed, setMachineSyncFailed] = useState(false);
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});
-  const companyComplete = !!(providerData?.businessName && providerData?.rut);
+  const companyDataComplete = !!(providerData?.businessName && providerData?.rut);
+  const locationComplete = hasDispatchLocationFromStorage();
+  const companyComplete = companyDataComplete && locationComplete;
   const providerMachines = getMachines();
   const machineComplete =
     !!(machineData?.machineryType && machineData?.licensePlate) ||
@@ -75,14 +77,16 @@ function ProviderHomeScreen() {
       }));
   const activationItemsAll = [
     {
-      label: 'Empresa',
+      id: 'company',
+      label: 'Empresa y ubicacion',
       ok: companyComplete,
-      missingHint: 'Falta completar datos de empresa',
+      missingHint: companyDataComplete ? 'Falta completar ubicacion de despacho' : 'Faltan datos de empresa o ubicacion',
       actionLabel: 'Completar empresa',
       onClick: () =>
         navigate('/provider/data', { state: { activationEdit: true, returnTo: '/provider/home' } })
     },
     {
+      id: 'machine',
       label: 'Maquinaria',
       ok: machineComplete,
       missingHint: 'Falta tipo o patente de la máquina',
@@ -91,6 +95,7 @@ function ProviderHomeScreen() {
         navigate('/provider/machine-data', { state: { activationEdit: true, returnTo: '/provider/home' } })
     },
     {
+      id: 'operator',
       label: 'Operador asignado',
       ok: operatorComplete,
       missingHint: 'Falta operador de maquinaria asignado',
@@ -99,6 +104,7 @@ function ProviderHomeScreen() {
         navigate('/provider/machines', { state: { activationEdit: true, returnTo: '/provider/home' } })
     },
     {
+      id: 'bank',
       label: 'Datos bancarios',
       ok: bankDataComplete,
       missingHint: 'Faltan datos bancarios',
@@ -118,10 +124,10 @@ function ProviderHomeScreen() {
   const isBlockedByBankNeedsOwner = bankMissing && !canSeeBank;
 
   const activationItems = activationItemsAll.filter((item) => {
-    if (item.label === 'Empresa') return canEditCompany;
-    if (item.label === 'Maquinaria') return canManageMachines;
-    if (item.label === 'Operador asignado') return canAssignOperator || canManageOperators;
-    if (item.label === 'Datos bancarios') return canSeeBank;
+    if (item.id === 'company') return canEditCompany;
+    if (item.id === 'machine') return canManageMachines;
+    if (item.id === 'operator') return canAssignOperator || canManageOperators;
+    if (item.id === 'bank') return canSeeBank;
     return true;
   });
 
@@ -397,8 +403,7 @@ function ProviderHomeScreen() {
         toast.error('Tu sesión expiró. Cierra sesión e inicia sesión nuevamente.');
       } else if (status === 409) {
         const missing = [];
-        const pd = providerDataLocal && typeof providerDataLocal === 'object' ? providerDataLocal : {};
-        const hasCoords = Number.isFinite(pd.addressLat) && Number.isFinite(pd.addressLng);
+        const hasCoords = hasDispatchLocationFromStorage();
         if (!hasCoords) missing.push('ubicación de empresa');
         if (!bankDataComplete) missing.push('datos bancarios');
         const hasMachine =
@@ -412,7 +417,7 @@ function ProviderHomeScreen() {
             : 'Antes de conectarte, completa tu activación (empresa, máquina, operador, banco y ubicación).'
         );
         if (!hasCoords && canEditCompany) {
-          navigate('/provider/profile/empresa', { state: { activationEdit: true, returnTo: '/provider/home' } });
+          navigate('/provider/data', { state: { activationEdit: true, returnTo: '/provider/home' } });
         } else if (!hasMachine && canManageMachines) {
           navigate('/provider/machine-data', { state: { activationEdit: true, returnTo: '/provider/home' } });
         } else if (!hasOperators && (canAssignOperator || canManageOperators)) {

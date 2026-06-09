@@ -1,6 +1,7 @@
 import axios from 'axios';
 import BACKEND_URL from './api';
 import { getArray, getObject } from './safeStorage';
+import { fetchProviderMachinesFromApi } from './providerMachines';
 
 const MACHINE_PRICING_KEY = 'machinePricing';
 const MACHINE_PHOTOS_KEY = 'machinePhotos';
@@ -87,6 +88,7 @@ export async function persistProviderOnboardingDraft(options = {}) {
 export function hydrateLocalProviderOnboardingDraftFromUser(user) {
   const doc = user && typeof user === 'object' ? user : {};
   const providerData = doc.providerData && typeof doc.providerData === 'object' ? doc.providerData : null;
+  const location = doc.location && typeof doc.location === 'object' ? doc.location : null;
   const machineDataRaw = doc.machineData && typeof doc.machineData === 'object' ? doc.machineData : null;
   const machinePricing =
     machineDataRaw && machineDataRaw[MACHINE_PRICING_FIELD] && typeof machineDataRaw[MACHINE_PRICING_FIELD] === 'object'
@@ -104,6 +106,9 @@ export function hydrateLocalProviderOnboardingDraftFromUser(user) {
       if (providerData.bankData && typeof providerData.bankData === 'object') {
         localStorage.setItem('bankData', JSON.stringify(providerData.bankData));
       }
+    }
+    if (location) {
+      localStorage.setItem('location', JSON.stringify(location));
     }
     if (hasKeys(machineData)) {
       localStorage.setItem('machineData', JSON.stringify(machineData));
@@ -137,5 +142,10 @@ export async function fetchAndHydrateProviderOnboardingDraft(userId = null) {
     timeout: 8000,
   });
   hydrateLocalProviderOnboardingDraftFromUser(res.data);
+  try {
+    await fetchProviderMachinesFromApi(uid);
+  } catch {
+    void 0;
+  }
   return res.data;
 }
