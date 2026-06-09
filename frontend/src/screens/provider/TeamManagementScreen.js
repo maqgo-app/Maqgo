@@ -536,29 +536,61 @@ function TeamManagementScreen() {
     {
       title: 'Mis máquinas',
       items: [
-        { k: 'can_manage_machines', label: 'Gestionar máquinas' },
-        { k: 'can_assign_operator', label: 'Asignar operador en servicios' },
+        {
+          k: 'can_manage_machines',
+          label: 'Puede editar máquinas y operadores por máquina',
+          help: 'Permite crear, editar y actualizar qué operador queda asociado a cada máquina.',
+        },
+        {
+          k: 'can_assign_operator',
+          label: 'Puede asignar o cambiar operador en servicios',
+          help: 'Permite definir qué operador irá en un servicio aceptado.',
+        },
       ],
     },
     {
       title: 'Mi empresa',
       items: [
-        { k: 'can_edit_master_profile', label: 'Editar datos de empresa' },
-        { k: 'can_view_finance', label: 'Ver pagos y facturas' },
+        {
+          k: 'can_edit_master_profile',
+          label: 'Puede editar datos de empresa',
+          help: 'Permite actualizar datos visibles de la empresa en MAQGO.',
+        },
+        {
+          k: 'can_view_finance',
+          label: 'Puede ver pagos y facturas',
+          help: 'Permite revisar pagos, facturas y estados de cobro.',
+        },
       ],
     },
     {
       title: 'Usuarios y accesos',
       items: [
-        { k: 'can_manage_operators', label: 'Gestionar operadores' },
-        { k: 'can_delete_master', label: 'Eliminar usuario master' },
+        {
+          k: 'can_manage_operators',
+          label: 'Puede crear y administrar operadores',
+          help: 'Permite generar códigos, revisar accesos y gestionar operadores.',
+        },
+        {
+          k: 'can_delete_master',
+          label: 'Puede desactivar o eliminar usuario master',
+          help: 'Permite quitar acceso a otros usuarios master.',
+        },
       ],
     },
     {
       title: 'Solicitudes',
       items: [
-        { k: 'can_view_work_details', label: 'Ver solicitudes' },
-        { k: 'can_create_work', label: 'Gestionar solicitudes' },
+        {
+          k: 'can_view_work_details',
+          label: 'Puede ver solicitudes y su detalle',
+          help: 'Permite entrar y revisar la solicitud, pero no decidir sobre ella.',
+        },
+        {
+          k: 'can_create_work',
+          label: 'Puede aceptar o rechazar solicitudes',
+          help: 'Permite tomar la decisión operativa sobre una solicitud.',
+        },
       ],
     },
   ];
@@ -1252,7 +1284,14 @@ function TeamManagementScreen() {
                                   textAlign: 'left',
                                 }}
                               >
-                                <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{it.label}</span>
+                                <span style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingRight: 10 }}>
+                                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{it.label}</span>
+                                  {it.help ? (
+                                    <span style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 1.35 }}>
+                                      {it.help}
+                                    </span>
+                                  ) : null}
+                                </span>
                                 <span
                                   style={{
                                     width: 18,
