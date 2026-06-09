@@ -768,7 +768,7 @@ function MachinePhotosPricingScreen() {
           {!needsTransport && (
             <div style={{ background: '#2A2A2A', borderRadius: 10, padding: 12, marginBottom: 16 }}>
               <p style={{ color: '#90BDD3', fontSize: 13, margin: 0, textAlign: 'center' }}>
-                Sin traslado en esta máquina
+                Para esta máquina no necesitas ingresar valor de traslado
               </p>
             </div>
           )}
