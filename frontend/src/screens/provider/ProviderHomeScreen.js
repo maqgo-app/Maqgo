@@ -341,10 +341,18 @@ function ProviderHomeScreen() {
     const providerDataLocal = getObject('providerData', {});
     const bankDataLocal = getObject('bankData', {});
     const operatorsDataLocal = getArray('operatorsData', []);
+    const cachedMachineOperators =
+      Array.isArray(providerMachinesLocal)
+        ? providerMachinesLocal.flatMap((machine) =>
+          Array.isArray(machine?.operators) ? machine.operators.filter(Boolean) : []
+        )
+        : [];
     const effectiveOperators =
       (Array.isArray(effectiveMachineData?.operators) && effectiveMachineData.operators.length > 0)
         ? effectiveMachineData.operators
-        : (Array.isArray(operatorsDataLocal) ? operatorsDataLocal.filter(Boolean) : []);
+        : (Array.isArray(operatorsDataLocal) && operatorsDataLocal.length > 0)
+          ? operatorsDataLocal.filter(Boolean)
+          : cachedMachineOperators;
     const nextProviderData = {
       ...(providerDataLocal && typeof providerDataLocal === 'object' ? providerDataLocal : {}),
       bankData: bankDataLocal && typeof bankDataLocal === 'object' ? bankDataLocal : undefined,
@@ -360,14 +368,17 @@ function ProviderHomeScreen() {
     try {
       if (newStatus) {
         try {
+          const patchPayload = {
+            onboarding_completed: true,
+            providerData: nextProviderData,
+            machineData: effectiveMachineData,
+          };
+          if (Array.isArray(effectiveOperators) && effectiveOperators.length > 0) {
+            patchPayload.operators = effectiveOperators;
+          }
           await axios.patch(
             `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`,
-            {
-              providerData: nextProviderData,
-              machineData: effectiveMachineData,
-              operators: effectiveOperators,
-              onboarding_completed: true,
-            },
+            patchPayload,
             { timeout: 8000 }
           );
         } catch {
