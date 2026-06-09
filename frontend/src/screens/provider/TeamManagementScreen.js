@@ -52,7 +52,8 @@ function TeamManagementScreen() {
   const [batchInvites, setBatchInvites] = useState(null);
   const [inviting, setInviting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [operatorNombreCompleto, setOperatorNombreCompleto] = useState('');
+  const [operatorFirstName, setOperatorFirstName] = useState('');
+  const [operatorLastName, setOperatorLastName] = useState('');
   const [operatorRut, setOperatorRut] = useState('');
   const [operatorPhone, setOperatorPhone] = useState('');
   const [masterFirstName, setMasterFirstName] = useState('');
@@ -86,7 +87,8 @@ function TeamManagementScreen() {
     setInviteCode('');
     setBatchInvites(null);
     setDidAttemptInvite(false);
-    setOperatorNombreCompleto('');
+    setOperatorFirstName('');
+    setOperatorLastName('');
     setOperatorRut('');
     setOperatorPhone('');
     setMasterFirstName('');
@@ -348,9 +350,9 @@ function TeamManagementScreen() {
       // Validaciones básicas para operador: nombre completo y RUT obligatorios
       let payload = { owner_id: ownerId };
       if (inviteType === 'operator') {
-        const fullName = operatorNombreCompleto.trim();
-        if (!fullName || !operatorRut.trim()) {
-          toast.warning('Ingresa nombre completo y RUT del operador antes de generar el código.');
+        const fullName = joinDisplayName(operatorFirstName, operatorLastName);
+        if (!operatorFirstName.trim() || !operatorLastName.trim() || !operatorRut.trim()) {
+          toast.warning('Ingresa nombre, apellido y RUT del operador antes de generar el código.');
           setInviting(false);
           return;
         }
@@ -388,7 +390,8 @@ function TeamManagementScreen() {
       setBatchInvites(null);
       setShowCode(true);
       // Limpiar formulario de datos de operador
-      setOperatorNombreCompleto('');
+      setOperatorFirstName('');
+      setOperatorLastName('');
       setOperatorRut('');
       setOperatorPhone('');
       setMasterFirstName('');
@@ -537,7 +540,8 @@ function TeamManagementScreen() {
 
   const missingInviteFields = [];
   if (inviteType === 'operator') {
-    if (!operatorNombreCompleto.trim()) missingInviteFields.push('Nombre completo');
+    if (!operatorFirstName.trim()) missingInviteFields.push('Nombre');
+    if (!operatorLastName.trim()) missingInviteFields.push('Apellido');
     if (!operatorRut.trim()) missingInviteFields.push('RUT');
   }
   if (inviteType === 'master') {
@@ -1157,26 +1161,49 @@ function TeamManagementScreen() {
                     <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 }}>
                       Datos del operador
                     </p>
-                    <div style={{ marginBottom: 10 }}>
-                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        Nombre completo *
-                      </label>
-                      <input
-                        type="text"
-                        value={operatorNombreCompleto}
-                        onChange={(e) => setOperatorNombreCompleto(e.target.value)}
-                        placeholder="Ej: Juan Pérez"
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          border: didAttemptInvite && !operatorNombreCompleto.trim() ? '1px solid #F44336' : '1px solid #444',
-                          background: '#1F1F1F',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none'
-                        }}
-                      />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                      <div>
+                        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                          Nombre *
+                        </label>
+                        <input
+                          type="text"
+                          value={operatorFirstName}
+                          onChange={(e) => setOperatorFirstName(e.target.value)}
+                          placeholder="Ej: Juan"
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: 8,
+                            border: didAttemptInvite && !operatorFirstName.trim() ? '1px solid #F44336' : '1px solid #444',
+                            background: '#1F1F1F',
+                            color: '#fff',
+                            fontSize: 14,
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                          Apellido *
+                        </label>
+                        <input
+                          type="text"
+                          value={operatorLastName}
+                          onChange={(e) => setOperatorLastName(e.target.value)}
+                          placeholder="Ej: Pérez"
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: 8,
+                            border: didAttemptInvite && !operatorLastName.trim() ? '1px solid #F44336' : '1px solid #444',
+                            background: '#1F1F1F',
+                            color: '#fff',
+                            fontSize: 14,
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
                     </div>
                     <div style={{ marginBottom: 10 }}>
                       <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
@@ -1235,46 +1262,50 @@ function TeamManagementScreen() {
                       Datos del usuario master
                     </p>
                     <div style={{ marginBottom: 10 }}>
-                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        Nombre *
-                      </label>
-                      <input
-                        type="text"
-                        value={masterFirstName}
-                        onChange={(e) => setMasterFirstName(e.target.value)}
-                        placeholder="Ej: María"
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          border: didAttemptInvite && !masterFirstName.trim() ? '1px solid #F44336' : '1px solid #444',
-                          background: '#1F1F1F',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-                    <div style={{ marginBottom: 10 }}>
-                      <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
-                        Apellido *
-                      </label>
-                      <input
-                        type="text"
-                        value={masterLastName}
-                        onChange={(e) => setMasterLastName(e.target.value)}
-                        placeholder="Ej: Soto"
-                        style={{
-                          width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          border: didAttemptInvite && !masterLastName.trim() ? '1px solid #F44336' : '1px solid #444',
-                          background: '#1F1F1F',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none'
-                        }}
-                      />
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                          <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                            Nombre *
+                          </label>
+                          <input
+                            type="text"
+                            value={masterFirstName}
+                            onChange={(e) => setMasterFirstName(e.target.value)}
+                            placeholder="Ej: María"
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              border: didAttemptInvite && !masterFirstName.trim() ? '1px solid #F44336' : '1px solid #444',
+                              background: '#1F1F1F',
+                              color: '#fff',
+                              fontSize: 14,
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>
+                            Apellido *
+                          </label>
+                          <input
+                            type="text"
+                            value={masterLastName}
+                            onChange={(e) => setMasterLastName(e.target.value)}
+                            placeholder="Ej: Soto"
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              borderRadius: 8,
+                              border: didAttemptInvite && !masterLastName.trim() ? '1px solid #F44336' : '1px solid #444',
+                              background: '#1F1F1F',
+                              color: '#fff',
+                              fontSize: 14,
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div style={{ marginBottom: 10 }}>
                       <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4, display: 'block' }}>

@@ -216,33 +216,38 @@ function MasterJoinScreen() {
           style={{ width: '100%', marginBottom: 12, letterSpacing: 6, textAlign: 'center', fontWeight: 700 }}
         />
 
-        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-          Nombre
-        </label>
-        <input
-          value={firstName}
-          onChange={(e) => {
-            setError('');
-            setFirstName(e.target.value);
-          }}
-          placeholder="Tu nombre"
-          className="maqgo-input"
-          style={{ width: '100%', marginBottom: 12 }}
-        />
-
-        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-          Apellido
-        </label>
-        <input
-          value={lastName}
-          onChange={(e) => {
-            setError('');
-            setLastName(e.target.value);
-          }}
-          placeholder="Tu apellido"
-          className="maqgo-input"
-          style={{ width: '100%', marginBottom: 12 }}
-        />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <div>
+            <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+              Nombre
+            </label>
+            <input
+              value={firstName}
+              onChange={(e) => {
+                setError('');
+                setFirstName(e.target.value);
+              }}
+              placeholder="Tu nombre"
+              className="maqgo-input"
+              style={{ width: '100%', marginBottom: 0 }}
+            />
+          </div>
+          <div>
+            <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
+              Apellido
+            </label>
+            <input
+              value={lastName}
+              onChange={(e) => {
+                setError('');
+                setLastName(e.target.value);
+              }}
+              placeholder="Tu apellido"
+              className="maqgo-input"
+              style={{ width: '100%', marginBottom: 0 }}
+            />
+          </div>
+        </div>
 
         <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
           RUT
