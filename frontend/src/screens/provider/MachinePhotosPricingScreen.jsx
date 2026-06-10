@@ -741,21 +741,21 @@ function MachinePhotosPricingScreen() {
                 {[
                 {
                   key: 'same-comuna',
-                  label: 'Costo de traslado dentro de la misma comuna',
+                  label: 'Dentro de la misma comuna',
                   value: transportSameComuna,
                   setValue: setTransportSameComuna,
                   alert: sameComunaAlert,
                 },
                 {
                   key: 'same-region',
-                  label: 'Costo de traslado entre comunas de la misma región',
+                  label: 'Entre comunas de la misma región',
                   value: transportSameRegion,
                   setValue: setTransportSameRegion,
                   alert: sameRegionAlert,
                 },
                 {
                   key: 'other-region',
-                  label: 'Costo de traslado a otra región',
+                  label: 'A otra región',
                   value: transportOtherRegion,
                   setValue: setTransportOtherRegion,
                   alert: otherRegionAlert,
