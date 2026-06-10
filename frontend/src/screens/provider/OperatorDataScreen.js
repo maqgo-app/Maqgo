@@ -1,11 +1,15 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
-import { getObject, getArray } from '../../utils/safeStorage';
+import { getObject } from '../../utils/safeStorage';
 import { persistProviderOnboardingDraft } from '../../utils/providerOnboardingDraft';
+import {
+  getProviderDraftArray,
+  useProviderOnboardingDraftCleanup,
+} from '../../utils/providerOnboardingDraftState';
 
 /**
  * P07 - Datos del Operador
@@ -39,11 +43,12 @@ function normalizeRutForCompare(rut) {
 
 function OperatorDataScreen() {
   const navigate = useNavigate();
+  const draftEnabled = useProviderOnboardingDraftCleanup();
   const providerDataSnapshot = useMemo(() => getObject('providerData', {}), []);
   const isCompanyAccount = looksLikeCompany(providerDataSnapshot.businessName);
   const ownerRut = String(providerDataSnapshot.rut || '').trim();
   const initialFromStorage = useMemo(() => {
-    const saved = getArray('operatorsData', []);
+    const saved = getProviderDraftArray('operatorsData', []);
     const firstComplete =
       saved.length > 0 &&
       saved[0].nombre &&
@@ -57,6 +62,10 @@ function OperatorDataScreen() {
   const [ownerError, setOwnerError] = useState('');
   const [rutErrors, setRutErrors] = useState({});
   const [operators, setOperators] = useState(initialFromStorage.operators);
+
+  if (!draftEnabled) {
+    return <Navigate to="/provider/home" replace />;
+  }
 
   useEffect(() => {
     if (isCompanyAccount && sameAsOwner) setSameAsOwner(false);

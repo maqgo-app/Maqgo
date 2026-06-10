@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
@@ -10,6 +10,11 @@ import { MACHINERY_NAMES, getMachineryCapacityOptions, getProviderSpecLabelShort
 import { getObject } from '../../utils/safeStorage';
 import { createMachineInApi, upsertOnboardingMachine } from '../../utils/providerMachines';
 import { useToast } from '../../components/Toast';
+import {
+  getProviderDraftArray,
+  getProviderDraftObject,
+  useProviderOnboardingDraftCleanup,
+} from '../../utils/providerOnboardingDraftState';
 
 /**
  * P08 - Revisión y Confirmación
@@ -18,6 +23,7 @@ import { useToast } from '../../components/Toast';
 function ReviewScreen() {
   const navigate = useNavigate();
   const toast = useToast();
+  const draftEnabled = useProviderOnboardingDraftCleanup();
   const [loading, setLoading] = useState(false);
   const [providerData, setProviderData] = useState({});
   const [machineData, setMachineData] = useState({});
@@ -31,19 +37,15 @@ function ReviewScreen() {
       .replace(/\D/g, '')
       .slice(-9);
 
+  if (!draftEnabled) {
+    return <Navigate to="/provider/home" replace />;
+  }
+
   useEffect(() => {
-    const safeParse = (key, fallback) => {
-      try {
-        const raw = localStorage.getItem(key);
-        return raw ? JSON.parse(raw) : fallback;
-      } catch {
-        return fallback;
-      }
-    };
     setProviderData(getObject('providerData', {}));
-    setMachineData(safeParse('machineData', {}));
-    const ops = safeParse('operatorsData', []);
-    const imgs = safeParse('machinePhotos', []);
+    setMachineData(getProviderDraftObject('machineData', {}));
+    const ops = getProviderDraftArray('operatorsData', []);
+    const imgs = getProviderDraftArray('machinePhotos', []);
     setOperators(Array.isArray(ops) ? ops : []);
     setPhotos(Array.isArray(imgs) ? imgs : []);
   }, []);

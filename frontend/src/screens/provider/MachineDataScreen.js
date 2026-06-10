@@ -8,7 +8,7 @@ import ComunaAutocomplete from '../../components/ComunaAutocomplete';
 import { useAuth } from '../../context/authHooks';
 import { createMachineInApi, updateMachine, updateMachineInApi, getMachineById, getMachines } from '../../utils/providerMachines';
 import { getMachineryCapacityOptions, getProviderSpecLabel } from '../../utils/machineryNames';
-import { getArray, getObject } from '../../utils/safeStorage';
+import { getObject } from '../../utils/safeStorage';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
 import { validateCelularChile } from '../../utils/chileanValidation';
 import { getUserAuthState } from '../../utils/userAuthState';
@@ -28,6 +28,11 @@ import {
   LIVE_LOCATION_MODE,
   MACHINE_LOCATION_MODE,
 } from '../../utils/transportZones';
+import {
+  getProviderDraftArray,
+  getProviderDraftObject,
+  useProviderOnboardingDraftCleanup,
+} from '../../utils/providerOnboardingDraftState';
 
 const MACHINERY_TYPES = [
   { id: 'retroexcavadora', name: 'Retroexcavadora' },
@@ -161,7 +166,7 @@ function buildMachineForm(isEditMode, editMachine) {
       telematicsProvider: editMachine.telematicsProvider || '',
     };
   }
-  const saved = getObject('machineData', {});
+  const saved = getProviderDraftObject('machineData', {});
   if (saved.machineryType) {
     return {
       ...EMPTY_MACHINE_FORM,
@@ -863,6 +868,7 @@ function MachineDataScreen() {
   const canManageMachines = providerRole === 'super_master' || can('canManageMachines') || can('can_manage_machines');
   const blockedMaster = providerRole === 'master' && !canManageMachines;
   const editMachine = location.state?.machine ?? (id ? getMachineById(id) : null);
+  useProviderOnboardingDraftCleanup();
   const [form, setForm] = useState(() => buildMachineForm(isEditMode, editMachine));
 
   const [mfStep, setMfStep] = useState(1);
@@ -870,7 +876,7 @@ function MachineDataScreen() {
   const [transportSameComunaWizard, setTransportSameComunaWizard] = useState('');
   const [transportSameRegionWizard, setTransportSameRegionWizard] = useState('');
   const [transportOtherRegionWizard, setTransportOtherRegionWizard] = useState('');
-  const [mfPhotos, setMfPhotos] = useState(() => getArray('machinePhotos', []));
+  const [mfPhotos, setMfPhotos] = useState(() => getProviderDraftArray('machinePhotos', []));
   const [showMachineFirstFieldErrors, setShowMachineFirstFieldErrors] = useState(false);
   const machineryTypeSelectRef = useRef(null);
   const priceBaseInputRef = useRef(null);

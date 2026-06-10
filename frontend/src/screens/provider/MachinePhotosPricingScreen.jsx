@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import { useToast } from '../../components/Toast';
-import { getArray, getObject } from '../../utils/safeStorage';
 import { getProviderBackRoute } from '../../utils/bookingFlow';
 import { getMachineryId, MACHINERY_NAMES as MACHINE_NAMES } from '../../utils/machineryNames';
 import {
@@ -19,6 +18,11 @@ import {
 } from '../../utils/pricing';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
 import { persistProviderOnboardingDraft } from '../../utils/providerOnboardingDraft';
+import {
+  getProviderDraftArray,
+  getProviderDraftObject,
+  useProviderOnboardingDraftCleanup,
+} from '../../utils/providerOnboardingDraftState';
 
 /**
  * Onboarding proveedor: fotos (opcional) + tarifas en una sola vista.
@@ -96,9 +100,10 @@ function MachinePhotosPricingScreen() {
   const prevMachineTypeRef = useRef(null);
   const fileInputsRef = useRef({});
   const photosRef = useRef([]);
+  useProviderOnboardingDraftCleanup();
 
   const [photos, setPhotos] = useState(() => {
-    const raw = getArray('machinePhotos', []);
+    const raw = getProviderDraftArray('machinePhotos', []);
     if (!Array.isArray(raw) || raw.length === 0) return [];
     const normalized = raw
       .map((p, idx) => {
@@ -128,13 +133,13 @@ function MachinePhotosPricingScreen() {
 
   const hasFrontalPhoto = Boolean(getPhotoByLabel('frontal'));
   const [priceBase, setPriceBase] = useState(() => {
-    const savedPricing = getObject('machinePricing', {});
+    const savedPricing = getProviderDraftObject('machinePricing', {});
     return savedPricing.priceBase != null
       ? String(savedPricing.priceBase).replace(/\D/g, '').slice(0, 9)
       : '';
   });
   const [transportSameComuna, setTransportSameComuna] = useState(() => {
-    const savedPricing = getObject('machinePricing', {});
+    const savedPricing = getProviderDraftObject('machinePricing', {});
     return savedPricing.transportSameComuna != null
       ? String(savedPricing.transportSameComuna).replace(/\D/g, '').slice(0, 9)
       : savedPricing.transportCost != null
@@ -142,7 +147,7 @@ function MachinePhotosPricingScreen() {
         : '';
   });
   const [transportSameRegion, setTransportSameRegion] = useState(() => {
-    const savedPricing = getObject('machinePricing', {});
+    const savedPricing = getProviderDraftObject('machinePricing', {});
     return savedPricing.transportSameRegion != null
       ? String(savedPricing.transportSameRegion).replace(/\D/g, '').slice(0, 9)
       : savedPricing.transportCost != null
@@ -150,7 +155,7 @@ function MachinePhotosPricingScreen() {
         : '';
   });
   const [transportOtherRegion, setTransportOtherRegion] = useState(() => {
-    const savedPricing = getObject('machinePricing', {});
+    const savedPricing = getProviderDraftObject('machinePricing', {});
     return savedPricing.transportOtherRegion != null
       ? String(savedPricing.transportOtherRegion).replace(/\D/g, '').slice(0, 9)
       : savedPricing.transportSameRegion != null
@@ -162,7 +167,7 @@ function MachinePhotosPricingScreen() {
   const [error, setError] = useState('');
   const [showMultiplierInfo, setShowMultiplierInfo] = useState(false);
 
-  const machineDataSnapshot = getObject('machineData', {});
+  const machineDataSnapshot = getProviderDraftObject('machineData', {});
   const rawMachinery =
     machineDataSnapshot.machineryType || machineDataSnapshot.type || 'retroexcavadora';
   const machineType =
