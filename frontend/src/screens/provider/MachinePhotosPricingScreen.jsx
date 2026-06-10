@@ -431,10 +431,40 @@ function MachinePhotosPricingScreen() {
   };
 
   const transportRow = (index) => ({
-    paddingTop: index === 0 ? 0 : 12,
-    marginTop: index === 0 ? 0 : 12,
-    borderTop: index === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
+    marginTop: index === 0 ? 0 : 10,
+    padding: 12,
+    borderRadius: 12,
+    border: '1px solid rgba(255,255,255,0.06)',
+    background: 'rgba(255,255,255,0.02)',
   });
+
+  const transportLabelRow = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  };
+
+  const transportBadge = {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 999,
+    background: 'rgba(236,104,25,0.14)',
+    border: '1px solid rgba(236,104,25,0.28)',
+    color: '#EC6819',
+    fontSize: 12,
+    fontWeight: 700,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: '0 0 auto',
+  };
+
+  const transportFieldLabel = {
+    ...fieldLabel,
+    marginBottom: 0,
+    lineHeight: 1.25,
+  };
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
@@ -762,9 +792,12 @@ function MachinePhotosPricingScreen() {
                 },
                 ].map((field, index) => (
                   <div key={field.key} style={transportRow(index)}>
-                    <label style={fieldLabel}>
-                      {field.label}
-                    </label>
+                    <div style={transportLabelRow}>
+                      <span style={transportBadge}>{index + 1}</span>
+                      <label style={transportFieldLabel}>
+                        {field.label}
+                      </label>
+                    </div>
                     <div style={{ position: 'relative' }}>
                       <span
                         style={{
