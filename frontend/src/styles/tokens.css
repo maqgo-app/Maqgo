@@ -105,7 +105,7 @@
 /* Desktop: interior “caja negra” — menos gris que #141414; el marco + sombra leen el volumen */
 @media (min-width: 768px) {
   :root {
-    --maqgo-bg: #0c0c0c;
+    --maqgo-bg: #111111;
     /* Fondo más oscuro: +luminosidad mínima en secundario/muted y placeholders (pantallas con poco brillo) */
     --maqgo-text-secondary: #e8e8e8;
     --maqgo-text-muted: rgba(255, 255, 255, 0.7);
