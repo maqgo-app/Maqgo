@@ -639,16 +639,6 @@ function MachinePhotosPricingScreen() {
             id="seccion-tarifas"
           >
             <h2 style={sectionTitle}>{needsTransport ? 'Define tus tarifas' : 'Define tu tarifa'}</h2>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.4 }}>
-              {needsTransport
-                ? (isPerHour
-                    ? 'Define tu tarifa por hora neto y el traslado.'
-                    : 'Define tu tarifa por servicio neto y el traslado.')
-                : (isPerHour
-                    ? 'Define tu tarifa por hora neto.'
-                    : 'Define tu tarifa por servicio neto.')}
-            </p>
-
             <div style={pricingModule}>
               <p style={moduleTitle}>{isPerHour ? 'Tarifa por hora' : 'Tarifa por servicio'}</p>
               <label style={fieldLabel}>
