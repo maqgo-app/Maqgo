@@ -306,14 +306,15 @@ function MyMachinesScreen() {
           <button
             onClick={handleAddMachine}
             style={{
-              background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.18)',
+              background: '#EC6819',
+              border: 'none',
               borderRadius: 8,
               padding: '10px 16px',
-              color: 'rgba(255,255,255,0.92)',
+              color: '#fff',
               fontSize: 13,
               fontWeight: 600,
               cursor: 'pointer',
+              boxShadow: '0 4px 0 0 #9F3E00',
             }}
           >
             Agregar máquina
