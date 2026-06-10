@@ -16,14 +16,7 @@ function ServiceChatScreen() {
   const role = localStorage.getItem('userRole') || 'client';
   const userType = useMemo(() => normalizeChatSenderType(role), [role]);
 
-  const otherRaw = searchParams.get('other') || 'Operador';
-  let decodedOtherName = 'Operador';
-  try {
-    decodedOtherName = decodeURIComponent(otherRaw);
-  } catch {
-    decodedOtherName = otherRaw;
-  }
-  const otherName = userType === 'client' ? decodedOtherName : 'Cliente MAQGO';
+  const otherName = userType === 'client' ? 'Equipo MAQGO' : 'Cliente MAQGO';
 
   if (!serviceId) {
     navigate(-1);

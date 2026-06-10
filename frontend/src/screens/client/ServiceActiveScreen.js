@@ -7,7 +7,6 @@ import { getMachineryDisplayName } from '../../utils/machineryNames';
 import BACKEND_URL from '../../utils/api';
 import { getObjectFirst } from '../../utils/safeStorage';
 import { getClientProviderDisplayName } from '../../utils/privacy';
-import { getOperatorDisplayNameForSite, getOperatorRutForSite } from '../../utils/providerDisplay';
 import OpenServiceChatButton from '../../components/OpenServiceChatButton';
 
 /**
@@ -112,9 +111,6 @@ function ServiceActiveScreen() {
           operator_rut: service.operatorRut ?? service.operator_rut ?? savedProvider.operator_rut,
         }
       : savedProvider;
-  const operatorSiteName = getOperatorDisplayNameForSite(mergedForSite);
-  const operatorSiteRut = getOperatorRutForSite(mergedForSite);
-
   return (
     <div className="maqgo-app maqgo-client-funnel">
       <div className="maqgo-screen">
@@ -181,13 +177,13 @@ function ServiceActiveScreen() {
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
             <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>Operador</span>
             <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, textAlign: 'right', maxWidth: '62%' }}>
-              {operatorSiteName}
+              Equipo MAQGO
             </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>RUT</span>
+            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>Contacto</span>
             <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
-              {operatorSiteRut || 'Por confirmar'}
+              Chat interno MAQGO
             </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -200,7 +196,7 @@ function ServiceActiveScreen() {
 
         <OpenServiceChatButton
           serviceId={serviceId || service?.id}
-          otherName={operatorSiteName}
+          otherName="Equipo MAQGO"
           label="Abrir chat"
           style={{ width: '100%', marginTop: 16, background: '#2A2A2A' }}
         />

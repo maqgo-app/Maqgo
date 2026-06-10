@@ -10,7 +10,6 @@ import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { CON_FACTURA_FACTOR, getClientBreakdown } from '../../utils/pricing';
 import { getObject, getObjectFirst } from '../../utils/safeStorage';
-import { getOperatorDisplayNameForSite, getOperatorRutForSite } from '../../utils/providerDisplay';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 
 /**
@@ -315,13 +314,13 @@ function ServiceFinishedScreen() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Operador</span>
               <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, textAlign: 'right', maxWidth: '62%' }}>
-                {getOperatorDisplayNameForSite(serviceData.provider)}
+                Equipo MAQGO
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>RUT operador</span>
+              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Coordinación</span>
               <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>
-                {getOperatorRutForSite(serviceData.provider) || 'Por confirmar'}
+                Chat interno MAQGO
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -485,7 +484,7 @@ function ServiceFinishedScreen() {
             </div>
             <div>
               <p style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: 0 }}>
-                {getOperatorDisplayNameForSite(serviceData.provider)}
+                Equipo MAQGO
               </p>
               <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0 }}>
                 {serviceData.machinery}

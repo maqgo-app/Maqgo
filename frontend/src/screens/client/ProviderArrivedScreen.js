@@ -8,11 +8,6 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { MACHINERY_PER_TRIP } from '../../utils/pricing';
 import { getObjectFirst } from '../../utils/safeStorage';
-import {
-  getProviderLicensePlate,
-  getOperatorDisplayNameForSite,
-  getOperatorRutForSite
-} from '../../utils/providerDisplay';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 
 // Constantes de tiempo (en segundos)
@@ -336,16 +331,15 @@ function ProviderArrivedScreen() {
               letterSpacing: 1,
               marginBottom: 4
             }}>
-              Busca esta patente
+              Estado de llegada
             </div>
             <div style={{ 
               color: '#fff', 
-              fontSize: 28, 
+              fontSize: 20, 
               fontWeight: 700,
-              letterSpacing: 2,
-              fontFamily: 'monospace'
+              letterSpacing: 0.5,
             }}>
-              {getProviderLicensePlate(provider) || 'Por confirmar'}
+              Equipo MAQGO en acceso
             </div>
           </div>
 
@@ -387,10 +381,10 @@ function ProviderArrivedScreen() {
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
-                {getOperatorDisplayNameForSite(provider)}
+                Equipo MAQGO en acceso
               </p>
               <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '4px 0 0' }}>
-                Ingreso a obra — verifica nombre y RUT con quien recibe en faena.
+                La coordinación de ingreso se realiza dentro del chat de MAQGO.
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -400,18 +394,13 @@ function ProviderArrivedScreen() {
               <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{(provider.rating ?? 4.8).toFixed(1)}</span>
             </div>
           </div>
-          {/* RUT del operador */}
           <div style={{
             background: '#2D2D2D',
             borderRadius: 8,
             padding: '8px 12px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
           }}>
-            <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>RUT operador</span>
-            <span style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>
-              {getOperatorRutForSite(provider) || 'Por confirmar'}
+            <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
+              Recibirás actualizaciones del ingreso por el chat interno de MAQGO.
             </span>
           </div>
         </div>
@@ -475,7 +464,7 @@ function ProviderArrivedScreen() {
         serviceId={serviceId}
         userType="client"
         userName={localStorage.getItem('userName') || 'Cliente'}
-        otherName={getOperatorDisplayNameForSite(provider)}
+        otherName="Equipo MAQGO"
       />
     </div>
   );

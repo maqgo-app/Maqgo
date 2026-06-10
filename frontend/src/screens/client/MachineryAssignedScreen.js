@@ -21,11 +21,6 @@ import BACKEND_URL from '../../utils/api';
  */
 
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
-import {
-  getProviderLicensePlate,
-  getOperatorDisplayNameForSite,
-  getOperatorRutForSite
-} from '../../utils/providerDisplay';
 import { getMinutesAfterEtaToAllowCancel } from '../../utils/cancellationPolicy';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 
@@ -64,9 +59,6 @@ function MachineryAssignedScreen() {
     }
     return selected;
   });
-  const licensePlateLabel = getProviderLicensePlate(provider) || 'Por confirmar';
-  const operatorFullName = getOperatorDisplayNameForSite(provider);
-  const operatorRut = getOperatorRutForSite(provider);
   const [machinery] = useState(localStorage.getItem('selectedMachinery') || 'retroexcavadora');
   const [location] = useState(() => getBookingLocationLineOrEmpty());
 
@@ -623,7 +615,7 @@ function MachineryAssignedScreen() {
             Operador asignado
           </div>
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, margin: '0 0 12px', lineHeight: 1.35 }}>
-            Nombre y RUT para ingreso a obra o control de acceso.
+            La coordinación del servicio se realiza por el chat interno de MAQGO.
           </p>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
@@ -643,18 +635,15 @@ function MachineryAssignedScreen() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ color: '#fff', fontSize: 16, fontWeight: 600 }}>
-                {operatorFullName}
+                Equipo MAQGO asignado
               </div>
               <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, marginTop: 4 }}>
-                RUT:{' '}
-                <span style={{ fontWeight: 600, color: '#fff' }}>
-                  {operatorRut || 'Por confirmar'}
-                </span>
+                Recibirás avisos y cambios por el chat de MAQGO.
               </div>
             </div>
           </div>
 
-          {/* Patente */}
+          {/* Estado operativo */}
           <div style={{
             background: '#EC6819',
             borderRadius: 8,
@@ -664,10 +653,10 @@ function MachineryAssignedScreen() {
             alignItems: 'center'
           }}>
             <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, textTransform: 'uppercase' }}>
-              Patente
+              Estado
             </span>
-            <span style={{ color: '#fff', fontSize: 18, fontWeight: 700, fontFamily: 'monospace', letterSpacing: 2 }}>
-              {licensePlateLabel}
+            <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>
+              Operador confirmado
             </span>
           </div>
         </div>
