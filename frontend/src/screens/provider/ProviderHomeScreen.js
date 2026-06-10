@@ -135,6 +135,7 @@ function ProviderHomeScreen() {
   const activationAllComplete = activationItems.length === 0 ? true : activationCompletedCount === activationItems.length;
   const activationPending = onboardingCompleted && !activationAllComplete;
   const canReceiveRequests = onboardingCompleted && activationAllComplete;
+  const showMachineSyncFailedBanner = machineSyncFailed && !machineComplete;
   /** Solo falta banco: un único CTA principal (FASE 3). */
   const bankOnlyMissing =
     onboardingCompleted &&
@@ -586,7 +587,7 @@ function ProviderHomeScreen() {
           </div>
         ) : null}
 
-        {machineSyncFailed ? (
+        {showMachineSyncFailedBanner ? (
           <div
             role="status"
             style={{
