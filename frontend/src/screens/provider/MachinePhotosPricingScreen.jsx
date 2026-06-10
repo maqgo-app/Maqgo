@@ -215,6 +215,31 @@ function MachinePhotosPricingScreen() {
   const formatPrice = (price) =>
     new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(price);
 
+  const ctaHint = (() => {
+    if (hasFrontalPhoto === false) return 'Sube la foto frontal para continuar.';
+    if (!priceBaseNum || priceBaseNum < minPrice) {
+      return `Completa una tarifa base desde ${formatPrice(minPrice)}${isPerHour ? '/hora' : ''}.`;
+    }
+    if (priceBaseNum > maxPrice) {
+      return `La tarifa base no puede superar ${formatPrice(maxPrice)}${isPerHour ? '/hora' : ''}.`;
+    }
+    if (needsTransport) {
+      if (!sameComunaNum || sameComunaNum < MIN_TRANSPORT) {
+        return `Completa "Dentro de la misma comuna" desde ${formatPrice(MIN_TRANSPORT)} netos.`;
+      }
+      if (!sameRegionNum || sameRegionNum < MIN_TRANSPORT) {
+        return `Completa "Entre comunas de la misma región" desde ${formatPrice(MIN_TRANSPORT)} netos.`;
+      }
+      if (!otherRegionNum || otherRegionNum < MIN_TRANSPORT) {
+        return `Completa "A región colindante (máx. 150 km)" desde ${formatPrice(MIN_TRANSPORT)} netos.`;
+      }
+      if (!transportOrderValid) {
+        return 'Ordena los tramos: misma región no puede ser menor que misma comuna, y región colindante no puede ser menor que misma región.';
+      }
+    }
+    return '';
+  })();
+
   const isQuotaError = (e) => {
     const err = e || {};
     const name = String(err.name || '');
@@ -1022,6 +1047,20 @@ function MachinePhotosPricingScreen() {
       </div>
 
       <div className="maqgo-fixed-bottom-bar">
+        {!ctaReady ? (
+          <p
+            style={{
+              margin: '0 0 10px',
+              color: 'rgba(255,255,255,0.72)',
+              fontSize: 12,
+              lineHeight: 1.4,
+              textAlign: 'center',
+              padding: '0 6px',
+            }}
+          >
+            {ctaHint}
+          </p>
+        ) : null}
         <button
           type="button"
           className="maqgo-btn-primary"
