@@ -17,6 +17,7 @@ from db_config import get_db_name, get_mongo_url
 from pricing.constants import (
     REFERENCE_PRICES_PER_HOUR,
     REFERENCE_PRICES_PER_SERVICE,
+    REFERENCE_TRANSPORT,
 )
 
 from services.payment_auto_healer import run_auto_heal
@@ -35,6 +36,25 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
 
 CONFIG_KEY = "reference_prices"
+
+CAPACITY_REFERENCE_CONFIG = {
+    "retroexcavadora": {"options": [0.4, 0.5, 0.6], "anchor": 0.5},
+    "excavadora": {"options": [20, 25, 30, 35], "anchor": 25},
+    "bulldozer": {"options": [180, 200, 220, 250], "anchor": 200},
+    "motoniveladora": {"options": [3, 3.5, 4], "anchor": 3.5},
+    "grua": {"options": [25, 30, 35, 40], "anchor": 30},
+    "compactadora": {"options": [5, 6, 8, 10], "anchor": 6},
+    "minicargador": {"options": [0.4, 0.5], "anchor": 0.4},
+    "camion_pluma": {"options": [8, 10, 12, 15, 18], "anchor": 12},
+    "camion_aljibe": {"options": [8000, 10000, 12000, 15000], "anchor": 10000},
+    "camion_tolva": {"options": [12, 14, 16, 18, 20], "anchor": 16},
+}
+
+TRANSPORT_REFERENCE_DEFAULT = {
+    "min": 15000,
+    "max": int(REFERENCE_TRANSPORT * 2),
+    "default": int(REFERENCE_TRANSPORT),
+}
 
 
 def _cron_verify(secret: Optional[str]) -> None:
@@ -136,7 +156,39 @@ def _get_defaults():
     return {
         "per_hour": copy.deepcopy(REFERENCE_PRICES_PER_HOUR),
         "per_service": copy.deepcopy(REFERENCE_PRICES_PER_SERVICE),
+        "by_capacity": _build_capacity_reference_defaults(),
+        "transport": copy.deepcopy(TRANSPORT_REFERENCE_DEFAULT),
     }
+
+
+def _round_reference_price(value: float) -> int:
+    value = float(value or 0)
+    if value >= 100000:
+        step = 5000
+    elif value >= 50000:
+        step = 2500
+    else:
+        step = 1000
+    return int(round(value / step) * step)
+
+
+def _build_capacity_reference_defaults() -> dict:
+    result = {}
+    for machine_id, config in CAPACITY_REFERENCE_CONFIG.items():
+        base = REFERENCE_PRICES_PER_HOUR.get(machine_id) or REFERENCE_PRICES_PER_SERVICE.get(machine_id)
+        if not base:
+            continue
+        anchor = float(config.get("anchor") or 1)
+        variants = {}
+        for option in config.get("options", []):
+            ratio = float(option) / anchor if anchor else 1.0
+            variants[str(option)] = {
+                "min": _round_reference_price(base["min"] * ratio),
+                "max": _round_reference_price(base["max"] * ratio),
+                "default": _round_reference_price(base["default"] * ratio),
+            }
+        result[machine_id] = variants
+    return result
 
 
 async def _get_stored():
@@ -147,6 +199,8 @@ async def _get_stored():
             return {
                 "per_hour": doc.get("per_hour", {}),
                 "per_service": doc.get("per_service", {}),
+                "by_capacity": doc.get("by_capacity", {}),
+                "transport": doc.get("transport", {}),
             }
     except Exception:
         pass
@@ -155,13 +209,35 @@ async def _get_stored():
 
 def _merge(defaults: dict, stored: dict) -> dict:
     """Fusiona defaults con stored (stored tiene prioridad)"""
-    result = {"per_hour": {}, "per_service": {}}
+    result = {"per_hour": {}, "per_service": {}, "by_capacity": {}, "transport": {}}
     for key in ["per_hour", "per_service"]:
         for machine_id, vals in defaults[key].items():
             merged = dict(vals)
             if key in stored and machine_id in stored[key]:
                 merged.update(stored[key][machine_id])
             result[key][machine_id] = merged
+    default_capacity = defaults.get("by_capacity", {})
+    stored_capacity = (stored or {}).get("by_capacity", {})
+    for machine_id, variants in default_capacity.items():
+        merged_variants = {}
+        machine_stored = stored_capacity.get(machine_id, {})
+        for variant_key, vals in variants.items():
+            merged = dict(vals)
+            if isinstance(machine_stored.get(variant_key), dict):
+                merged.update(machine_stored[variant_key])
+            merged_variants[variant_key] = merged
+        for variant_key, vals in machine_stored.items():
+            if variant_key not in merged_variants and isinstance(vals, dict):
+                merged_variants[variant_key] = dict(vals)
+        result["by_capacity"][machine_id] = merged_variants
+    for machine_id, variants in stored_capacity.items():
+        if machine_id not in result["by_capacity"] and isinstance(variants, dict):
+            result["by_capacity"][machine_id] = {
+                variant_key: dict(vals) for variant_key, vals in variants.items() if isinstance(vals, dict)
+            }
+    merged_transport = dict(defaults.get("transport", {}))
+    merged_transport.update((stored or {}).get("transport", {}) or {})
+    result["transport"] = merged_transport
     return result
 
 
@@ -181,6 +257,8 @@ async def get_reference_prices(_: dict = Depends(get_current_admin_strict)):
 class UpdateReferencePricesRequest(BaseModel):
     per_hour: Optional[Dict[str, Dict[str, int]]] = None
     per_service: Optional[Dict[str, Dict[str, int]]] = None
+    by_capacity: Optional[Dict[str, Dict[str, Dict[str, int]]]] = None
+    transport: Optional[Dict[str, int]] = None
 
 
 @router.get("/users")
@@ -468,9 +546,26 @@ async def update_reference_prices(request: UpdateReferencePricesRequest, _: dict
                 if machine_id in current["per_service"]:
                     current["per_service"][machine_id].update(vals)
 
+        if request.by_capacity:
+            for machine_id, variants in request.by_capacity.items():
+                current["by_capacity"].setdefault(machine_id, {})
+                for variant_key, vals in variants.items():
+                    current["by_capacity"].setdefault(machine_id, {}).setdefault(variant_key, {})
+                    current["by_capacity"][machine_id][variant_key].update(vals)
+
+        if request.transport:
+            current["transport"].update(request.transport)
+
         await db.config.update_one(
             {"_id": CONFIG_KEY},
-            {"$set": {"per_hour": current["per_hour"], "per_service": current["per_service"]}},
+            {
+                "$set": {
+                    "per_hour": current["per_hour"],
+                    "per_service": current["per_service"],
+                    "by_capacity": current["by_capacity"],
+                    "transport": current["transport"],
+                }
+            },
             upsert=True,
         )
         return {"ok": True, "message": "Precios actualizados"}

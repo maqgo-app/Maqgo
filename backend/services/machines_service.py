@@ -41,6 +41,27 @@ CAPACITY_FIELDS = {
     "roller_ton",
 }
 
+TRANSPORT_FIELDS = {
+    "transportCost",
+    "transportSameComuna",
+    "transportSameRegion",
+    "transportOtherRegion",
+}
+
+ORIGIN_NUMBER_FIELDS = {
+    "originLat",
+    "originLng",
+}
+
+ORIGIN_TEXT_FIELDS = {
+    "originAddress",
+    "originComuna",
+    "originRegion",
+    "originMode",
+    "liveLocationMode",
+    "telematicsProvider",
+}
+
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -131,7 +152,12 @@ def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, exis
         else:
             doc["locationSource"] = "depot"
 
-    for key in ("pricePerHour", "pricePerService", "transportCost"):
+    for key in ("pricePerHour", "pricePerService"):
+        raw = payload[key] if key in payload else existing.get(key)
+        n = _to_number_or_none(raw)
+        doc[key] = int(n) if n is not None and n.is_integer() else n
+
+    for key in TRANSPORT_FIELDS:
         raw = payload[key] if key in payload else existing.get(key)
         n = _to_number_or_none(raw)
         doc[key] = int(n) if n is not None and n.is_integer() else n
@@ -140,6 +166,19 @@ def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, exis
         if key in payload:
             n = _to_number_or_none(payload.get(key))
             doc[key] = n if n is not None else payload.get(key)
+        elif key in existing:
+            doc[key] = existing.get(key)
+
+    for key in ORIGIN_NUMBER_FIELDS:
+        if key in payload:
+            n = _to_number_or_none(payload.get(key))
+            doc[key] = n
+        elif key in existing:
+            doc[key] = existing.get(key)
+
+    for key in ORIGIN_TEXT_FIELDS:
+        if key in payload:
+            doc[key] = _clean_str(payload.get(key))
         elif key in existing:
             doc[key] = existing.get(key)
 
@@ -180,6 +219,15 @@ def machine_to_legacy_machine_data(machine: dict) -> dict:
         if machine.get("locationSource") is not None:
             legacy["locationSource"] = machine.get("locationSource")
     for key in CAPACITY_FIELDS:
+        if key in machine:
+            legacy[key] = machine.get(key)
+    for key in TRANSPORT_FIELDS:
+        if key in machine:
+            legacy[key] = machine.get(key)
+    for key in ORIGIN_NUMBER_FIELDS:
+        if key in machine:
+            legacy[key] = machine.get(key)
+    for key in ORIGIN_TEXT_FIELDS:
         if key in machine:
             legacy[key] = machine.get(key)
     return {k: v for k, v in legacy.items() if v is not None and v != ""}

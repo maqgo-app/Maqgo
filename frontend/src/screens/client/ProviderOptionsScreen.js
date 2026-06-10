@@ -27,6 +27,7 @@ import {
   getTruckPricingHoursFromUrgency,
   getTruckUrgencySummaryLine,
 } from '../../utils/clientBookingTruck';
+import { getMachineTransportQuote } from '../../utils/transportZones';
 
 /** Horas máximas: cierre − llegada − almuerzo + elasticidad (puro, sin estado). */
 function calculateMaxHours(closingTime, etaMinutes) {
@@ -136,18 +137,29 @@ function ProviderOptionsScreen() {
 
   const sanitizeProviders = useCallback((items) => {
     if (!Array.isArray(items)) return [];
+    const serviceComuna = String(localStorage.getItem('serviceComuna') || '').trim();
+    const hasTransport = !MACHINERY_NO_TRANSPORT.includes(selectedMachinery);
     return items
       .filter((p) => p && typeof p === 'object')
-      .map((p, idx) => ({
-        ...p,
-        id: p.id || p._id || `provider-${idx + 1}`,
-        eta_minutes: Number.isFinite(Number(p.eta_minutes)) ? Number(p.eta_minutes) : 40,
-        distance: Number.isFinite(Number(p.distance)) ? Number(p.distance) : 0,
-        rating: Number.isFinite(Number(p.rating)) ? Number(p.rating) : 4.5,
-        transport_fee: Number.isFinite(Number(p.transport_fee)) ? Number(p.transport_fee) : 0,
-        price_per_hour: Number.isFinite(Number(p.price_per_hour)) ? Number(p.price_per_hour) : 0,
-      }));
-  }, []);
+      .map((p, idx) => {
+        const transportQuote = getMachineTransportQuote({
+          machineData: p.machineData || p,
+          serviceComuna,
+        });
+        return {
+          ...p,
+          id: p.id || p._id || `provider-${idx + 1}`,
+          eta_minutes: Number.isFinite(Number(p.eta_minutes)) ? Number(p.eta_minutes) : 40,
+          distance: Number.isFinite(Number(p.distance)) ? Number(p.distance) : 0,
+          rating: Number.isFinite(Number(p.rating)) ? Number(p.rating) : 4.5,
+          transport_fee: hasTransport
+            ? transportQuote.amount || (Number.isFinite(Number(p.transport_fee)) ? Number(p.transport_fee) : 0)
+            : 0,
+          transport_tier_label: transportQuote.label || '',
+          price_per_hour: Number.isFinite(Number(p.price_per_hour)) ? Number(p.price_per_hour) : 0,
+        };
+      });
+  }, [selectedMachinery]);
 
   const needsTransport = useCallback(() => !MACHINERY_NO_TRANSPORT.includes(selectedMachinery), [selectedMachinery]);
 

@@ -121,10 +121,30 @@ function MachinePhotosPricingScreen() {
       ? String(savedPricing.priceBase).replace(/\D/g, '').slice(0, 9)
       : '';
   });
-  const [transportCost, setTransportCost] = useState(() => {
+  const [transportSameComuna, setTransportSameComuna] = useState(() => {
     const savedPricing = getObject('machinePricing', {});
-    return savedPricing.transportCost != null
-      ? String(savedPricing.transportCost).replace(/\D/g, '').slice(0, 9)
+    return savedPricing.transportSameComuna != null
+      ? String(savedPricing.transportSameComuna).replace(/\D/g, '').slice(0, 9)
+      : savedPricing.transportCost != null
+        ? String(savedPricing.transportCost).replace(/\D/g, '').slice(0, 9)
+        : '';
+  });
+  const [transportSameRegion, setTransportSameRegion] = useState(() => {
+    const savedPricing = getObject('machinePricing', {});
+    return savedPricing.transportSameRegion != null
+      ? String(savedPricing.transportSameRegion).replace(/\D/g, '').slice(0, 9)
+      : savedPricing.transportCost != null
+        ? String(savedPricing.transportCost).replace(/\D/g, '').slice(0, 9)
+        : '';
+  });
+  const [transportOtherRegion, setTransportOtherRegion] = useState(() => {
+    const savedPricing = getObject('machinePricing', {});
+    return savedPricing.transportOtherRegion != null
+      ? String(savedPricing.transportOtherRegion).replace(/\D/g, '').slice(0, 9)
+      : savedPricing.transportSameRegion != null
+        ? String(savedPricing.transportSameRegion).replace(/\D/g, '').slice(0, 9)
+        : savedPricing.transportCost != null
+          ? String(savedPricing.transportCost).replace(/\D/g, '').slice(0, 9)
       : '';
   });
   const [error, setError] = useState('');
@@ -145,7 +165,9 @@ function MachinePhotosPricingScreen() {
   const maxTransport = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
   const minPrice = isPerHour ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE;
   const priceBaseNum = parseInt(priceBase, 10) || 0;
-  const transportNum = parseInt(transportCost, 10) || 0;
+  const sameComunaNum = parseInt(transportSameComuna, 10) || 0;
+  const sameRegionNum = parseInt(transportSameRegion, 10) || 0;
+  const otherRegionNum = parseInt(transportOtherRegion, 10) || 0;
 
   useEffect(() => {
     if (prevMachineTypeRef.current === null) {
@@ -154,16 +176,25 @@ function MachinePhotosPricingScreen() {
     }
     if (prevMachineTypeRef.current !== machineType) {
       setPriceBase('');
-      setTransportCost('');
+      setTransportSameComuna('');
+      setTransportSameRegion('');
+      setTransportOtherRegion('');
       toast.info('Se actualizaron las tarifas sugeridas según el tipo de máquina');
       prevMachineTypeRef.current = machineType;
     }
   }, [machineType, toast]);
 
   const priceAlert = priceBaseNum >= minPrice ? getPriceAlert(priceBaseNum, refPrice) : null;
-  const transportAlert = needsTransport && transportNum >= MIN_TRANSPORT ? getTransportAlert(transportNum) : null;
+  const sameComunaAlert = needsTransport && sameComunaNum >= MIN_TRANSPORT ? getTransportAlert(sameComunaNum) : null;
+  const sameRegionAlert = needsTransport && sameRegionNum >= MIN_TRANSPORT ? getTransportAlert(sameRegionNum) : null;
+  const otherRegionAlert = needsTransport && otherRegionNum >= MIN_TRANSPORT ? getTransportAlert(otherRegionNum) : null;
+  const transportOrderValid = !needsTransport || (sameRegionNum >= sameComunaNum && otherRegionNum >= sameRegionNum);
   const canContinue = needsTransport
-    ? priceBaseNum >= minPrice && transportNum >= MIN_TRANSPORT
+    ? priceBaseNum >= minPrice &&
+      sameComunaNum >= MIN_TRANSPORT &&
+      sameRegionNum >= MIN_TRANSPORT &&
+      otherRegionNum >= MIN_TRANSPORT &&
+      transportOrderValid
     : priceBaseNum >= minPrice;
   const ctaReady = Boolean(hasFrontalPhoto && canContinue);
 
@@ -314,19 +345,34 @@ function MachinePhotosPricingScreen() {
       return;
     }
     if (needsTransport) {
-      if (!transportNum || transportNum < MIN_TRANSPORT) {
-        setError(`El traslado mínimo es ${formatPrice(MIN_TRANSPORT)}`);
+      if (!sameComunaNum || sameComunaNum < MIN_TRANSPORT) {
+        setError(`El traslado mínimo para misma comuna es ${formatPrice(MIN_TRANSPORT)}.`);
         return;
       }
-      if (transportNum > maxTransport) {
+      if (!sameRegionNum || sameRegionNum < MIN_TRANSPORT) {
+        setError(`Completa el traslado para comuna distinta, misma región.`);
+        return;
+      }
+      if (!otherRegionNum || otherRegionNum < MIN_TRANSPORT) {
+        setError(`Completa el traslado para otra región.`);
+        return;
+      }
+      if (sameComunaNum > maxTransport || sameRegionNum > maxTransport || otherRegionNum > maxTransport) {
         setError(`El traslado máximo es ${formatPrice(maxTransport)}. ${PRICE_CAP_RULE_LABEL}`);
+        return;
+      }
+      if (!transportOrderValid) {
+        setError('El traslado de misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.');
         return;
       }
     }
 
     const pricing = {
       priceBase: priceBaseNum,
-      transportCost: needsTransport ? transportNum : 0,
+      transportCost: needsTransport ? sameComunaNum : 0,
+      transportSameComuna: needsTransport ? sameComunaNum : 0,
+      transportSameRegion: needsTransport ? sameRegionNum : 0,
+      transportOtherRegion: needsTransport ? otherRegionNum : 0,
       needsTransport,
       isPerHour,
       machineType,
@@ -681,91 +727,101 @@ function MachinePhotosPricingScreen() {
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 10px', lineHeight: 1.4 }}>
                 Esta maquinaria cobra costo de traslado.
               </p>
-              <label
-                style={{
-                  color: 'rgba(255,255,255,0.8)',
-                  fontSize: 14,
-                  display: 'block',
-                  marginBottom: 8,
-                  fontWeight: 500,
-                }}
-              >
-                Costo de traslado neto (sin IVA)
-              </label>
-              <div style={{ position: 'relative' }}>
-                <span
-                  style={{
-                    position: 'absolute',
-                    left: 16,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#666',
-                    fontSize: 16,
-                  }}
-                >
-                  $
-                </span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={transportCost ? (parseInt(transportCost, 10) || 0).toLocaleString('es-CL') : ''}
-                  onChange={(e) => setTransportCost(e.target.value.replace(/\D/g, ''))}
-                  placeholder={REFERENCE_TRANSPORT.toLocaleString('es-CL')}
-                  style={{
-                    width: '100%',
-                    padding: '16px 16px 16px 36px',
-                    background: '#F5EFE6',
-                    border: 'none',
-                    borderRadius: 12,
-                    fontSize: 18,
-                    fontWeight: 600,
-                    color: '#1A1A1A',
-                    boxSizing: 'border-box',
-                  }}
-                  data-testid="transport-input"
-                />
-              </div>
-              <p style={inputHintStyle}>
-                Referencia: {formatPrice(REFERENCE_TRANSPORT)}.
-              </p>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-              <button
-                type="button"
-                onClick={() => setTransportCost(String(REFERENCE_TRANSPORT))}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#90BDD3',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  padding: '2px 0',
-                }}
-              >
-                Usar valor sugerido
-              </button>
-              </div>
-              <p style={{ color: 'rgba(255,255,255,0.58)', fontSize: 13, marginTop: 6, marginLeft: 4 }}>
-                Máx: {formatPrice(maxTransport)}
-              </p>
-              {transportAlert && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    padding: 10,
-                    borderRadius: 8,
-                    minHeight: 40,
-                    background: `${transportAlert.color}20`,
-                    border: `1px solid ${transportAlert.color}60`,
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                >
-                  <p style={{ color: transportAlert.color, fontSize: 12, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>
-                    {transportAlert.msg}
-                  </p>
+              {[
+                {
+                  key: 'same-comuna',
+                  label: 'Costo de traslado dentro de la misma comuna',
+                  value: transportSameComuna,
+                  setValue: setTransportSameComuna,
+                  alert: sameComunaAlert,
+                },
+                {
+                  key: 'same-region',
+                  label: 'Costo de traslado entre comunas de la misma región',
+                  value: transportSameRegion,
+                  setValue: setTransportSameRegion,
+                  alert: sameRegionAlert,
+                },
+                {
+                  key: 'other-region',
+                  label: 'Costo de traslado a otra región',
+                  value: transportOtherRegion,
+                  setValue: setTransportOtherRegion,
+                  alert: otherRegionAlert,
+                },
+              ].map((field) => (
+                <div key={field.key} style={{ marginBottom: 16 }}>
+                  <label
+                    style={{
+                      color: 'rgba(255,255,255,0.8)',
+                      fontSize: 14,
+                      display: 'block',
+                      marginBottom: 8,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {field.label}
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: 16,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#666',
+                        fontSize: 16,
+                      }}
+                    >
+                      $
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={field.value ? (parseInt(field.value, 10) || 0).toLocaleString('es-CL') : ''}
+                      onChange={(e) => field.setValue(e.target.value.replace(/\D/g, ''))}
+                      style={{
+                        width: '100%',
+                        padding: '16px 16px 16px 36px',
+                        background: '#F5EFE6',
+                        border: 'none',
+                        borderRadius: 12,
+                        fontSize: 18,
+                        fontWeight: 600,
+                        color: '#1A1A1A',
+                        boxSizing: 'border-box',
+                      }}
+                      data-testid={`transport-input-${field.key}`}
+                    />
+                  </div>
+                  {field.alert ? (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        padding: 10,
+                        borderRadius: 8,
+                        minHeight: 40,
+                        background: `${field.alert.color}20`,
+                        border: `1px solid ${field.alert.color}60`,
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <p style={{ color: field.alert.color, fontSize: 12, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>
+                        {field.alert.msg}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
-              )}
+              ))}
+              <p style={{ color: 'rgba(255,255,255,0.58)', fontSize: 13, marginTop: -2, marginLeft: 4, lineHeight: 1.45 }}>
+                MAQGO mostrará automáticamente el valor según la comuna y región del servicio. Máx por tramo: {formatPrice(maxTransport)}.
+              </p>
+              {!transportOrderValid ? (
+                <p style={{ color: '#ffb36b', fontSize: 12, marginTop: 8, marginBottom: 0, lineHeight: 1.4 }}>
+                  Revisa el orden: misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.
+                </p>
+              ) : null}
             </div>
           )}
 

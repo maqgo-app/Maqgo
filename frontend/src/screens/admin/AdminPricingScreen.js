@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
-import { MACHINERY_NAMES as MACHINE_NAMES } from '../../utils/machineryNames';
+import {
+  MACHINERY_NAMES as MACHINE_NAMES,
+  getMachineryCapacityOptions,
+  formatMachineryCapacityChipLabel,
+} from '../../utils/machineryNames';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 
 const ADMIN_PALETTE = {
@@ -25,7 +29,7 @@ const ADMIN_THEME = {
 function AdminPricingScreen() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [prices, setPrices] = useState({ per_hour: {}, per_service: {} });
+  const [prices, setPrices] = useState({ per_hour: {}, per_service: {}, by_capacity: {}, transport: {} });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -71,11 +75,43 @@ function AdminPricingScreen() {
     }));
   };
 
+  const updateCapacityPrice = (machineId, capacityKey, field, value) => {
+    const num = parseInt(value, 10);
+    if (isNaN(num) && value !== '') return;
+    setPrices(prev => ({
+      ...prev,
+      by_capacity: {
+        ...(prev.by_capacity || {}),
+        [machineId]: {
+          ...((prev.by_capacity || {})[machineId] || {}),
+          [capacityKey]: {
+            ...(((prev.by_capacity || {})[machineId] || {})[capacityKey] || {}),
+            [field]: value === '' ? '' : num,
+          },
+        },
+      },
+    }));
+  };
+
+  const updateTransportPrice = (field, value) => {
+    const num = parseInt(value, 10);
+    if (isNaN(num) && value !== '') return;
+    setPrices(prev => ({
+      ...prev,
+      transport: {
+        ...(prev.transport || {}),
+        [field]: value === '' ? '' : num,
+      },
+    }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       const perHour = {};
       const perService = {};
+      const byCapacity = {};
+      const transport = {};
       Object.entries(prices.per_hour || {}).forEach(([k, v]) => {
         if (v && typeof v === 'object') {
           const clean = {};
@@ -94,11 +130,28 @@ function AdminPricingScreen() {
           if (Object.keys(clean).length) perService[k] = clean;
         }
       });
+      Object.entries(prices.by_capacity || {}).forEach(([machineId, variants]) => {
+        if (!variants || typeof variants !== 'object') return;
+        const cleanVariants = {};
+        Object.entries(variants).forEach(([capacityKey, vals]) => {
+          if (!vals || typeof vals !== 'object') return;
+          const clean = {};
+          if (vals.min != null && vals.min !== '') clean.min = Number(vals.min);
+          if (vals.max != null && vals.max !== '') clean.max = Number(vals.max);
+          if (vals.default != null && vals.default !== '') clean.default = Number(vals.default);
+          if (Object.keys(clean).length) cleanVariants[capacityKey] = clean;
+        });
+        if (Object.keys(cleanVariants).length) byCapacity[machineId] = cleanVariants;
+      });
+      ['min', 'max', 'default'].forEach((field) => {
+        const value = prices.transport?.[field];
+        if (value != null && value !== '') transport[field] = Number(value);
+      });
 
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reference-prices`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ per_hour: perHour, per_service: perService })
+        body: JSON.stringify({ per_hour: perHour, per_service: perService, by_capacity: byCapacity, transport })
       });
       const data = await res.json();
       if (data.ok) {
@@ -111,6 +164,25 @@ function AdminPricingScreen() {
       toast.error('Error al guardar');
     }
     setSaving(false);
+  };
+
+  const inputStyle = {
+    padding: '8px 10px',
+    background: ADMIN_THEME.panelBgSoft,
+    border: `1px solid ${ADMIN_THEME.borderStrong}`,
+    borderRadius: 6,
+    color: '#fff',
+    fontSize: 13,
+  };
+
+  const headerGridStyle = {
+    display: 'grid',
+    gap: 12,
+    padding: '12px 16px',
+    background: ADMIN_THEME.panelBgSoft,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase'
   };
 
   const PriceRow = ({ type, machineId }) => {
@@ -133,28 +205,14 @@ function AdminPricingScreen() {
           value={p.min ?? ''}
           onChange={(e) => updatePrice(type, machineId, 'min', e.target.value)}
           placeholder="Mín"
-          style={{
-            padding: '8px 10px',
-            background: ADMIN_THEME.panelBgSoft,
-            border: `1px solid ${ADMIN_THEME.borderStrong}`,
-            borderRadius: 6,
-            color: '#fff',
-            fontSize: 13
-          }}
+          style={inputStyle}
         />
         <input
           type="number"
           value={p.max ?? ''}
           onChange={(e) => updatePrice(type, machineId, 'max', e.target.value)}
           placeholder="Máx"
-          style={{
-            padding: '8px 10px',
-            background: ADMIN_THEME.panelBgSoft,
-            border: `1px solid ${ADMIN_THEME.borderStrong}`,
-            borderRadius: 6,
-            color: '#fff',
-            fontSize: 13
-          }}
+          style={inputStyle}
         />
         <input
           type="number"
@@ -162,18 +220,64 @@ function AdminPricingScreen() {
           onChange={(e) => updatePrice(type, machineId, 'default', e.target.value)}
           placeholder="Sugerido"
           style={{
-            padding: '8px 10px',
-            background: ADMIN_THEME.panelBgSoft,
-            border: `1px solid ${ADMIN_THEME.borderStrong}`,
-            borderRadius: 6,
+            ...inputStyle,
             color: ADMIN_PALETTE.brand,
-            fontSize: 13,
             fontWeight: 600
           }}
         />
       </div>
     );
   };
+
+  const CapacityRow = ({ machineId, capacityKey }) => {
+    const p = ((prices.by_capacity || {})[machineId] || {})[capacityKey] || {};
+    const numericKey = Number(capacityKey);
+    const capacityLabel = Number.isFinite(numericKey)
+      ? formatMachineryCapacityChipLabel(machineId, numericKey)
+      : capacityKey;
+    return (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 100px 100px 120px',
+          gap: 12,
+          padding: '12px 16px',
+          borderBottom: `1px solid ${ADMIN_THEME.border}`,
+          alignItems: 'center'
+        }}
+      >
+        <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{capacityLabel}</span>
+        <input
+          type="number"
+          value={p.min ?? ''}
+          onChange={(e) => updateCapacityPrice(machineId, capacityKey, 'min', e.target.value)}
+          placeholder="Mín"
+          style={inputStyle}
+        />
+        <input
+          type="number"
+          value={p.max ?? ''}
+          onChange={(e) => updateCapacityPrice(machineId, capacityKey, 'max', e.target.value)}
+          placeholder="Máx"
+          style={inputStyle}
+        />
+        <input
+          type="number"
+          value={p.default ?? ''}
+          onChange={(e) => updateCapacityPrice(machineId, capacityKey, 'default', e.target.value)}
+          placeholder="Sugerido"
+          style={{
+            ...inputStyle,
+            color: ADMIN_PALETTE.brand,
+            fontWeight: 600,
+          }}
+        />
+      </div>
+    );
+  };
+
+  const capacityMachineIds = Object.keys(prices.by_capacity || {}).filter((machineId) => getMachineryCapacityOptions(machineId));
+  const transport = prices.transport || {};
 
   return (
     <div className="maqgo-admin-page" style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
@@ -381,7 +485,7 @@ function AdminPricingScreen() {
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#fff' }}>Precios de referencia</h2>
             <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '6px 0 0' }}>
-              Precios sugeridos por maquinaria (se usan al configurar tarifas)
+              Define precio base por maquinaria, variantes por capacidad y referencia de traslado.
             </p>
           </div>
           <button
@@ -418,18 +522,12 @@ function AdminPricingScreen() {
                 fontWeight: 600,
                 textTransform: 'uppercase'
               }}>
-                Por hora (retroexcavadora, excavadora, bulldozer, etc.)
+                Precio base por hora
               </div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 100px 100px 120px',
-                gap: 12,
-                padding: '12px 16px',
-                background: ADMIN_THEME.panelBgSoft,
-                fontSize: 13,
-                color: 'rgba(255,255,255,0.5)',
-                textTransform: 'uppercase'
-              }}>
+              <div style={{ padding: '10px 16px', color: ADMIN_THEME.textMuted, fontSize: 12, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+                Piso general por tipo. Si la maquinaria distingue capacidad, ajusta también su bloque específico más abajo.
+              </div>
+              <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
                 <span>Maquinaria</span>
                 <span>Mín (CLP)</span>
                 <span>Máx (CLP)</span>
@@ -447,18 +545,12 @@ function AdminPricingScreen() {
                 fontWeight: 600,
                 textTransform: 'uppercase'
               }}>
-                Por servicio (grúa, camión pluma, aljibe, tolva)
+                Precio base por servicio
               </div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 100px 100px 120px',
-                gap: 12,
-                padding: '12px 16px',
-                background: ADMIN_THEME.panelBgSoft,
-                fontSize: 13,
-                color: 'rgba(255,255,255,0.5)',
-                textTransform: 'uppercase'
-              }}>
+              <div style={{ padding: '10px 16px', color: ADMIN_THEME.textMuted, fontSize: 12, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+                Precio general por viaje o servicio. Si el equipo cambia mucho por capacidad, usa además el detalle por capacidad.
+              </div>
+              <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
                 <span>Maquinaria</span>
                 <span>Mín (CLP)</span>
                 <span>Máx (CLP)</span>
@@ -467,9 +559,112 @@ function AdminPricingScreen() {
               {Object.keys(prices.per_service || {}).map(id => <PriceRow key={id} type="per_service" machineId={id} />)}
             </div>
 
+            {capacityMachineIds.length > 0 && (
+              <div style={{ marginTop: 24, display: 'grid', gap: 16 }}>
+                {capacityMachineIds.map((machineId) => {
+                  const capacityConfig = getMachineryCapacityOptions(machineId);
+                  const capacityKeys = Object.keys((prices.by_capacity || {})[machineId] || {});
+                  return (
+                    <div
+                      key={machineId}
+                      style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', border: `1px solid ${ADMIN_THEME.border}` }}
+                    >
+                      <div style={{
+                        padding: '14px 16px',
+                        background: ADMIN_THEME.panelBgSoft,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        alignItems: 'center',
+                        flexWrap: 'wrap'
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: ADMIN_PALETTE.brand, textTransform: 'uppercase' }}>
+                            Referencia por capacidad
+                          </div>
+                          <div style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginTop: 4 }}>
+                            {MACHINE_NAMES[machineId] || machineId}
+                          </div>
+                        </div>
+                        <div style={{ color: ADMIN_THEME.textMuted, fontSize: 12 }}>
+                          {capacityConfig?.providerLabel || 'Capacidad'}
+                        </div>
+                      </div>
+                      <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                        <span>{capacityConfig?.providerLabel || 'Capacidad'}</span>
+                        <span>Mín (CLP)</span>
+                        <span>Máx (CLP)</span>
+                        <span>Sugerido</span>
+                      </div>
+                      {capacityKeys.map((capacityKey) => (
+                        <CapacityRow key={`${machineId}-${capacityKey}`} machineId={machineId} capacityKey={capacityKey} />
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ marginTop: 24, background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', border: `1px solid ${ADMIN_THEME.border}` }}>
+              <div style={{
+                padding: '14px 16px',
+                background: ADMIN_THEME.panelBgSoft,
+                fontSize: 12,
+                color: ADMIN_PALETTE.brand,
+                fontWeight: 600,
+                textTransform: 'uppercase'
+              }}>
+                Traslado referencial
+              </div>
+              <div style={{ padding: '10px 16px', color: ADMIN_THEME.textMuted, fontSize: 12, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+                Rango sugerido para maquinaria que requiere traslado. El proveedor verá este rango como referencia al configurar su equipo.
+              </div>
+              <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                <span>Concepto</span>
+                <span>Mín (CLP)</span>
+                <span>Máx (CLP)</span>
+                <span>Sugerido</span>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 100px 100px 120px',
+                  gap: 12,
+                  padding: '12px 16px',
+                  alignItems: 'center'
+                }}
+              >
+                <span style={{ color: '#fff', fontSize: 14 }}>Costo de traslado</span>
+                <input
+                  type="number"
+                  value={transport.min ?? ''}
+                  onChange={(e) => updateTransportPrice('min', e.target.value)}
+                  placeholder="Mín"
+                  style={inputStyle}
+                />
+                <input
+                  type="number"
+                  value={transport.max ?? ''}
+                  onChange={(e) => updateTransportPrice('max', e.target.value)}
+                  placeholder="Máx"
+                  style={inputStyle}
+                />
+                <input
+                  type="number"
+                  value={transport.default ?? ''}
+                  onChange={(e) => updateTransportPrice('default', e.target.value)}
+                  placeholder="Sugerido"
+                  style={{
+                    ...inputStyle,
+                    color: ADMIN_PALETTE.brand,
+                    fontWeight: 600,
+                  }}
+                />
+              </div>
+            </div>
+
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 20 }}>
-              Estos valores se muestran como sugerencia cuando un proveedor configura el precio de su maquinaria.
-              El campo "Sugerido" es el valor por defecto que aparecerá en el formulario.
+              El proveedor usa estos valores como referencia al publicar su maquinaria. "Sugerido" es el valor precargado; "mín" y "máx" delimitan el rango esperado.
             </p>
           </>
         )}

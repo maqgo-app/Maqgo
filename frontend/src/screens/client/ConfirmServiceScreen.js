@@ -21,6 +21,7 @@ import { useToast } from '../../components/Toast';
 import { vibrate } from '../../utils/uberUX';
 import { isEmpresaBillingComplete } from '../../utils/clientBillingInvoice';
 import { getTruckUrgencySummaryLine } from '../../utils/clientBookingTruck';
+import { getMachineTransportQuote } from '../../utils/transportZones';
 
 /** Referencia estable para useMemo (evita deps falsas por array nuevo cada render). */
 const TRIP_PRICE_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
@@ -119,10 +120,14 @@ function ConfirmServiceScreen() {
 
       let base = p.price_per_hour || 0;
       if (refTrip && base > 0 && base < 100000) base = Math.round(refTrip * (TRIP_PRICE_SPREAD[Math.min(idx, 4)] || 1));
+      const transportQuote = getMachineTransportQuote({
+        machineData: p.machineData || p,
+        serviceComuna: String(localStorage.getItem('serviceComuna') || '').trim(),
+      });
       const sinFacturaTotal = calculateClientPrice({
         machineryType: machineryKey || machinery,
         basePrice: base,
-        transportFee: needsTransport ? (p.transport_fee || 0) : 0,
+        transportFee: needsTransport ? (transportQuote.amount || p.transport_fee || 0) : 0,
         hours: hoursForPricing,
         days: totalDays,
         reservationType
@@ -151,6 +156,16 @@ function ConfirmServiceScreen() {
     return base;
   }, [providerForMax, isPerTrip, refTrip]);
 
+  const resolvedTransportFee = useMemo(() => {
+    if (!needsTransport || !effectiveProvider) return 0;
+    const serviceComuna = String(localStorage.getItem('serviceComuna') || '').trim();
+    const quote = getMachineTransportQuote({
+      machineData: effectiveProvider.machineData || effectiveProvider,
+      serviceComuna,
+    });
+    return quote.amount || Number(effectiveProvider?.transport_fee || 0) || 0;
+  }, [effectiveProvider, needsTransport]);
+
   // Fallback local para mostrar desde el primer render (evita flash "Calculando precio..." → desglose)
   // Para per-trip (tolva, pluma, aljibe): si price_per_hour es 0, usar REFERENCE_PRICES
   const fallbackPricing = useMemo(() => {
@@ -161,7 +176,7 @@ function ConfirmServiceScreen() {
       return buildPricingFallback({
         machineryType: machineryKey || machinery,
         basePrice: priceToUse,
-        transportFee: needsTransport ? (effectiveProvider?.transport_fee || 0) : 0,
+        transportFee: resolvedTransportFee,
         hours: hoursToday,
         days: totalDays,
         reservationType,
@@ -184,7 +199,7 @@ function ConfirmServiceScreen() {
       const basePrice = effectiveProvider?.price_per_hour ?? 0;
       const priceToUse = basePrice > 0 ? basePrice : (isPerTrip && refTrip ? refTrip : 0);
       if (!priceToUse) return;
-      const transportCost = needsTransport ? (effectiveProvider?.transport_fee || 0) : 0;
+      const transportCost = resolvedTransportFee;
       const FAST_FALLBACK_MS = 2500;
       const timeoutPromise = new Promise((_, r) => setTimeout(() => r(new Error('timeout')), FAST_FALLBACK_MS));
       try {
@@ -233,7 +248,7 @@ function ConfirmServiceScreen() {
           setPricing(buildPricingFallback({
             machineryType: machineryKey || machinery,
             basePrice: priceToUse,
-            transportFee: needsTransport ? (effectiveProvider?.transport_fee || 0) : 0,
+            transportFee: resolvedTransportFee,
             hours: hoursToday,
             days: totalDays,
             reservationType,
@@ -245,7 +260,7 @@ function ConfirmServiceScreen() {
         setPricing(buildPricingFallback({
           machineryType: machineryKey || machinery,
           basePrice: priceToUse,
-          transportFee: needsTransport ? (effectiveProvider?.transport_fee || 0) : 0,
+          transportFee: resolvedTransportFee,
           hours: hoursToday,
           days: totalDays,
           reservationType,
@@ -256,7 +271,7 @@ function ConfirmServiceScreen() {
     };
 
     fetchPricing();
-  }, [effectiveProvider, hoursToday, additionalDays, reservationType, machinery, machineryKey, totalDays, isHybrid, retryCount, needsInvoice, isPerTrip, refTrip, needsTransport]);
+  }, [effectiveProvider, hoursToday, additionalDays, reservationType, machinery, machineryKey, totalDays, isHybrid, retryCount, needsInvoice, isPerTrip, refTrip, needsTransport, resolvedTransportFee]);
 
   // Mostrar fallback desde el primer render para evitar flash (layout estable)
   const displayPricing = pricing ?? fallbackPricing;

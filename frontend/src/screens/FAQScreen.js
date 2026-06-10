@@ -20,6 +20,10 @@ const FAQ_DATA = [
         a: 'El precio final que ves en la app es el total a pagar por el servicio. Siempre verás el total antes de confirmar una reserva.'
       },
       {
+        q: '¿Cómo calcula MAQGO el costo de traslado?',
+        a: 'MAQGO calcula el traslado automáticamente según la comuna y región de origen declaradas para la maquinaria y la ubicación del servicio. Si el destino está en la misma comuna, aplica la tarifa "misma comuna"; si cambia la comuna pero se mantiene la región, aplica "comuna distinta, misma región"; y si cambia la región, aplica "otra región".'
+      },
+      {
         q: '¿Qué es la bonificación por alta demanda?',
         a: 'Cuando solicitas una reserva para el mismo día, se aplica un porcentaje adicional sobre el precio por hora. Este monto se muestra claramente antes de confirmar.'
       },
@@ -79,6 +83,14 @@ const FAQ_DATA = [
       {
         q: '¿Cuál es la tarifa por servicio?',
         a: 'MAQGO cobra una tarifa por servicio sobre el valor neto de cada arriendo. En tu Resumen de Servicio verás el desglose completo.'
+      },
+      {
+        q: '¿Cómo configuro el traslado de una máquina?',
+        a: 'Para cada máquina declaras una base de origen y tres valores netos de traslado: misma comuna, comuna distinta pero misma región y otra región. MAQGO usa esa base para calcular automáticamente lo que verá el cliente.'
+      },
+      {
+        q: '¿Cómo declara MAQGO la ubicación de mi maquinaria?',
+        a: 'Cada máquina queda con una base declarada de origen. Además puedes indicar si su ubicación en vivo viene desde una API de telemetría. El GPS del operador no se usa como ubicación base de la maquinaria, porque el operador puede estar lejos del equipo.'
       },
       {
         q: '¿Cuándo recibo mi pago?',

@@ -276,6 +276,17 @@ export function addMachine(machine) {
     pricePerHour: isPerSvc ? null : (machine.pricePerHour ?? 80000),
     pricePerService: isPerSvc ? (machine.pricePerService ?? 260000) : null,
     transportCost: needsTransport(machineryType) ? (machine.transportCost ?? 25000) : 0,
+    transportSameComuna: needsTransport(machineryType) ? (machine.transportSameComuna ?? machine.transportCost ?? 25000) : 0,
+    transportSameRegion: needsTransport(machineryType) ? (machine.transportSameRegion ?? machine.transportCost ?? 35000) : 0,
+    transportOtherRegion: needsTransport(machineryType) ? (machine.transportOtherRegion ?? machine.transportSameRegion ?? machine.transportCost ?? 50000) : 0,
+    originAddress: machine.originAddress || '',
+    originComuna: machine.originComuna || '',
+    originRegion: machine.originRegion || '',
+    originLat: machine.originLat ?? null,
+    originLng: machine.originLng ?? null,
+    originMode: machine.originMode || 'company_base',
+    liveLocationMode: machine.liveLocationMode || 'base_only',
+    telematicsProvider: machine.telematicsProvider || '',
     available: machine.available !== false,
     published: machine.published !== false,
     operators: machine.operators || [],
@@ -322,6 +333,23 @@ export function upsertOnboardingMachine(machineData = {}, machinePricing = {}, o
     pricePerHour: isPerSvc ? null : (priceBase > 0 ? priceBase : null),
     pricePerService: isPerSvc ? (priceBase > 0 ? priceBase : null) : null,
     transportCost: needsTransport(machineryType) ? (transport > 0 ? transport : null) : 0,
+    transportSameComuna: needsTransport(machineryType)
+      ? Number(machinePricing?.transportSameComuna || machinePricing?.transportCost || 0) || null
+      : 0,
+    transportSameRegion: needsTransport(machineryType)
+      ? Number(machinePricing?.transportSameRegion || machinePricing?.transportCost || 0) || null
+      : 0,
+    transportOtherRegion: needsTransport(machineryType)
+      ? Number(machinePricing?.transportOtherRegion || machinePricing?.transportSameRegion || machinePricing?.transportCost || 0) || null
+      : 0,
+    originAddress: machineData.originAddress || '',
+    originComuna: machineData.originComuna || '',
+    originRegion: machineData.originRegion || '',
+    originLat: machineData.originLat ?? null,
+    originLng: machineData.originLng ?? null,
+    originMode: machineData.originMode || 'company_base',
+    liveLocationMode: machineData.liveLocationMode || 'base_only',
+    telematicsProvider: machineData.telematicsProvider || '',
     operators: normalizedOperators,
     available: true,
     ...(machineryType === 'camion_tolva' && machineData.capacityM3 != null && { capacityM3: Number(machineData.capacityM3) }),

@@ -158,6 +158,9 @@ function TermsScreen() {
           <p>
             MAQGO actúa como intermediario de cobro entre cliente y proveedor.
           </p>
+          <p style={{ marginTop: 12 }}>
+            Cuando una maquinaria cobra traslado, MAQGO calcula ese valor automáticamente según la comuna y región de origen declaradas para la maquinaria y la ubicación del servicio ingresada por el cliente. Los tramos vigentes son: misma comuna, comuna distinta dentro de la misma región y otra región.
+          </p>
         </Section>
 
         <Section title="3. Pagos a proveedores">
@@ -243,6 +246,12 @@ function TermsScreen() {
             Debe garantizar el correcto funcionamiento de su maquinaria, contar con todos los permisos, 
             seguros y certificaciones exigidos por la normativa vigente, y cumplir con los horarios 
             acordados. MAQGO no es propietario de la maquinaria ni responsable de su operación.
+          </p>
+          <p style={{ marginBottom: 12 }}>
+            <strong>Ubicación declarada de la maquinaria:</strong> El proveedor debe mantener actualizada la base u origen declarado de cada máquina. Esa ubicación se usa para referencia logística y cálculo de traslado. Si la máquina cuenta con telemetría compatible, el proveedor puede informar esa fuente como ubicación en vivo.
+          </p>
+          <p style={{ marginBottom: 12 }}>
+            <strong>GPS del operador:</strong> El GPS del operador no define por sí solo la ubicación base de la maquinaria, ya que el operador puede encontrarse en un punto distinto al equipo.
           </p>
           <p>
             <strong>Del cliente:</strong> Proporcionar acceso seguro al lugar de trabajo, 

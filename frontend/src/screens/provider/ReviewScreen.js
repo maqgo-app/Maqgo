@@ -129,6 +129,9 @@ function ReviewScreen() {
         pricePerHour: pricing?.isPerHour ? priceBase : null,
         pricePerService: pricing?.isPerHour ? null : priceBase,
         transportCost: Number(pricing?.transportCost || 0),
+        transportSameComuna: Number(pricing?.transportSameComuna || pricing?.transportCost || 0),
+        transportSameRegion: Number(pricing?.transportSameRegion || pricing?.transportCost || 0),
+        transportOtherRegion: Number(pricing?.transportOtherRegion || pricing?.transportSameRegion || pricing?.transportCost || 0),
       };
       if (machineForInventory?.machineryType && machineForInventory?.licensePlate) {
         try {

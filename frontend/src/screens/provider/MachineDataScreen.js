@@ -4,6 +4,7 @@ import { useNavigate, useLocation, useParams, Navigate } from 'react-router-dom'
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import { useToast } from '../../components/Toast';
+import ComunaAutocomplete from '../../components/ComunaAutocomplete';
 import { useAuth } from '../../context/authHooks';
 import { createMachineInApi, updateMachine, updateMachineInApi, getMachineById, getMachines } from '../../utils/providerMachines';
 import { getMachineryCapacityOptions, getProviderSpecLabel } from '../../utils/machineryNames';
@@ -22,6 +23,11 @@ import {
   MACHINERY_PER_HOUR,
   MACHINERY_NO_TRANSPORT,
 } from '../../utils/pricing';
+import {
+  getRegionForComuna,
+  LIVE_LOCATION_MODE,
+  MACHINE_LOCATION_MODE,
+} from '../../utils/transportZones';
 
 const MACHINERY_TYPES = [
   { id: 'retroexcavadora', name: 'Retroexcavadora' },
@@ -98,6 +104,14 @@ const EMPTY_MACHINE_FORM = {
   bladeWidthM: '',
   craneTon: '',
   rollerTon: '',
+  originMode: MACHINE_LOCATION_MODE.COMPANY_BASE,
+  originAddress: '',
+  originComuna: '',
+  originRegion: '',
+  originLat: null,
+  originLng: null,
+  liveLocationMode: LIVE_LOCATION_MODE.BASE_ONLY,
+  telematicsProvider: '',
 };
 
 function buildMachineForm(isEditMode, editMachine) {
@@ -125,6 +139,14 @@ function buildMachineForm(isEditMode, editMachine) {
       bladeWidthM: editMachine.bladeWidthM != null ? String(editMachine.bladeWidthM) : '',
       craneTon: editMachine.craneTon != null ? String(editMachine.craneTon) : '',
       rollerTon: editMachine.rollerTon != null ? String(editMachine.rollerTon) : '',
+      originMode: editMachine.originMode || MACHINE_LOCATION_MODE.COMPANY_BASE,
+      originAddress: editMachine.originAddress || '',
+      originComuna: editMachine.originComuna || '',
+      originRegion: editMachine.originRegion || '',
+      originLat: Number.isFinite(Number(editMachine.originLat)) ? Number(editMachine.originLat) : null,
+      originLng: Number.isFinite(Number(editMachine.originLng)) ? Number(editMachine.originLng) : null,
+      liveLocationMode: editMachine.liveLocationMode || LIVE_LOCATION_MODE.BASE_ONLY,
+      telematicsProvider: editMachine.telematicsProvider || '',
     };
   }
   const saved = getObject('machineData', {});
@@ -136,6 +158,177 @@ function buildMachineForm(isEditMode, editMachine) {
     };
   }
   return { ...EMPTY_MACHINE_FORM };
+}
+
+function MachineLocationSetupFields({ form, update }) {
+  const providerData = getObject('providerData', {});
+  const companyComuna = String(providerData.comuna || '').trim();
+  const companyAddress = String(providerData.address || '').trim();
+  const companyRegion = getRegionForComuna(companyComuna);
+  const useCompanyBase = (form.originMode || MACHINE_LOCATION_MODE.COMPANY_BASE) !== MACHINE_LOCATION_MODE.CUSTOM_BASE;
+  const companySummary = [companyAddress, companyComuna].filter(Boolean).join(', ');
+  const hasCompanyBase = Boolean(companyAddress && companyComuna);
+  const customRegion = getRegionForComuna(form.originComuna);
+
+  const selectorButtonStyle = (active) => ({
+    flex: 1,
+    borderRadius: 12,
+    border: active ? '1px solid rgba(236,104,25,0.9)' : '1px solid rgba(255,255,255,0.14)',
+    background: active ? 'rgba(236,104,25,0.12)' : 'rgba(255,255,255,0.03)',
+    color: '#fff',
+    padding: '12px 14px',
+    textAlign: 'left',
+    cursor: 'pointer',
+  });
+
+  return (
+    <div
+      style={{
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 14,
+        padding: 16,
+        marginTop: 18,
+      }}
+    >
+      <h2
+        style={{
+          color: '#fff',
+          fontSize: 18,
+          fontWeight: 600,
+          letterSpacing: '-0.01em',
+          lineHeight: 1.2,
+          margin: '0 0 6px',
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        Ubicación de la máquina
+      </h2>
+      <p style={{ color: 'rgba(255,255,255,0.76)', fontSize: 13, lineHeight: 1.45, margin: '0 0 14px' }}>
+        Declara desde dónde sale normalmente esta maquinaria. MAQGO usa esta base para calcular el traslado.
+      </p>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+        <button
+          type="button"
+          onClick={() => update('originMode', MACHINE_LOCATION_MODE.COMPANY_BASE)}
+          style={selectorButtonStyle(useCompanyBase)}
+        >
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>Misma base de mi empresa</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.68)', lineHeight: 1.35 }}>
+            Usa la dirección comercial que ya declaraste.
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => update('originMode', MACHINE_LOCATION_MODE.CUSTOM_BASE)}
+          style={selectorButtonStyle(!useCompanyBase)}
+        >
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>Otra base para esta máquina</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.68)', lineHeight: 1.35 }}>
+            Si esta máquina sale desde otro patio o depósito.
+          </div>
+        </button>
+      </div>
+
+      {useCompanyBase ? (
+        <div
+          style={{
+            background: 'rgba(144,189,211,0.10)',
+            border: '1px solid rgba(144,189,211,0.24)',
+            borderRadius: 12,
+            padding: 12,
+            marginBottom: 14,
+          }}
+        >
+          <p style={{ color: '#fff', fontSize: 13, fontWeight: 600, margin: '0 0 4px' }}>
+            Base declarada para esta máquina
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, margin: 0, lineHeight: 1.4 }}>
+            {hasCompanyBase ? companySummary : 'Primero completa la dirección comercial en Datos del Proveedor.'}
+          </p>
+          {companyRegion ? (
+            <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 12, margin: '6px 0 0' }}>
+              Región: {companyRegion}
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, display: 'block' }}>
+            Dirección base de esta máquina <span style={{ color: '#EC6819' }}>*</span>
+          </label>
+          <input
+            className="maqgo-input"
+            placeholder="Ej: Camino Melipilla 12450"
+            value={form.originAddress || ''}
+            onChange={(e) => update('originAddress', e.target.value)}
+            style={{ marginBottom: 12 }}
+          />
+
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, display: 'block' }}>
+            Comuna base <span style={{ color: '#EC6819' }}>*</span>
+          </label>
+          <ComunaAutocomplete value={form.originComuna || ''} onChange={(value) => update('originComuna', value)} />
+          {customRegion ? (
+            <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: 12, margin: '6px 0 0' }}>
+              Región: {customRegion}
+            </p>
+          ) : null}
+        </>
+      )}
+
+      <div style={{ marginTop: 16 }}>
+        <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, display: 'block' }}>
+          Cómo obtiene MAQGO la ubicación en vivo
+        </label>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => update('liveLocationMode', LIVE_LOCATION_MODE.BASE_ONLY)}
+            style={selectorButtonStyle((form.liveLocationMode || LIVE_LOCATION_MODE.BASE_ONLY) === LIVE_LOCATION_MODE.BASE_ONLY)}
+          >
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>Base declarada</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.68)', lineHeight: 1.35 }}>
+              Usamos la base declarada como referencia logística.
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => update('liveLocationMode', LIVE_LOCATION_MODE.TELEMATICS_API)}
+            style={selectorButtonStyle((form.liveLocationMode || LIVE_LOCATION_MODE.BASE_ONLY) === LIVE_LOCATION_MODE.TELEMATICS_API)}
+          >
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>API de telemetría</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.68)', lineHeight: 1.35 }}>
+              Para equipos con integración CAT, Komatsu u otra.
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {(form.liveLocationMode || LIVE_LOCATION_MODE.BASE_ONLY) === LIVE_LOCATION_MODE.TELEMATICS_API ? (
+        <div style={{ marginTop: 12 }}>
+          <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, display: 'block' }}>
+            Proveedor de telemetría
+          </label>
+          <select
+            className="maqgo-input"
+            value={form.telematicsProvider || ''}
+            onChange={(e) => update('telematicsProvider', e.target.value)}
+          >
+            <option value="">Seleccionar...</option>
+            <option value="cat">CAT</option>
+            <option value="komatsu">Komatsu</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+      ) : null}
+
+      <p style={{ color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 1.4, margin: '14px 0 0' }}>
+        El GPS del operador no se usa como ubicación base de la maquinaria, porque el operador puede estar lejos del equipo.
+      </p>
+    </div>
+  );
 }
 
 /** Mismas reglas que el alta clásica `/provider/machine-data` (sin paso intermedio inventado). */
@@ -662,7 +855,9 @@ function MachineDataScreen() {
 
   const [mfStep, setMfStep] = useState(1);
   const [priceBaseWizard, setPriceBaseWizard] = useState('');
-  const [transportWizard, setTransportWizard] = useState('');
+  const [transportSameComunaWizard, setTransportSameComunaWizard] = useState('');
+  const [transportSameRegionWizard, setTransportSameRegionWizard] = useState('');
+  const [transportOtherRegionWizard, setTransportOtherRegionWizard] = useState('');
   const [mfPhotos, setMfPhotos] = useState(() => getArray('machinePhotos', []));
   const [showMachineFirstFieldErrors, setShowMachineFirstFieldErrors] = useState(false);
   const machineryTypeSelectRef = useRef(null);
@@ -714,7 +909,9 @@ function MachineDataScreen() {
   useEffect(() => {
     if (!isAddMachineEntry || isEditMode) return;
     setPriceBaseWizard('');
-    setTransportWizard('');
+    setTransportSameComunaWizard('');
+    setTransportSameRegionWizard('');
+    setTransportOtherRegionWizard('');
   }, [form.machineryType, isAddMachineEntry, isEditMode]);
 
   const handleInlineProviderSubmit = useCallback(async () => {
@@ -852,19 +1049,46 @@ function MachineDataScreen() {
     }
 
     const maxTransport = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
-    const transportNum = needsTransport
-      ? parseInt(String(transportWizard).replace(/\D/g, ''), 10) || 0
+    const sameComunaTransport = needsTransport
+      ? parseInt(String(transportSameComunaWizard).replace(/\D/g, ''), 10) || 0
+      : 0;
+    const sameRegionTransport = needsTransport
+      ? parseInt(String(transportSameRegionWizard).replace(/\D/g, ''), 10) || 0
+      : 0;
+    const otherRegionTransport = needsTransport
+      ? parseInt(String(transportOtherRegionWizard).replace(/\D/g, ''), 10) || 0
       : 0;
     if (needsTransport) {
-      if (transportNum < MIN_TRANSPORT || transportNum > maxTransport) {
+      if (
+        sameComunaTransport < MIN_TRANSPORT ||
+        sameRegionTransport < MIN_TRANSPORT ||
+        otherRegionTransport < MIN_TRANSPORT
+      ) {
+        setPublishError('Completa los tres valores de traslado: misma comuna, misma región y otra región.');
+        return;
+      }
+      if (
+        sameComunaTransport > maxTransport ||
+        sameRegionTransport > maxTransport ||
+        otherRegionTransport > maxTransport
+      ) {
         setPublishError(transportRangeMessage(MIN_TRANSPORT, maxTransport));
         return;
       }
+      if (sameRegionTransport < sameComunaTransport || otherRegionTransport < sameRegionTransport) {
+        setPublishError('El traslado de misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.');
+        return;
+      }
     }
-    const transportCost = needsTransport ? transportNum : 0;
+    const transportCost = needsTransport ? sameComunaTransport : 0;
     const plate = formatLicensePlateInput(form.licensePlate);
     if (!LICENSE_PLATE_REGEX.test(plate)) {
       setPublishError('Completa marca, modelo y patente válida (formato BBBB-44).');
+      return;
+    }
+    const originError = getOriginValidationMessage(form);
+    if (originError) {
+      setPublishError(originError);
       return;
     }
 
@@ -882,7 +1106,11 @@ function MachineDataScreen() {
         pricePerHour: isPerHour ? priceBaseNum : null,
         pricePerService: isPerHour ? null : priceBaseNum,
         transportCost,
+        transportSameComuna: needsTransport ? sameComunaTransport : 0,
+        transportSameRegion: needsTransport ? sameRegionTransport : 0,
+        transportOtherRegion: needsTransport ? otherRegionTransport : 0,
         operators: [],
+        ...resolveOriginFields(form),
       };
       if (capOpts?.providerField) {
         const raw = form[capOpts.providerField];
@@ -913,10 +1141,21 @@ function MachineDataScreen() {
     } finally {
       setPublishLoading(false);
     }
-  }, [ensureProviderThenPublish, form, mfPhotos, navigate, priceBaseWizard, transportWizard, toast]);
+  }, [
+    ensureProviderThenPublish,
+    form,
+    mfPhotos,
+    navigate,
+    priceBaseWizard,
+    toast,
+    transportOtherRegionWizard,
+    transportSameComunaWizard,
+    transportSameRegionWizard,
+  ]);
 
   const currentYear = new Date().getFullYear();
   const MIN_YEAR = 1950;
+  const providerBaseData = getObject('providerData', {});
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
@@ -933,6 +1172,44 @@ function MachineDataScreen() {
     return true;
   };
 
+  const resolveOriginFields = useCallback(
+    (currentForm) => {
+      const mode = currentForm.originMode || MACHINE_LOCATION_MODE.COMPANY_BASE;
+      const useCompanyBase = mode !== MACHINE_LOCATION_MODE.CUSTOM_BASE;
+      const sourceComuna = useCompanyBase ? providerBaseData.comuna : currentForm.originComuna;
+      const sourceAddress = useCompanyBase ? providerBaseData.address : currentForm.originAddress;
+      return {
+        originMode: mode,
+        originAddress: String(sourceAddress || '').trim(),
+        originComuna: String(sourceComuna || '').trim(),
+        originRegion: String(getRegionForComuna(sourceComuna) || currentForm.originRegion || '').trim(),
+        originLat: useCompanyBase ? providerBaseData.addressLat ?? null : currentForm.originLat ?? null,
+        originLng: useCompanyBase ? providerBaseData.addressLng ?? null : currentForm.originLng ?? null,
+        liveLocationMode: currentForm.liveLocationMode || LIVE_LOCATION_MODE.BASE_ONLY,
+        telematicsProvider:
+          (currentForm.liveLocationMode || LIVE_LOCATION_MODE.BASE_ONLY) === LIVE_LOCATION_MODE.TELEMATICS_API
+            ? String(currentForm.telematicsProvider || '').trim()
+            : '',
+      };
+    },
+    [providerBaseData]
+  );
+
+  const getOriginValidationMessage = useCallback(
+    (currentForm) => {
+      const mode = currentForm.originMode || MACHINE_LOCATION_MODE.COMPANY_BASE;
+      if (mode === MACHINE_LOCATION_MODE.CUSTOM_BASE) {
+        if (!String(currentForm.originAddress || '').trim()) return 'Completa la dirección base de esta máquina.';
+        if (!String(currentForm.originComuna || '').trim()) return 'Selecciona la comuna base de esta máquina.';
+        if (!getRegionForComuna(currentForm.originComuna)) return 'Selecciona una comuna válida para la base de esta máquina.';
+      } else if (!String(providerBaseData.address || '').trim() || !String(providerBaseData.comuna || '').trim()) {
+        return 'Primero completa la dirección comercial de tu empresa para usarla como base de la máquina.';
+      }
+      return '';
+    },
+    [providerBaseData]
+  );
+
   const yearError = form.year && !validateYear();
 
   const handleWizardContinue = () => {
@@ -941,6 +1218,12 @@ function MachineDataScreen() {
       if (!isMachineSpecificationComplete(form, yearError)) {
         setShowMachineFirstFieldErrors(true);
         setStepHint('Completa tipo, marca, modelo y patente con formato BBBB-44.');
+        return;
+      }
+      const originError = getOriginValidationMessage(form);
+      if (originError) {
+        setShowMachineFirstFieldErrors(true);
+        setStepHint(originError);
         return;
       }
       setShowMachineFirstFieldErrors(false);
@@ -975,16 +1258,28 @@ function MachineDataScreen() {
       }
       const needsT = !MACHINERY_NO_TRANSPORT.includes(machineryType);
       if (needsT) {
-        const tNum = parseInt(String(transportWizard).replace(/\D/g, ''), 10) || 0;
+        const sameComunaTransport = parseInt(String(transportSameComunaWizard).replace(/\D/g, ''), 10) || 0;
+        const sameRegionTransport = parseInt(String(transportSameRegionWizard).replace(/\D/g, ''), 10) || 0;
+        const otherRegionTransport = parseInt(String(transportOtherRegionWizard).replace(/\D/g, ''), 10) || 0;
         const maxT = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
-        if (tNum < MIN_TRANSPORT) {
-          setStepHint(
-            `El traslado neto no puede ser menor a ${MIN_TRANSPORT.toLocaleString('es-CL')} CLP (sin IVA).`
-          );
+        if (
+          sameComunaTransport < MIN_TRANSPORT ||
+          sameRegionTransport < MIN_TRANSPORT ||
+          otherRegionTransport < MIN_TRANSPORT
+        ) {
+          setStepHint('Completa los tres valores de traslado: misma comuna, misma región y otra región.');
           return;
         }
-        if (tNum > maxT) {
+        if (
+          sameComunaTransport > maxT ||
+          sameRegionTransport > maxT ||
+          otherRegionTransport > maxT
+        ) {
           setStepHint(`El traslado neto no puede superar ${maxT.toLocaleString('es-CL')} CLP (sin IVA).`);
+          return;
+        }
+        if (sameRegionTransport < sameComunaTransport || otherRegionTransport < sameRegionTransport) {
+          setStepHint('El traslado de misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.');
           return;
         }
       }
@@ -1015,9 +1310,15 @@ function MachineDataScreen() {
       toast.error('Primero crea tu cuenta proveedor con correo y contraseña arriba.');
       return;
     }
-    localStorage.setItem('machineData', JSON.stringify(form));
+    const originError = getOriginValidationMessage(form);
+    if (originError) {
+      toast.error(originError);
+      return;
+    }
+    const nextForm = { ...form, ...resolveOriginFields(form) };
+    localStorage.setItem('machineData', JSON.stringify(nextForm));
     if (!isEditMode && !activationEdit) {
-      persistProviderOnboardingDraft({ machineData: form }).catch(() => void 0);
+      persistProviderOnboardingDraft({ machineData: nextForm }).catch(() => void 0);
     }
     if (isEditMode && (editMachine?.id || id)) {
       const typeName =
@@ -1032,6 +1333,7 @@ function MachineDataScreen() {
         model: form.model,
         year: form.year,
         licensePlate: form.licensePlate,
+        ...resolveOriginFields(form),
       };
       const capOpts = getMachineryCapacityOptions(form.machineryType);
       if (capOpts && form[capOpts.providerField]) {
@@ -1069,7 +1371,12 @@ function MachineDataScreen() {
 
   const hasValidLicensePlate = LICENSE_PLATE_REGEX.test(form.licensePlate);
   const machineFieldsOk =
-    form.machineryType && form.brand && form.model && hasValidLicensePlate && !yearError;
+    form.machineryType &&
+    form.brand &&
+    form.model &&
+    hasValidLicensePlate &&
+    !yearError &&
+    !getOriginValidationMessage(form);
   const canProceedMachine = isEditMode || hasProviderRoleInStorage() || inlineReady;
   const isValid = machineFieldsOk && canProceedMachine;
 
@@ -1081,14 +1388,27 @@ function MachineDataScreen() {
     mfStep === 2 && priceBaseNumWizard >= minForType
       ? getPriceAlert(priceBaseNumWizard, refForType)
       : null;
-  const transportNumW = parseInt(String(transportWizard).replace(/\D/g, ''), 10) || 0;
+  const transportSameComunaNumW = parseInt(String(transportSameComunaWizard).replace(/\D/g, ''), 10) || 0;
+  const transportSameRegionNumW = parseInt(String(transportSameRegionWizard).replace(/\D/g, ''), 10) || 0;
+  const transportOtherRegionNumW = parseInt(String(transportOtherRegionWizard).replace(/\D/g, ''), 10) || 0;
   const needsTransportW =
     Boolean(form.machineryType) && !MACHINERY_NO_TRANSPORT.includes(form.machineryType);
   const maxTransportW = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
-  const transportAlertW =
-    mfStep === 2 && needsTransportW && transportNumW >= MIN_TRANSPORT
-      ? getTransportAlert(transportNumW)
+  const transportSameComunaAlertW =
+    mfStep === 2 && needsTransportW && transportSameComunaNumW >= MIN_TRANSPORT
+      ? getTransportAlert(transportSameComunaNumW)
       : null;
+  const transportSameRegionAlertW =
+    mfStep === 2 && needsTransportW && transportSameRegionNumW >= MIN_TRANSPORT
+      ? getTransportAlert(transportSameRegionNumW)
+      : null;
+  const transportOtherRegionAlertW =
+    mfStep === 2 && needsTransportW && transportOtherRegionNumW >= MIN_TRANSPORT
+      ? getTransportAlert(transportOtherRegionNumW)
+      : null;
+  const transportOrderValidW =
+    !needsTransportW ||
+    (transportSameRegionNumW >= transportSameComunaNumW && transportOtherRegionNumW >= transportSameRegionNumW);
 
   /** Mismo look que `MachinePhotosPricingScreen`: fondo crema y referencia solo en placeholder. */
   const wizardTariffInputStyle = {
@@ -1193,6 +1513,7 @@ function MachineDataScreen() {
                 showMachineFirstFieldErrors={showMachineFirstFieldErrors}
                 machineryTypeSelectRef={machineryTypeSelectRef}
               />
+              <MachineLocationSetupFields form={form} update={update} />
             </form>
           )}
 
@@ -1275,73 +1596,99 @@ function MachineDataScreen() {
               ) : null}
               {needsTransportW ? (
                 <>
-                  <label
-                    style={{
-                      color: 'rgba(255,255,255,0.8)',
-                      fontSize: 14,
-                      marginBottom: 8,
-                      marginTop: 18,
-                      display: 'block',
-                      fontWeight: 500,
-                    }}
-                  >
-                    Costo de traslado neto (sin IVA)
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <span
-                      style={{
-                        position: 'absolute',
-                        left: 16,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#666',
-                        fontSize: 16,
-                      }}
-                    >
-                      $
-                    </span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={
-                        transportWizard
-                          ? (parseInt(String(transportWizard).replace(/\D/g, ''), 10) || 0).toLocaleString(
-                              'es-CL'
-                            )
-                          : ''
-                      }
-                      onChange={(e) => setTransportWizard(e.target.value.replace(/\D/g, ''))}
-                      placeholder={REFERENCE_TRANSPORT.toLocaleString('es-CL')}
-                      style={wizardTariffInputStyle}
-                      data-testid="add-machine-transport-input"
-                    />
-                  </div>
-                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 6, marginLeft: 4 }}>
-                    Ref: {REFERENCE_TRANSPORT.toLocaleString('es-CL')} · Máx: {maxTransportW.toLocaleString('es-CL')}
-                  </p>
-                  {transportAlertW ? (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        marginBottom: 14,
-                        padding: 10,
-                        borderRadius: 8,
-                        background: `${transportAlertW.color}20`,
-                        border: `1px solid ${transportAlertW.color}60`,
-                      }}
-                    >
-                      <p
+                  {[
+                    {
+                      key: 'same-comuna',
+                      label: 'Costo de traslado dentro de la misma comuna',
+                      value: transportSameComunaWizard,
+                      setValue: setTransportSameComunaWizard,
+                      alert: transportSameComunaAlertW,
+                    },
+                    {
+                      key: 'same-region',
+                      label: 'Costo de traslado entre comunas de la misma región',
+                      value: transportSameRegionWizard,
+                      setValue: setTransportSameRegionWizard,
+                      alert: transportSameRegionAlertW,
+                    },
+                    {
+                      key: 'other-region',
+                      label: 'Costo de traslado a otra región',
+                      value: transportOtherRegionWizard,
+                      setValue: setTransportOtherRegionWizard,
+                      alert: transportOtherRegionAlertW,
+                    },
+                  ].map((field) => (
+                    <div key={field.key} style={{ marginTop: 18 }}>
+                      <label
                         style={{
-                          color: transportAlertW.color,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          margin: 0,
-                          lineHeight: 1.4,
+                          color: 'rgba(255,255,255,0.8)',
+                          fontSize: 14,
+                          marginBottom: 8,
+                          display: 'block',
+                          fontWeight: 500,
                         }}
                       >
-                        {transportAlertW.msg}
-                      </p>
+                        {field.label}
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            left: 16,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#666',
+                            fontSize: 16,
+                          }}
+                        >
+                          $
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={
+                            field.value
+                              ? (parseInt(String(field.value).replace(/\D/g, ''), 10) || 0).toLocaleString('es-CL')
+                              : ''
+                          }
+                          onChange={(e) => field.setValue(e.target.value.replace(/\D/g, ''))}
+                          style={wizardTariffInputStyle}
+                          data-testid={`add-machine-transport-input-${field.key}`}
+                        />
+                      </div>
+                      {field.alert ? (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            padding: 10,
+                            borderRadius: 8,
+                            background: `${field.alert.color}20`,
+                            border: `1px solid ${field.alert.color}60`,
+                          }}
+                        >
+                          <p
+                            style={{
+                              color: field.alert.color,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              margin: 0,
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {field.alert.msg}
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
+                  ))}
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 10, marginLeft: 4, lineHeight: 1.4 }}>
+                    MAQGO calculará el traslado por comuna y región. Máx por tramo: {maxTransportW.toLocaleString('es-CL')} CLP netos.
+                  </p>
+                  {!transportOrderValidW ? (
+                    <p style={{ color: '#ffb36b', fontSize: 12, marginTop: 8, marginBottom: 0, lineHeight: 1.4 }}>
+                      Revisa el orden: misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.
+                    </p>
                   ) : null}
                 </>
               ) : (
@@ -1548,8 +1895,8 @@ function MachineDataScreen() {
                           </span>
                           <span style={{ color: '#fff', fontSize: 13, fontWeight: 800 }}>
                             {needsTransportW
-                              ? transportNumW
-                                ? `Desde $${transportNumW.toLocaleString('es-CL')} neto (sin IVA)`
+                              ? transportSameComunaNumW
+                                ? `Desde $${transportSameComunaNumW.toLocaleString('es-CL')} neto (sin IVA)`
                                 : '—'
                               : 'No aplica'}
                           </span>
@@ -1812,6 +2159,7 @@ function MachineDataScreen() {
           currentYear={currentYear}
           MIN_YEAR={MIN_YEAR}
         />
+        <MachineLocationSetupFields form={form} update={update} />
       </div>
 
       <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
