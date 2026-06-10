@@ -66,6 +66,18 @@ function transportRangeMessage(minT, maxT) {
   return `El traslado neto (sin IVA) debe quedar entre ${formatClpRangeEs(minT, maxT)} CLP.`;
 }
 
+function getTransportFieldAlert(value) {
+  if (!value) return null;
+  if (value < MIN_TRANSPORT) {
+    return {
+      type: 'low_range',
+      color: '#F2B15E',
+      msg: `Valor fuera de rango. Mínimo ${MIN_TRANSPORT.toLocaleString('es-CL')} CLP netos.`,
+    };
+  }
+  return getTransportAlert(value);
+}
+
 /** Wizard /provider/add-machine: 3 pasos; mismos segmentos que el texto (sin mezclar con el embudo de 6). */
 const MACHINE_FIRST_ONBOARDING_STEPS = [
   { label: 'Tu máquina' },
@@ -1064,7 +1076,7 @@ function MachineDataScreen() {
         sameRegionTransport < MIN_TRANSPORT ||
         otherRegionTransport < MIN_TRANSPORT
       ) {
-        setPublishError('Completa los tres valores de traslado: misma comuna, misma región y otra región.');
+        setPublishError('Completa los tres valores de traslado: misma comuna, misma región y región colindante (máx. 150 km).');
         return;
       }
       if (
@@ -1076,7 +1088,7 @@ function MachineDataScreen() {
         return;
       }
       if (sameRegionTransport < sameComunaTransport || otherRegionTransport < sameRegionTransport) {
-        setPublishError('El traslado de misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.');
+        setPublishError('El traslado de misma región no puede ser menor que misma comuna, y región colindante (máx. 150 km) no puede ser menor que misma región.');
         return;
       }
     }
@@ -1267,7 +1279,7 @@ function MachineDataScreen() {
           sameRegionTransport < MIN_TRANSPORT ||
           otherRegionTransport < MIN_TRANSPORT
         ) {
-          setStepHint('Completa los tres valores de traslado: misma comuna, misma región y otra región.');
+          setStepHint('Completa los tres valores de traslado: misma comuna, misma región y región colindante (máx. 150 km).');
           return;
         }
         if (
@@ -1279,7 +1291,7 @@ function MachineDataScreen() {
           return;
         }
         if (sameRegionTransport < sameComunaTransport || otherRegionTransport < sameRegionTransport) {
-          setStepHint('El traslado de misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.');
+          setStepHint('El traslado de misma región no puede ser menor que misma comuna, y región colindante (máx. 150 km) no puede ser menor que misma región.');
           return;
         }
       }
@@ -1395,17 +1407,11 @@ function MachineDataScreen() {
     Boolean(form.machineryType) && !MACHINERY_NO_TRANSPORT.includes(form.machineryType);
   const maxTransportW = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
   const transportSameComunaAlertW =
-    mfStep === 2 && needsTransportW && transportSameComunaNumW >= MIN_TRANSPORT
-      ? getTransportAlert(transportSameComunaNumW)
-      : null;
+    mfStep === 2 && needsTransportW ? getTransportFieldAlert(transportSameComunaNumW) : null;
   const transportSameRegionAlertW =
-    mfStep === 2 && needsTransportW && transportSameRegionNumW >= MIN_TRANSPORT
-      ? getTransportAlert(transportSameRegionNumW)
-      : null;
+    mfStep === 2 && needsTransportW ? getTransportFieldAlert(transportSameRegionNumW) : null;
   const transportOtherRegionAlertW =
-    mfStep === 2 && needsTransportW && transportOtherRegionNumW >= MIN_TRANSPORT
-      ? getTransportAlert(transportOtherRegionNumW)
-      : null;
+    mfStep === 2 && needsTransportW ? getTransportFieldAlert(transportOtherRegionNumW) : null;
   const transportOrderValidW =
     !needsTransportW ||
     (transportSameRegionNumW >= transportSameComunaNumW && transportOtherRegionNumW >= transportSameRegionNumW);
@@ -1613,7 +1619,7 @@ function MachineDataScreen() {
                     },
                     {
                       key: 'other-region',
-                      label: 'Costo de traslado neto (sin IVA) a otra región',
+                      label: 'Costo de traslado neto (sin IVA) a región colindante (máx. 150 km)',
                       value: transportOtherRegionWizard,
                       setValue: setTransportOtherRegionWizard,
                       alert: transportOtherRegionAlertW,
@@ -1687,7 +1693,7 @@ function MachineDataScreen() {
                   </p>
                   {!transportOrderValidW ? (
                     <p style={{ color: '#ffb36b', fontSize: 12, marginTop: 8, marginBottom: 0, lineHeight: 1.4 }}>
-                      Revisa el orden: misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.
+                      Revisa el orden: misma región no puede ser menor que misma comuna, y región colindante (máx. 150 km) no puede ser menor que misma región.
                     </p>
                   ) : null}
                 </>

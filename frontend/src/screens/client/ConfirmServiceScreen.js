@@ -159,11 +159,15 @@ function ConfirmServiceScreen() {
   const resolvedTransportFee = useMemo(() => {
     if (!needsTransport || !effectiveProvider) return 0;
     const serviceComuna = String(localStorage.getItem('serviceComuna') || '').trim();
+    const serviceLat = parseFloat(localStorage.getItem('serviceLat') || '');
+    const serviceLng = parseFloat(localStorage.getItem('serviceLng') || '');
     const quote = getMachineTransportQuote({
       machineData: effectiveProvider.machineData || effectiveProvider,
       serviceComuna,
+      serviceLat: Number.isFinite(serviceLat) ? serviceLat : null,
+      serviceLng: Number.isFinite(serviceLng) ? serviceLng : null,
     });
-    return quote.amount || Number(effectiveProvider?.transport_fee || 0) || 0;
+    return quote.eligible === false ? 0 : (quote.amount || Number(effectiveProvider?.transport_fee || 0) || 0);
   }, [effectiveProvider, needsTransport]);
 
   // Fallback local para mostrar desde el primer render (evita flash "Calculando precio..." → desglose)

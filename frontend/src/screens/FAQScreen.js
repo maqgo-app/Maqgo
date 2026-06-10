@@ -21,7 +21,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Cómo calcula MAQGO el costo de traslado?',
-        a: 'MAQGO calcula el traslado automáticamente según la comuna y región de origen declaradas para la maquinaria y la ubicación del servicio. Si el destino está en la misma comuna, aplica la tarifa "misma comuna"; si cambia la comuna pero se mantiene la región, aplica "comuna distinta, misma región"; y si cambia la región, aplica "otra región".'
+        a: 'MAQGO calcula el traslado automáticamente según la comuna y región de origen declaradas para la maquinaria y la ubicación del servicio. Si el destino está en la misma comuna, aplica la tarifa "misma comuna"; si cambia la comuna pero se mantiene la región, aplica "comuna distinta, misma región"; y si cambia la región, solo aplica el tramo "región colindante" cuando la región destino colinda con la región origen y está dentro de 150 km.'
       },
       {
         q: '¿Qué es la bonificación por alta demanda?',
@@ -86,7 +86,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Cómo configuro el traslado de una máquina?',
-        a: 'Para cada máquina declaras una base de origen y tres valores netos de traslado: misma comuna, comuna distinta pero misma región y otra región. MAQGO usa esa base para calcular automáticamente lo que verá el cliente.'
+        a: 'Para cada máquina declaras una base de origen y tres valores netos de traslado: misma comuna, comuna distinta pero misma región y región colindante (máx. 150 km). MAQGO usa esa base para calcular automáticamente lo que verá el cliente.'
       },
       {
         q: '¿Cómo declara MAQGO la ubicación de mi maquinaria?',

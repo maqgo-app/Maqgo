@@ -138,6 +138,8 @@ function ProviderOptionsScreen() {
   const sanitizeProviders = useCallback((items) => {
     if (!Array.isArray(items)) return [];
     const serviceComuna = String(localStorage.getItem('serviceComuna') || '').trim();
+    const serviceLat = parseFloat(localStorage.getItem('serviceLat') || '');
+    const serviceLng = parseFloat(localStorage.getItem('serviceLng') || '');
     const hasTransport = !MACHINERY_NO_TRANSPORT.includes(selectedMachinery);
     return items
       .filter((p) => p && typeof p === 'object')
@@ -145,6 +147,8 @@ function ProviderOptionsScreen() {
         const transportQuote = getMachineTransportQuote({
           machineData: p.machineData || p,
           serviceComuna,
+          serviceLat: Number.isFinite(serviceLat) ? serviceLat : null,
+          serviceLng: Number.isFinite(serviceLng) ? serviceLng : null,
         });
         return {
           ...p,
@@ -157,8 +161,10 @@ function ProviderOptionsScreen() {
             : 0,
           transport_tier_label: transportQuote.label || '',
           price_per_hour: Number.isFinite(Number(p.price_per_hour)) ? Number(p.price_per_hour) : 0,
+          transport_quote_eligible: transportQuote.eligible !== false,
         };
-      });
+      })
+      .filter((p) => !hasTransport || p.transport_quote_eligible !== false);
   }, [selectedMachinery]);
 
   const needsTransport = useCallback(() => !MACHINERY_NO_TRANSPORT.includes(selectedMachinery), [selectedMachinery]);

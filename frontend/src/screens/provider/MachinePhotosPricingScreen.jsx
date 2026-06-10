@@ -68,6 +68,18 @@ function getPriceImpactLabel(price, reference) {
   };
 }
 
+function getTransportFieldAlert(value) {
+  if (!value) return null;
+  if (value < MIN_TRANSPORT) {
+    return {
+      type: 'low_range',
+      color: '#F2B15E',
+      msg: `Valor fuera de rango. Mínimo ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(MIN_TRANSPORT)} netos.`,
+    };
+  }
+  return getTransportAlert(value);
+}
+
 const inputHintStyle = {
   fontSize: 12,
   color: 'rgba(255,255,255,0.68)',
@@ -185,9 +197,9 @@ function MachinePhotosPricingScreen() {
   }, [machineType, toast]);
 
   const priceAlert = priceBaseNum >= minPrice ? getPriceAlert(priceBaseNum, refPrice) : null;
-  const sameComunaAlert = needsTransport && sameComunaNum >= MIN_TRANSPORT ? getTransportAlert(sameComunaNum) : null;
-  const sameRegionAlert = needsTransport && sameRegionNum >= MIN_TRANSPORT ? getTransportAlert(sameRegionNum) : null;
-  const otherRegionAlert = needsTransport && otherRegionNum >= MIN_TRANSPORT ? getTransportAlert(otherRegionNum) : null;
+  const sameComunaAlert = needsTransport ? getTransportFieldAlert(sameComunaNum) : null;
+  const sameRegionAlert = needsTransport ? getTransportFieldAlert(sameRegionNum) : null;
+  const otherRegionAlert = needsTransport ? getTransportFieldAlert(otherRegionNum) : null;
   const transportOrderValid = !needsTransport || (sameRegionNum >= sameComunaNum && otherRegionNum >= sameRegionNum);
   const canContinue = needsTransport
     ? priceBaseNum >= minPrice &&
@@ -354,7 +366,7 @@ function MachinePhotosPricingScreen() {
         return;
       }
       if (!otherRegionNum || otherRegionNum < MIN_TRANSPORT) {
-        setError(`Completa el traslado para otra región.`);
+        setError(`Completa el traslado para región colindante (máx. 150 km).`);
         return;
       }
       if (sameComunaNum > maxTransport || sameRegionNum > maxTransport || otherRegionNum > maxTransport) {
@@ -362,7 +374,7 @@ function MachinePhotosPricingScreen() {
         return;
       }
       if (!transportOrderValid) {
-        setError('El traslado de misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.');
+        setError('El traslado entre comunas de la misma región no puede ser menor que misma comuna, y región colindante (máx. 150 km) no puede ser menor que misma región.');
         return;
       }
     }
@@ -785,7 +797,7 @@ function MachinePhotosPricingScreen() {
                 },
                 {
                   key: 'other-region',
-                  label: 'A otra región',
+                  label: 'A región colindante (máx. 150 km)',
                   value: transportOtherRegion,
                   setValue: setTransportOtherRegion,
                   alert: otherRegionAlert,
@@ -852,7 +864,7 @@ function MachinePhotosPricingScreen() {
                 ))}
                 {!transportOrderValid ? (
                   <p style={{ color: '#ffb36b', fontSize: 12, marginTop: 12, marginBottom: 0, lineHeight: 1.4 }}>
-                    Revisa el orden: misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.
+                    Revisa el orden: misma región no puede ser menor que misma comuna, y región colindante (máx. 150 km) no puede ser menor que misma región.
                   </p>
                 ) : null}
               </div>

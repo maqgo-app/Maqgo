@@ -159,7 +159,7 @@ function TermsScreen() {
             MAQGO actúa como intermediario de cobro entre cliente y proveedor.
           </p>
           <p style={{ marginTop: 12 }}>
-            Cuando una maquinaria cobra traslado, MAQGO calcula ese valor automáticamente según la comuna y región de origen declaradas para la maquinaria y la ubicación del servicio ingresada por el cliente. Los tramos vigentes son: misma comuna, comuna distinta dentro de la misma región y otra región.
+            Cuando una maquinaria cobra traslado, MAQGO calcula ese valor automáticamente según la comuna y región de origen declaradas para la maquinaria y la ubicación del servicio ingresada por el cliente. Los tramos vigentes son: misma comuna, comuna distinta dentro de la misma región y región colindante dentro de 150 km.
           </p>
         </Section>
 
