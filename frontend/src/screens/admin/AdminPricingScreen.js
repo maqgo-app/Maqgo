@@ -664,7 +664,7 @@ function AdminPricingScreen() {
             </div>
 
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 20 }}>
-              El proveedor usa estos valores como referencia al publicar su maquinaria. "Sugerido" es el valor precargado; "mín" y "máx" delimitan el rango esperado.
+              El proveedor usa estos valores como referencia al publicar su maquinaria. "Sugerido" es el valor precargado; "mín" y "máx" delimitan el rango esperado para esta maquinaria.
             </p>
           </>
         )}

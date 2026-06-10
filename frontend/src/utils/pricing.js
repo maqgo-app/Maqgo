@@ -189,11 +189,11 @@ export function getPriceAlert(price, refPrice) {
 }
 
 const TRANSPORT_ALERT_MSGS = {
-  competitive: '✓ Traslado competitivo — atractivo para clientes',
-  slightly_high: 'Traslado un poco alto — considera bajar para más reservas',
-  high: 'Traslado alto — menos reservas esperadas',
-  very_high: 'Traslado muy alto — pocas reservas',
-  low: 'Traslado bajo — ¡atractivo! Verifica que sea correcto',
+  competitive: '✓ Costo de traslado competitivo para esta maquinaria',
+  slightly_high: 'Costo de traslado un poco alto para esta maquinaria',
+  high: 'Costo de traslado alto para esta maquinaria',
+  very_high: 'Costo de traslado muy alto para esta maquinaria',
+  low: 'Costo de traslado bajo para esta maquinaria; verifica que sea correcto',
 };
 
 /**

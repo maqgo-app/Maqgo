@@ -63,7 +63,7 @@ function getPriceImpactLabel(price, reference) {
   }
 
   return {
-    text: 'Precio dentro del rango esperado en tu zona',
+    text: 'Precio dentro del rango esperado para esta maquinaria',
     level: 'neutral',
   };
 }
@@ -608,7 +608,7 @@ function MachinePhotosPricingScreen() {
             style={{ ...sectionCard, scrollMarginTop: 72 }}
             id="seccion-tarifas"
           >
-          <h2 style={sectionTitle}>Define tus tarifas</h2>
+          <h2 style={sectionTitle}>{needsTransport ? 'Define tus tarifas' : 'Define tu tarifa'}</h2>
           <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.4 }}>
             {needsTransport
               ? (isPerHour
@@ -665,7 +665,7 @@ function MachinePhotosPricingScreen() {
               />
             </div>
             <p style={inputHintStyle}>
-              Referencia: {formatPrice(refPrice)}{isPerHour ? '/h' : ''}.
+              Valor referencial: {formatPrice(refPrice)}{isPerHour ? '/h' : ''}.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
               <button
