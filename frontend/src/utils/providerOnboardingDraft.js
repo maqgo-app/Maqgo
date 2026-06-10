@@ -87,6 +87,7 @@ export async function persistProviderOnboardingDraft(options = {}) {
 
 export function hydrateLocalProviderOnboardingDraftFromUser(user) {
   const doc = user && typeof user === 'object' ? user : {};
+  const onboardingCompleted = Boolean(doc.onboarding_completed);
   const providerData = doc.providerData && typeof doc.providerData === 'object' ? doc.providerData : null;
   const location = doc.location && typeof doc.location === 'object' ? doc.location : null;
   const machineDataRaw = doc.machineData && typeof doc.machineData === 'object' ? doc.machineData : null;
@@ -110,17 +111,26 @@ export function hydrateLocalProviderOnboardingDraftFromUser(user) {
     if (location) {
       localStorage.setItem('location', JSON.stringify(location));
     }
-    if (hasKeys(machineData)) {
-      localStorage.setItem('machineData', JSON.stringify(machineData));
-    }
-    if (hasKeys(machinePricing)) {
-      localStorage.setItem(MACHINE_PRICING_KEY, JSON.stringify(machinePricing));
-    }
-    if (Array.isArray(machinePhotos) && machinePhotos.length > 0) {
-      localStorage.setItem(MACHINE_PHOTOS_KEY, JSON.stringify(machinePhotos));
-    }
-    if (Array.isArray(operators) && operators.length > 0) {
-      localStorage.setItem('operatorsData', JSON.stringify(operators));
+    if (onboardingCompleted) {
+      localStorage.removeItem('machineData');
+      localStorage.removeItem(MACHINE_PRICING_KEY);
+      localStorage.removeItem(MACHINE_PHOTOS_KEY);
+      localStorage.removeItem('operatorsData');
+      localStorage.removeItem('providerOnboardingStep');
+      localStorage.removeItem('providerCameFromWelcome');
+    } else {
+      if (hasKeys(machineData)) {
+        localStorage.setItem('machineData', JSON.stringify(machineData));
+      }
+      if (hasKeys(machinePricing)) {
+        localStorage.setItem(MACHINE_PRICING_KEY, JSON.stringify(machinePricing));
+      }
+      if (Array.isArray(machinePhotos) && machinePhotos.length > 0) {
+        localStorage.setItem(MACHINE_PHOTOS_KEY, JSON.stringify(machinePhotos));
+      }
+      if (Array.isArray(operators) && operators.length > 0) {
+        localStorage.setItem('operatorsData', JSON.stringify(operators));
+      }
     }
     if (typeof doc.onboarding_completed === 'boolean') {
       localStorage.setItem('providerOnboardingCompleted', doc.onboarding_completed ? 'true' : 'false');
