@@ -642,17 +642,17 @@ function MachinePhotosPricingScreen() {
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.4 }}>
               {needsTransport
                 ? (isPerHour
-                    ? 'Define tu valor por hora neto y el traslado.'
-                    : 'Define tu valor por servicio neto y el traslado.')
+                    ? 'Define tu tarifa por hora neto y el traslado.'
+                    : 'Define tu tarifa por servicio neto y el traslado.')
                 : (isPerHour
-                    ? 'Define tu valor por hora neto.'
-                    : 'Define tu valor por servicio neto.')}
+                    ? 'Define tu tarifa por hora neto.'
+                    : 'Define tu tarifa por servicio neto.')}
             </p>
 
             <div style={pricingModule}>
               <p style={moduleTitle}>{isPerHour ? 'Tarifa por hora' : 'Tarifa por servicio'}</p>
               <label style={fieldLabel}>
-                {isPerHour ? 'Precio por hora neto (sin IVA)' : 'Precio por servicio neto (sin IVA)'}
+                {isPerHour ? 'Tarifa por hora neto (sin IVA)' : 'Tarifa por servicio neto (sin IVA)'}
               </label>
               <div style={{ position: 'relative' }}>
                 <span
@@ -747,7 +747,7 @@ function MachinePhotosPricingScreen() {
 
             {needsTransport && (
               <div style={{ ...pricingModule, marginBottom: 18 }}>
-                <p style={moduleTitle}>Costo de traslado</p>
+                <p style={moduleTitle}>Costo de traslado neto (sin IVA)</p>
                 {[
                 {
                   key: 'same-comuna',
@@ -994,6 +994,7 @@ function MachinePhotosPricingScreen() {
           style={{
             opacity: ctaReady ? 1 : 0.75,
             background: ctaReady ? undefined : '#5a5a5a',
+            boxShadow: ctaReady ? undefined : 'none',
             cursor: 'pointer',
           }}
           data-testid="machine-photos-pricing-continue"

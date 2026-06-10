@@ -1538,7 +1538,7 @@ function MachineDataScreen() {
                   fontWeight: 500,
                 }}
               >
-                {isPerHourW ? 'Precio por hora neto (sin IVA)' : 'Precio por servicio neto (sin IVA)'}
+                {isPerHourW ? 'Tarifa por hora neto (sin IVA)' : 'Tarifa por servicio neto (sin IVA)'}
               </label>
               <div style={{ position: 'relative' }}>
                 <span
@@ -1599,21 +1599,21 @@ function MachineDataScreen() {
                   {[
                     {
                       key: 'same-comuna',
-                      label: 'Costo de traslado dentro de la misma comuna',
+                      label: 'Costo de traslado neto (sin IVA) dentro de la misma comuna',
                       value: transportSameComunaWizard,
                       setValue: setTransportSameComunaWizard,
                       alert: transportSameComunaAlertW,
                     },
                     {
                       key: 'same-region',
-                      label: 'Costo de traslado entre comunas de la misma región',
+                      label: 'Costo de traslado neto (sin IVA) entre comunas de la misma región',
                       value: transportSameRegionWizard,
                       setValue: setTransportSameRegionWizard,
                       alert: transportSameRegionAlertW,
                     },
                     {
                       key: 'other-region',
-                      label: 'Costo de traslado a otra región',
+                      label: 'Costo de traslado neto (sin IVA) a otra región',
                       value: transportOtherRegionWizard,
                       setValue: setTransportOtherRegionWizard,
                       alert: transportOtherRegionAlertW,
