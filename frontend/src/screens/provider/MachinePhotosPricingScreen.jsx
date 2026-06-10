@@ -410,16 +410,6 @@ function MachinePhotosPricingScreen() {
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <h2 style={sectionTitle}>{`Fotos de ${machineName}`}</h2>
-                  <p
-                    style={{
-                      color: 'rgba(255,255,255,0.7)',
-                      fontSize: 13,
-                      margin: 0,
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    Frontal obligatoria. Lateral y trasera opcionales.
-                  </p>
                 </div>
                 <div
                   style={{
@@ -574,7 +564,13 @@ function MachinePhotosPricingScreen() {
           >
           <h2 style={sectionTitle}>Define tus tarifas</h2>
           <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.4 }}>
-            {isPerHour ? 'Define tu valor por hora neto y, si aplica, el traslado.' : 'Define tu valor por servicio neto y, si aplica, el traslado.'}
+            {needsTransport
+              ? (isPerHour
+                  ? 'Define tu valor por hora neto y el traslado.'
+                  : 'Define tu valor por servicio neto y el traslado.')
+              : (isPerHour
+                  ? 'Define tu valor por hora neto.'
+                  : 'Define tu valor por servicio neto.')}
           </p>
 
           <div style={{ marginBottom: 18 }}>
@@ -682,6 +678,9 @@ function MachinePhotosPricingScreen() {
 
           {needsTransport && (
             <div style={{ marginBottom: 18 }}>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 10px', lineHeight: 1.4 }}>
+                Esta maquinaria cobra costo de traslado.
+              </p>
               <label
                 style={{
                   color: 'rgba(255,255,255,0.8)',
@@ -767,14 +766,6 @@ function MachinePhotosPricingScreen() {
                   </p>
                 </div>
               )}
-            </div>
-          )}
-
-          {!needsTransport && (
-            <div style={{ background: '#2A2A2A', borderRadius: 10, padding: 12, marginBottom: 16 }}>
-              <p style={{ color: '#90BDD3', fontSize: 13, margin: 0, textAlign: 'center' }}>
-                Para esta máquina no necesitas ingresar valor de traslado
-              </p>
             </div>
           )}
 
