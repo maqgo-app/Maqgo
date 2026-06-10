@@ -70,7 +70,7 @@ function getPriceImpactLabel(price, reference) {
 
 const inputHintStyle = {
   fontSize: 12,
-  color: '#6B7280',
+  color: 'rgba(255,255,255,0.68)',
   marginTop: 4,
   marginBottom: 0,
   lineHeight: 1.35,
@@ -344,10 +344,12 @@ function MachinePhotosPricingScreen() {
 
   const sectionTitle = {
     color: '#fff',
-    fontSize: 17,
-    fontWeight: 700,
-    margin: '0 0 10px',
-    fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 18,
+    fontWeight: 600,
+    letterSpacing: '-0.01em',
+    lineHeight: 1.2,
+    margin: '0 0 6px',
+    fontFamily: "'Inter', sans-serif",
   };
 
   const sectionCard = {
@@ -386,48 +388,49 @@ function MachinePhotosPricingScreen() {
             color: 'rgba(255,255,255,0.82)',
             fontSize: 14,
             textAlign: 'center',
-            marginBottom: 10,
+            marginBottom: 22,
             lineHeight: 1.45,
             padding: '0 4px',
           }}
         >
           Foto frontal obligatoria. Lateral y trasera opcionales.
         </p>
-        <p style={{ textAlign: 'center', marginBottom: 22 }}>
-          <button
-            type="button"
-            onClick={() =>
-              document.getElementById('seccion-tarifas')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            }
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#90BDD3',
-              cursor: 'pointer',
-              fontSize: 14,
-              textDecoration: 'underline',
-              padding: 4,
-            }}
-          >
-            Bajar a tarifas
-          </button>
-        </p>
 
         <div className="maqgo-photos-pricing-grid">
           <div className="maqgo-photos-pricing-sticky">
             <div id="seccion-fotos" style={sectionCard}>
-              <h2 style={sectionTitle}>Fotos de la máquina</h2>
-
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                  marginBottom: 14,
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h2 style={sectionTitle}>{`Fotos de ${machineName}`}</h2>
+                  <p
+                    style={{
+                      color: 'rgba(255,255,255,0.7)',
+                      fontSize: 13,
+                      margin: 0,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    Frontal obligatoria. Lateral y trasera opcionales.
+                  </p>
+                </div>
                 <div
                   style={{
-                    background: 'rgba(144, 189, 211, 0.2)',
-                    border: '1px solid #90BDD3',
-                    borderRadius: 20,
-                    padding: '6px 14px',
+                    background: 'rgba(144, 189, 211, 0.14)',
+                    border: '1px solid rgba(144, 189, 211, 0.45)',
+                    borderRadius: 999,
+                    padding: '7px 12px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
+                    flex: '0 0 auto',
                   }}
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -439,8 +442,8 @@ function MachinePhotosPricingScreen() {
                       strokeLinejoin="round"
                     />
                   </svg>
-                  <span style={{ color: '#90BDD3', fontSize: 13, fontWeight: 600 }}>
-                    {!hasFrontalPhoto ? 'Falta foto frontal' : `${photos.length} de 3 listas`}
+                  <span style={{ color: '#90BDD3', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    {!hasFrontalPhoto ? 'Falta frontal' : `${photos.length} de 3 listas`}
                   </span>
                 </div>
               </div>
@@ -493,7 +496,9 @@ function MachinePhotosPricingScreen() {
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-                          <div style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>{label}</div>
+                          <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, minHeight: 17 }}>
+                            {p ? label : ''}
+                          </div>
                           <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>{optionality}</div>
                         </div>
                         <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
@@ -568,8 +573,8 @@ function MachinePhotosPricingScreen() {
             id="seccion-tarifas"
           >
           <h2 style={sectionTitle}>Define tus tarifas</h2>
-          <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>
-            {machineName}
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.4 }}>
+            {isPerHour ? 'Define tu valor por hora neto y, si aplica, el traslado.' : 'Define tu valor por servicio neto y, si aplica, el traslado.'}
           </p>
 
           <div style={{ marginBottom: 18 }}>
@@ -618,7 +623,7 @@ function MachinePhotosPricingScreen() {
               />
             </div>
             <p style={inputHintStyle}>
-              Ingresa tu precio (referencia: {formatPrice(refPrice)}{isPerHour ? '/h' : ''}).
+              Referencia: {formatPrice(refPrice)}{isPerHour ? '/h' : ''}.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
               <button
@@ -646,10 +651,10 @@ function MachinePhotosPricingScreen() {
                   lineHeight: 1.35,
                   color:
                     priceImpact.level === 'positive'
-                      ? '#166534'
+                      ? '#71D08A'
                       : priceImpact.level === 'warning'
-                        ? '#B45309'
-                        : '#6B7280',
+                        ? '#F2B15E'
+                        : 'rgba(255,255,255,0.76)',
                 }}
               >
                 {priceImpact.text}
@@ -722,7 +727,7 @@ function MachinePhotosPricingScreen() {
                 />
               </div>
               <p style={inputHintStyle}>
-                Ingresa el traslado (referencia: {formatPrice(REFERENCE_TRANSPORT)}).
+                Referencia: {formatPrice(REFERENCE_TRANSPORT)}.
               </p>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
               <button
@@ -741,8 +746,8 @@ function MachinePhotosPricingScreen() {
                 Usar valor sugerido
               </button>
               </div>
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 6, marginLeft: 4 }}>
-                Ref: {formatPrice(REFERENCE_TRANSPORT)} · Máx: {formatPrice(maxTransport)}
+              <p style={{ color: 'rgba(255,255,255,0.58)', fontSize: 13, marginTop: 6, marginLeft: 4 }}>
+                Máx: {formatPrice(maxTransport)}
               </p>
               {transportAlert && (
                 <div
