@@ -57,7 +57,7 @@ function getPriceImpactLabel(price, reference) {
 
   if (price > reference * 1.4) {
     return {
-      text: 'Este precio podría reducir tus probabilidades de ser elegido',
+      text: 'Tarifa sobre el rango esperado para esta maquinaria',
       level: 'warning',
     };
   }
