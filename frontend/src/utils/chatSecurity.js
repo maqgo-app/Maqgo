@@ -8,6 +8,65 @@ export const CHAT_CONTACT_BLOCKED_MESSAGE =
 export const CHAT_LOW_QUALITY_BLOCKED_MESSAGE =
   'Escribe un mensaje claro y útil para coordinar el servicio.';
 
+const DIGIT_WORD_PARTS = [
+  'cero',
+  'cer',
+  'zero',
+  'uno',
+  'un',
+  'dos',
+  'do',
+  'tres',
+  'tre',
+  'cuatro',
+  'cuatr',
+  'cinco',
+  'cinc',
+  'seis',
+  'sei',
+  'siete',
+  'siet',
+  'ocho',
+  'och',
+  'nueve',
+  'nuev',
+];
+
+function normalizeObfuscatedContactText(text) {
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/0/g, 'o')
+    .replace(/[1!|]/g, 'i')
+    .replace(/3/g, 'e')
+    .replace(/4/g, 'a')
+    .replace(/5/g, 's')
+    .replace(/7/g, 't');
+}
+
+function containsSpelledPhoneSequence(text) {
+  const normalized = normalizeObfuscatedContactText(text);
+  const compact = normalized.replace(/[^a-z]/g, '');
+  if (!compact) return false;
+
+  let matches = 0;
+  let cursor = 0;
+  while (cursor < compact.length) {
+    const slice = compact.slice(cursor);
+    const part = DIGIT_WORD_PARTS.find((candidate) => slice.startsWith(candidate));
+    if (part) {
+      matches += 1;
+      cursor += part.length;
+      if (matches >= 4) return true;
+      continue;
+    }
+    cursor += 1;
+  }
+
+  return false;
+}
+
 /** API y UI usan 'operator' para proveedor/operador */
 export function normalizeChatSenderType(roleOrType) {
   const r = String(roleOrType || '').toLowerCase();
@@ -37,6 +96,7 @@ export function messageContainsPhoneOrContact(text) {
 
   const digits = s.replace(/\D/g, '');
   if (digits.length >= 9 && /9\d{8,}/.test(digits)) return true;
+  if (containsSpelledPhoneSequence(s)) return true;
 
   return false;
 }

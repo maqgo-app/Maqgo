@@ -34,6 +34,30 @@ CHAT_LOW_QUALITY_BLOCKED_MSG = (
     "Escribe un mensaje claro y útil para coordinar el servicio."
 )
 
+DIGIT_WORD_PARTS = [
+    "cero",
+    "cer",
+    "zero",
+    "uno",
+    "un",
+    "dos",
+    "do",
+    "tres",
+    "tre",
+    "cuatro",
+    "cuatr",
+    "cinco",
+    "cinc",
+    "seis",
+    "sei",
+    "siete",
+    "siet",
+    "ocho",
+    "och",
+    "nueve",
+    "nuev",
+]
+
 
 def _can_access_service_chat(current_user: dict, service_id: str) -> bool:
     """
@@ -71,6 +95,49 @@ def _content_contains_phone_or_contact(text: str) -> bool:
     digits = re.sub(r"\D", "", s)
     if len(digits) >= 9 and re.search(r"9\d{8,}", digits):
         return True
+    if _contains_spelled_phone_sequence(s):
+        return True
+    return False
+
+
+def _normalize_obfuscated_contact_text(text: str) -> str:
+    return (
+        str(text or "")
+        .lower()
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("í", "i")
+        .replace("ó", "o")
+        .replace("ú", "u")
+        .replace("0", "o")
+        .replace("1", "i")
+        .replace("!", "i")
+        .replace("|", "i")
+        .replace("3", "e")
+        .replace("4", "a")
+        .replace("5", "s")
+        .replace("7", "t")
+    )
+
+
+def _contains_spelled_phone_sequence(text: str) -> bool:
+    normalized = _normalize_obfuscated_contact_text(text)
+    compact = re.sub(r"[^a-z]", "", normalized)
+    if not compact:
+        return False
+
+    matches = 0
+    cursor = 0
+    while cursor < len(compact):
+        chunk = compact[cursor:]
+        part = next((candidate for candidate in DIGIT_WORD_PARTS if chunk.startswith(candidate)), None)
+        if part:
+            matches += 1
+            cursor += len(part)
+            if matches >= 4:
+                return True
+            continue
+        cursor += 1
     return False
 
 

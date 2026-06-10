@@ -16,13 +16,14 @@ function ServiceChatScreen() {
   const role = localStorage.getItem('userRole') || 'client';
   const userType = useMemo(() => normalizeChatSenderType(role), [role]);
 
-  const otherRaw = searchParams.get('other') || 'Contacto MAQGO';
-  let otherName = 'Contacto MAQGO';
+  const otherRaw = searchParams.get('other') || 'Operador';
+  let decodedOtherName = 'Operador';
   try {
-    otherName = decodeURIComponent(otherRaw);
+    decodedOtherName = decodeURIComponent(otherRaw);
   } catch {
-    otherName = otherRaw;
+    decodedOtherName = otherRaw;
   }
+  const otherName = userType === 'client' ? decodedOtherName : 'Cliente MAQGO';
 
   if (!serviceId) {
     navigate(-1);
@@ -31,15 +32,23 @@ function ServiceChatScreen() {
 
   return (
     <div className="maqgo-app maqgo-client-funnel">
-      <ServiceChat
-        serviceId={serviceId}
-        userType={userType}
-        otherName={otherName}
-        onClose={() => navigate(-1)}
-      />
+      <div
+        className="maqgo-screen maqgo-screen--scroll"
+        style={{
+          padding: 0,
+          minHeight: 0,
+          overflow: 'hidden',
+        }}
+      >
+        <ServiceChat
+          serviceId={serviceId}
+          userType={userType}
+          otherName={otherName}
+          onClose={() => navigate(-1)}
+        />
+      </div>
     </div>
   );
 }
 
 export default ServiceChatScreen;
-

@@ -267,15 +267,12 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
 
   return (
     <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
       background: '#1A1A1F',
-      zIndex: 2000,
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      flex: 1,
+      minHeight: 0,
+      height: '100%'
     }}>
       {/* Header */}
       <div style={{
@@ -467,7 +464,7 @@ function ServiceChat({ serviceId, userType, otherName, onClose }) {
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-          placeholder="O escribe un mensaje..."
+          placeholder="Mensaje interno MAQGO"
           style={{
             flex: 1,
             padding: '12px 16px',

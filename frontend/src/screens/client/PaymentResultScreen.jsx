@@ -21,11 +21,6 @@ import { getClientBreakdown, MACHINERY_NO_TRANSPORT } from '../../utils/pricing'
 import { formatPrice, formatDateShort } from '../../utils/format';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
 import { getBookingLocationP5 } from '../../utils/mapPlaceToAddress';
-import {
-  getProviderLicensePlate,
-  getOperatorDisplayNameForSite,
-  getOperatorRutForSite
-} from '../../utils/providerDisplay';
 import { useCheckoutState } from '../../context/CheckoutContext';
 import { touchCheckoutStateForExhaustiveUi } from '../../domain/checkout/checkoutStateMachine';
 
@@ -170,8 +165,6 @@ function PaymentResultScreen() {
   const [provider, setProvider] = useState(null);
   const [pricing, setPricing] = useState(null);
   const [orderNumber, setOrderNumber] = useState('');
-  const operatorFullName = getOperatorDisplayNameForSite(provider);
-  const operatorRut = getOperatorRutForSite(provider);
 
   const checkoutOutcomeEmitted = useRef(false);
   const { state: checkoutState, dispatch: dispatchCheckout } = useCheckoutState();
@@ -853,35 +846,22 @@ function PaymentResultScreen() {
 
           <div style={{ marginBottom: 8 }}>
             <div style={{ color: '#fff', fontSize: 16, fontWeight: 600 }}>
-              {operatorFullName}
+              Equipo MAQGO en camino
             </div>
             <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, margin: '6px 0 0', lineHeight: 1.35 }}>
-              Nombre y RUT para ingreso a obra o control de acceso.
+              La coordinación y cualquier actualización se realizan dentro del chat de MAQGO.
             </p>
-            <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, marginTop: 8 }}>
-              RUT:{' '}
-              <span style={{ fontWeight: 600, color: '#fff' }}>
-                {operatorRut || 'Por confirmar'}
-              </span>
-            </div>
           </div>
 
-          {/* Patente y ETA en una fila */}
+          {/* ETA cliente */}
           <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-around',
+            display: 'flex',
+            justifyContent: 'center',
             alignItems: 'center',
             background: '#2A2A2A',
             borderRadius: 8,
             padding: '10px 14px'
           }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 9, marginBottom: 2 }}>PATENTE</div>
-              <div style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>
-                {getProviderLicensePlate(provider) || 'Por confirmar'}
-              </div>
-            </div>
-            <div style={{ width: 1, height: 30, background: '#444' }}></div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 9, marginBottom: 2 }}>LLEGADA ESTIMADA</div>
               <div style={{ color: '#90BDD3', fontSize: 14, fontWeight: 600 }}>{provider?.eta_minutes || 40} min</div>
