@@ -485,7 +485,7 @@ function MachinePhotosPricingScreen() {
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <h2 style={sectionTitle}>{`Fotos de ${machineName}`}</h2>
+                  <h2 style={sectionTitle}>{machineName}</h2>
                 </div>
                 <div
                   style={{
