@@ -67,6 +67,7 @@ function SelectOperatorScreen() {
     const savedOperators = (serviceOperators.length > 0 ? serviceOperators : getArray('operatorsData', []))
       .map((op, index) => normalizeStoredOperator(op, index))
       .filter(Boolean);
+    const currentAssignedOperator = normalizeStoredOperator(getObject('assignedOperator', {}), -1);
 
     if (savedOperators.length === 0) {
       const registerData = getObject('registerData', {});
@@ -89,10 +90,16 @@ function SelectOperatorScreen() {
 
     const defaults = getObject(STORAGE_KEY_DEFAULT_BY_MACHINERY, {});
     const defaultOpId = defaults[machineryId || 'retroexcavadora'];
+    const currentAssignedId = String(currentAssignedOperator?.id || '').trim();
+    const currentAssignedOp = currentAssignedId
+      ? operatorsWithIds.find((o) => String(o.id || '').trim() === currentAssignedId)
+      : null;
     const defaultOp = defaultOpId ? operatorsWithIds.find((o) => o.id === defaultOpId) : null;
 
     if (operatorsWithIds.length === 1) {
       setSelectedOperator(operatorsWithIds[0]);
+    } else if (currentAssignedOp) {
+      setSelectedOperator(currentAssignedOp);
     } else if (defaultOp) {
       setSelectedOperator(defaultOp);
     } else {
