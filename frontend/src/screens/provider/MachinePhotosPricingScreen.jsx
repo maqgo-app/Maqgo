@@ -406,6 +406,36 @@ function MachinePhotosPricingScreen() {
     marginBottom: 20,
   };
 
+  const pricingModule = {
+    background: 'rgba(0,0,0,0.16)',
+    border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+  };
+
+  const moduleTitle = {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: 600,
+    margin: '0 0 4px',
+    lineHeight: 1.25,
+  };
+
+  const fieldLabel = {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 14,
+    display: 'block',
+    marginBottom: 8,
+    fontWeight: 500,
+  };
+
+  const transportRow = (index) => ({
+    paddingTop: index === 0 ? 0 : 12,
+    marginTop: index === 0 ? 0 : 12,
+    borderTop: index === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
+  });
+
   return (
     <div className="maqgo-app maqgo-provider-funnel">
       <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 140px' }}>
@@ -608,126 +638,117 @@ function MachinePhotosPricingScreen() {
             style={{ ...sectionCard, scrollMarginTop: 72 }}
             id="seccion-tarifas"
           >
-          <h2 style={sectionTitle}>{needsTransport ? 'Define tus tarifas' : 'Define tu tarifa'}</h2>
-          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.4 }}>
-            {needsTransport
-              ? (isPerHour
-                  ? 'Define tu valor por hora neto y el traslado.'
-                  : 'Define tu valor por servicio neto y el traslado.')
-              : (isPerHour
-                  ? 'Define tu valor por hora neto.'
-                  : 'Define tu valor por servicio neto.')}
-          </p>
-
-          <div style={{ marginBottom: 18 }}>
-            <label
-              style={{
-                color: 'rgba(255,255,255,0.8)',
-                fontSize: 14,
-                display: 'block',
-                marginBottom: 8,
-                fontWeight: 500,
-              }}
-            >
-              {isPerHour ? 'Precio por hora neto (sin IVA)' : 'Precio por servicio neto (sin IVA)'}
-            </label>
-            <div style={{ position: 'relative' }}>
-              <span
-                style={{
-                  position: 'absolute',
-                  left: 16,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#666',
-                  fontSize: 16,
-                }}
-              >
-                $
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={priceBase ? (parseInt(priceBase, 10) || 0).toLocaleString('es-CL') : ''}
-                onChange={(e) => setPriceBase(e.target.value.replace(/\D/g, ''))}
-                placeholder={refPrice.toLocaleString('es-CL')}
-                style={{
-                  width: '100%',
-                  padding: '16px 16px 16px 36px',
-                  background: '#F5EFE6',
-                  border: 'none',
-                  borderRadius: 12,
-                  fontSize: 18,
-                  fontWeight: 600,
-                  color: '#1A1A1A',
-                  boxSizing: 'border-box',
-                }}
-                data-testid="price-input"
-              />
-            </div>
-            <p style={inputHintStyle}>
-              Valor referencial: {formatPrice(refPrice)}{isPerHour ? '/h' : ''}.
+            <h2 style={sectionTitle}>{needsTransport ? 'Define tus tarifas' : 'Define tu tarifa'}</h2>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.4 }}>
+              {needsTransport
+                ? (isPerHour
+                    ? 'Define tu valor por hora neto y el traslado.'
+                    : 'Define tu valor por servicio neto y el traslado.')
+                : (isPerHour
+                    ? 'Define tu valor por hora neto.'
+                    : 'Define tu valor por servicio neto.')}
             </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-              <button
-                type="button"
-                onClick={() => setPriceBase(String(refPrice))}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#90BDD3',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  padding: '2px 0',
-                }}
-              >
-                Usar valor sugerido
-              </button>
-            </div>
-            {priceImpact ? (
-              <p
-                style={{
-                  fontSize: 12,
-                  marginTop: 4,
-                  marginBottom: 0,
-                  lineHeight: 1.35,
-                  color:
-                    priceImpact.level === 'positive'
-                      ? '#71D08A'
-                      : priceImpact.level === 'warning'
-                        ? '#F2B15E'
-                        : 'rgba(255,255,255,0.76)',
-                }}
-              >
-                {priceImpact.text}
-              </p>
-            ) : null}
-            {priceAlert && (
-              <div
-                style={{
-                  marginTop: 8,
-                  padding: 10,
-                  borderRadius: 8,
-                  minHeight: 40,
-                  background: `${priceAlert.color}20`,
-                  border: `1px solid ${priceAlert.color}60`,
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                <p style={{ color: priceAlert.color, fontSize: 12, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>
-                  {priceAlert.msg}
-                </p>
-              </div>
-            )}
-          </div>
 
-          {needsTransport && (
-            <div style={{ marginBottom: 18 }}>
-              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 10px', lineHeight: 1.4 }}>
-                Esta maquinaria cobra costo de traslado.
+            <div style={pricingModule}>
+              <p style={moduleTitle}>{isPerHour ? 'Tarifa por hora' : 'Tarifa por servicio'}</p>
+              <label style={fieldLabel}>
+                {isPerHour ? 'Precio por hora neto (sin IVA)' : 'Precio por servicio neto (sin IVA)'}
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: 16,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#666',
+                    fontSize: 16,
+                  }}
+                >
+                  $
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={priceBase ? (parseInt(priceBase, 10) || 0).toLocaleString('es-CL') : ''}
+                  onChange={(e) => setPriceBase(e.target.value.replace(/\D/g, ''))}
+                  placeholder={refPrice.toLocaleString('es-CL')}
+                  style={{
+                    width: '100%',
+                    padding: '16px 16px 16px 36px',
+                    background: '#F5EFE6',
+                    border: 'none',
+                    borderRadius: 12,
+                    fontSize: 18,
+                    fontWeight: 600,
+                    color: '#1A1A1A',
+                    boxSizing: 'border-box',
+                  }}
+                  data-testid="price-input"
+                />
+              </div>
+              <p style={inputHintStyle}>
+                Valor referencial: {formatPrice(refPrice)}{isPerHour ? '/h' : ''}.
               </p>
-              {[
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setPriceBase(String(refPrice))}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#90BDD3',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: '2px 0',
+                  }}
+                >
+                  Usar valor sugerido
+                </button>
+              </div>
+              {priceImpact ? (
+                <p
+                  style={{
+                    fontSize: 12,
+                    marginTop: 4,
+                    marginBottom: 0,
+                    lineHeight: 1.35,
+                    color:
+                      priceImpact.level === 'positive'
+                        ? '#71D08A'
+                        : priceImpact.level === 'warning'
+                          ? '#F2B15E'
+                          : 'rgba(255,255,255,0.76)',
+                  }}
+                >
+                  {priceImpact.text}
+                </p>
+              ) : null}
+              {priceAlert && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: 10,
+                    borderRadius: 8,
+                    minHeight: 40,
+                    background: `${priceAlert.color}20`,
+                    border: `1px solid ${priceAlert.color}60`,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <p style={{ color: priceAlert.color, fontSize: 12, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>
+                    {priceAlert.msg}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {needsTransport && (
+              <div style={{ ...pricingModule, marginBottom: 18 }}>
+                <p style={moduleTitle}>Costo de traslado</p>
+                {[
                 {
                   key: 'same-comuna',
                   label: 'Costo de traslado dentro de la misma comuna',
@@ -749,81 +770,70 @@ function MachinePhotosPricingScreen() {
                   setValue: setTransportOtherRegion,
                   alert: otherRegionAlert,
                 },
-              ].map((field) => (
-                <div key={field.key} style={{ marginBottom: 16 }}>
-                  <label
-                    style={{
-                      color: 'rgba(255,255,255,0.8)',
-                      fontSize: 14,
-                      display: 'block',
-                      marginBottom: 8,
-                      fontWeight: 500,
-                    }}
-                  >
-                    {field.label}
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <span
-                      style={{
-                        position: 'absolute',
-                        left: 16,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#666',
-                        fontSize: 16,
-                      }}
-                    >
-                      $
-                    </span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={field.value ? (parseInt(field.value, 10) || 0).toLocaleString('es-CL') : ''}
-                      onChange={(e) => field.setValue(e.target.value.replace(/\D/g, ''))}
-                      style={{
-                        width: '100%',
-                        padding: '16px 16px 16px 36px',
-                        background: '#F5EFE6',
-                        border: 'none',
-                        borderRadius: 12,
-                        fontSize: 18,
-                        fontWeight: 600,
-                        color: '#1A1A1A',
-                        boxSizing: 'border-box',
-                      }}
-                      data-testid={`transport-input-${field.key}`}
-                    />
-                  </div>
-                  {field.alert ? (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        padding: 10,
-                        borderRadius: 8,
-                        minHeight: 40,
-                        background: `${field.alert.color}20`,
-                        border: `1px solid ${field.alert.color}60`,
-                        display: 'flex',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <p style={{ color: field.alert.color, fontSize: 12, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>
-                        {field.alert.msg}
-                      </p>
+                ].map((field, index) => (
+                  <div key={field.key} style={transportRow(index)}>
+                    <label style={fieldLabel}>
+                      {field.label}
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          left: 16,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: '#666',
+                          fontSize: 16,
+                        }}
+                      >
+                        $
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={field.value ? (parseInt(field.value, 10) || 0).toLocaleString('es-CL') : ''}
+                        onChange={(e) => field.setValue(e.target.value.replace(/\D/g, ''))}
+                        style={{
+                          width: '100%',
+                          padding: '16px 16px 16px 36px',
+                          background: '#F5EFE6',
+                          border: 'none',
+                          borderRadius: 12,
+                          fontSize: 18,
+                          fontWeight: 600,
+                          color: '#1A1A1A',
+                          boxSizing: 'border-box',
+                        }}
+                        data-testid={`transport-input-${field.key}`}
+                      />
                     </div>
-                  ) : null}
-                </div>
-              ))}
-              <p style={{ color: 'rgba(255,255,255,0.58)', fontSize: 13, marginTop: -2, marginLeft: 4, lineHeight: 1.45 }}>
-                MAQGO mostrará automáticamente el valor según la comuna y región del servicio. Máx por tramo: {formatPrice(maxTransport)}.
-              </p>
-              {!transportOrderValid ? (
-                <p style={{ color: '#ffb36b', fontSize: 12, marginTop: 8, marginBottom: 0, lineHeight: 1.4 }}>
-                  Revisa el orden: misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.
-                </p>
-              ) : null}
-            </div>
-          )}
+                    {field.alert ? (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          padding: 10,
+                          borderRadius: 8,
+                          minHeight: 40,
+                          background: `${field.alert.color}20`,
+                          border: `1px solid ${field.alert.color}60`,
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <p style={{ color: field.alert.color, fontSize: 12, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>
+                          {field.alert.msg}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+                {!transportOrderValid ? (
+                  <p style={{ color: '#ffb36b', fontSize: 12, marginTop: 12, marginBottom: 0, lineHeight: 1.4 }}>
+                    Revisa el orden: misma región no puede ser menor que misma comuna, y otra región no puede ser menor que misma región.
+                  </p>
+                ) : null}
+              </div>
+            )}
 
           {error && (
             <div style={{ background: '#2A2A2A', border: '1px solid #ff6b6b', borderRadius: 10, padding: 12, marginBottom: 16 }}>
