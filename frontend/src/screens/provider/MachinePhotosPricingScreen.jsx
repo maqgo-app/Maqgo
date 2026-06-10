@@ -668,7 +668,7 @@ function MachinePhotosPricingScreen() {
             style={{ ...sectionCard, scrollMarginTop: 72 }}
             id="seccion-tarifas"
           >
-            <h2 style={sectionTitle}>{needsTransport ? 'Define tus tarifas' : 'Define tu tarifa'}</h2>
+            <h2 style={{ ...sectionTitle, textAlign: 'center' }}>{needsTransport ? 'Define tus tarifas' : 'Define tu tarifa'}</h2>
             <div style={pricingModule}>
               <p style={moduleTitle}>{isPerHour ? 'Tarifa por hora' : 'Tarifa por servicio'}</p>
               <label style={fieldLabel}>
