@@ -418,7 +418,7 @@ function MachinePhotosPricingScreen() {
     color: '#fff',
     fontSize: 15,
     fontWeight: 600,
-    margin: '0 0 4px',
+    margin: '0 0 10px',
     lineHeight: 1.25,
   };
 
