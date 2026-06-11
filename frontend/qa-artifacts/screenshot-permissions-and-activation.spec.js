@@ -134,6 +134,36 @@ async function seedMasterPermissions(page, { userId, permissions }) {
 }
 
 test.describe('Capturas: activación master y permisos de borrado', () => {
+  test('Invitación master (supermaster) muestra permisos de maquinaria', async ({ page, baseURL }) => {
+    const userId = 'super-000';
+
+    await seedSession(page, { userId, providerRole: 'super_master' });
+    await mockAuthMeRoute(page, { userId, providerRole: 'super_master' });
+    await mockRoleRoute(page, {
+      userId,
+      providerRole: 'super_master',
+      permissions: {
+        can_manage_machines: true,
+        can_manage_operators: true,
+        can_delete_machines: true,
+      },
+    });
+    await mockTeamRoute(page, { pendingInvitations: [], operators: [], masters: [] });
+    await mockInviteRoutes(page, { masterCode: 'MAS777' });
+
+    await page.goto(`${baseURL}/provider/team?mode=master&tab=invite&view=create`, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByText('Crear usuario master')).toBeVisible();
+    await expect(page.getByText('Permisos')).toBeVisible();
+
+    await expect(page.getByText('Puede editar máquinas y operadores por máquina')).toBeVisible();
+    await expect(page.getByText('Puede eliminar máquinas')).toBeVisible();
+
+    await page.screenshot({
+      path: 'qa-artifacts/out/invite-master-permissions.png',
+      fullPage: true,
+    });
+  });
+
   test('Activación master (supermaster) muestra copy de activación', async ({ page, baseURL }) => {
     const userId = 'super-001';
 
@@ -245,6 +275,44 @@ test.describe('Capturas: activación master y permisos de borrado', () => {
 
     await page.screenshot({
       path: 'qa-artifacts/out/machines-delete-master.png',
+      fullPage: true,
+    });
+  });
+
+  test('Mis Máquinas: master con permiso ve eliminar máquina', async ({ page, baseURL }) => {
+    const userId = 'master-002';
+    await seedMasterPermissions(page, {
+      userId,
+      permissions: {
+        can_manage_machines: true,
+        can_delete_machines: true,
+      },
+    });
+    await seedSession(page, { userId, providerRole: 'master' });
+    await mockAuthMeRoute(page, { userId, providerRole: 'master' });
+    await mockMachinesRoute(page, {
+      machines: [
+        {
+          id: 'mach-1',
+          machineryType: 'camion_aljibe',
+          type: 'Camión Aljibe',
+          brand: 'Mercedes-Benz',
+          licensePlate: 'ABCD12',
+          pricePerService: 260000,
+          transportCost: 0,
+          available: true,
+          operators: [{ id: 'op-1', name: 'Operador Uno', phone: '+56911111111' }],
+        },
+      ],
+    });
+
+    await page.goto(`${baseURL}/provider/machines`, { waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByText('Mis Máquinas')).toBeVisible();
+    await expect(page.getByTitle('Eliminar máquina')).toBeVisible();
+
+    await page.screenshot({
+      path: 'qa-artifacts/out/machines-delete-master-with-permission.png',
       fullPage: true,
     });
   });
