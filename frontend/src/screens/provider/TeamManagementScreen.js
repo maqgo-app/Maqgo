@@ -1231,16 +1231,33 @@ function TeamManagementScreen() {
                               {inv.invite_type === 'master' ? 'Para usuario master' : 'Para operador'}
                             </p>
                             {inv.invite_type === 'master' && inv.master_name && (
-                              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '6px 0 0' }}>
-                                {joinDisplayName(inv.master_name, inv.master_last_name)}
-                                {inv.master_rut ? ` · RUT ${inv.master_rut}` : ''}
-                                {inv.master_phone ? ` · ${inv.master_phone}` : ''}
-                              </p>
+                              <div style={{ marginTop: 6 }}>
+                                <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
+                                  {joinDisplayName(inv.master_name, inv.master_last_name)}
+                                </p>
+                                {inv.master_rut ? (
+                                  <p style={{ color: 'rgba(255,255,255,0.66)', fontSize: 12, margin: '4px 0 0' }}>
+                                    RUT {inv.master_rut}
+                                  </p>
+                                ) : null}
+                                {inv.master_phone ? (
+                                  <p style={{ color: 'rgba(255,255,255,0.66)', fontSize: 12, margin: '4px 0 0' }}>
+                                    {inv.master_phone}
+                                  </p>
+                                ) : null}
+                              </div>
                             )}
                             {inv.invite_type !== 'master' && inv.operator_name && (
-                              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '6px 0 0' }}>
-                                {inv.operator_name}{inv.operator_rut ? ` · RUT ${inv.operator_rut}` : ''}
-                              </p>
+                              <div style={{ marginTop: 6 }}>
+                                <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
+                                  {inv.operator_name}
+                                </p>
+                                {inv.operator_rut ? (
+                                  <p style={{ color: 'rgba(255,255,255,0.66)', fontSize: 12, margin: '4px 0 0' }}>
+                                    RUT {inv.operator_rut}
+                                  </p>
+                                ) : null}
+                              </div>
                             )}
                           </div>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -1402,16 +1419,33 @@ function TeamManagementScreen() {
                               {inv.invite_type === 'master' ? 'Para usuario master' : 'Para operador'}
                             </p>
                             {inv.invite_type === 'master' && inv.master_name && (
-                              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '6px 0 0' }}>
-                                {joinDisplayName(inv.master_name, inv.master_last_name)}
-                                {inv.master_rut ? ` · RUT ${inv.master_rut}` : ''}
-                                {inv.master_phone ? ` · ${inv.master_phone}` : ''}
-                              </p>
+                              <div style={{ marginTop: 6 }}>
+                                <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
+                                  {joinDisplayName(inv.master_name, inv.master_last_name)}
+                                </p>
+                                {inv.master_rut ? (
+                                  <p style={{ color: 'rgba(255,255,255,0.66)', fontSize: 12, margin: '4px 0 0' }}>
+                                    RUT {inv.master_rut}
+                                  </p>
+                                ) : null}
+                                {inv.master_phone ? (
+                                  <p style={{ color: 'rgba(255,255,255,0.66)', fontSize: 12, margin: '4px 0 0' }}>
+                                    {inv.master_phone}
+                                  </p>
+                                ) : null}
+                              </div>
                             )}
                             {inv.invite_type !== 'master' && inv.operator_name && (
-                              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '6px 0 0' }}>
-                                {inv.operator_name}{inv.operator_rut ? ` · RUT ${inv.operator_rut}` : ''}
-                              </p>
+                              <div style={{ marginTop: 6 }}>
+                                <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
+                                  {inv.operator_name}
+                                </p>
+                                {inv.operator_rut ? (
+                                  <p style={{ color: 'rgba(255,255,255,0.66)', fontSize: 12, margin: '4px 0 0' }}>
+                                    RUT {inv.operator_rut}
+                                  </p>
+                                ) : null}
+                              </div>
                             )}
                           </div>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>

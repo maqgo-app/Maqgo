@@ -8,7 +8,6 @@ import {
   deleteMachineInApi,
   fetchProviderMachinesFromApi,
   getMachines,
-  resetMachines,
   updateMachine,
   updateMachineInApi,
   needsTransport,
@@ -166,19 +165,6 @@ function MyMachinesScreen() {
     return <Navigate to="/provider/home" replace />;
   }
 
-  const handleResetAllMachines = async () => {
-    try {
-      await Promise.all((machines || []).map((m) => deleteMachineInApi(m.id)));
-      resetMachines();
-      loadMachines();
-    } catch (e) {
-      toast.error(e?.message || 'No se pudieron eliminar las máquinas.');
-    } finally {
-      setDeleteMachineConfirm(null);
-    }
-  };
-
-
   const setDefaultOperator = (machineryId, operatorId) => {
     const updated = { ...defaultByMachinery, [machineryId]: operatorId };
     setDefaultByMachinery(updated);
@@ -325,25 +311,6 @@ function MyMachinesScreen() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {machines.length > 0 && (
-            <button
-              onClick={() => setDeleteMachineConfirm({ kind: 'reset_all' })}
-              style={{
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 8,
-                padding: '10px 12px',
-                color: 'rgba(255,255,255,0.8)',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-              data-testid="reset-all-machines"
-              title="Eliminar todas las máquinas (reset)"
-            >
-              Limpiar
-            </button>
-          )}
           <button
             onClick={handleAddMachine}
             style={{
@@ -660,17 +627,9 @@ function MyMachinesScreen() {
 
       {deleteMachineConfirm && (
         <ConfirmModal
-          title={deleteMachineConfirm.kind === 'reset_all' ? 'Limpiar máquinas' : 'Eliminar máquina'}
-          message={
-            deleteMachineConfirm.kind === 'reset_all'
-              ? '¿Eliminar todas tus máquinas? Quedará la lista vacía para que agregues una por una.'
-              : `¿Eliminar ${deleteMachineConfirm.type} ${deleteMachineConfirm.brand}? Esta acción no se puede deshacer.`
-          }
-          onConfirm={() =>
-            deleteMachineConfirm.kind === 'reset_all'
-              ? handleResetAllMachines()
-              : handleDeleteMachine(deleteMachineConfirm.id)
-          }
+          title="Eliminar máquina"
+          message={`¿Eliminar ${deleteMachineConfirm.type} ${deleteMachineConfirm.brand}? Esta acción no se puede deshacer.`}
+          onConfirm={() => handleDeleteMachine(deleteMachineConfirm.id)}
           onCancel={() => setDeleteMachineConfirm(null)}
         />
       )}
