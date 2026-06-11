@@ -8,7 +8,7 @@ Flujo:
 """
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime, timezone, timedelta
 import random
 import string
@@ -478,6 +478,7 @@ class MasterInvitationCreate(BaseModel):
     master_last_name: Optional[str] = None
     master_rut: Optional[str] = None
     master_phone: Optional[str] = None
+    permissions: Optional[Dict[str, bool]] = None
 
 
 class MasterInvitationUse(BaseModel):
@@ -517,6 +518,12 @@ async def create_master_invitation(
             detail="Completa nombre, apellido, RUT y celular del usuario master para generar el código.",
         )
     master_rut = _ensure_person_rut(data.master_rut, label="RUT del usuario master")
+
+    raw_perms = data.permissions if isinstance(data.permissions, dict) else {}
+    invitation_permissions = {
+        "can_manage_machines": bool(raw_perms.get("can_manage_machines")) if "can_manage_machines" in raw_perms else False,
+        "can_delete_machines": bool(raw_perms.get("can_delete_machines")) if "can_delete_machines" in raw_perms else False,
+    }
     
     # Generar código único
     code = generate_invite_code()
@@ -533,6 +540,7 @@ async def create_master_invitation(
         "master_last_name": data.master_last_name,
         "master_rut": master_rut,
         "master_phone": data.master_phone,
+        "permissions": invitation_permissions,
         "status": "pending",
         "created_at": datetime.now(timezone.utc),
         "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
@@ -612,7 +620,8 @@ async def use_master_invitation(data: MasterInvitationUse):
         "totalServices": 0,
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "joinedVia": "invitation",
-        "invitationCode": data.code.upper()
+        "invitationCode": data.code.upper(),
+        "master_permissions": invitation.get("permissions") if isinstance(invitation.get("permissions"), dict) else {},
     }
     
     await db.users.insert_one(master_data)

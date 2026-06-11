@@ -946,6 +946,12 @@ async def get_user_role(
     is_master = provider_role == 'master'
     is_operator = provider_role == 'operator'
     has_full_visibility = is_super_master or is_master
+
+    master_permissions = user.get('master_permissions', {}) if is_master else {}
+    if not isinstance(master_permissions, dict):
+        master_permissions = {}
+    can_manage_machines = bool(is_super_master or (is_master and master_permissions.get('can_manage_machines') is True))
+    can_delete_machines = bool(is_super_master or (is_master and master_permissions.get('can_delete_machines') is True))
     
     response = {
         'user_id': user_id,
@@ -960,7 +966,9 @@ async def get_user_role(
             'can_manage_masters': is_super_master,  # Solo Titular puede invitar Masters
             'can_view_bank_data': has_full_visibility,
             'can_accept_requests': has_permission(user, 'accept_requests'),
-            'can_view_services': True
+            'can_view_services': True,
+            'can_manage_machines': can_manage_machines,
+            'can_delete_machines': can_delete_machines,
         }
     }
     

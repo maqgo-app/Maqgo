@@ -29,6 +29,28 @@ async def _assert_machine_access(machine_id: str, current_user: dict) -> dict:
     return machine
 
 
+def _normalize_provider_role(user: dict) -> str:
+    provider_role = user.get("provider_role")
+    return "super_master" if provider_role in {None, "owner"} else str(provider_role)
+
+
+def _assert_machine_action_permission(current_user: dict, action: str) -> None:
+    if AccessPolicy.is_admin(current_user):
+        return
+    role = _normalize_provider_role(current_user)
+    if role == "super_master":
+        return
+    if role == "master":
+        perms = current_user.get("master_permissions")
+        perms = perms if isinstance(perms, dict) else {}
+        if action in {"create", "update"} and perms.get("can_manage_machines") is True:
+            return
+        if action == "delete" and perms.get("can_delete_machines") is True:
+            return
+        raise HTTPException(status_code=403, detail="No tienes permisos para administrar maquinaria")
+    raise HTTPException(status_code=403, detail="No autorizado")
+
+
 @router.get("")
 async def get_machines(
     provider_id: Optional[str] = Query(None),
@@ -57,6 +79,7 @@ async def post_machine(
     if not provider_id:
         raise HTTPException(status_code=400, detail="provider_id requerido")
     AccessPolicy.assert_owner_scope(current_user, provider_id)
+    _assert_machine_action_permission(current_user, "create")
     try:
         machine = await create_machine(db, provider_id, body)
     except ValueError as e:
@@ -71,6 +94,7 @@ async def patch_machine(
     current_user: dict = Depends(get_current_user),
 ):
     await _assert_machine_access(machine_id, current_user)
+    _assert_machine_action_permission(current_user, "update")
     machine = await update_machine(db, machine_id, body)
     if not machine:
         raise HTTPException(status_code=404, detail="Maquinaria no encontrada")
@@ -82,12 +106,8 @@ async def remove_machine(
     machine_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    machine = await _assert_machine_access(machine_id, current_user)
-    if not AccessPolicy.is_admin(current_user):
-        provider_role = current_user.get("provider_role")
-        normalized_role = "super_master" if provider_role in {None, "owner"} else provider_role
-        if normalized_role != "super_master":
-            raise HTTPException(status_code=403, detail="Solo el supermaster puede eliminar máquinas")
+    await _assert_machine_access(machine_id, current_user)
+    _assert_machine_action_permission(current_user, "delete")
     machine = await delete_machine(db, machine_id)
     if not machine:
         raise HTTPException(status_code=404, detail="Maquinaria no encontrada")

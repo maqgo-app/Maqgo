@@ -487,6 +487,7 @@ function TeamManagementScreen() {
           master_rut: formatRut(masterRut.trim()),
           master_phone: normalizedPhone,
           master_full_name: fullName,
+          permissions: masterInvitePermissions,
         };
       }
 
@@ -671,6 +672,11 @@ function TeamManagementScreen() {
           k: 'can_manage_machines',
           label: 'Puede editar máquinas y operadores por máquina',
           help: 'Permite crear, editar y actualizar qué operador queda asociado a cada máquina.',
+        },
+        {
+          k: 'can_delete_machines',
+          label: 'Puede eliminar máquinas',
+          help: 'Permite eliminar maquinaria desde Mis Máquinas. Acción sensible.',
         },
         {
           k: 'can_assign_operator',

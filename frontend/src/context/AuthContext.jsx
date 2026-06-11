@@ -183,6 +183,7 @@ export function AuthProvider({ children }) {
             if (typeof apiPerms.can_view_invoices === 'boolean') mergedPerms.canViewInvoices = apiPerms.can_view_invoices;
             if (typeof apiPerms.can_upload_invoice === 'boolean') mergedPerms.canUploadInvoice = apiPerms.can_upload_invoice;
             if (typeof apiPerms.can_manage_operators === 'boolean') mergedPerms.canManageOperators = apiPerms.can_manage_operators;
+            if (typeof apiPerms.can_manage_machines === 'boolean') mergedPerms.canManageMachines = apiPerms.can_manage_machines;
             if (typeof apiPerms.can_manage_masters === 'boolean') mergedPerms.canManageMasters = apiPerms.can_manage_masters;
             if (typeof apiPerms.can_view_bank_data === 'boolean') mergedPerms.canViewBankData = apiPerms.can_view_bank_data;
             if (typeof apiPerms.can_accept_requests === 'boolean') mergedPerms.canAcceptRequests = apiPerms.can_accept_requests;
