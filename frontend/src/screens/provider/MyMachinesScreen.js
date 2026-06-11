@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { ProviderNavigation } from '../../components/BottomNavigation';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../context/authHooks';
@@ -19,7 +18,7 @@ import { REFERENCE_PRICES, REFERENCE_TRANSPORT, MAX_PRICE_ABOVE_MARKET_PCT, getP
 import { vibrate } from '../../utils/uberUX';
 import BACKEND_URL from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
-import { getOperatorInvitationWarning, getOverdueOperatorInvitations } from '../../utils/operatorInvitations';
+import { getOverdueOperatorInvitations } from '../../utils/operatorInvitations';
 import {
   formatRut,
   normalizeChileanMobileDraft,
@@ -107,6 +106,10 @@ function getEffectiveDefaultOperatorId(machine, defaultByMachinery = {}) {
   return firstOperatorId;
 }
 
+function buildOperatorCodesRoute() {
+  return '/provider/team?mode=operator&tab=invite&view=codes';
+}
+
 function MyMachinesScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -154,7 +157,7 @@ function MyMachinesScreen() {
     }
     const machine = (Array.isArray(machines) ? machines : []).find((m) => m?.id === openOperatorForMachineId);
     if (machine) {
-      setOperatorModal({ machine });
+      openOperatorsModal(machine);
       navigate(location.pathname, { replace: true, state: { activationEdit, returnTo } });
     }
   }, [activationEdit, blocked, canAssignOperators, machines, navigate, openOperatorForMachineId, location.pathname, returnTo]);
@@ -248,6 +251,44 @@ function MyMachinesScreen() {
 
   const handleAddMachine = () => {
     navigate('/provider/machine-data', { state: { returnTo: '/provider/machines' } });
+  };
+
+  const openOperatorsModal = async (machine) => {
+    const ownerId = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+    if (!ownerId) {
+      setOperatorModal({
+        machine,
+        initialLoaded: true,
+        initialError: 'Tu sesion expiro. Inicia sesion nuevamente.',
+        initialTeamOperators: [],
+        initialPendingInvitations: [],
+      });
+      return;
+    }
+    try {
+      const response = await axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 8000 });
+      const initialTeamOperators = (response.data?.operators || []).filter(
+        (op) => (op?.provider_role || '') === 'operator' || !op?.provider_role
+      );
+      const initialPendingInvitations = Array.isArray(response.data?.pending_invitations)
+        ? response.data.pending_invitations
+        : [];
+      setOperatorModal({
+        machine,
+        initialLoaded: true,
+        initialError: '',
+        initialTeamOperators,
+        initialPendingInvitations,
+      });
+    } catch {
+      setOperatorModal({
+        machine,
+        initialLoaded: true,
+        initialError: 'No pudimos cargar los operadores de tu empresa.',
+        initialTeamOperators: [],
+        initialPendingInvitations: [],
+      });
+    }
   };
 
   const handleDeleteMachine = async (machineId) => {
@@ -548,7 +589,7 @@ function MyMachinesScreen() {
               )}
               {canAssignOperators && (
                 <button
-                  onClick={() => setOperatorModal({ machine })}
+                  onClick={() => openOperatorsModal(machine)}
                   style={{
                     width: '100%', marginTop: 8, padding: '10px',
                     background: 'none', border: '1px dashed rgba(255,255,255,0.3)', borderRadius: 8,
@@ -607,6 +648,10 @@ function MyMachinesScreen() {
       {operatorModal && (
         <AssignOperatorsModal
           machine={operatorModal.machine}
+          initialLoaded={operatorModal.initialLoaded}
+          initialError={operatorModal.initialError}
+          initialTeamOperators={operatorModal.initialTeamOperators}
+          initialPendingInvitations={operatorModal.initialPendingInvitations}
           defaultOperatorId={getEffectiveDefaultOperatorId(operatorModal.machine, defaultByMachinery)}
           onSave={(operators) => saveMachineOperators(operatorModal.machine.id, operators)}
           onClose={() => setOperatorModal(null)}
@@ -701,14 +746,23 @@ function EditPricingModal({ machine, priceVal: initialPrice, transportVal: initi
   );
 }
 
-function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
+function AssignOperatorsModal({
+  machine,
+  initialLoaded = false,
+  initialError = '',
+  initialTeamOperators = [],
+  initialPendingInvitations = [],
+  defaultOperatorId,
+  onSave,
+  onClose,
+}) {
   const navigate = useNavigate();
   const toast = useToast();
   const { hasPermission } = useAuth();
   const canManageOperators = hasPermission('canManageOperators');
-  const [loading, setLoading] = useState(true);
-  const [teamOperators, setTeamOperators] = useState([]);
-  const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [loading, setLoading] = useState(() => !initialLoaded);
+  const [teamOperators, setTeamOperators] = useState(() => initialTeamOperators || []);
+  const [pendingInvitations, setPendingInvitations] = useState(() => initialPendingInvitations || []);
   const [selectedIds, setSelectedIds] = useState(() =>
     new Set(
       (machine.operators || [])
@@ -716,7 +770,7 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
         .filter(Boolean)
     )
   );
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => initialError || '');
   const [newOperatorName, setNewOperatorName] = useState('');
   const [newOperatorRut, setNewOperatorRut] = useState('');
   const [newOperatorPhone, setNewOperatorPhone] = useState('+569');
@@ -762,8 +816,10 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
   };
 
   useEffect(() => {
-    loadAssignableData();
-  }, []);
+    if (!initialLoaded) {
+      loadAssignableData();
+    }
+  }, [initialLoaded]);
 
   const toggle = (opId) => {
     setSelectedIds((prev) => {
@@ -1040,7 +1096,7 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
               ) : null}
             </p>
             {canManageOperators ? (
-              <button onClick={() => { onClose(); navigate('/provider/team?mode=operator&tab=invite'); }} style={{ ...btnPrimary, marginTop: 16 }}>
+              <button onClick={() => { onClose(); navigate(buildOperatorCodesRoute()); }} style={{ ...btnPrimary, marginTop: 16 }}>
                 Ir a Código de activación
               </button>
             ) : null}
@@ -1088,7 +1144,7 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
                   {' '}Revísalos en Ver códigos.
                 </div>
                 {canManageOperators ? (
-                  <button onClick={() => { onClose(); navigate('/provider/team?mode=operator&tab=invite'); }} style={{ ...btnPrimary, marginTop: 12 }}>
+                  <button onClick={() => { onClose(); navigate(buildOperatorCodesRoute()); }} style={{ ...btnPrimary, marginTop: 12 }}>
                     Ver códigos
                   </button>
                 ) : null}
@@ -1154,7 +1210,7 @@ function AssignOperatorsModal({ machine, defaultOperatorId, onSave, onClose }) {
                   </div>
                   {canManageOperators ? (
                     <button
-                      onClick={() => { onClose(); navigate('/provider/team?mode=operator&tab=invite'); }}
+                      onClick={() => { onClose(); navigate(buildOperatorCodesRoute()); }}
                       style={{ ...btnPrimary, marginTop: 12, width: '100%' }}
                     >
                       Ver códigos

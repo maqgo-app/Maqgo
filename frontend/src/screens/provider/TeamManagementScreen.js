@@ -46,6 +46,14 @@ function TeamManagementScreen() {
       return null;
     }
   })();
+  const requestedInviteView = (() => {
+    try {
+      const raw = new URLSearchParams(location.search).get('view');
+      return raw === 'codes' || raw === 'create' ? raw : null;
+    } catch {
+      return null;
+    }
+  })();
   const screenMode = location.pathname === '/provider/managers' ? 'master' : 'operator';
   const resolvedMode = requestedMode || screenMode;
   const effectiveMode =
@@ -649,6 +657,10 @@ function TeamManagementScreen() {
   const currentCount = currentMembers.length;
   const createLabel = inviteType === 'master' ? 'Crear usuario master' : 'Crear operador';
   const listTitle = inviteType === 'master' ? 'Usuarios master creados' : 'Operadores creados';
+  const inviteView =
+    activeTab === 'invite'
+      ? (requestedInviteView === 'codes' ? 'codes' : 'create')
+      : 'create';
   const masterPermissionGroups = [
     {
       title: 'Mis máquinas',
@@ -744,9 +756,11 @@ function TeamManagementScreen() {
           {showCode
             ? 'Codigo listo'
             : activeTab === 'invite'
-              ? inviteType === 'master'
-                ? 'Crear usuario master'
-                : 'Crear operador'
+              ? inviteView === 'codes'
+                ? 'Códigos de activación'
+                : inviteType === 'master'
+                  ? 'Crear usuario master'
+                  : 'Crear operador'
               : 'Usuarios y accesos'}
         </h1>
 
@@ -817,7 +831,7 @@ function TeamManagementScreen() {
                 setActiveTab('invite');
                 setShowCode(false);
                 const modeQs = inviteType === 'master' ? 'master' : 'operator';
-                navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=invite`, { replace: true });
+                navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=invite&view=create`, { replace: true });
               }}
               style={{
                 padding: '10px 14px',
@@ -835,28 +849,52 @@ function TeamManagementScreen() {
               {createLabel}
             </button>
           ) : (
-            <button
-              onClick={() => {
-                setActiveTab('team');
-                setShowCode(false);
-                const modeQs = inviteType === 'master' ? 'master' : 'operator';
-                navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=team`, { replace: true });
-              }}
-              style={{
-                padding: '10px 14px',
-                background: '#2A2A2A',
-                border: '1px solid rgba(255,255,255,0.14)',
-                borderRadius: 10,
-                color: '#fff',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-              data-testid="tab-team"
-            >
-              Volver a lista
-            </button>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {inviteView === 'codes' && (
+                <button
+                  onClick={() => {
+                    setShowCode(false);
+                    const modeQs = inviteType === 'master' ? 'master' : 'operator';
+                    navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=invite&view=create`, { replace: true });
+                  }}
+                  style={{
+                    padding: '10px 14px',
+                    background: '#EC6819',
+                    border: 'none',
+                    borderRadius: 10,
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {createLabel}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setActiveTab('team');
+                  setShowCode(false);
+                  const modeQs = inviteType === 'master' ? 'master' : 'operator';
+                  navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=team`, { replace: true });
+                }}
+                style={{
+                  padding: '10px 14px',
+                  background: '#2A2A2A',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  borderRadius: 10,
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+                data-testid="tab-team"
+              >
+                Volver a lista
+              </button>
+            </div>
           )}
         </div>
 
@@ -1304,7 +1342,160 @@ function TeamManagementScreen() {
         {/* Tab: Agregar */}
         {activeTab === 'invite' && (
           <div>
-            {!showCode ? (
+            {inviteView === 'codes' ? (
+              visiblePendingInvitations.length > 0 ? (
+                <div>
+                  {inviteType === 'operator' && overduePendingInvitations.length > 0 && (
+                    <div
+                      style={{
+                        background: 'rgba(255, 167, 38, 0.12)',
+                        border: '1px solid rgba(255, 167, 38, 0.42)',
+                        borderRadius: 14,
+                        padding: 14,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <div style={{ color: '#FFA726', fontSize: 13, fontWeight: 800, marginBottom: 6 }}>
+                        Warning de enrolamiento
+                      </div>
+                      <div style={{ color: 'rgba(255,255,255,0.86)', fontSize: 12, lineHeight: 1.45 }}>
+                        {overduePendingInvitations.length === 1
+                          ? 'Hay 1 operador con mas de 24 horas sin enrolar su codigo de activacion.'
+                          : `Hay ${overduePendingInvitations.length} operadores con mas de 24 horas sin enrolar su codigo de activacion.`}
+                      </div>
+                    </div>
+                  )}
+                  <p style={{
+                    color: 'rgba(255,255,255,0.95)',
+                    fontSize: 12,
+                    textTransform: 'uppercase',
+                    marginBottom: 10,
+                  }}>
+                    Invitaciones pendientes ({visiblePendingInvitations.length})
+                  </p>
+                  {visiblePendingInvitations.map((inv, idx) => {
+                    const warning = getOperatorInvitationWarning(inv);
+                    return (
+                      <div
+                        key={inv.code || idx}
+                        style={{
+                          background: warning?.overdue ? 'rgba(255, 167, 38, 0.10)' : '#2A2A2A',
+                          borderRadius: 12,
+                          padding: 14,
+                          marginBottom: 10,
+                          borderLeft: warning?.overdue ? '4px solid #FFA726' : '4px solid rgba(255,255,255,0.18)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <p style={{
+                              color: '#FFA726',
+                              fontSize: 18,
+                              fontWeight: 700,
+                              margin: 0,
+                              fontFamily: "'JetBrains Mono', monospace",
+                              letterSpacing: 2
+                            }}>
+                              {inv.code}
+                            </p>
+                            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
+                              {inv.invite_type === 'master' ? 'Para usuario master' : 'Para operador'}
+                            </p>
+                            {inv.invite_type === 'master' && inv.master_name && (
+                              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '6px 0 0' }}>
+                                {joinDisplayName(inv.master_name, inv.master_last_name)}
+                                {inv.master_rut ? ` · RUT ${inv.master_rut}` : ''}
+                                {inv.master_phone ? ` · ${inv.master_phone}` : ''}
+                              </p>
+                            )}
+                            {inv.invite_type !== 'master' && inv.operator_name && (
+                              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '6px 0 0' }}>
+                                {inv.operator_name}{inv.operator_rut ? ` · RUT ${inv.operator_rut}` : ''}
+                              </p>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => copyTextToClipboard(String(inv.code || '').trim().toUpperCase(), 'Código copiado')}
+                              style={{
+                                padding: '6px 10px',
+                                background: 'rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: 6,
+                                color: 'rgba(255,255,255,0.92)',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 700
+                              }}
+                            >
+                              Copiar código
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const code = String(inv.code || '').trim().toUpperCase();
+                                if (!code) return;
+                                const link =
+                                  inv.invite_type === 'master'
+                                    ? buildMasterJoinLink(
+                                        code,
+                                        (loadMasterInvitePermissionsByCode()?.[code]) || {}
+                                      )
+                                    : buildOperatorJoinLink(code);
+                                copyTextToClipboard(link, 'Link copiado');
+                              }}
+                              style={{
+                                padding: '6px 10px',
+                                background: 'rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: 6,
+                                color: 'rgba(255,255,255,0.92)',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 700
+                              }}
+                            >
+                              Copiar link
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => cancelInvitation(inv.code)}
+                              style={{
+                                padding: '6px 10px',
+                                background: 'rgba(244,67,54,0.16)',
+                                border: '1px solid rgba(244,67,54,0.30)',
+                                borderRadius: 6,
+                                color: '#F44336',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 700
+                              }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                        {warning ? (
+                          <div style={{ marginTop: 8, color: warning.color, fontSize: 12, lineHeight: 1.45 }}>
+                            {warning.message}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 18 }}>
+                  <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: 0 }}>
+                    No tienes códigos pendientes.
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
+                    Cuando generes un código para operador o usuario master, lo verás aquí.
+                  </p>
+                </div>
+              )
+            ) : !showCode ? (
               <>
                 {/* Datos del operador cuando la invitación es para operador */}
                 {inviteType === 'operator' && (
