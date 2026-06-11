@@ -756,7 +756,9 @@ function TeamManagementScreen() {
 
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 18 }}>
           {showCode
-            ? 'Codigo listo'
+            ? inviteType === 'master'
+              ? 'Activación lista'
+              : 'Código listo'
             : activeTab === 'invite'
               ? inviteView === 'codes'
                 ? 'Códigos de activación'
@@ -1800,7 +1802,7 @@ function TeamManagementScreen() {
                   margin: '0 0 8px',
                   fontFamily: "'Space Grotesk', sans-serif"
                 }}>
-                  Código generado
+                  {inviteType === 'master' ? 'Código de activación listo' : 'Código generado'}
                 </h2>
                 
                 <p style={{ 
