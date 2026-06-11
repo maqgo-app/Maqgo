@@ -82,7 +82,12 @@ async def remove_machine(
     machine_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    await _assert_machine_access(machine_id, current_user)
+    machine = await _assert_machine_access(machine_id, current_user)
+    if not AccessPolicy.is_admin(current_user):
+        provider_role = current_user.get("provider_role")
+        normalized_role = "super_master" if provider_role in {None, "owner"} else provider_role
+        if normalized_role != "super_master":
+            raise HTTPException(status_code=403, detail="Solo el supermaster puede eliminar máquinas")
     machine = await delete_machine(db, machine_id)
     if not machine:
         raise HTTPException(status_code=404, detail="Maquinaria no encontrada")
