@@ -301,10 +301,10 @@ function TeamManagementScreen() {
     const c = String(code || '').trim().toUpperCase();
     if (type === 'master') {
       const link = buildMasterJoinLink(c, permsOverride || masterInvitePermissions);
-      return `Tu código MAQGO para crear usuario master es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy usuario master”\n3) Ingresa el código\n\nLuego iniciarás sesión con tu celular usando un código SMS (MAQGO).\n\nLink directo:\n${link}\n\nVálido por 7 días.\nUso único (1 persona).`;
+      return `Tu código MAQGO para crear usuario master es: ${c}\n\nEste usuario se enrola desde el link directo de invitación:\n${link}\n\nAhí completará su identidad y quedará creado con los permisos definidos por el supermaster.\n\nLuego iniciará sesión con su celular usando un código SMS (MAQGO).\n\nVálido por 7 días.\nUso único (1 persona).`;
     }
     const link = buildOperatorJoinLink(c);
-    return `Tu código MAQGO para agregar operador es: ${c}\n\n1) Abre MAQGO\n2) Toca “Soy operador (tengo código)”\n3) Ingresa el código\n\nLink directo:\n${link}\n\nVálido por 7 días.`;
+    return `Tu código MAQGO para agregar operador es: ${c}\n\nEl operador se enrola desde la portada de MAQGO:\n1) Toca “Soy operador”\n2) Toca “Unirme con código de equipo”\n3) Ingresa el código\n\nO puede entrar directo aquí:\n${link}\n\nVálido por 7 días.`;
   };
 
   const openEditMember = (memberType, member) => {
@@ -1905,7 +1905,9 @@ function TeamManagementScreen() {
                     Link directo
                   </p>
                   <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '8px 0 10px', lineHeight: 1.45 }}>
-                    También puede entrar solo con el código.
+                    {inviteType === 'master'
+                      ? 'Este link abre el enrolamiento del usuario master y conserva los permisos definidos por el supermaster.'
+                      : 'Este link abre el enrolamiento del operador. También puede entrar desde la portada de MAQGO con su código.'}
                   </p>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <div style={{
@@ -2008,8 +2010,8 @@ function TeamManagementScreen() {
                   </p>
                   <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '6px 0 0' }}>
                     {inviteType === 'master'
-                      ? 'El SMS aparece después, cuando el usuario master inicie sesión con su celular.'
-                      : 'El operador debe ingresarlo en MAQGO para quedar vinculado a tu empresa.'}
+                      ? 'El usuario master se enrola en este link y queda creado con los permisos otorgados por el supermaster. El SMS aparece después, al iniciar sesión con su celular.'
+                      : 'El operador se enrola en MAQGO desde la portada o con este link directo para quedar vinculado a tu empresa.'}
                   </p>
                 </div>
 
