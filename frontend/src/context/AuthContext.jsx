@@ -58,6 +58,7 @@ function applyMasterPermissions(mergedPerms, masterPermissions) {
     canViewWorkDetails: bool('can_view_work_details', mergedPerms.canViewWorkDetails),
     canEditMasterProfile: bool('can_edit_master_profile', mergedPerms.canEditMasterProfile),
     canDeleteMaster: bool('can_delete_master', mergedPerms.canDeleteMaster),
+    canDeleteMachines: bool('can_delete_machines', mergedPerms.canDeleteMachines),
   };
 }
 
@@ -79,6 +80,7 @@ const DEFAULT_PERMISSIONS = {
     canViewWorkDetails: true,
     canEditMasterProfile: true,
     canDeleteMaster: true,
+    canDeleteMachines: true,
   },
   master: {
     canViewFinances: false,
@@ -96,6 +98,7 @@ const DEFAULT_PERMISSIONS = {
     canViewWorkDetails: true,
     canEditMasterProfile: false,
     canDeleteMaster: false,
+    canDeleteMachines: false,
   },
   owner: {
     canViewFinances: true,
@@ -113,6 +116,7 @@ const DEFAULT_PERMISSIONS = {
     canViewWorkDetails: true,
     canEditMasterProfile: true,
     canDeleteMaster: true,
+    canDeleteMachines: true,
   },
   operator: {
     canViewFinances: false,
@@ -130,6 +134,7 @@ const DEFAULT_PERMISSIONS = {
     canViewWorkDetails: false,
     canEditMasterProfile: false,
     canDeleteMaster: false,
+    canDeleteMachines: false,
   }
 };
 
@@ -182,6 +187,7 @@ export function AuthProvider({ children }) {
             if (typeof apiPerms.can_view_bank_data === 'boolean') mergedPerms.canViewBankData = apiPerms.can_view_bank_data;
             if (typeof apiPerms.can_accept_requests === 'boolean') mergedPerms.canAcceptRequests = apiPerms.can_accept_requests;
             if (typeof apiPerms.can_view_services === 'boolean') mergedPerms.canViewServices = apiPerms.can_view_services;
+            if (typeof apiPerms.can_delete_machines === 'boolean') mergedPerms.canDeleteMachines = apiPerms.can_delete_machines;
             const effectivePerms =
               role === 'master'
                 ? applyMasterPermissions(mergedPerms, loadMasterPermissionsForUser(userId))
@@ -265,6 +271,7 @@ export function AuthProvider({ children }) {
         can_view_work_details: 'canViewWorkDetails',
         can_edit_master_profile: 'canEditMasterProfile',
         can_delete_master: 'canDeleteMaster',
+        can_delete_machines: 'canDeleteMachines',
       };
       const mapped = map[key];
       if (mapped && Object.prototype.hasOwnProperty.call(permissions, mapped)) return permissions[mapped] === true;

@@ -81,6 +81,7 @@ function normalizeMasterPermissions(input) {
     can_view_work_details: bool('can_view_work_details'),
     can_edit_master_profile: bool('can_edit_master_profile'),
     can_delete_master: bool('can_delete_master'),
+    can_delete_machines: bool('can_delete_machines'),
   };
 }
 

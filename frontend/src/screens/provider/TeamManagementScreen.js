@@ -86,6 +86,7 @@ function TeamManagementScreen() {
     can_view_work_details: true,
     can_edit_master_profile: false,
     can_delete_master: false,
+    can_delete_machines: false,
   });
   const [didAttemptInvite, setDidAttemptInvite] = useState(false);
   const [financeSummary, setFinanceSummary] = useState({ facturado: 0, porCobrar: 0, pagado: 0 });
@@ -128,6 +129,7 @@ function TeamManagementScreen() {
       can_view_work_details: true,
       can_edit_master_profile: false,
       can_delete_master: false,
+      can_delete_machines: false,
     });
   }, [effectiveMode, isSuperMasterUser, requestedMode, location.pathname, navigate]);
 
@@ -301,7 +303,7 @@ function TeamManagementScreen() {
     const c = String(code || '').trim().toUpperCase();
     if (type === 'master') {
       const link = buildMasterJoinLink(c, permsOverride || masterInvitePermissions);
-      return `Tu código MAQGO para crear usuario master es: ${c}\n\nEste usuario se enrola desde el link directo de invitación:\n${link}\n\nAhí completará su identidad y quedará creado con los permisos definidos por el supermaster.\n\nLuego iniciará sesión con su celular usando un código SMS (MAQGO).\n\nVálido por 7 días.\nUso único (1 persona).`;
+      return `Tu código de activación MAQGO para usuario master es: ${c}\n\nEste usuario debe ingresar su código de activación desde el link directo de invitación:\n${link}\n\nAhí completará su identidad y quedará activado con los permisos definidos por el supermaster.\n\nLuego iniciará sesión con su celular usando un código SMS (MAQGO).\n\nVálido por 7 días.\nUso único (1 persona).`;
     }
     const link = buildOperatorJoinLink(c);
     return `Tu código MAQGO para agregar operador es: ${c}\n\nEl operador se enrola desde la portada de MAQGO:\n1) Toca “Soy operador”\n2) Toca “Unirme con código de equipo”\n3) Ingresa el código\n\nO puede entrar directo aquí:\n${link}\n\nVálido por 7 días.`;
@@ -1806,7 +1808,7 @@ function TeamManagementScreen() {
                   fontSize: 13, 
                   margin: '0 0 25px'
                 }}>
-                  {inviteType === 'master' ? 'Para crear usuario master' : 'Para agregar operador'}
+                  {inviteType === 'master' ? 'Código de activación para usuario master' : 'Código de activación para operador'}
                 </p>
 
                 {Array.isArray(batchInvites) && batchInvites.length > 1 && (

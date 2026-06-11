@@ -115,6 +115,7 @@ function MyMachinesScreen() {
   const { hasPermission } = useAuth();
   const toast = useToast();
   const canManageMachines = hasPermission('canManageMachines');
+  const canDeleteMachines = hasPermission('canDeleteMachines');
   const canAssignOperator = hasPermission('canAssignOperator');
   const canManageOperators = hasPermission('canManageOperators');
   const canAssignOperators = canAssignOperator || canManageOperators;
@@ -278,6 +279,11 @@ function MyMachinesScreen() {
   };
 
   const handleDeleteMachine = async (machineId) => {
+    if (!canDeleteMachines) {
+      toast.error('Solo el usuario supermaster puede eliminar máquinas.');
+      setDeleteMachineConfirm(null);
+      return;
+    }
     try {
       await deleteMachineInApi(machineId);
       loadMachines();
@@ -423,15 +429,17 @@ function MyMachinesScreen() {
                 >
                   {!hasAssignedOperator ? 'Operador requerido' : effectiveAvailable ? 'Disponible' : 'No disponible'}
                 </button>
-                <button
-                  onClick={() => setDeleteMachineConfirm(machine)}
-                  title="Eliminar máquina"
-                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 4 }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                </button>
+                {canDeleteMachines && (
+                  <button
+                    onClick={() => setDeleteMachineConfirm(machine)}
+                    title="Eliminar máquina"
+                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 4 }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
 
