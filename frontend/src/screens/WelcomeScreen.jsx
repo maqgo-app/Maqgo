@@ -51,6 +51,7 @@ function WelcomeScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const demoCaluga = (searchParams.get('demoCaluga') || '').toLowerCase();
   const [, setAdminPending] = useState(0);
   const { isDesktop, isNarrowMobile, isShortViewport, viewportHeight, viewportWidth } = useWelcomeLayout();
   // welcome-reveal en DOM desde el 1er frame (opacity 0 en CSS); welcome-mounted tras layout dispara animación (evita flash visible→oculto).
@@ -215,9 +216,18 @@ function WelcomeScreen() {
                 ? 'var(--maqgo-welcome-caluga-pad-y-desktop) var(--maqgo-welcome-caluga-pad-x-desktop)'
                 : (isShortViewport ? '7px 12px' : '8px 16px'),
               borderRadius: 9999,
-              background: 'var(--maqgo-welcome-caluga-bg)',
-              boxShadow: 'var(--maqgo-welcome-caluga-box-shadow)',
-              border: 'var(--maqgo-welcome-caluga-border)',
+              background:
+                demoCaluga === 'orange'
+                  ? 'rgba(236, 104, 25, 0.12)'
+                  : 'var(--maqgo-welcome-caluga-bg)',
+              boxShadow:
+                demoCaluga === 'orange'
+                  ? '0 3px 20px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.06)'
+                  : 'var(--maqgo-welcome-caluga-box-shadow)',
+              border:
+                demoCaluga === 'orange'
+                  ? '1px solid rgba(236, 104, 25, 0.55)'
+                  : 'var(--maqgo-welcome-caluga-border)',
             }}
           >
             <span
