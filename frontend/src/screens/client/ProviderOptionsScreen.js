@@ -726,7 +726,7 @@ function ProviderOptionsScreen() {
         {/* Un solo aviso: cobro y dónde ver precio */}
         <div style={{ background: 'rgba(236, 104, 25, 0.12)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
           <p style={{ color: '#fff', fontSize: 12, margin: 0, textAlign: 'center', lineHeight: 1.45 }}>
-            No se cobra hasta que un operador acepte.
+            No se cobra hasta que un proveedor acepte.
           </p>
         </div>
 
