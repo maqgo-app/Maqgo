@@ -171,7 +171,7 @@ function WelcomeScreen() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "space-between",
-          minHeight: isDesktop ? "100%" : "100dvh",
+            minHeight: isDesktop ? "100vh" : "100dvh",
           padding: "24px",
           margin: "0 auto",
           maxWidth: "420px",
@@ -187,7 +187,7 @@ function WelcomeScreen() {
           flexDirection: 'column',
           alignItems: 'center',
           textAlign: 'center',
-          paddingBottom: isShortViewport ? 16 : (isNarrowMobile ? 24 : (isDesktop ? 48 : 36)),
+          paddingBottom: isShortViewport ? 16 : (isNarrowMobile ? 24 : (isDesktop ? 28 : 36)),
           width: '100%'
         }}>
           <div
@@ -279,9 +279,9 @@ function WelcomeScreen() {
           justifyContent: isDesktop ? 'center' : (isShortViewport ? 'center' : 'flex-start'),
           gap: isShortViewport ? 8 : (isNarrowMobile ? 12 : 16),
           overflow: 'visible',
-          marginTop: isDesktop ? 52 : (isShortViewport ? 24 : (isNarrowMobile ? 40 : 48)),
+          marginTop: isDesktop ? 24 : (isShortViewport ? 24 : (isNarrowMobile ? 40 : 48)),
           /* Aire antes del footer: los CTAs no deben verse pegados al pie */
-          paddingBottom: isDesktop ? 52 : (isShortViewport ? 28 : (isNarrowMobile ? 36 : 40))
+          paddingBottom: isDesktop ? 24 : (isShortViewport ? 28 : (isNarrowMobile ? 36 : 40))
         }}>
           {showMarketplaceCTAs ? (
             <>
@@ -447,6 +447,15 @@ function WelcomeScreen() {
       align-items: center;
       justify-content: center;
       padding: 40px 0 22px;
+    }
+
+    @media (min-width: 768px) {
+      .welcome-legal-footer {
+        padding: 22px 0 14px;
+      }
+      .welcome-legal-copy {
+        margin-top: 8px;
+      }
     }
 
     .welcome-legal-links {
