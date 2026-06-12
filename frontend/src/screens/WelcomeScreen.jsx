@@ -51,7 +51,6 @@ function WelcomeScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const demoFooter = (searchParams.get('footer') || '').toLowerCase() === 'rich';
   const [, setAdminPending] = useState(0);
   const { isDesktop, isNarrowMobile, isShortViewport, viewportHeight, viewportWidth } = useWelcomeLayout();
   // welcome-reveal en DOM desde el 1er frame (opacity 0 en CSS); welcome-mounted tras layout dispara animación (evita flash visible→oculto).
@@ -160,12 +159,6 @@ function WelcomeScreen() {
   const scalePx = (base, min, max) => {
     const scaled = Math.round(base * fineScale);
     return Math.max(min, Math.min(max, scaled));
-  };
-
-  const supportNumber = import.meta.env.VITE_WHATSAPP_SUPPORT || '+56994336579';
-  const openWhatsAppSupport = () => {
-    const message = encodeURIComponent('Hola MAQGO, necesito ayuda con...');
-    window.open(`https://wa.me/${String(supportNumber).replace('+', '')}?text=${message}`, '_blank');
   };
   return (
     <div
@@ -436,17 +429,6 @@ function WelcomeScreen() {
   )}
 
   <div className="welcome-legal-footer">
-    {demoFooter ? (
-      <div className="welcome-footer-trust" aria-label="Confianza y soporte">
-        <span>Operador incluido</span>
-        <span className="welcome-footer-dot" aria-hidden>·</span>
-        <span>Monitoreo en tiempo real</span>
-        <span className="welcome-footer-dot" aria-hidden>·</span>
-        <button type="button" className="welcome-footer-support" onClick={openWhatsAppSupport}>
-          Soporte WhatsApp
-        </button>
-      </div>
-    ) : null}
     <div className="welcome-legal-links" aria-label="Enlaces legales">
       <Link className="welcome-legal-link" to="/faq">FAQ</Link>
       <span className="welcome-legal-sep" aria-hidden>·</span>
@@ -454,7 +436,7 @@ function WelcomeScreen() {
       <span className="welcome-legal-sep" aria-hidden>·</span>
       <Link className="welcome-legal-link" to="/privacy">Políticas de Privacidad</Link>
     </div>
-    <div className="welcome-legal-copy">© 2026 MAQGO. Todos los derechos reservados.</div>
+    <div className="welcome-legal-copy">© <strong>2026 MAQGO</strong>. Todos los derechos reservados.</div>
   </div>
 
   <style>{`
@@ -467,36 +449,6 @@ function WelcomeScreen() {
       padding: 40px 0 22px;
     }
 
-    .welcome-footer-trust {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 8px;
-      padding: 0 12px;
-      margin-bottom: 10px;
-      color: rgba(255,255,255,0.74);
-      font-size: 12px;
-      line-height: 1.25;
-      letter-spacing: 0.01em;
-    }
-    .welcome-footer-dot {
-      color: rgba(255,255,255,0.35);
-      user-select: none;
-    }
-    .welcome-footer-support {
-      background: none;
-      border: none;
-      padding: 0;
-      font: inherit;
-      color: var(--maqgo-orange);
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .welcome-footer-support:hover {
-      color: rgba(236, 104, 25, 0.85);
-    }
 
     @media (min-width: 768px) {
       .welcome-legal-footer {
@@ -504,9 +456,6 @@ function WelcomeScreen() {
       }
       .welcome-legal-copy {
         margin-top: 8px;
-      }
-      .welcome-footer-trust {
-        margin-bottom: 8px;
       }
     }
 
