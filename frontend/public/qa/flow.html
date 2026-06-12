@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MAQGO · QA Flow</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { height: 100%; margin: 0; background: #0f0f10; font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; }
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: rgba(15, 15, 16, 0.92);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        padding: 10px 12px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .btn {
+        background: #EC6819;
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-weight: 650;
+        cursor: pointer;
+        user-select: none;
+      }
+      .btn.secondary { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.92); }
+      select {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: rgba(255,255,255,0.92);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-weight: 650;
+        outline: none;
+      }
+      option { background: #141416; color: rgba(255,255,255,0.92); }
+      .title { color: rgba(255,255,255,0.92); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .spacer { flex: 1; }
+      .hint { color: rgba(255,255,255,0.55); font-size: 12px; white-space: nowrap; }
+      .wrap { height: calc(100% - 56px); }
+      iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: #0f0f10;
+      }
+      .gate {
+        max-width: 720px;
+        margin: 90px auto;
+        padding: 18px;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
+        color: rgba(255,255,255,0.88);
+        line-height: 1.45;
+      }
+      .gate h1 { margin: 0 0 10px; font-size: 18px; }
+      .gate code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="gate" class="gate" style="display:none">
+      <h1>QA Flow</h1>
+      <div>Para usar este visor agrega <code>?qa=1</code> al final de la URL.</div>
+    </div>
+
+    <div id="app" style="display:none">
+      <div class="topbar">
+        <button class="btn secondary" id="prev">←</button>
+        <button class="btn secondary" id="next">→</button>
+        <select id="screen"></select>
+        <button class="btn secondary" id="reload">Recargar</button>
+        <div class="spacer"></div>
+        <div class="title" id="caption"></div>
+        <div class="spacer"></div>
+        <div class="hint">Pantallas reales en producción · scroll dentro</div>
+      </div>
+      <div class="wrap">
+        <iframe id="frame" title="MAQGO QA" referrerpolicy="no-referrer"></iframe>
+      </div>
+    </div>
+
+    <script>
+      const qs = new URLSearchParams(window.location.search);
+      const qaEnabled = qs.get('qa') === '1';
+      const gate = document.getElementById('gate');
+      const app = document.getElementById('app');
+      if (!qaEnabled) {
+        gate.style.display = 'block';
+      } else {
+        app.style.display = 'block';
+      }
+
+      if (!qaEnabled) {
+        throw new Error('QA disabled');
+      }
+
+      const SELECTED_ADDRESS_KEY = 'selectedAddress';
+      const baseNowIso = () => new Date().toISOString();
+
+      const setCommon = (role) => {
+        localStorage.setItem('legalAcceptedAt', baseNowIso());
+        localStorage.setItem('token', 'qa-token');
+        localStorage.setItem('authToken', 'qa-token');
+        localStorage.setItem('userRole', role);
+      };
+
+      const seedClient = () => {
+        setCommon('client');
+        localStorage.setItem('userId', 'client-qa-001');
+        localStorage.setItem('reservationType', 'immediate');
+        localStorage.setItem('priceType', 'hour');
+        localStorage.setItem('oneclickDemoMode', 'true');
+        localStorage.setItem('selectedMachinery', 'retroexcavadora');
+        localStorage.setItem('selectedHours', '4');
+        localStorage.setItem('serviceLat', '-33.4372');
+        localStorage.setItem('serviceLng', '-70.6506');
+        localStorage.setItem('serviceReference', 'Portón verde, acceso por el costado');
+        const sa = {
+          address_short: 'Av. Providencia 123',
+          address_full: 'Av. Providencia 123, Providencia, Chile',
+          street: 'Av. Providencia',
+          number: '123',
+          comuna: 'Providencia',
+          commune: 'Providencia',
+          source: 'manual',
+          lat: -33.4372,
+          lng: -70.6506,
+        };
+        localStorage.setItem(SELECTED_ADDRESS_KEY, JSON.stringify(sa));
+        localStorage.setItem('serviceLocation', 'Av. Providencia 123, Providencia');
+        localStorage.setItem('serviceComuna', 'Providencia');
+        localStorage.setItem('serviceComunaSource', 'manual');
+        localStorage.setItem('serviceLocationManualFallback', 'true');
+      };
+
+      const seedProvider = () => {
+        setCommon('provider');
+        localStorage.setItem('providerRole', 'super_master');
+        localStorage.setItem('userId', 'provider-qa-001');
+        const req = {
+          id: 'req-qa-001',
+          reservationType: 'immediate',
+          machineryType: 'retroexcavadora',
+          workDescription: 'Excavación básica',
+          address: 'Av. Providencia 123, Providencia',
+          basePrice: 80000,
+          transportFee: 15000,
+          offerTimeoutSeconds: 60,
+          urgencyType: 'today',
+          urgencyWindowMinutes: 120,
+          client: { name: 'Cliente MAQGO' },
+        };
+        localStorage.setItem('incomingRequest', JSON.stringify(req));
+      };
+
+      const steps = [
+        { key: 'c1', label: '1 · Cliente · Maquinaria', seed: seedClient, path: '/client/machinery' },
+        { key: 'c2', label: '2 · Cliente · Ubicación', seed: seedClient, path: '/client/service-location' },
+        { key: 'c3', label: '3 · Cliente · Proveedores', seed: seedClient, path: '/client/providers' },
+        { key: 'c4', label: '4 · Cliente · Revisión', seed: seedClient, path: '/client/confirm' },
+        { key: 'c5', label: '5 · Cliente · Buscando', seed: () => { seedClient(); }, path: '/client/searching' },
+        { key: 'p1', label: '6 · Proveedor · Solicitud recibida', seed: seedProvider, path: '/provider/request-received' },
+      ];
+
+      const frame = document.getElementById('frame');
+      const caption = document.getElementById('caption');
+      const sel = document.getElementById('screen');
+      const prev = document.getElementById('prev');
+      const next = document.getElementById('next');
+      const reload = document.getElementById('reload');
+
+      let idx = 0;
+      const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+      const setStep = (i) => {
+        idx = clamp(i, 0, steps.length - 1);
+        const s = steps[idx];
+        sel.value = s.key;
+        caption.textContent = s.label;
+        try { s.seed(); } catch { void 0; }
+        frame.src = `${window.location.origin}${s.path}`;
+      };
+
+      steps.forEach((s) => {
+        const opt = document.createElement('option');
+        opt.value = s.key;
+        opt.textContent = s.label;
+        sel.appendChild(opt);
+      });
+
+      sel.addEventListener('change', () => {
+        const i = steps.findIndex((s) => s.key === sel.value);
+        setStep(i >= 0 ? i : 0);
+      });
+      prev.addEventListener('click', () => setStep(idx - 1));
+      next.addEventListener('click', () => setStep(idx + 1));
+      reload.addEventListener('click', () => setStep(idx));
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') setStep(idx - 1);
+        if (e.key === 'ArrowRight') setStep(idx + 1);
+      });
+
+      setStep(0);
+    </script>
+  </body>
+</html>
+
