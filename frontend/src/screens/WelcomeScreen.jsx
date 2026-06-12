@@ -234,7 +234,7 @@ function WelcomeScreen() {
                 textShadow: 'none',
               }}
             >
-              Arrienda maquinaria en minutos y sigue tus servicios paso a paso.
+              Arrienda maquinaria en minutos y monitorea tu servicio en tiempo real.
             </span>
           </div>
           <div
