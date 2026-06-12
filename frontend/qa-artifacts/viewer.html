@@ -214,7 +214,14 @@
       });
 
       applyScale();
-      setScreen(0);
+      const qs = new URLSearchParams(window.location.search);
+      const startKey = (qs.get('screen') || '').trim();
+      if (startKey) {
+        const i = screens.findIndex((s) => s.key === startKey);
+        setScreen(i >= 0 ? i : 0);
+      } else {
+        setScreen(0);
+      }
     </script>
   </body>
 </html>
