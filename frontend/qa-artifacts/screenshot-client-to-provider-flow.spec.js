@@ -26,6 +26,8 @@ async function seedProviderSession(page, { incomingRequest }) {
 }
 
 test.describe('Capturas: flujo cliente → solicitud → proveedor', () => {
+  test.use({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });
+
   test('Pantalla por pantalla', async ({ page, baseURL }) => {
     await installApiMocks(page);
     await seedClientSession(page);
@@ -33,6 +35,7 @@ test.describe('Capturas: flujo cliente → solicitud → proveedor', () => {
     await page.goto(`${baseURL}/client/machinery`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByText('Selecciona el tipo de maquinaria')).toBeVisible();
     await page.screenshot({ path: 'qa-artifacts/out/flow-01-cliente-maquinaria.png', fullPage: true });
+    await page.screenshot({ path: 'qa-artifacts/out/flow-01-cliente-maquinaria-hd.png', fullPage: true, scale: 'device' });
 
     await page.getByText('Retroexcavadora').click();
     await page.locator('.maqgo-funnel-split-footer button').click();
