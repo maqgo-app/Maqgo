@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { getClientBookingRoute, resetBookingState } from '../../utils/bookingFlow';
 import { preloadClientBookingFunnel } from '../../utils/preloadClientBookingFunnel';
@@ -12,8 +12,18 @@ import { preloadClientBookingFunnel } from '../../utils/preloadClientBookingFunn
  */
 function ClientHome() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [pendingRoute, setPendingRoute] = useState(null);
+
+  const isTeslaDemo = useMemo(() => {
+    if (!import.meta.env.DEV) return false;
+    try {
+      return new URLSearchParams(location.search || '').get('ui') === 'tesla';
+    } catch {
+      return false;
+    }
+  }, [location.search]);
 
   useEffect(() => {
     preloadClientBookingFunnel();
@@ -70,37 +80,90 @@ function ClientHome() {
   return (
     <div className="maqgo-app maqgo-client-funnel">
       <div className="maqgo-screen" style={{ justifyContent: 'flex-start', paddingBottom: 52, position: 'relative' }}>
-        <button
-          type="button"
-          onClick={handleExit}
-          style={{
-            position: 'absolute',
-            top: 6,
-            right: 6,
-            background: 'rgba(22, 22, 28, 0.72)',
-            border: '1px solid rgba(255,255,255,0.16)',
-            color: 'rgba(255,255,255,0.86)',
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: 'pointer',
-            padding: '8px 12px',
-            borderRadius: 999,
-            lineHeight: 1,
-            backdropFilter: 'blur(6px)',
-          }}
-          aria-label="Salir a bienvenida"
-        >
-          Salir
-        </button>
-        <div style={{ width: '100%', textAlign: 'center', marginBottom: 18 }}>
-          <MaqgoLogo size="medium" style={{ marginBottom: 14 }} />
-          <h1 className="maqgo-h1" style={{ margin: 0, marginBottom: 10 }}>
-            Arrendar maquinaria
-          </h1>
-          <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.4 }}>
-            Elige “Inicio hoy” o programa tu fecha.
-          </p>
-        </div>
+        {isTeslaDemo ? (
+          <>
+            <div
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 6px 14px',
+                borderBottom: '1px solid rgba(255,255,255,0.08)',
+                marginBottom: 18,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <MaqgoLogo size="small" />
+                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 700, letterSpacing: 0.18 }}>
+                  RESERVA
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleExit}
+                style={{
+                  background: 'rgba(22, 22, 28, 0.72)',
+                  border: '1px solid rgba(255,255,255,0.16)',
+                  color: 'rgba(255,255,255,0.86)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: 999,
+                  lineHeight: 1,
+                  backdropFilter: 'blur(6px)',
+                }}
+                aria-label="Salir a bienvenida"
+              >
+                Salir
+              </button>
+            </div>
+
+            <div style={{ width: '100%', marginBottom: 18 }}>
+              <h1 className="maqgo-h1" style={{ margin: 0, marginBottom: 10, textAlign: 'left' }}>
+                Arrendar maquinaria
+              </h1>
+              <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.45, textAlign: 'left' }}>
+                Elige “Inicio hoy” o programa tu fecha.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={handleExit}
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                background: 'rgba(22, 22, 28, 0.72)',
+                border: '1px solid rgba(255,255,255,0.16)',
+                color: 'rgba(255,255,255,0.86)',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: '8px 12px',
+                borderRadius: 999,
+                lineHeight: 1,
+                backdropFilter: 'blur(6px)',
+              }}
+              aria-label="Salir a bienvenida"
+            >
+              Salir
+            </button>
+            <div style={{ width: '100%', textAlign: 'center', marginBottom: 18 }}>
+              <MaqgoLogo size="medium" style={{ marginBottom: 14 }} />
+              <h1 className="maqgo-h1" style={{ margin: 0, marginBottom: 10 }}>
+                Arrendar maquinaria
+              </h1>
+              <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.4 }}>
+                Elige “Inicio hoy” o programa tu fecha.
+              </p>
+            </div>
+          </>
+        )}
 
         {/* Tarjeta Inicio HOY - Prioritario */}
         <div 
