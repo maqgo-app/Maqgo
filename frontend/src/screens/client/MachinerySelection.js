@@ -349,11 +349,15 @@ function MachinerySelection() {
 
         <BookingProgress />
 
-        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 8, flexShrink: 0 }}>
-          Selecciona el tipo de maquinaria
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, flexShrink: 0 }}>
+          <span className="maqgo-funnel-pill">Elige maquinaria y te mostramos proveedores disponibles cerca</span>
+        </div>
+
+        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 6, flexShrink: 0 }}>
+          ¿Qué maquinaria necesitas?
         </h1>
-        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>
-          Elige la maquinaria para esta reserva
+        <p style={{ color: 'rgba(255,255,255,0.82)', fontSize: 14, textAlign: 'center', marginBottom: 10, lineHeight: 1.4 }}>
+          Te recomendamos opciones por precio total y cercanía.
         </p>
         {/* Lista: el scroll es el de .maqgo-funnel-split-scroll (CTA fuera, sin anidar overflow) */}
         <div style={{ paddingBottom: 8 }}>
@@ -370,18 +374,13 @@ function MachinerySelection() {
                 <div
                   key={id}
                   id={`machinery-select-${id}`}
-                  className={`maqgo-machinery-item ${isSelected ? 'selected' : ''}`}
-                  style={{
-                    flexDirection: 'column',
-                    alignItems: 'stretch',
-                    gap: 0,
-                    scrollMarginBottom: 100,
-                    scrollMarginTop: 24,
-                  }}
+                  className={`maqgo-machinery-item maqgo-machinery-item--expandable ${isSelected ? 'selected' : ''}`}
+                  style={{ scrollMarginBottom: 110, scrollMarginTop: 24 }}
                 >
                   <div
                     role="button"
                     tabIndex={0}
+                    className="maqgo-machinery-item-row"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -421,6 +420,10 @@ function MachinerySelection() {
                       </svg>
                     )}
                   </div>
+
+                  {!isSelected ? (
+                    <div className="maqgo-machinery-expand-hint">Toca para seleccionar y continuar</div>
+                  ) : null}
 
                   {isSelected && capacityOptions.length > 0 && (
                     <div
@@ -489,6 +492,11 @@ function MachinerySelection() {
 
       {/* CTA al pie: flujo flex, sin position fixed (mismo patrón que P4) */}
       <div className="maqgo-funnel-split-footer" role="region" aria-label="Continuar selección de maquinaria">
+        {selectedMachinery ? (
+          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 600, marginBottom: 8, textAlign: 'center' }}>
+            Seleccionado: {MACHINERY.find((m) => m.id === selectedMachinery)?.name || 'Maquinaria'}
+          </div>
+        ) : null}
         <button
           className="maqgo-btn-primary"
           type="button"
