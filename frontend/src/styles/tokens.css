@@ -32,15 +32,11 @@
   --maqgo-welcome-frame-stroke-inset: rgba(255, 255, 255, 0.34);
 
   /** Pill hero — “Arrienda maquinaria en minutos…” (borde naranja + fondo vidrio) */
-  --maqgo-welcome-caluga-bg: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.03) 100%
-  );
-  --maqgo-welcome-caluga-border: 1px solid rgba(255, 255, 255, 0.14);
+  --maqgo-welcome-caluga-bg: rgba(236, 104, 25, 0.12);
+  --maqgo-welcome-caluga-border: 1px solid rgba(236, 104, 25, 0.55);
   --maqgo-welcome-caluga-box-shadow:
     0 3px 20px rgba(0, 0, 0, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --maqgo-welcome-caluga-font-size-desktop: 13px;
   --maqgo-welcome-caluga-font-weight: 500;
   --maqgo-welcome-caluga-letter-spacing: 0.02em;
