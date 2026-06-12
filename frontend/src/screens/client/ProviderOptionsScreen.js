@@ -63,6 +63,13 @@ const PROVIDER_FIELD_TO_KEYS = {
 function ProviderOptionsScreen() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const uxCaluga = (() => {
+    try {
+      return new URLSearchParams(window.location.search || '').get('ux') === 'caluga';
+    } catch {
+      return false;
+    }
+  })();
   const backRoute = getBookingBackRoute(pathname);
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState([]);
@@ -724,11 +731,17 @@ function ProviderOptionsScreen() {
         )}
 
         {/* Un solo aviso: cobro y dónde ver precio */}
-        <div style={{ background: 'rgba(236, 104, 25, 0.12)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
-          <p style={{ color: '#fff', fontSize: 12, margin: 0, textAlign: 'center', lineHeight: 1.45 }}>
-            No se cobra hasta que un proveedor acepte.
-          </p>
-        </div>
+        {uxCaluga ? (
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+            <span className="maqgo-orange-hint-pill">No se cobra hasta que un proveedor acepte.</span>
+          </div>
+        ) : (
+          <div style={{ background: 'rgba(236, 104, 25, 0.12)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
+            <p style={{ color: '#fff', fontSize: 12, margin: 0, textAlign: 'center', lineHeight: 1.45 }}>
+              No se cobra hasta que un proveedor acepte.
+            </p>
+          </div>
+        )}
 
         {/* Camión tolva: recordatorio de m³ que busca el cliente (puede ser uno o varios) */}
         {selectedMachinery === 'camion_tolva' && (() => {
