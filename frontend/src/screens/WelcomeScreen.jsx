@@ -177,7 +177,7 @@ function WelcomeScreen() {
           maxWidth: "420px",
           border: isDesktop ? "none" : "1px solid rgba(0,0,0,0.06)",
             borderRadius: isDesktop ? "0px" : "24px",
-            overflowY: 'auto'
+            overflowY: isDesktop ? 'hidden' : 'auto'
         }}
       >
         {/* Hero - compacto en viewports cortos */}
