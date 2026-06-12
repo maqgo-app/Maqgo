@@ -75,15 +75,18 @@ function ClientHome() {
           onClick={handleExit}
           style={{
             position: 'absolute',
-            top: 0,
-            right: 0,
-            background: 'none',
-            border: 'none',
-            color: 'rgba(255,255,255,0.72)',
-            fontSize: 13,
-            fontWeight: 600,
+            top: 6,
+            right: 6,
+            background: 'rgba(22, 22, 28, 0.72)',
+            border: '1px solid rgba(255,255,255,0.16)',
+            color: 'rgba(255,255,255,0.86)',
+            fontSize: 12,
+            fontWeight: 700,
             cursor: 'pointer',
-            padding: 0,
+            padding: '8px 12px',
+            borderRadius: 999,
+            lineHeight: 1,
+            backdropFilter: 'blur(6px)',
           }}
           aria-label="Salir a bienvenida"
         >
