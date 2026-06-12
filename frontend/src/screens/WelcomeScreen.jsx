@@ -176,7 +176,8 @@ function WelcomeScreen() {
           margin: "0 auto",
           maxWidth: "420px",
           border: isDesktop ? "none" : "1px solid rgba(0,0,0,0.06)",
-          borderRadius: isDesktop ? "0px" : "24px"
+            borderRadius: isDesktop ? "0px" : "24px",
+            overflowY: 'auto'
         }}
       >
         {/* Hero - compacto en viewports cortos */}
@@ -284,90 +285,88 @@ function WelcomeScreen() {
         }}>
           {showMarketplaceCTAs ? (
             <>
-          <button
-            onClick={() => {
-              const target = '/client/home';
-              if (!hasSession) {
-                traceRedirectToLogin('src/screens/WelcomeScreen.jsx (Arrendar maquinaria CTA)');
-                navigate('/login', { state: { redirect: target, entry: 'client' } });
-                return;
-              }
-              // "Arrendar maquinaria" siempre debe iniciar el funnel cliente.
-              navigate(target);
-            }}
-            className="welcome-cta-primary welcome-reveal"
-            style={{ '--welcome-d': '200ms', transition: "all 0.2s ease" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 10px 20px rgba(0,0,0,0.15)";
-              e.currentTarget.style.filter = "brightness(0.95)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0px)";
-              e.currentTarget.style.boxShadow = "none";
-              e.currentTarget.style.filter = "brightness(1)";
-            }}
-            data-testid="start-client-btn"
-            aria-label="Arrendar maquinaria. Para hoy o en la fecha que indiques."
-          >
-            <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.22)' }}>
-              <IconExcavator />
-            </div>
-            <div style={{ textAlign: 'left', minWidth: 0 }}>
-              <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Arrendar maquinaria</div>
-              <div style={{ fontSize: 12, opacity: 0.95, lineHeight: 1.35 }}>Para hoy o en la fecha que indiques</div>
-            </div>
-          </button>
+              <button
+                onClick={() => {
+                  const target = '/client/home';
+                  if (!hasSession) {
+                    traceRedirectToLogin('src/screens/WelcomeScreen.jsx (Arrendar maquinaria CTA)');
+                    navigate('/login', { state: { redirect: target, entry: 'client' } });
+                    return;
+                  }
+                  navigate(target);
+                }}
+                className="welcome-cta-primary welcome-reveal"
+                style={{ '--welcome-d': '200ms', transition: 'all 0.2s ease' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 10px 20px rgba(0,0,0,0.15)';
+                  e.currentTarget.style.filter = 'brightness(0.95)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0px)';
+                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.filter = 'brightness(1)';
+                }}
+                data-testid="start-client-btn"
+                aria-label="Arrendar maquinaria. Para hoy o en la fecha que indiques."
+              >
+                <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.22)' }}>
+                  <IconExcavator />
+                </div>
+                <div style={{ textAlign: 'left', minWidth: 0 }}>
+                  <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Arrendar maquinaria</div>
+                  <div style={{ fontSize: 12, opacity: 0.95, lineHeight: 1.35 }}>Para hoy o en la fecha que indiques</div>
+                </div>
+              </button>
 
-          <button
-            onClick={() => {
-              try {
-                localStorage.setItem('desiredRole', 'provider');
-                // Si ya tiene sesión, actualizamos el rol activo
-                if (hasSession) {
-                  localStorage.setItem('userRole', 'provider');
-                }
-              } catch {
-                /* ignore */
-              }
-              const fromWelcome = true;
-              try {
-                localStorage.setItem('providerCameFromWelcome', 'true');
-              } catch {
-                /* ignore */
-              }
-              console.log('PROVIDER FLOW ENTRY', { fromWelcome, finalRoute: '/login', entry: 'provider' });
-              navigate('/login', { state: { entry: 'provider' } });
-            }}
-            className="welcome-cta-secondary welcome-reveal"
-            style={{ '--welcome-d': '270ms' }}
-            data-testid="start-provider-btn"
-            aria-label="Ofrecer mi maquinaria. Regístrate y recibe solicitudes de clientes."
-          >
-            <div className="welcome-cta-icon" style={{ background: 'rgba(144, 189, 211, 0.18)', color: '#90BDD3' }}>
-              <IconBuilding />
-            </div>
-            <div style={{ textAlign: 'left', minWidth: 0 }}>
-              <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Ofrecer mi maquinaria</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Regístrate y recibe solicitudes de clientes</div>
-            </div>
-          </button>
+              <button
+                onClick={() => {
+                  try {
+                    localStorage.setItem('desiredRole', 'provider');
+                    if (hasSession) {
+                      localStorage.setItem('userRole', 'provider');
+                    }
+                  } catch {
+                    /* ignore */
+                  }
+                  const fromWelcome = true;
+                  try {
+                    localStorage.setItem('providerCameFromWelcome', 'true');
+                  } catch {
+                    /* ignore */
+                  }
+                  console.log('PROVIDER FLOW ENTRY', { fromWelcome, finalRoute: '/login', entry: 'provider' });
+                  navigate('/login', { state: { entry: 'provider' } });
+                }}
+                className="welcome-cta-secondary welcome-reveal"
+                style={{ '--welcome-d': '270ms' }}
+                data-testid="start-provider-btn"
+                aria-label="Ofrecer mi maquinaria. Regístrate y recibe solicitudes de clientes."
+              >
+                <div className="welcome-cta-icon" style={{ background: 'rgba(144, 189, 211, 0.18)', color: '#90BDD3' }}>
+                  <IconBuilding />
+                </div>
+                <div style={{ textAlign: 'left', minWidth: 0 }}>
+                  <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Ofrecer mi maquinaria</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Regístrate y recibe solicitudes de clientes</div>
+                </div>
+              </button>
 
-          <button
-            onClick={() => navigate(getWelcomeOperatorDestination())}
-            className="welcome-cta-secondary welcome-reveal"
-            style={{ '--welcome-d': '340ms' }}
-            data-testid="operator-join-btn"
-            aria-label="Soy operador. Unirme con código de equipo."
-          >
-            <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.08)', color: '#C8C8C8' }}>
-              <IconUser />
-            </div>
-            <div style={{ textAlign: 'left', minWidth: 0 }}>
-              <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Soy operador</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Unirme con código de equipo</div>
-            </div>
-          </button>
+              <button
+                onClick={() => navigate(getWelcomeOperatorDestination())}
+                className="welcome-cta-secondary welcome-reveal"
+                style={{ '--welcome-d': '340ms' }}
+                data-testid="operator-join-btn"
+                aria-label="Soy operador. Unirme con código de equipo."
+              >
+                <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.08)', color: '#C8C8C8' }}>
+                  <IconUser />
+                </div>
+                <div style={{ textAlign: 'left', minWidth: 0 }}>
+                  <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Soy operador</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Unirme con código de equipo</div>
+                </div>
+              </button>
             </>
           ) : (
             <div
@@ -407,7 +406,7 @@ function WelcomeScreen() {
           )}
         </main>
 
-        <div style={{ textAlign: "center", marginTop: "20px" }}>
+        <div style={{ textAlign: 'center', marginTop: 20, width: '100%', flexShrink: 0 }}>
 
   {hasKnownLoginContext && (
     <div style={{ marginBottom: "18px" }}>
