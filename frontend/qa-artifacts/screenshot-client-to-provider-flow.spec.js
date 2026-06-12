@@ -37,6 +37,11 @@ test.describe('Capturas: flujo cliente → solicitud → proveedor', () => {
     await page.screenshot({ path: 'qa-artifacts/out/flow-01-cliente-maquinaria.png', fullPage: true });
     await page.screenshot({ path: 'qa-artifacts/out/flow-01-cliente-maquinaria-hd.png', fullPage: true, scale: 'device' });
 
+    const machineryScroll = page.locator('.maqgo-funnel-split-scroll');
+    await machineryScroll.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: 'qa-artifacts/out/flow-01b-cliente-maquinaria-bottom.png', fullPage: true });
+
     await page.getByText('Retroexcavadora').click();
     await page.locator('.maqgo-funnel-split-footer button').click();
 
