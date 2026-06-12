@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Iterable, List, Optional
 from uuid import uuid4
+import re
 
 
 MACHINERY_TYPE_NAMES = {
@@ -102,6 +103,16 @@ def serialize_machines(docs: Iterable[dict]) -> List[dict]:
     return [m for m in (serialize_machine(doc) for doc in docs) if m]
 
 
+def _normalize_license_plate(value: str) -> str:
+    raw = (value or "").strip().upper()
+    compact = re.sub(r"[^A-Z0-9]", "", raw)
+    if len(compact) == 6 and compact[:4].isalpha() and compact[4:].isdigit():
+        return f"{compact[:4]}-{compact[4:]}"
+    if len(compact) == 6 and compact[:2].isalpha() and compact[2:].isdigit():
+        return f"{compact[:2]}-{compact[2:]}"
+    return compact or raw
+
+
 def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, existing: Optional[dict] = None) -> Dict[str, Any]:
     existing = existing or {}
     machinery_type = _clean_str(
@@ -120,7 +131,8 @@ def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, exis
         or payload.get("license_plate")
         or payload.get("patente")
         or existing.get("licensePlate")
-    ).upper()
+    )
+    license_plate = _normalize_license_plate(license_plate)
 
     doc: Dict[str, Any] = {
         "provider_id": provider_id,
