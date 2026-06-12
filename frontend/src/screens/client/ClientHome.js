@@ -93,11 +93,8 @@ function ClientHome() {
                 marginBottom: 18,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
                 <MaqgoLogo size="small" />
-                <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 700, letterSpacing: 0.18 }}>
-                  RESERVA
-                </span>
               </div>
               <button
                 type="button"
