@@ -501,6 +501,11 @@ function WelcomeScreen() {
       letter-spacing: 0.01em;
     }
 
+    .welcome-legal-copy strong {
+      font-weight: 700;
+      color: rgba(255,255,255,0.62);
+    }
+
     @media (max-width: 520px) {
       .welcome-legal-footer {
         padding: 30px 0 18px;
