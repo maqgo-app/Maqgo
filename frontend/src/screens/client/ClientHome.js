@@ -69,7 +69,7 @@ function ClientHome() {
 
   return (
     <div className="maqgo-app maqgo-client-funnel">
-      <div className="maqgo-screen" style={{ justifyContent: 'center', paddingBottom: 52, position: 'relative' }}>
+      <div className="maqgo-screen" style={{ justifyContent: 'flex-start', paddingBottom: 52, position: 'relative' }}>
         <button
           type="button"
           onClick={handleExit}
@@ -89,13 +89,15 @@ function ClientHome() {
         >
           Salir
         </button>
-        {/* Logo */}
-        <MaqgoLogo size="medium" style={{ marginBottom: 32 }} />
-
-        {/* Título */}
-        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 22 }}>
-          Arrendar maquinaria
-        </h1>
+        <div style={{ width: '100%', textAlign: 'center', marginBottom: 18 }}>
+          <MaqgoLogo size="medium" style={{ marginBottom: 14 }} />
+          <h1 className="maqgo-h1" style={{ margin: 0, marginBottom: 10 }}>
+            Arrendar maquinaria
+          </h1>
+          <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.4 }}>
+            Elige “Inicio hoy” o programa tu fecha.
+          </p>
+        </div>
 
         {/* Tarjeta Inicio HOY - Prioritario */}
         <div 
@@ -249,7 +251,7 @@ function ClientHome() {
           lineHeight: 1.4,
           fontFamily: "'Inter', sans-serif"
         }}>
-          Inicio hoy o programa tu fecha. Pagas solo cuando un proveedor confirma.
+          Pagas solo cuando un proveedor confirma.
         </p>
 
         <div style={{ flex: 1 }}></div>
