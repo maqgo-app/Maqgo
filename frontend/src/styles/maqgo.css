@@ -1165,23 +1165,6 @@ a:focus-visible,
   color: #fff;
 }
 
-.maqgo-orange-hint-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border-radius: 9999px;
-  padding: 8px 14px;
-  background: rgba(236, 104, 25, 0.12);
-  border: 1px solid rgba(236, 104, 25, 0.55);
-  box-shadow: 0 3px 20px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: 0.01em;
-}
-
 /* Selector de horas */
 .maqgo-hours-selector {
   display: flex;
