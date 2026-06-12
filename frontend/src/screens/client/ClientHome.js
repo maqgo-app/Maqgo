@@ -163,7 +163,7 @@ function ClientHome() {
                     backdropFilter: 'blur(6px)',
                   }}
                 >
-                  <h1 className="maqgo-h1" style={{ margin: 0, fontSize: 18, lineHeight: 1.1 }}>
+                  <h1 className="maqgo-h1" style={{ margin: 0 }}>
                     Arrendar maquinaria
                   </h1>
                 </div>
