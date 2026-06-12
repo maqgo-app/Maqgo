@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MAQGO · Operador (QA)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { height: 100%; margin: 0; background: #0f0f10; font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; }
+      .topbar{position:sticky;top:0;z-index:10;background:rgba(15,15,16,0.92);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.08);padding:10px 12px;display:flex;gap:8px;align-items:center}
+      .btn{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.92);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:8px 10px;font-weight:650;cursor:pointer;user-select:none}
+      select{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.92);border-radius:10px;padding:8px 10px;font-weight:650;outline:none}
+      option{background:#141416;color:rgba(255,255,255,0.92)}
+      .spacer{flex:1}
+      .hint{color:rgba(255,255,255,0.55);font-size:12px;white-space:nowrap}
+      .stage{height:calc(100% - 56px);overflow:auto;cursor:grab;background:radial-gradient(1200px 800px at 30% 10%, rgba(236,104,25,0.10), transparent 60%)}
+      .stage:active{cursor:grabbing}
+      .canvas{padding:18px;width:fit-content;height:fit-content}
+      img{display:block;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,0.55);transform-origin:top left;transform:scale(var(--qa-scale,1))}
+      .meta{padding:10px 2px 0;color:rgba(255,255,255,0.85);font-size:13px}
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <button class="btn" id="prev">←</button>
+      <button class="btn" id="next">→</button>
+      <select id="screen"></select>
+      <button class="btn" id="zoomOut">−</button>
+      <button class="btn" id="zoomIn">+</button>
+      <button class="btn" id="reset">100%</button>
+      <div class="spacer"></div>
+      <div class="hint">Operador · pantallazos</div>
+    </div>
+    <div class="stage" id="stage">
+      <div class="canvas">
+        <img id="img" alt="Captura" />
+        <div class="meta" id="caption"></div>
+      </div>
+    </div>
+    <script>
+      const screens = [
+        { key: '01', label: '1 · Home operador', file: './operator-01-home.png' },
+        { key: '02', label: '2 · Solicitud recibida (operador)', file: './operator-02-request-received.png' },
+      ];
+      const stage=document.getElementById('stage');
+      const img=document.getElementById('img');
+      const caption=document.getElementById('caption');
+      const sel=document.getElementById('screen');
+      const prev=document.getElementById('prev');
+      const next=document.getElementById('next');
+      const zoomIn=document.getElementById('zoomIn');
+      const zoomOut=document.getElementById('zoomOut');
+      const reset=document.getElementById('reset');
+      let idx=0;let scale=1;
+      const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+      const applyScale=()=>{document.documentElement.style.setProperty('--qa-scale',String(scale));reset.textContent=`${Math.round(scale*100)}%`;};
+      screens.forEach((s)=>{const o=document.createElement('option');o.value=s.key;o.textContent=s.label;sel.appendChild(o);});
+      const setScreen=(i)=>{idx=clamp(i,0,screens.length-1);const s=screens[idx];sel.value=s.key;img.src=s.file;caption.textContent=s.label;stage.scrollTop=0;stage.scrollLeft=0;};
+      sel.addEventListener('change',()=>{const i=screens.findIndex((s)=>s.key===sel.value);setScreen(i>=0?i:0);});
+      prev.addEventListener('click',()=>setScreen(idx-1));
+      next.addEventListener('click',()=>setScreen(idx+1));
+      zoomIn.addEventListener('click',()=>{scale=clamp(Number((scale*1.15).toFixed(4)),0.25,4);applyScale();});
+      zoomOut.addEventListener('click',()=>{scale=clamp(Number((scale/1.15).toFixed(4)),0.25,4);applyScale();});
+      reset.addEventListener('click',()=>{scale=1;applyScale();stage.scrollTop=0;stage.scrollLeft=0;});
+      let dragging=false,sx=0,sy=0,sl=0,st=0;
+      stage.addEventListener('mousedown',(e)=>{dragging=true;sx=e.clientX;sy=e.clientY;sl=stage.scrollLeft;st=stage.scrollTop;});
+      window.addEventListener('mouseup',()=>{dragging=false;});
+      window.addEventListener('mousemove',(e)=>{if(!dragging)return;stage.scrollLeft=sl-(e.clientX-sx);stage.scrollTop=st-(e.clientY-sy);});
+      window.addEventListener('keydown',(e)=>{if(e.key==='ArrowLeft')setScreen(idx-1);if(e.key==='ArrowRight')setScreen(idx+1);});
+      applyScale();
+      setScreen(0);
+    </script>
+  </body>
+</html>
+
