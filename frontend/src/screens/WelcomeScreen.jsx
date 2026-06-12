@@ -436,7 +436,7 @@ function WelcomeScreen() {
       <span className="welcome-legal-sep" aria-hidden>·</span>
       <Link className="welcome-legal-link" to="/privacy">Políticas de Privacidad</Link>
     </div>
-    <div className="welcome-legal-copy">© <strong>2026 MAQGO</strong>. Todos los derechos reservados.</div>
+    <div className="welcome-legal-copy">© <strong>2026 MAQGO</strong>. <strong>Todos los derechos reservados</strong>.</div>
   </div>
 
   <style>{`
