@@ -862,6 +862,7 @@ function MachineDataScreen() {
   const toast = useToast();
   const { id } = useParams();
   const activationEdit = Boolean(location.state?.activationEdit);
+  const explicitReturnTo = typeof location.state?.returnTo === 'string' ? location.state.returnTo.trim() : '';
   const returnTo = String(location.state?.returnTo || '/provider/home');
   const isEditMode = Boolean(id && location.pathname.includes('edit-machine'));
   const isAddMachineEntry = location.pathname.includes('add-machine');
@@ -1380,6 +1381,10 @@ function MachineDataScreen() {
   const handleBack = () => {
     if (activationEdit) {
       navigate(returnTo);
+      return;
+    }
+    if (explicitReturnTo && explicitReturnTo.startsWith('/provider/') && explicitReturnTo !== location.pathname) {
+      navigate(explicitReturnTo);
       return;
     }
     if (isEditMode) navigate('/provider/machines');
