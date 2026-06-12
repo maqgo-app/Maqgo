@@ -29,10 +29,6 @@ import BookingNavigationGuard from './components/BookingNavigationGuard';
 import { peekReturnUrl } from './utils/registrationReturn';
 import { AppNavigateToLogin } from './components/AppNavigateToLogin';
 
-const DevSessionRedirect = import.meta.env.DEV
-  ? lazy(() => import('./screens/DevSessionRedirect.jsx'))
-  : null;
-
 /** /verified (SMS ok) → selección de rol; sin pantalla intermedia. */
 function LegacyVerifiedToSelectRole() {
   let state = undefined;
@@ -372,7 +368,6 @@ function AppContent() {
         <Route path="/privacy" element={<PrivacyScreen />} />
         <Route path="/master/join" element={<MasterJoinScreen />} />
         <Route path="/operator/join" element={<OperatorJoinScreen />} />
-        {DevSessionRedirect ? <Route path="/dev/session" element={<DevSessionRedirect />} /> : null}
 
         {/* Admin: puerta única en /admin (sin pasar por ProtectedRoute → no redirige a /login comercial). */}
         <Route path="/admin" element={<AdminRoute />}>
