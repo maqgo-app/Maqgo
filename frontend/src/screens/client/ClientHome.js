@@ -249,7 +249,7 @@ function ClientHome() {
           lineHeight: 1.4,
           fontFamily: "'Inter', sans-serif"
         }}>
-          En horas, no días. Pagas solo si aceptan tu solicitud.
+          Inicio hoy o programa tu fecha. Pagas solo cuando un proveedor confirma.
         </p>
 
         <div style={{ flex: 1 }}></div>
