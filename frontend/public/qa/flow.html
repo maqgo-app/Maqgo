@@ -44,11 +44,23 @@
       .spacer { flex: 1; }
       .hint { color: rgba(255,255,255,0.55); font-size: 12px; white-space: nowrap; }
       .wrap { height: calc(100% - 56px); }
-      iframe {
+      .frameStage {
+        height: 100%;
+        width: 100%;
+        overflow: auto;
+        background: radial-gradient(1200px 800px at 30% 10%, rgba(236,104,25,0.10), transparent 60%);
+      }
+      .frameInner {
         width: 100%;
         height: 100%;
+      }
+      iframe {
+        width: calc(100% / var(--qa-scale, 1));
+        height: calc(100% / var(--qa-scale, 1));
         border: 0;
         background: #0f0f10;
+        transform: scale(var(--qa-scale, 1));
+        transform-origin: top left;
       }
       .gate {
         max-width: 720px;
@@ -75,6 +87,9 @@
         <button class="btn secondary" id="prev">←</button>
         <button class="btn secondary" id="next">→</button>
         <select id="screen"></select>
+        <button class="btn secondary" id="zoomOut">−</button>
+        <button class="btn secondary" id="zoomIn">+</button>
+        <button class="btn secondary" id="zoomReset">100%</button>
         <button class="btn secondary" id="reload">Recargar</button>
         <div class="spacer"></div>
         <div class="title" id="caption"></div>
@@ -82,7 +97,11 @@
         <div class="hint">Pantallas reales en producción · scroll dentro</div>
       </div>
       <div class="wrap">
-        <iframe id="frame" title="MAQGO QA" referrerpolicy="no-referrer"></iframe>
+        <div class="frameStage" id="stage">
+          <div class="frameInner" id="inner">
+            <iframe id="frame" title="MAQGO QA" referrerpolicy="no-referrer"></iframe>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -170,14 +189,24 @@
       ];
 
       const frame = document.getElementById('frame');
+      const stage = document.getElementById('stage');
       const caption = document.getElementById('caption');
       const sel = document.getElementById('screen');
       const prev = document.getElementById('prev');
       const next = document.getElementById('next');
       const reload = document.getElementById('reload');
+      const zoomIn = document.getElementById('zoomIn');
+      const zoomOut = document.getElementById('zoomOut');
+      const zoomReset = document.getElementById('zoomReset');
+
+      let scale = 1;
+      const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+      const applyScale = () => {
+        document.documentElement.style.setProperty('--qa-scale', String(scale));
+        zoomReset.textContent = `${Math.round(scale * 100)}%`;
+      };
 
       let idx = 0;
-      const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
       const setStep = (i) => {
         idx = clamp(i, 0, steps.length - 1);
         const s = steps[idx];
@@ -185,6 +214,8 @@
         caption.textContent = s.label;
         try { s.seed(); } catch { void 0; }
         frame.src = `${window.location.origin}${s.path}`;
+        stage.scrollTop = 0;
+        stage.scrollLeft = 0;
       };
 
       steps.forEach((s) => {
@@ -201,13 +232,28 @@
       prev.addEventListener('click', () => setStep(idx - 1));
       next.addEventListener('click', () => setStep(idx + 1));
       reload.addEventListener('click', () => setStep(idx));
+
+      zoomIn.addEventListener('click', () => {
+        scale = clamp(Number((scale * 1.15).toFixed(4)), 0.6, 2.4);
+        applyScale();
+      });
+      zoomOut.addEventListener('click', () => {
+        scale = clamp(Number((scale / 1.15).toFixed(4)), 0.6, 2.4);
+        applyScale();
+      });
+      zoomReset.addEventListener('click', () => {
+        scale = 1;
+        applyScale();
+        stage.scrollTop = 0;
+        stage.scrollLeft = 0;
+      });
       window.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowLeft') setStep(idx - 1);
         if (e.key === 'ArrowRight') setStep(idx + 1);
       });
 
+      applyScale();
       setStep(0);
     </script>
   </body>
 </html>
-
