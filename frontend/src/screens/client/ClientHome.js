@@ -152,9 +152,22 @@ function ClientHome() {
             </button>
             <div style={{ width: '100%', textAlign: 'center', marginBottom: 18 }}>
               <MaqgoLogo size="medium" style={{ marginBottom: 14 }} />
-              <h1 className="maqgo-h1" style={{ margin: 0, marginBottom: 10 }}>
-                Arrendar maquinaria
-              </h1>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+                <div
+                  style={{
+                    background: 'rgba(22, 22, 28, 0.72)',
+                    border: '1px solid rgba(255,255,255,0.16)',
+                    borderRadius: 999,
+                    padding: '10px 14px',
+                    boxShadow: '0 10px 26px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)',
+                    backdropFilter: 'blur(6px)',
+                  }}
+                >
+                  <h1 className="maqgo-h1" style={{ margin: 0, fontSize: 18, lineHeight: 1.1 }}>
+                    Arrendar maquinaria
+                  </h1>
+                </div>
+              </div>
               <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.4 }}>
                 Elige “Inicio hoy” o programa tu fecha.
               </p>
