@@ -725,26 +725,19 @@ function LoginScreen({ setUserRole, setUserId }) {
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <div
             style={{
-              background: '#1E1E24',
-              border: '1px solid #2E2E35',
-              borderRadius: 12,
-              padding: '10px 12px',
+              background: 'rgba(22, 22, 28, 0.72)',
+              border: '1px solid rgba(255,255,255,0.16)',
+              borderRadius: 999,
+              padding: '10px 14px',
               width: '100%',
               maxWidth: 420,
-              boxShadow: '0 10px 22px rgba(0,0,0,0.28)',
               marginBottom: redirectTo === '/admin' ? 8 : (step === 'phone' || loginMode === 'email' ? 35 : 20),
               marginTop: (step !== 'phone' && loginMode === 'sms') ? 20 : 0,
             }}
           >
-            <h2 style={{
-              color: '#fff',
-              fontSize: 24,
-              fontWeight: 600,
-              textAlign: 'center',
-              margin: 0,
-            }}>
+            <h1 className="maqgo-h1" style={{ margin: 0, textAlign: 'center' }}>
               {loginMode === 'sms' && step === 'otp' ? 'Verificar código' : 'Iniciar sesión'}
-            </h2>
+            </h1>
           </div>
         </div>
         {redirectTo === '/admin' && (
