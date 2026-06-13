@@ -353,11 +353,12 @@ function MachinerySelection() {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
             <div
               style={{
-                background: 'rgba(22, 22, 28, 0.85)',
-                border: '1px solid rgba(255,255,255,0.18)',
+                background: '#1E1E24',
+                border: '1px solid #2E2E35',
                 borderRadius: 12,
                 padding: '10px 12px',
                 width: '100%',
+                boxShadow: '0 10px 22px rgba(0,0,0,0.28)',
               }}
             >
               <h1 className="maqgo-h1" style={{ margin: 0 }}>
