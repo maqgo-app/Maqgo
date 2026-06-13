@@ -352,9 +352,11 @@ function MachinerySelection() {
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 8, flexShrink: 0 }}>
           Selecciona el tipo de maquinaria
         </h1>
-        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>
-          Elige la maquinaria para esta reserva
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+          <div className="maqgo-microcopy-box" style={{ width: '100%', maxWidth: 380, textAlign: 'center' }}>
+            Elige una opción para ver proveedores disponibles y precio total.
+          </div>
+        </div>
         {/* Lista: el scroll es el de .maqgo-funnel-split-scroll (CTA fuera, sin anidar overflow) */}
         <div style={{ paddingBottom: 8 }}>
           <div className="maqgo-machinery-list">
