@@ -513,6 +513,8 @@ function LoginScreen({ setUserRole, setUserId }) {
       setError(
         getHttpErrorMessage(e, {
           fallback: 'No pudimos enviarte el código. Intenta nuevamente.',
+          networkUnavailableMessage:
+            'Sin conexión con el servidor. Revisa tu internet, desactiva VPN/Private DNS si aplica, o prueba con datos móviles.',
           statusMessages: {
             404:
               'Inicio de sesión por celular no disponible (404). Revisa conexión, actualiza la página o confirma que la API en producción incluya login por SMS.',
@@ -626,6 +628,8 @@ function LoginScreen({ setUserRole, setUserId }) {
       setError(
         getHttpErrorMessage(e, {
           fallback: 'El código no es correcto. Intenta nuevamente.',
+          networkUnavailableMessage:
+            'Sin conexión con el servidor. Revisa tu internet, desactiva VPN/Private DNS si aplica, o prueba con datos móviles.',
           statusMessages: {
             400: 'El código no es correcto. Intenta nuevamente.',
             404:
@@ -677,6 +681,8 @@ function LoginScreen({ setUserRole, setUserId }) {
       setError(
         getHttpErrorMessage(e, {
           fallback: 'Contraseña incorrecta. Intenta nuevamente.',
+          networkUnavailableMessage:
+            'Sin conexión con el servidor. Revisa tu internet, desactiva VPN/Private DNS si aplica, o prueba con datos móviles.',
           statusMessages: {
             401: 'Contraseña incorrecta.',
             429: 'Demasiados intentos. Espera un momento.',
