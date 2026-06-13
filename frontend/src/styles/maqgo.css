@@ -1206,17 +1206,6 @@ a:focus-visible,
   outline-offset: 2px;
 }
 
-.maqgo-microcopy-box {
-  background: rgba(22, 22, 28, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  padding: 10px 12px;
-  color: rgba(250, 250, 250, 0.72);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
 /* Código de verificación */
 .maqgo-code-inputs {
   display: flex;
