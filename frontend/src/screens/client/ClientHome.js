@@ -99,6 +99,7 @@ function ClientHome() {
               <button
                 type="button"
                 onClick={handleExit}
+                className="clienthome-exit-btn"
                 style={{
                   background: 'rgba(22, 22, 28, 0.72)',
                   border: '1px solid rgba(255,255,255,0.16)',
@@ -131,6 +132,7 @@ function ClientHome() {
             <button
               type="button"
               onClick={handleExit}
+              className="clienthome-exit-btn"
               style={{
                 position: 'absolute',
                 top: 6,
@@ -172,12 +174,23 @@ function ClientHome() {
                 Elige “Inicio hoy” o programa tu fecha.
               </p>
             </div>
+
+            <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.08)', marginBottom: 18 }} />
           </>
         )}
 
         {/* Tarjeta Inicio HOY - Prioritario */}
-        <div 
+        <div
+          role="button"
+          tabIndex={0}
+          className="clienthome-option-card"
           onClick={() => handleSelect('immediate')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleSelect('immediate');
+            }
+          }}
           style={{
             background: 'linear-gradient(135deg, #EC6819 0%, #D45A10 100%)',
             borderRadius: 20,
@@ -227,7 +240,7 @@ function ClientHome() {
               Inicio hoy
             </div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: 500, fontFamily: "'Inter', sans-serif", lineHeight: 1.3 }}>
-              Disponibilidad inmediata. Pagas sólo si aceptan tu solicitud.
+              Disponibilidad inmediata. Monitoreo en tiempo real.
             </div>
           </div>
 
@@ -248,8 +261,17 @@ function ClientHome() {
         </div>
 
         {/* Tarjeta Programar - Elegir fecha */}
-        <div 
+        <div
+          role="button"
+          tabIndex={0}
+          className="clienthome-option-card"
           onClick={() => handleSelect('scheduled')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleSelect('scheduled');
+            }
+          }}
           style={{
             background: '#1E1E24',
             borderRadius: 20,
@@ -317,18 +339,23 @@ function ClientHome() {
           </div>
         </div>
 
-        {/* Microcopy: propuesta de valor + cobro */}
-        <p style={{
-          color: 'rgba(250,250,250,0.6)',
-          fontSize: 12,
-          fontWeight: 400,
-          textAlign: 'center',
-          marginTop: 18,
-          lineHeight: 1.4,
-          fontFamily: "'Inter', sans-serif"
-        }}>
-          Pagas solo cuando un proveedor confirma.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 18 }}>
+          <div
+            style={{
+              background: 'rgba(22, 22, 28, 0.55)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 12,
+              padding: '10px 12px',
+              width: '100%',
+              maxWidth: 380,
+              textAlign: 'center',
+            }}
+          >
+            <p style={{ margin: 0, color: 'rgba(250,250,250,0.72)', fontSize: 12, fontWeight: 600, lineHeight: 1.4, fontFamily: "'Inter', sans-serif" }}>
+              Pagas solo cuando un proveedor confirma.
+            </p>
+          </div>
+        </div>
 
         <div style={{ flex: 1 }}></div>
       </div>

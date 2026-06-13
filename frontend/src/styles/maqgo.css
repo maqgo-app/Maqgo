@@ -1200,6 +1200,12 @@ a:focus-visible,
   text-align: center;
 }
 
+.clienthome-exit-btn:focus-visible,
+.clienthome-option-card:focus-visible {
+  outline: 2px solid rgba(236, 104, 25, 0.95);
+  outline-offset: 2px;
+}
+
 /* Código de verificación */
 .maqgo-code-inputs {
   display: flex;
