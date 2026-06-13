@@ -353,8 +353,8 @@ function MachinerySelection() {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
             <div
               style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.10)',
+                background: 'rgba(22, 22, 28, 0.55)',
+                border: '1px solid rgba(255,255,255,0.12)',
                 borderRadius: 999,
                 padding: '9px 14px',
               }}
@@ -368,7 +368,7 @@ function MachinerySelection() {
             Elige la maquinaria para esta reserva
           </p>
         </div>
-        <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.08)', margin: '14px 0 10px' }} />
+        <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.08)', margin: '12px 0 10px' }} />
         {/* Lista: el scroll es el de .maqgo-funnel-split-scroll (CTA fuera, sin anidar overflow) */}
         <div style={{ paddingBottom: 8 }}>
           <div className="maqgo-machinery-list">
