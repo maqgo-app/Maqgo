@@ -79,7 +79,14 @@ function ClientHome() {
 
   return (
     <div className="maqgo-app maqgo-client-funnel">
-      <div className="maqgo-screen" style={{ justifyContent: 'flex-start', paddingBottom: 52, position: 'relative' }}>
+      <div
+        className="maqgo-screen"
+        style={{
+          justifyContent: 'flex-start',
+          paddingBottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+          position: 'relative',
+        }}
+      >
         {isTeslaDemo ? (
           <>
             <div
@@ -120,7 +127,7 @@ function ClientHome() {
 
             <div style={{ width: '100%', marginBottom: 18 }}>
               <h1 className="maqgo-h1" style={{ margin: 0, marginBottom: 10, textAlign: 'left' }}>
-                Arrendar maquinaria
+                ¿Cuándo la necesitas?
               </h1>
               <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.45, textAlign: 'left' }}>
                 Elige “Inicio hoy” o programa tu fecha.
@@ -164,7 +171,7 @@ function ClientHome() {
                   }}
                 >
                   <h1 className="maqgo-h1" style={{ margin: 0 }}>
-                    Arrendar maquinaria
+                    ¿Cuándo la necesitas?
                   </h1>
                 </div>
               </div>
