@@ -353,8 +353,8 @@ function MachinerySelection() {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
             <div
               style={{
-                background: 'rgba(22, 22, 28, 0.55)',
-                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(22, 22, 28, 0.85)',
+                border: '1px solid rgba(255,255,255,0.18)',
                 borderRadius: 12,
                 padding: '10px 12px',
                 width: '100%',
