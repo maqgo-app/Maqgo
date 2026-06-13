@@ -349,12 +349,26 @@ function MachinerySelection() {
 
         <BookingProgress />
 
-        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 8, flexShrink: 0 }}>
-          Selecciona el tipo de maquinaria
-        </h1>
-        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>
-          Elige la maquinaria para esta reserva
-        </p>
+        <div style={{ width: '100%', maxWidth: 380, margin: '0 auto', textAlign: 'center', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+            <div
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                borderRadius: 999,
+                padding: '9px 14px',
+              }}
+            >
+              <h1 className="maqgo-h1" style={{ margin: 0 }}>
+                Selecciona el tipo de maquinaria
+              </h1>
+            </div>
+          </div>
+          <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 14, margin: 0, lineHeight: 1.4 }}>
+            Elige la maquinaria para esta reserva
+          </p>
+        </div>
+        <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.08)', margin: '14px 0 10px' }} />
         {/* Lista: el scroll es el de .maqgo-funnel-split-scroll (CTA fuera, sin anidar overflow) */}
         <div style={{ paddingBottom: 8 }}>
           <div className="maqgo-machinery-list">
