@@ -230,7 +230,8 @@ function LoginScreen({ setUserRole, setUserId }) {
       navigate('/admin', { replace: true });
       return;
     }
-    if (!intentRole && !redirectTo && storedRoles.includes('client') && storedRoles.includes('provider')) {
+    const hasValidStoredRole = Boolean(storedRole && storedRoles.includes(storedRole));
+    if (!intentRole && !redirectTo && storedRoles.includes('client') && storedRoles.includes('provider') && !hasValidStoredRole) {
       navigate('/welcome', { replace: true });
       return;
     }
@@ -269,7 +270,8 @@ function LoginScreen({ setUserRole, setUserId }) {
     const previouslySelectedRole = localStorage.getItem('userRole');
     let effectiveRole = null;
     
-    if (!intentRole && !redirectTo && roles.includes('client') && roles.includes('provider')) {
+    const hasValidPreviouslySelectedRole = Boolean(previouslySelectedRole && roles.includes(previouslySelectedRole));
+    if (!intentRole && !redirectTo && roles.includes('client') && roles.includes('provider') && !hasValidPreviouslySelectedRole) {
       setUserId(uid);
       localStorage.setItem('userId', String(uid || ''));
       localStorage.setItem('userRoles', JSON.stringify(roles));
@@ -429,7 +431,8 @@ function LoginScreen({ setUserRole, setUserId }) {
       const desiredRole = localStorage.getItem('desiredRole');
       const entryRole = location.state?.entry;
       const intentRole = (desiredRole || entryRole || '').trim() || null;
-      if (!intentRole && !redirectTo && storedRoles.includes('client') && storedRoles.includes('provider')) {
+      const hasValidStoredRole = Boolean(storedRole && storedRoles.includes(storedRole));
+      if (!intentRole && !redirectTo && storedRoles.includes('client') && storedRoles.includes('provider') && !hasValidStoredRole) {
         navigate('/welcome', { replace: true });
         return;
       }

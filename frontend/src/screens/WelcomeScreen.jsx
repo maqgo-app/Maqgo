@@ -289,6 +289,11 @@ function WelcomeScreen() {
                 onClick={() => {
                   const target = '/client/home';
                   if (!hasSession) {
+                    try {
+                      localStorage.setItem('desiredRole', 'client');
+                    } catch {
+                      /* ignore */
+                    }
                     traceRedirectToLogin('src/screens/WelcomeScreen.jsx (Arrendar maquinaria CTA)');
                     navigate('/login', { state: { redirect: target, entry: 'client' } });
                     return;

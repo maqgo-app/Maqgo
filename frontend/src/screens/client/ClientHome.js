@@ -83,7 +83,7 @@ function ClientHome() {
         className="maqgo-screen"
         style={{
           justifyContent: 'flex-start',
-          paddingBottom: 'calc(72px + env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'calc(52px + env(safe-area-inset-bottom, 0px))',
           position: 'relative',
         }}
       >
