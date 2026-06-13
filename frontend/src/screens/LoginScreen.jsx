@@ -722,16 +722,31 @@ function LoginScreen({ setUserRole, setUserId }) {
           <MaqgoLogo size="medium" style={{ marginBottom: 36 }} />
         )}
 
-        <h2 style={{
-          color: '#fff',
-          fontSize: 24,
-          fontWeight: 600,
-          textAlign: 'center',
-          marginBottom: redirectTo === '/admin' ? 8 : (step === 'phone' || loginMode === 'email' ? 35 : 20),
-          marginTop: (step !== 'phone' && loginMode === 'sms') ? 20 : 0
-        }}>
-          {loginMode === 'sms' && step === 'otp' ? 'Verificar código' : 'Iniciar sesión'}
-        </h2>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div
+            style={{
+              background: '#1E1E24',
+              border: '1px solid #2E2E35',
+              borderRadius: 12,
+              padding: '10px 12px',
+              width: '100%',
+              maxWidth: 420,
+              boxShadow: '0 10px 22px rgba(0,0,0,0.28)',
+              marginBottom: redirectTo === '/admin' ? 8 : (step === 'phone' || loginMode === 'email' ? 35 : 20),
+              marginTop: (step !== 'phone' && loginMode === 'sms') ? 20 : 0,
+            }}
+          >
+            <h2 style={{
+              color: '#fff',
+              fontSize: 24,
+              fontWeight: 600,
+              textAlign: 'center',
+              margin: 0,
+            }}>
+              {loginMode === 'sms' && step === 'otp' ? 'Verificar código' : 'Iniciar sesión'}
+            </h2>
+          </div>
+        </div>
         {redirectTo === '/admin' && (
           <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textAlign: 'center', marginBottom: 27 }}>
             Acceso al panel de administración MAQGO
