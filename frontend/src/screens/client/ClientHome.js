@@ -157,12 +157,10 @@ function ClientHome() {
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
                 <div
                   style={{
-                    background: 'rgba(22, 22, 28, 0.72)',
-                    border: '1px solid rgba(255,255,255,0.16)',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.10)',
                     borderRadius: 999,
-                    padding: '10px 14px',
-                    boxShadow: '0 10px 26px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)',
-                    backdropFilter: 'blur(6px)',
+                    padding: '9px 14px',
                   }}
                 >
                   <h1 className="maqgo-h1" style={{ margin: 0 }}>
