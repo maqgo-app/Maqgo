@@ -355,8 +355,9 @@ function MachinerySelection() {
               style={{
                 background: 'rgba(22, 22, 28, 0.55)',
                 border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: 999,
-                padding: '9px 14px',
+                borderRadius: 12,
+                padding: '10px 12px',
+                width: '100%',
               }}
             >
               <h1 className="maqgo-h1" style={{ margin: 0 }}>
