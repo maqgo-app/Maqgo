@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
 import axios from 'axios';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
@@ -10,6 +10,7 @@ import { NoProvidersTryTomorrow } from '../../components/ErrorStates';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
 import { ProviderOptionsSkeleton } from '../../components/ListSkeleton';
+import MaqgoTitleCard from '../../components/MaqgoTitleCard';
 
 import BACKEND_URL from '../../utils/api';
 
@@ -20,12 +21,11 @@ import BACKEND_URL from '../../utils/api';
  */
 // MACHINERY_NO_TRANSPORT y REFERENCE_PRICES desde pricing.js; por-viaje: isPerTripMachineryType (machineryNames)
 import { MACHINERY_NO_TRANSPORT, REFERENCE_PRICES, getDemoProviders } from '../../utils/pricing';
-import { getPerTripDateLabel } from '../../utils/bookingDates';
-import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions, isPerTripMachineryType, formatMachineryCapacityChipLabel } from '../../utils/machineryNames';
+import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions, isPerTripMachineryType } from '../../utils/machineryNames';
+import { requestPushPermissionAndSubscribe } from '../../utils/pushNotifications';
 import {
   isTruckUrgencyBooking,
   getTruckPricingHoursFromUrgency,
-  getTruckUrgencySummaryLine,
 } from '../../utils/clientBookingTruck';
 import { getMachineTransportQuote } from '../../utils/transportZones';
 
@@ -60,9 +60,10 @@ const PROVIDER_FIELD_TO_KEYS = {
  * 
  * UX: Muestra "Total del servicio" no "precio/hora"
  */
-function ProviderOptionsScreen() {
+function ProviderOptionsScreen({ previewPublic = false }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
   const backRoute = getBookingBackRoute(pathname);
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState([]);
@@ -70,6 +71,9 @@ function ProviderOptionsScreen() {
   const [tomorrowCount, setTomorrowCount] = useState(0);
   const [isDemoProviders, setIsDemoProviders] = useState(false);
   const [emptyState, setEmptyState] = useState(false);
+  const [emptyKind, setEmptyKind] = useState('');
+  const [availabilityToast, setAvailabilityToast] = useState(null);
+  const prevAvailableCountRef = useRef(0);
   const [isWhyOpen, setIsWhyOpen] = useState(false);
   const normalizeMachinery = (m) => String(m || '').trim().toLowerCase().replace(/\s+/g, '_');
   const [selectedMachinery, setSelectedMachinery] = useState(() =>
@@ -78,12 +82,16 @@ function ProviderOptionsScreen() {
   const machinerySpec = typeof window !== 'undefined'
     ? (localStorage.getItem('selectedMachinerySpec') || '')
     : '';
-  const [hours, setHours] = useState(() => {
-    const type = localStorage.getItem('reservationType') || 'immediate';
-    const saved = localStorage.getItem('selectedHours');
-    return type === 'scheduled' ? 8 : parseInt(saved || '4', 10);
-  });
   const [reservationType, setReservationType] = useState(localStorage.getItem('reservationType') || 'immediate');
+
+  const previewCase = previewPublic ? String(searchParams.get('case') || '').trim() : '';
+
+  const formatDistanceKmLabel = (km) => {
+    const n = Number(km);
+    if (!Number.isFinite(n) || n <= 0) return 'Distancia estimada';
+    if (n < 1) return `${n.toFixed(1).replace('.', ',')} km`;
+    return `${Math.round(n)} km`;
+  };
   const [selectedProviderIds, setSelectedProviderIds] = useState(() => {
     const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
     const savedFor = localStorage.getItem('providerSelectionMachinery') || '';
@@ -169,6 +177,205 @@ function ProviderOptionsScreen() {
 
   const needsTransport = useCallback(() => !MACHINERY_NO_TRANSPORT.includes(selectedMachinery), [selectedMachinery]);
 
+  useEffect(() => {
+    if (!previewPublic) return;
+    const caseKey = previewCase || 'no_offer';
+    try {
+      localStorage.setItem('reservationType', 'immediate');
+      localStorage.setItem('selectedMachinery', 'retroexcavadora');
+      localStorage.setItem('selectedHours', '4');
+      localStorage.removeItem('selectedMachinerySpec');
+      localStorage.setItem('providerSelectionMachinery', 'retroexcavadora');
+    } catch {
+      void 0;
+    }
+    setReservationType('immediate');
+    setSelectedMachinery('retroexcavadora');
+    setIsDemoProviders(false);
+    setTomorrowAvailable(false);
+    setTomorrowCount(0);
+    setSelectedProviderIds([]);
+
+    if (caseKey === 'network') {
+      setProviders([]);
+      setEmptyState(true);
+      setEmptyKind('network');
+      setLoading(false);
+      return;
+    }
+
+    if (caseKey === 'no_offer_tomorrow') {
+      setProviders([]);
+      setEmptyState(true);
+      setEmptyKind('no_offer');
+      setTomorrowAvailable(true);
+      setTomorrowCount(3);
+      setLoading(false);
+      return;
+    }
+
+    if (caseKey === 'no_fit') {
+      try {
+        localStorage.setItem('clientRequiredBucketM3List', JSON.stringify([0.4]));
+      } catch {
+        void 0;
+      }
+      setProviders([
+        {
+          id: 'p-preview-1',
+          machine_id: 'm-preview-1',
+          eta_minutes: 25,
+          distance: 9,
+          rating: 4.6,
+          price_per_hour: 42000,
+          transport_fee: 0,
+          bucket_m3: 0.5,
+          total_price: 185000,
+          has_transport: false,
+        },
+        {
+          id: 'p-preview-2',
+          machine_id: 'm-preview-2',
+          eta_minutes: 40,
+          distance: 18,
+          rating: 4.4,
+          price_per_hour: 39000,
+          transport_fee: 0,
+          bucket_m3: 0.6,
+          total_price: 175000,
+          has_transport: false,
+        },
+      ]);
+      setEmptyState(false);
+      setEmptyKind('');
+      setLoading(false);
+      return;
+    }
+
+    if (caseKey === 'available_3') {
+      try {
+        localStorage.setItem('maqgo_availability_watch_enabled', '1');
+        localStorage.removeItem('clientRequiredBucketM3List');
+        localStorage.removeItem('selectedMachinerySpec');
+      } catch {
+        void 0;
+      }
+      setProviders([
+        {
+          id: 'p-preview-1',
+          machine_id: 'm-preview-1',
+          eta_minutes: 18,
+          distance: 6,
+          rating: 4.7,
+          price_per_hour: 42000,
+          transport_fee: 25000,
+          bucket_m3: 0.5,
+          total_price: 210000,
+          has_transport: true,
+        },
+        {
+          id: 'p-preview-2',
+          machine_id: 'm-preview-2',
+          eta_minutes: 28,
+          distance: 12,
+          rating: 4.6,
+          price_per_hour: 39000,
+          transport_fee: 0,
+          bucket_m3: 0.6,
+          total_price: 195000,
+          has_transport: false,
+        },
+        {
+          id: 'p-preview-3',
+          machine_id: 'm-preview-3',
+          eta_minutes: 35,
+          distance: 18,
+          rating: 4.5,
+          price_per_hour: 36000,
+          transport_fee: 0,
+          bucket_m3: 0.4,
+          total_price: 180000,
+          has_transport: false,
+        },
+      ]);
+      setEmptyState(false);
+      setEmptyKind('');
+      setLoading(false);
+      return;
+    }
+
+    setProviders([]);
+    setEmptyState(true);
+    setEmptyKind('no_offer');
+    setLoading(false);
+  }, [previewPublic, previewCase]);
+
+  const canUseNotifications = useMemo(() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      if (typeof Notification === 'undefined') return false;
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const availabilityWatchEnabled = useMemo(() => {
+    try {
+      return localStorage.getItem('maqgo_availability_watch_enabled') === '1';
+    } catch {
+      return false;
+    }
+  }, [pathname, emptyState, providers.length]);
+
+  const enableAvailabilityWatch = useCallback(async () => {
+    try {
+      localStorage.setItem('maqgo_availability_watch_enabled', '1');
+    } catch {
+      void 0;
+    }
+    if (!canUseNotifications) return;
+    try {
+      if (Notification.permission === 'default') {
+        await requestPushPermissionAndSubscribe();
+      }
+    } catch {
+      void 0;
+    }
+  }, [canUseNotifications]);
+
+  useEffect(() => {
+    const count = Array.isArray(filteredProviders) ? filteredProviders.length : 0;
+    const prev = prevAvailableCountRef.current || 0;
+    prevAvailableCountRef.current = count;
+    if (!availabilityWatchEnabled) return;
+    if (count < 3) return;
+    if (prev >= 3) return;
+    let lastAt = 0;
+    try {
+      lastAt = Number(localStorage.getItem('maqgo_availability_watch_last_at') || '0') || 0;
+    } catch {
+      lastAt = 0;
+    }
+    const now = Date.now();
+    if (now - lastAt < 24 * 60 * 60 * 1000) return;
+    try {
+      localStorage.setItem('maqgo_availability_watch_last_at', String(now));
+    } catch {
+      void 0;
+    }
+    setAvailabilityToast({ count });
+    try {
+      if (canUseNotifications && Notification.permission === 'granted') {
+        new Notification('MAQGO', {
+          body: `Ya hay ${count} opciones disponibles para tu solicitud.`,
+        });
+      }
+    } catch {
+      void 0;
+    }
+  }, [filteredProviders, availabilityWatchEnabled, canUseNotifications]);
+
   const calculateTotalPrice = useCallback((provider, machineryType) => {
     const type = localStorage.getItem('reservationType') || 'immediate';
     const urgencyType = localStorage.getItem('urgencyType') || '';
@@ -224,6 +431,7 @@ function ProviderOptionsScreen() {
   const fetchProviders = useCallback(async () => {
     setLoading(true);
     setEmptyState(false);
+    setEmptyKind('');
     // Usar la ubicación exacta ingresada en ServiceLocationScreen.
     // Si no existe (ej. fallback sin Google Places), usar coordenadas demo.
     const savedLat = parseFloat(localStorage.getItem('serviceLat') || '');
@@ -236,7 +444,7 @@ function ProviderOptionsScreen() {
 
     try {
       const response = await axios.get(`${BACKEND_URL}/api/providers/match`, {
-        params: { machinery_type: selectedMachinery, client_lat: clientLat, client_lng: clientLng, max_radius: 30, limit: 5, needs_invoice: needsInvoice },
+        params: { machinery_type: selectedMachinery, client_lat: clientLat, client_lng: clientLng, limit: 5, needs_invoice: needsInvoice },
         timeout: 8000
       });
 
@@ -248,6 +456,7 @@ function ProviderOptionsScreen() {
         setProviders([]);
         setIsDemoProviders(false);
         setEmptyState(true);
+        setEmptyKind('no_offer');
         return;
       }
 
@@ -256,6 +465,7 @@ function ProviderOptionsScreen() {
         setProviders([]);
         setIsDemoProviders(false);
         setEmptyState(true);
+        setEmptyKind('no_offer');
         return;
       }
       setIsDemoProviders(false);
@@ -287,6 +497,7 @@ function ProviderOptionsScreen() {
         setProviders([]);
         setIsDemoProviders(false);
         setEmptyState(true);
+        setEmptyKind('network');
         return;
       }
 
@@ -312,9 +523,10 @@ function ProviderOptionsScreen() {
   }, [selectedMachinery, needsTransport, calculateTotalPrice, getDemoProvidersFallback, sanitizeProviders]);
 
   useEffect(() => {
+    if (previewPublic) return;
     fetchProviders();
     saveBookingProgress('providers', { machinery: selectedMachinery });
-  }, [fetchProviders, selectedMachinery]);
+  }, [fetchProviders, previewPublic, selectedMachinery]);
 
   useEffect(() => {
     if (!isWhyOpen) return;
@@ -332,17 +544,10 @@ function ProviderOptionsScreen() {
     import('./CardPaymentScreen');
   }, []);
 
-  // Sincronizar horas y tipo desde localStorage al montar/volver (evita mostrar 8h cuando se eligieron 4h)
+  // Sincronizar tipo desde localStorage al montar/volver
   useEffect(() => {
     const type = localStorage.getItem('reservationType') || 'immediate';
-    const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
-    const urgencyType = localStorage.getItem('urgencyType') || '';
-    let nextHours = type === 'scheduled' ? 8 : parseInt(localStorage.getItem('selectedHours') || '4', 10);
-    if (type === 'immediate' && isTruckUrgencyBooking(machinery)) {
-      nextHours = Math.max(4, Math.min(8, getTruckPricingHoursFromUrgency(urgencyType)));
-    }
     setReservationType(type);
-    setHours(nextHours);
   }, [pathname]);
 
   const handleBack = () => {
@@ -394,27 +599,16 @@ function ProviderOptionsScreen() {
     }
   });
 
-  const perTripScheduledLabel = getPerTripDateLabel(selectedDatesRaw, localStorage.getItem('selectedDate') || '', { prefix: 'Valor viaje ·' });
-
   const machineryLabel = MACHINERY_NAMES[selectedMachinery] || selectedMachinery;
-  const bookingSummary = (() => {
+  const bookingSummaryShort = (() => {
     const parts = [];
     if (machineryLabel) parts.push(machineryLabel);
     if (machinerySpec) parts.push(machinerySpec);
-    if (reservationType === 'immediate') {
-      parts.push('Inicio hoy');
-      if (isTruckUrgencyBooking(selectedMachinery)) {
-        const line = getTruckUrgencySummaryLine(localStorage.getItem('urgencyType') || '');
-        if (line) parts.push(line);
-      } else if (hours) {
-        parts.push(`${hours} horas`);
-      }
-    } else {
-      if (perTripScheduledLabel) parts.push(perTripScheduledLabel);
-      else parts.push('Programado');
-    }
     return parts.join(' • ');
   })();
+  // bookingSummaryShort es el resumen que mostramos en pantallas/avisos: sin “Inicio hoy / X horas”.
+
+  const showBookingSummaryLine = filteredProviders.length > 0;
 
   const capacityConstraintLabel = useMemo(() => {
     const capOpts = getMachineryCapacityOptions(selectedMachinery);
@@ -424,18 +618,92 @@ function ProviderOptionsScreen() {
     return unit ? `${base} (${unit})` : base;
   }, [selectedMachinery]);
 
+  const capacityConstraintLabelShort = useMemo(() => {
+    const capOpts = getMachineryCapacityOptions(selectedMachinery);
+    return String(capOpts?.providerLabel || '').trim();
+  }, [selectedMachinery]);
+
   const selectedCapacityLabel = useMemo(() => {
     const capOpts = getMachineryCapacityOptions(selectedMachinery);
     if (!capOpts?.clientStorageKey) return '';
     const raw = getArray(capOpts.clientStorageKey, []);
     if (!Array.isArray(raw) || raw.length === 0) return '';
+    const unit = String(capOpts?.unitDisplay || capOpts?.unit || '').trim();
     const formatted = raw
-      .map((v) => formatMachineryCapacityChipLabel(selectedMachinery, v))
-      .map((s) => String(s || '').trim())
-      .filter(Boolean);
+      .map((v) => Number(v))
+      .filter((n) => Number.isFinite(n))
+      .map((n) => {
+        if (!unit) return String(n);
+        if (unit === 'litros') return n >= 1000 ? `${Math.round(n / 1000)}.000 L` : `${n} L`;
+        if (unit === 'm³' || unit === 'm³ balde') return `${String(n).replace('.', ',')} m³`;
+        if (unit === 'ton·m') return `${n} ton·m`;
+        return `${n} ${unit}`;
+      });
     if (formatted.length === 0) return '';
-    return formatted.length === 1 ? formatted[0] : formatted.join(', ');
+    return formatted.length === 1 ? formatted[0] : formatted.join(' · ');
   }, [selectedMachinery]);
+
+  const clearCapacityFilter = useCallback(() => {
+    const capOpts = getMachineryCapacityOptions(selectedMachinery);
+    if (!capOpts?.clientStorageKey) return;
+    try {
+      localStorage.removeItem(capOpts.clientStorageKey);
+      localStorage.removeItem('selectedMachinerySpec');
+    } catch {
+      void 0;
+    }
+    setProviders((prev) => (Array.isArray(prev) ? [...prev] : []));
+  }, [selectedMachinery]);
+
+  const applyCapacityFilter = useCallback((numericValue) => {
+    const capOpts = getMachineryCapacityOptions(selectedMachinery);
+    if (!capOpts?.clientStorageKey) return;
+    const n = Number(numericValue);
+    if (!Number.isFinite(n)) return;
+    try {
+      localStorage.setItem(capOpts.clientStorageKey, JSON.stringify([n]));
+      localStorage.removeItem('selectedMachinerySpec');
+    } catch {
+      void 0;
+    }
+    setProviders((prev) => (Array.isArray(prev) ? [...prev] : []));
+  }, [selectedMachinery]);
+
+  const availableCapacityValues = useMemo(() => {
+    const capOpts = getMachineryCapacityOptions(selectedMachinery);
+    if (!capOpts?.providerField) return [];
+    const keys = PROVIDER_FIELD_TO_KEYS[capOpts.providerField];
+    if (!keys || !Array.isArray(providers) || providers.length === 0) return [];
+    const found = [];
+    for (const p of providers) {
+      let value = null;
+      for (const k of keys) {
+        if (p?.[k] != null && p[k] !== '') { value = Number(p[k]); break; }
+      }
+      if (value == null && p?.machineData) {
+        for (const k of keys) {
+          if (p.machineData?.[k] != null && p.machineData[k] !== '') { value = Number(p.machineData[k]); break; }
+        }
+      }
+      if (!Number.isFinite(value)) continue;
+      found.push(value);
+    }
+    const uniq = [...new Set(found.map((v) => Number(v)))].filter((n) => Number.isFinite(n));
+    uniq.sort((a, b) => a - b);
+    return uniq.slice(0, 5);
+  }, [providers, selectedMachinery]);
+
+  const availableCapacityLabels = useMemo(() => {
+    const capOpts = getMachineryCapacityOptions(selectedMachinery);
+    const unit = String(capOpts?.unitDisplay || capOpts?.unit || '').trim();
+    return availableCapacityValues.map((n) => {
+      if (!unit) return { value: n, label: String(n) };
+      if (unit === 'litros') return { value: n, label: n >= 1000 ? `${Math.round(n / 1000)}.000 L` : `${n} L` };
+      if (unit === 'm³' || unit === 'm³ balde') return { value: n, label: `${String(n).replace('.', ',')} m³` };
+      if (unit === 'ton·m') return { value: n, label: `${n} ton·m` };
+      return { value: n, label: `${n} ${unit}` };
+    });
+  }, [availableCapacityValues, selectedMachinery]);
 
   const handleReserveTomorrow = () => {
     const tomorrow = new Date();
@@ -525,7 +793,7 @@ function ProviderOptionsScreen() {
                 lineHeight: 1.4
               }}
             >
-              {bookingSummary}
+            {bookingSummaryShort}
             </p>
           </div>
           <style>
@@ -552,70 +820,8 @@ function ProviderOptionsScreen() {
           <NoProvidersTryTomorrow
             tomorrowCount={tomorrowCount}
             onReserveTomorrow={handleReserveTomorrow}
-            onModify={() => navigate('/client/home')}
+            onModify={() => navigate(backRoute || '/client/machinery')}
           />
-        </div>
-      </div>
-    );
-  }
-
-  if (!loading && providers.length > 0 && filteredProviders.length === 0) {
-    return (
-      <div className="maqgo-app maqgo-client-funnel">
-        <div className="maqgo-screen maqgo-screen--scroll" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px', justifyContent: 'center' }}>
-          <div
-            style={{
-              background: '#2A2A2A',
-              borderRadius: 16,
-              padding: 20,
-              marginBottom: 16
-            }}
-          >
-            <h2 style={{ color: '#fff', fontSize: 18, fontWeight: 600, margin: '0 0 8px', textAlign: 'center' }}>
-              No encontramos equipos para tu selección
-            </h2>
-            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center', margin: '0 0 14px', lineHeight: 1.45 }}>
-              Buscas {machineryLabel}
-              {selectedCapacityLabel ? ` (${selectedCapacityLabel})` : ''}
-              {machinerySpec && !selectedCapacityLabel ? ` (${machinerySpec})` : ''}
-              . Hoy no hay equipos que calcen con la capacidad o los requisitos elegidos{capacityConstraintLabel ? ` (por ejemplo ${capacityConstraintLabel})` : ''}. Prueba otra capacidad o vuelve más tarde.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/client/machinery')}
-              style={{
-                width: '100%',
-                padding: 14,
-                background: '#EC6819',
-                border: 'none',
-                borderRadius: 24,
-                color: '#fff',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-                marginBottom: 10
-              }}
-            >
-              Cambiar maquinaria o capacidad
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/client/home')}
-              style={{
-                width: '100%',
-                padding: 12,
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.25)',
-                borderRadius: 24,
-                color: '#fff',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer'
-              }}
-            >
-              Volver al inicio
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -624,6 +830,36 @@ function ProviderOptionsScreen() {
   return (
     <div className="maqgo-app maqgo-client-funnel maqgo-p4-provider-layout">
       <div className="maqgo-screen maqgo-screen--scroll maqgo-p4-provider-scroll">
+        {availabilityToast ? (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              background: 'rgba(236,104,25,0.14)',
+              border: '1px solid rgba(236,104,25,0.35)',
+              borderRadius: 14,
+              padding: 12,
+              marginBottom: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+            }}
+          >
+            <div style={{ color: '#fff', fontSize: 13, lineHeight: 1.35, fontWeight: 700 }}>
+              Ya hay {availabilityToast.count} opciones disponibles.
+            </div>
+            <button
+              type="button"
+              onClick={() => setAvailabilityToast(null)}
+              className="maqgo-btn-secondary"
+              style={{ width: 'auto', padding: '8px 12px', borderRadius: 12, fontSize: 13 }}
+            >
+              Ver
+            </button>
+          </div>
+        ) : null}
+
         {/* Header */}
         <div style={{ 
           display: 'flex', 
@@ -645,12 +881,6 @@ function ProviderOptionsScreen() {
           <div style={{ width: 24 }}></div>
         </div>
 
-        {emptyState && (
-          <div className="demo-banner" role="status" aria-live="polite">
-            Estamos activando proveedores en tu zona. Te mostraremos opciones disponibles en breve.
-          </div>
-        )}
-
         {isDemoProviders && (
           <div className="demo-banner" role="status" aria-live="polite">
             No pudimos cargar proveedores en este momento. Estamos mostrando opciones referenciales.
@@ -659,60 +889,244 @@ function ProviderOptionsScreen() {
 
         <BookingProgress />
 
-        {/* Título */}
-        <h1 style={{
-          color: '#fff',
-          fontSize: 20,
-          fontWeight: 700,
-          textAlign: 'center',
-          marginBottom: 6
-        }}>
-          Elige tus proveedores
-        </h1>
+        <MaqgoTitleCard
+          title={filteredProviders.length > 0 ? 'Elige tus proveedores' : 'Proveedores'}
+          maxWidth={520}
+        />
 
-        {/* Resumen compacto del servicio (tipo, capacidad, modalidad, horas) */}
-        <p
-          style={{
-            color: 'rgba(255,255,255,0.92)',
-            fontSize: 13,
-            textAlign: 'center',
-            margin: '0 0 10px',
-            lineHeight: 1.4,
-            padding: '0 8px',
-            fontWeight: 500
-          }}
-        >
-          {bookingSummary}
-        </p>
-
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-          <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, lineHeight: 1.45 }}>
-            Ordenado por precio total y cercanía.
-          </span>
-          <button
-            type="button"
-            onClick={() => setIsWhyOpen(true)}
+        {showBookingSummaryLine ? (
+          <p
             style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              color: '#90BDD3',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              textUnderlineOffset: 3
+              color: 'rgba(255,255,255,0.92)',
+              fontSize: 13,
+              textAlign: 'center',
+              margin: '0 0 12px',
+              lineHeight: 1.4,
+              padding: '0 8px',
+              fontWeight: 600,
             }}
-            aria-haspopup="dialog"
-            aria-expanded={isWhyOpen}
           >
-            ¿Por qué?
-          </button>
-        </div>
+            {bookingSummaryShort}
+          </p>
+        ) : null}
 
-        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, textAlign: 'center', marginBottom: 10, lineHeight: 1.45, padding: '0 12px' }}>
-          Compara precio total y tiempo estimado; luego selecciona el proveedor que prefieras.
-        </p>
+        {!loading && emptyState && emptyKind === 'network' ? (
+          <div
+            style={{
+              background: '#2A2A2A',
+              borderRadius: 16,
+              padding: 18,
+              marginBottom: 14,
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+            role="status"
+            aria-live="polite"
+          >
+            <h2 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: '0 0 8px', textAlign: 'center' }}>
+              No pudimos cargar proveedores
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, textAlign: 'center', margin: '0 0 14px', lineHeight: 1.45 }}>
+              Revisa tu conexión e inténtalo nuevamente.
+            </p>
+            <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
+              <button
+                type="button"
+                onClick={() => fetchProviders()}
+                className="maqgo-btn-primary"
+                style={{ width: '100%' }}
+              >
+                Volver a buscar
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(backRoute || '/client/machinery')}
+                className="maqgo-btn-secondary"
+                style={{ width: '100%' }}
+              >
+                Cambiar mi solicitud
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {!loading && emptyState && emptyKind !== 'network' ? (
+          <div
+            style={{
+              background: '#2A2A2A',
+              borderRadius: 16,
+              padding: 18,
+              marginBottom: 14,
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+            role="status"
+            aria-live="polite"
+          >
+            <h2 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: '0 0 8px', textAlign: 'center' }}>
+              Por ahora no tenemos proveedores de {machineryLabel} activos en tu zona
+              {selectedCapacityLabel && (capacityConstraintLabelShort || capacityConstraintLabel)
+                ? ` (${(capacityConstraintLabelShort || capacityConstraintLabel)}: ${selectedCapacityLabel})`
+                : (machinerySpec ? ` (${machinerySpec})` : '')}
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, textAlign: 'center', margin: '0 0 14px', lineHeight: 1.45 }}>
+              Estamos activando proveedores en tu zona. Te avisaremos apenas tengamos opciones disponibles.
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, textAlign: 'center', margin: '0 0 14px', lineHeight: 1.45 }}>
+              Tu solicitud: {bookingSummaryShort}
+            </p>
+            <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
+              <button
+                type="button"
+                onClick={enableAvailabilityWatch}
+                className="maqgo-btn-secondary"
+                style={{ width: '100%' }}
+              >
+                Avisarme cuando haya opciones
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/client/machinery')}
+                className="maqgo-btn-primary"
+                style={{ width: '100%' }}
+              >
+                Elegir otra maquinaria
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {!loading && !emptyState && providers.length > 0 && filteredProviders.length === 0 ? (
+          <div
+            style={{
+              background: '#2A2A2A',
+              borderRadius: 16,
+              padding: 18,
+              marginBottom: 14,
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+            role="status"
+            aria-live="polite"
+          >
+            <h2 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: '0 0 8px', textAlign: 'center' }}>
+              No hay opciones con esa capacidad
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, textAlign: 'center', margin: '0 0 10px', lineHeight: 1.45 }}>
+              Tu solicitud: {bookingSummaryShort}.
+            </p>
+            {capacityConstraintLabel ? (
+              <div style={{
+                background: 'rgba(255,255,255,0.06)',
+                borderRadius: 10,
+                padding: '10px 12px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                marginBottom: 12,
+                textAlign: 'center'
+              }}>
+                <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, marginBottom: 4 }}>
+                  Capacidad requerida
+                </div>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>
+                  {(capacityConstraintLabelShort || capacityConstraintLabel)}{selectedCapacityLabel ? `: ${selectedCapacityLabel}` : ''}
+                </div>
+              </div>
+            ) : null}
+            {availableCapacityLabels.length > 0 ? (
+              <div
+                style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  borderRadius: 12,
+                  padding: 12,
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, textAlign: 'center', marginBottom: 8 }}>
+                  Disponible ahora
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                  {availableCapacityLabels.map(({ value, label }) => (
+                    <button
+                      key={`${value}`}
+                      type="button"
+                      onClick={() => applyCapacityFilter(value)}
+                      className="maqgo-btn-secondary"
+                      style={{
+                        width: 'auto',
+                        padding: '10px 12px',
+                        borderRadius: 999,
+                        fontSize: 13,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={clearCapacityFilter}
+                    className="maqgo-btn-secondary"
+                    style={{
+                      width: '100%',
+                      maxWidth: 280,
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                    }}
+                  >
+                    Ver opciones sin filtro
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            <p style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, textAlign: 'center', margin: '0 0 14px', lineHeight: 1.45 }}>
+              No hay proveedores disponibles que calcen con esa selección.
+            </p>
+            <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
+              <button
+                type="button"
+                onClick={() => navigate(backRoute || '/client/machinery')}
+                className="maqgo-btn-primary"
+                style={{ width: '100%' }}
+              >
+                Cambiar capacidad
+              </button>
+              <button
+                type="button"
+                onClick={clearCapacityFilter}
+                className="maqgo-btn-secondary"
+                style={{ width: '100%' }}
+              >
+                Quitar filtro de capacidad
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {filteredProviders.length > 0 ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+            <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, lineHeight: 1.45 }}>
+              Ordenado por precio total y cercanía.
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsWhyOpen(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                color: '#90BDD3',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                textUnderlineOffset: 3
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={isWhyOpen}
+            >
+              ¿Por qué?
+            </button>
+          </div>
+        ) : null}
 
         {/* Aviso: pocos proveedores por sábado */}
         {reservationType === 'scheduled' && hasSaturday && providers.length > 0 && providers.length < 3 && (
@@ -722,13 +1136,6 @@ function ProviderOptionsScreen() {
             </p>
           </div>
         )}
-
-        {/* Un solo aviso: cobro y dónde ver precio */}
-        <div style={{ background: 'rgba(236, 104, 25, 0.12)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
-          <p style={{ color: '#fff', fontSize: 12, margin: 0, textAlign: 'center', lineHeight: 1.45 }}>
-            No se cobra hasta que un proveedor acepte.
-          </p>
-        </div>
 
         {/* Camión tolva: recordatorio de m³ que busca el cliente (puede ser uno o varios) */}
         {selectedMachinery === 'camion_tolva' && (() => {
@@ -774,7 +1181,7 @@ function ProviderOptionsScreen() {
               </h3>
               <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 1.5 }}>
                 <li>Priorizamos el precio total (incluye traslado si aplica y Tarifa por Servicio).</li>
-                <li>También consideramos la cercanía (distancia y tiempo estimado).</li>
+                <li>También consideramos la cercanía estimada (tiempo estimado).</li>
                 <li>Si cambias ubicación, horas o fecha, el orden puede variar.</li>
               </ul>
               <button
@@ -800,8 +1207,9 @@ function ProviderOptionsScreen() {
         ) : null}
 
         {/* Lista: sin scroll interno — el scroll es el de .maqgo-screen--scroll (evita CTA fuera de vista / doble scroll). */}
-        <div style={{ paddingBottom: 8 }}>
-          {filteredProviders.map((provider, index) => {
+        {filteredProviders.length > 0 ? (
+          <div style={{ paddingBottom: 8 }}>
+            {filteredProviders.map((provider, index) => {
             const isSelected = selectedProviderIds.some((id) => idMatch(id, provider.id));
             const spec = getProviderSpecDisplay(selectedMachinery, provider);
             /** Regla de negocio: no mostrar nombre comercial / empresa del proveedor antes de asignación. */
@@ -813,12 +1221,12 @@ function ProviderOptionsScreen() {
               tabIndex={0}
               onClick={() => toggleProvider(provider.id)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleProvider(provider.id); } }}
-              aria-label={`${optionLabel}, ${formatPrice(provider.total_price)}, ${provider.eta_minutes || '?'} min, ${provider.distance || '?'} km${isSelected ? ', seleccionado' : ''}`}
+              aria-label={`${optionLabel}, ${formatPrice(provider.total_price)}, ${provider.eta_minutes || '?'} min, ${formatDistanceKmLabel(provider.distance)}${isSelected ? ', seleccionado' : ''}`}
               style={{
-                background: isSelected ? 'rgba(236, 104, 25, 0.15)' : '#363636',
-                border: isSelected ? '2px solid #EC6819' : '2px solid transparent',
+                background: isSelected ? 'rgba(236, 104, 25, 0.12)' : '#1A1A1F',
+                border: isSelected ? '2px solid #EC6819' : '1px solid rgba(255,255,255,0.10)',
                 borderRadius: 14,
-                padding: 14,
+                padding: 16,
                 marginBottom: 12,
                 display: 'flex',
                 flexDirection: 'column',
@@ -832,8 +1240,8 @@ function ProviderOptionsScreen() {
                 {/* Imagen maquinaria */}
                 <div
                   style={{
-                    width: 75,
-                    height: 55,
+                    width: 86,
+                    height: 64,
                     borderRadius: 8,
                     background: '#444',
                     display: 'flex',
@@ -870,29 +1278,34 @@ function ProviderOptionsScreen() {
                       <span style={{ color: '#EC6819', fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>
                         {formatPrice(provider.total_price)}
                       </span>
-                      {/* Subtítulo: qué incluye el precio (transparencia) */}
-                      <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4, lineHeight: 1.3 }}>
-                        {isPerTripMachineryType(selectedMachinery) ? (
-                          <span>Precio total por viaje, con Tarifa por Servicio incluida.</span>
-                        ) : (
-                          <span>
-                            {provider.has_transport && provider.transport_fee > 0
-                              ? 'Precio total del servicio, con traslado y Tarifa por Servicio incluidos.'
-                              : 'Precio total del servicio, con Tarifa por Servicio incluida.'}
-                          </span>
-                        )}
-                      </div>
                     </div>
-                    {/* Calificación */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                         <path d="M6 1L7.2 4.2H10.6L7.9 6.3L8.8 9.8L6 7.8L3.2 9.8L4.1 6.3L1.4 4.2H4.8L6 1Z" fill="#EC6819"/>
                       </svg>
-                      <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>Calificación</span>
-                      <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, fontWeight: 600 }}>
+                      <span style={{ color: 'rgba(255,255,255,0.92)', fontSize: 12, fontWeight: 700 }}>
                         {(Number(provider.rating) || 0).toFixed(1)}
                       </span>
                     </div>
+                  </div>
+
+                  <div style={{
+                    marginTop: 10,
+                    color: 'rgba(255,255,255,0.88)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    lineHeight: 1.25,
+                  }}>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+                      <path d="M6 3V6L8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                    <span>
+                      Disponible aprox. en {provider.eta_minutes} min · {formatDistanceKmLabel(provider.distance)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -917,57 +1330,25 @@ function ProviderOptionsScreen() {
                 </div>
               )}
 
-              {/* CTA explícita para selección */}
-              <div style={{ marginTop: 10 }}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleProvider(provider.id);
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '9px 10px',
-                    borderRadius: 999,
-                    border: '1px solid rgba(255,255,255,0.18)',
-                    background: isSelected ? '#EC6819' : 'transparent',
-                    color: '#fff',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {isSelected ? 'Proveedor seleccionado' : 'Seleccionar proveedor'}
-                </button>
-              </div>
-
-              {/* Una fila: disponibilidad (ETA + distancia); el título ya dice Opción N */}
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'flex-end',
-                alignItems: 'center',
-                borderTop: '1px solid #444',
-                paddingTop: 10
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-                      <path d="M6 3V6L8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                    Disponible aprox. en {provider.eta_minutes} min
-                  </span>
-                  <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>·</span>
-                  <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{provider.distance} km</span>
+              {isSelected ? (
+                <div style={{
+                  marginTop: 4,
+                  color: 'rgba(236,104,25,0.95)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  textAlign: 'right',
+                }}>
+                  Seleccionado
                 </div>
-              </div>
+              ) : null}
             </div>
             );
-          })}
-        </div>
+            })}
+          </div>
+        ) : null}
 
         {/* Info de jornada (scroll; el CTA va en barra fija inferior) */}
-        {!isPerTripMachineryType(selectedMachinery) && (
+        {filteredProviders.length > 0 && !isPerTripMachineryType(selectedMachinery) && (
           <div style={{
             background: '#2A2A2A',
             borderRadius: 10,
@@ -985,28 +1366,32 @@ function ProviderOptionsScreen() {
         )}
       </div>
 
-      {/* CTA al pie de columna (flujo flex, sin position:fixed — evita bloquear scroll táctil/WebKit) */}
-      <div
-        className="maqgo-p4-provider-footer"
-        role="region"
-        aria-label="Continuar con proveedores seleccionados"
-      >
-        <button
-          type="button"
-          className="maqgo-btn-primary"
-          onClick={handleContinueWithSelected}
-          disabled={validSelectedIds.length === 0}
-          style={{
-            width: '100%',
-            opacity: validSelectedIds.length > 0 ? 1 : 0.5,
-            cursor: validSelectedIds.length > 0 ? 'pointer' : 'not-allowed',
-          }}
+      {filteredProviders.length > 0 ? (
+        <div
+          className="maqgo-p4-provider-footer"
+          role="region"
+          aria-label="Continuar con proveedores seleccionados"
         >
-          {validSelectedIds.length === 0
-            ? 'Selecciona al menos 1 proveedor'
-            : `Enviar solicitud a ${validSelectedIds.length} proveedor${validSelectedIds.length > 1 ? 'es' : ''}`}
-        </button>
-      </div>
+          <button
+            type="button"
+            className="maqgo-btn-primary"
+            onClick={handleContinueWithSelected}
+            disabled={validSelectedIds.length === 0}
+            style={{
+              width: '100%',
+              opacity: validSelectedIds.length > 0 ? 1 : 0.5,
+              cursor: validSelectedIds.length > 0 ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {validSelectedIds.length === 0
+              ? 'Selecciona al menos 1 proveedor'
+              : `Enviar solicitud a ${validSelectedIds.length} proveedor${validSelectedIds.length > 1 ? 'es' : ''}`}
+          </button>
+          <div style={{ marginTop: 10, color: 'rgba(255,255,255,0.72)', fontSize: 12, textAlign: 'center', lineHeight: 1.4 }}>
+            No se cobrará hasta que un proveedor acepte tu solicitud.
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
