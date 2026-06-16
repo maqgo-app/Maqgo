@@ -119,16 +119,27 @@ function ClientHome() {
                   lineHeight: 1,
                   backdropFilter: 'blur(6px)',
                 }}
-                aria-label="Salir a bienvenida"
+                aria-label="Ir a portada"
               >
-                Salir
+                Portada
               </button>
             </div>
 
             <div style={{ width: '100%', marginBottom: 18 }}>
-              <h1 className="maqgo-h1" style={{ margin: 0, marginBottom: 10, textAlign: 'left' }}>
-                ¿Cuándo la necesitas?
-              </h1>
+              <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 10 }}>
+                <div
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    borderRadius: 999,
+                    padding: '9px 14px',
+                  }}
+                >
+                  <h1 className="maqgo-h1" style={{ margin: 0 }}>
+                    ¿Cuándo la necesitas?
+                  </h1>
+                </div>
+              </div>
               <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.45, textAlign: 'left' }}>
                 Elige “Inicio hoy” o programa tu fecha.
               </p>
@@ -155,9 +166,9 @@ function ClientHome() {
                 lineHeight: 1,
                 backdropFilter: 'blur(6px)',
               }}
-              aria-label="Salir a bienvenida"
+              aria-label="Ir a portada"
             >
-              Salir
+              Portada
             </button>
             <div style={{ width: '100%', textAlign: 'center', marginBottom: 18 }}>
               <MaqgoLogo size="medium" style={{ marginBottom: 14 }} />
