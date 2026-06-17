@@ -107,6 +107,7 @@ function ProviderSensitiveGate({ children }) {
 // Code-splitting: pantallas se cargan bajo demanda (menor bundle inicial, carga más rápida)
 // Públicas
 const SupportAccessScreen = lazy(() => import('./screens/SupportAccessScreen.jsx'));
+const LegacyChatRedirectScreen = lazy(() => import('./screens/LegacyChatRedirectScreen.jsx'));
 
 // Cliente
 const UrgencySelectionScreen = lazy(() => import('./screens/client/UrgencySelectionScreen'));
@@ -360,6 +361,8 @@ function AppContent() {
         </Route>
 
         <Route element={<ProtectedRoute />}>
+        <Route path="/chat/:serviceId" element={<LegacyChatRedirectScreen />} />
+
         {/* Cliente */}
         <Route path="/client/booking" element={<BookingFlowEntry />} />
         <Route path="/client/home" element={<ClientHome />} />
