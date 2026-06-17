@@ -5,7 +5,7 @@
 - Backend Policy Engine = autoridad contractual y económica final.
 - Timers ejecutan policy backend; no inventan reglas.
 - Frontend solo representa UX/orquesta; no define clocks ni consecuencias económicas.
-- Chat/WhatsApp no son contractuales.
+- Canales externos no son contractuales.
 - Solo timestamps server-side tienen autoridad contractual.
 
 ## Modelo mínimo
@@ -41,7 +41,7 @@
 - arrival.verification_radius_meters = 300
 - incident.protected_window_default_minutes = 20
 - dispute.ticket_window_hours = 24
-- evidence.chat_retention_days = 30
+- evidence.retention_days = 30
 
 ## Constitución temporal (clocks contractuales)
 | Clock | Start | Pausa | Bloquea | Resetea | Trigger | Consecuencia |
@@ -64,6 +64,6 @@
 
 ## Notas contractuales operacionales
 - arrival verification se determina por GPS dentro de `arrival.verification_radius_meters`.
-- waiting cobrable nace solo desde arrival verified (no desde chat/WhatsApp).
+- waiting cobrable nace solo desde arrival verified (no desde canales externos).
 - access_denied cobra mínimo + waiting solo con evidencia mínima válida; abre ventana corta de resolución (10–15 min).
 - Pagos: ticket/disputa económico se abre dentro de 24h desde finishedAt (server-side).

@@ -1,6 +1,6 @@
 # QA, diagnóstico previo y acelerar mejoras
 
-> **Objetivo:** saber *qué falta para lanzar*, *no romper lo existente*, y *implementar más rápido* sin depender solo de “confianza en el último chat”.  
+> **Objetivo:** saber *qué falta para lanzar*, *no romper lo existente*, y *implementar más rápido* sin depender solo de “confianza en la última conversación”.  
 > No exige contratar QA full-time al inicio: exige **proceso + checklist + CI + una carpeta/rama canónica**.
 
 ---
