@@ -1,6 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import MaqgoPill from '../../components/base/MaqgoPill';
 import { getClientBookingRoute, resetBookingState } from '../../utils/bookingFlow';
 import { preloadClientBookingFunnel } from '../../utils/preloadClientBookingFunnel';
 
@@ -12,18 +13,8 @@ import { preloadClientBookingFunnel } from '../../utils/preloadClientBookingFunn
  */
 function ClientHome() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [pendingRoute, setPendingRoute] = useState(null);
-
-  const isTeslaDemo = useMemo(() => {
-    if (!import.meta.env.DEV) return false;
-    try {
-      return new URLSearchParams(location.search || '').get('ui') === 'tesla';
-    } catch {
-      return false;
-    }
-  }, [location.search]);
 
   useEffect(() => {
     preloadClientBookingFunnel();
@@ -73,10 +64,6 @@ function ClientHome() {
     }
   };
 
-  const handleExit = () => {
-    navigate('/welcome');
-  };
-
   return (
     <div className="maqgo-app maqgo-client-funnel">
       <div
@@ -87,113 +74,30 @@ function ClientHome() {
           position: 'relative',
         }}
       >
-        {isTeslaDemo ? (
-          <>
-            <div
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '10px 6px 14px',
-                borderBottom: '1px solid rgba(255,255,255,0.08)',
-                marginBottom: 18,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <MaqgoLogo size="small" />
-              </div>
-              <button
-                type="button"
-                onClick={handleExit}
-                className="clienthome-exit-btn"
+        <>
+          <div style={{ width: '100%', textAlign: 'center', marginBottom: 18 }}>
+            <MaqgoLogo customSize={130} style={{ marginBottom: 14 }} />
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+              <div
                 style={{
-                  background: 'rgba(22, 22, 28, 0.72)',
-                  border: '1px solid rgba(255,255,255,0.16)',
-                  color: 'rgba(255,255,255,0.86)',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  padding: '8px 12px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.10)',
                   borderRadius: 999,
-                  lineHeight: 1,
-                  backdropFilter: 'blur(6px)',
+                  padding: '9px 14px',
                 }}
-                aria-label="Ir a portada"
               >
-                Portada
-              </button>
-            </div>
-
-            <div style={{ width: '100%', marginBottom: 18 }}>
-              <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 10 }}>
-                <div
-                  style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.10)',
-                    borderRadius: 999,
-                    padding: '9px 14px',
-                  }}
-                >
-                  <h1 className="maqgo-h1" style={{ margin: 0 }}>
-                    ¿Cuándo la necesitas?
-                  </h1>
-                </div>
+                <h1 className="maqgo-h1" style={{ margin: 0 }}>
+                  ¿Cuándo la necesitas?
+                </h1>
               </div>
-              <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.45, textAlign: 'left' }}>
-                Elige “Inicio hoy” o programa tu fecha.
-              </p>
             </div>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={handleExit}
-              className="clienthome-exit-btn"
-              style={{
-                position: 'absolute',
-                top: 6,
-                right: 6,
-                background: 'rgba(22, 22, 28, 0.72)',
-                border: '1px solid rgba(255,255,255,0.16)',
-                color: 'rgba(255,255,255,0.86)',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                padding: '8px 12px',
-                borderRadius: 999,
-                lineHeight: 1,
-                backdropFilter: 'blur(6px)',
-              }}
-              aria-label="Ir a portada"
-            >
-              Portada
-            </button>
-            <div style={{ width: '100%', textAlign: 'center', marginBottom: 18 }}>
-              <MaqgoLogo size="medium" style={{ marginBottom: 14 }} />
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
-                <div
-                  style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.10)',
-                    borderRadius: 999,
-                    padding: '9px 14px',
-                  }}
-                >
-                  <h1 className="maqgo-h1" style={{ margin: 0 }}>
-                    ¿Cuándo la necesitas?
-                  </h1>
-                </div>
-              </div>
-              <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.4 }}>
-                Elige “Inicio hoy” o programa tu fecha.
-              </p>
-            </div>
+            <p style={{ margin: 0, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.4 }}>
+              Elige “Inicio hoy” o programa tu fecha.
+            </p>
+          </div>
 
-            <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.08)', marginBottom: 18 }} />
-          </>
-        )}
+          <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.08)', marginBottom: 18 }} />
+        </>
 
         {/* Tarjeta Inicio HOY - Prioritario */}
         <div
@@ -355,22 +259,10 @@ function ClientHome() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 18 }}>
-          <div
-            style={{
-              background: 'rgba(22, 22, 28, 0.55)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 12,
-              padding: '10px 12px',
-              width: '100%',
-              maxWidth: 380,
-              textAlign: 'center',
-            }}
-          >
-            <p style={{ margin: 0, color: 'rgba(250,250,250,0.72)', fontSize: 12, fontWeight: 600, lineHeight: 1.4, fontFamily: "'Inter', sans-serif" }}>
-              Pagas solo cuando un proveedor confirma.
-            </p>
-          </div>
+        <div style={{ marginTop: 18 }}>
+          <MaqgoPill align="center" style={{ maxWidth: 380, width: '100%' }}>
+            Pagas solo cuando un proveedor confirma.
+          </MaqgoPill>
         </div>
 
         <div style={{ flex: 1 }}></div>
