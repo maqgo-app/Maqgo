@@ -22,6 +22,8 @@ node_modules/
 frontend/test-results/
 frontend/playwright-report/
 frontend/.playwright-browsers/
+test-results/
+playwright-report/
 
 # Next.js (legacy)
 /.next/
@@ -91,6 +93,12 @@ backend/qa-artifacts/
 
 # Caches
 .cache/
+
+# Trae (local)
+.trae/
+
+# QA screenshots (local)
+frontend/public/qa-screenshots-final/
 
 # Salidas locales de lint (frontend)
 frontend/lint*.txt
