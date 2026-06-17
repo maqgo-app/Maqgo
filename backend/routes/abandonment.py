@@ -164,7 +164,7 @@ async def send_email_reminder(data: AbandonmentData, is_first: bool = True):
                 f"{urgent_hint}"
                 f"Puedes continuar exactamente donde la dejaste:\n{resume_url}\n\n"
                 "Si ya no necesitas el servicio, ignora este correo.\n\n"
-                "Equipo MAQGO"
+                "Actualización del servicio"
             )
         else:
             subject = f"Ultimo recordatorio: tu reserva de {machinery_name} sigue pendiente"
@@ -173,7 +173,7 @@ async def send_email_reminder(data: AbandonmentData, is_first: bool = True):
                 f"Tu reserva de {machinery_name} sigue pendiente en MAQGO.\n"
                 "Este es el ultimo recordatorio para no saturarte.\n\n"
                 f"Continuar reserva: {resume_url}\n\n"
-                "Equipo MAQGO"
+                "Actualización del servicio"
             )
         html = _build_maqgo_email_html(
             preheader="Tu reserva sigue pendiente en MAQGO",

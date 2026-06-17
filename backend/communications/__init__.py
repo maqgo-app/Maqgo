@@ -46,77 +46,77 @@ def _is_demo_allowed() -> bool:
 # Repetir "No se realizó ningún cobro" cuando aplique
 
 SMS_TEMPLATES = {
-    'otp': 'MAQGO: Tu código de verificación es {otp}. Válido por 5 minutos.',
+    'otp': 'Tu código de verificación es {otp}. Válido por 5 minutos.',
     
     # === CLIENTE - SMS ===
-    'client_request_sent': """MAQGO: Recibimos tu solicitud de maquinaria.
+    'client_request_sent': """Recibimos tu solicitud de maquinaria.
 Está pendiente de aceptación del proveedor.
 No se ha realizado ningún cobro.
-Te avisaremos apenas se confirme.""",
+Revisa el estado del servicio en la app.""",
 
-    'client_provider_accepted': """MAQGO: ¡Servicio confirmado!
+    'client_provider_accepted': """¡Servicio confirmado!
 El proveedor aceptó tu solicitud y se ejecutó el cobro automáticamente.
 Revisa los detalles en la app.""",
 
-    'client_provider_rejected': """MAQGO: El proveedor rechazó la solicitud.
+    'client_provider_rejected': """El proveedor rechazó la solicitud.
 No se realizó ningún cobro.
 Puedes seleccionar otro proveedor disponible.""",
 
-    'client_request_expired': """MAQGO: La solicitud expiró por falta de confirmación del proveedor.
+    'client_request_expired': """La solicitud expiró por falta de confirmación del proveedor.
 No se realizó ningún cobro.
 Intenta nuevamente desde la app.""",
 
-    'client_cancellation_no_charge': """MAQGO: Servicio cancelado correctamente.
+    'client_cancellation_no_charge': """Servicio cancelado correctamente.
 No se realizó ningún cobro.""",
 
-    'client_cancellation_with_charge': """MAQGO: Servicio cancelado fuera de plazo.
+    'client_cancellation_with_charge': """Servicio cancelado fuera de plazo.
 Se aplicó el cobro correspondiente según las condiciones.""",
 
-    'client_provider_arrived': """MAQGO: El operador llegó a la ubicación.
+    'client_provider_arrived': """El operador llegó a la ubicación.
 Ya puedes autorizar el inicio del servicio en la app.""",
 
     # === PROVEEDOR - SMS ===
-    'provider_new_request': """MAQGO: Nueva solicitud disponible.
+    'provider_new_request': """Nueva solicitud disponible.
 Tienes {minutes} minutos para aceptar.
 Al aceptar, se ejecuta el cobro automático al cliente.""",
 
-    'provider_request_accepted': """MAQGO: Aceptaste el servicio.
+    'provider_request_accepted': """Aceptaste el servicio.
 El cliente fue notificado y el cobro se ejecutó correctamente.""",
 
-    'provider_request_expired': """MAQGO: La solicitud expiró por falta de respuesta.""",
+    'provider_request_expired': """La solicitud expiró por falta de respuesta.""",
 }
 
 WHATSAPP_TEMPLATES = {
     # === CLIENTE - WhatsApp ===
-    'client_request_sent': """MAQGO: Recibimos tu solicitud de maquinaria.
+    'client_request_sent': """Recibimos tu solicitud de maquinaria.
 Está pendiente de aceptación del proveedor.
 No se ha realizado ningún cobro.
-Te avisaremos apenas se confirme.""",
+Revisa el estado del servicio en la app.""",
 
-    'client_provider_accepted': """MAQGO: ¡Servicio confirmado!
+    'client_provider_accepted': """¡Servicio confirmado!
 El proveedor aceptó tu solicitud y se ejecutó el cobro automáticamente.
 Revisa los detalles en la app.""",
 
-    'client_provider_arrived': """MAQGO: El operador llegó a la ubicación.
+    'client_provider_arrived': """El operador llegó a la ubicación.
 Ya puedes autorizar el inicio del servicio en la app.""",
 
-    'client_provider_arriving': """MAQGO: El proveedor está llegando al lugar de acceso.
+    'client_provider_arriving': """El operador está llegando al lugar de acceso.
 Prepárate para recibir al operador.""",
 
-    'client_incident_reported': """MAQGO: El operador reportó una demora/incidente.
+    'client_incident_reported': """El operador reportó una demora/incidente.
 Motivo: {reason}
-Te avisaremos cualquier cambio. Revisa el estado en la app.""",
+Revisa el estado del servicio en la app.""",
 
-    'client_incident_cleared': """MAQGO: Incidente resuelto.
+    'client_incident_cleared': """Incidente resuelto.
 El servicio continúa. Revisa el estado en la app.""",
 
-    'client_service_reminder': """MAQGO: Recordatorio de tu servicio hoy.
+    'client_service_reminder': """Recordatorio de tu servicio hoy.
 Maquinaria: {machine}
 Inicio estimado: {start_time}
-Proveedor: {provider_name}""",
+""",
 
     # === PROVEEDOR - WhatsApp ===
-    'new_request_provider': """MAQGO: Nueva solicitud disponible.
+    'new_request_provider': """Nueva solicitud disponible.
 
 Maquinaria: {machine}
 Ubicación: {area}
@@ -126,17 +126,17 @@ Ingreso estimado: {amount}
 Tienes {minutes} minutos para aceptar.
 Al aceptar, se ejecuta el cobro automático al cliente.""",
 
-    'provider_request_accepted': """MAQGO: Aceptaste el servicio.
+    'provider_request_accepted': """Aceptaste el servicio.
 El cliente fue notificado y el cobro se ejecutó correctamente.""",
 
     # === OPERADOR - WhatsApp ===
-    'operator_assigned': """MAQGO: Fuiste asignado a un servicio.
+    'operator_assigned': """Fuiste asignado a un servicio.
 Maquinaria: {machine}
 Dirección: {address}
 Inicio estimado: {start_time}""",
 
     # === TEMPLATES EXISTENTES (actualizados) ===
-    'service_completed_invoice': """MAQGO: ¡Servicio completado!
+    'service_completed_invoice': """¡Servicio completado!
 
 Tu servicio fue entregado exitosamente.
 
@@ -149,23 +149,23 @@ Emite la factura dirigida a MAQGO y súbela en "Mis Cobros" para recibir tu pago
 
 Puedes subir tu factura 24 h después del servicio. Pago en 2 días hábiles tras subirla.""",
     
-    'confirmation_client': """MAQGO: ¡Servicio confirmado!
+    'confirmation_client': """¡Servicio confirmado!
 El proveedor aceptó tu solicitud y se ejecutó el cobro automáticamente.
 Tu maquinaria ya fue asignada.
-Te avisaremos cuando el operador vaya en camino.""",
+Revisa el estado del servicio en la app.""",
     
-    'provider_en_route': """MAQGO: Operador en camino.
+    'provider_en_route': """Operador en camino.
 
 Tu maquinaria está en camino a tu ubicación.
 Llegada estimada: {eta} minutos.
 Patente: {license_plate}""",
     
-    'service_started': """MAQGO: Servicio iniciado.
+    'service_started': """Servicio iniciado.
 
 El servicio ha comenzado.
 Duración contratada: {hours} horas.""",
     
-    'service_finished': """MAQGO: Servicio finalizado.
+    'service_finished': """Servicio finalizado.
 
 Gracias por usar MAQGO.
 Total: {amount}
@@ -173,7 +173,7 @@ Total: {amount}
 Por favor, califica tu experiencia.""",
 
     # Templates para Dueño/Secretaria (notificaciones reducidas)
-    'owner_new_assignment': """MAQGO: Nueva asignación.
+    'owner_new_assignment': """Nueva asignación.
 
 Tu {machine} ({license_plate}) fue asignada.
 Operador: {operator_name}
@@ -182,7 +182,7 @@ Pago estimado: {amount}
 
 El operador ya está en camino.""",
 
-    'owner_operator_accepted': """MAQGO: Aceptación registrada.
+    'owner_operator_accepted': """Aceptación registrada.
 
 El operador {operator_name} aceptó una solicitud con GPS activo.
 Ubicación: {location}
@@ -191,7 +191,7 @@ Ingreso estimado: {amount}
 
 Solicitud: {request_id}""",
     
-    'owner_service_finished': """MAQGO: Servicio completado.
+    'owner_service_finished': """Servicio completado.
 
 Tu {machine} ({license_plate}) finalizó el servicio.
 Operador: {operator_name}
@@ -199,7 +199,7 @@ Ganancia neta: {net_amount}
 
 Pago en 2 días hábiles tras subir la factura.""",
     
-    'owner_critical_alert': """MAQGO: Alerta importante.
+    'owner_critical_alert': """Alerta importante.
 
 Problema reportado con tu {machine} ({license_plate}).
 Motivo: {reason}
@@ -207,7 +207,7 @@ Operador: {operator_name}
 
 Contacta al soporte si necesitas ayuda.""",
 
-    'owner_weekly_summary': """MAQGO: Resumen semanal.
+    'owner_weekly_summary': """Resumen semanal.
 
 Hola {owner_name}, aquí va tu resumen:
 
@@ -219,7 +219,7 @@ Pendientes:
 • Para facturar: {to_invoice}
 • Por cobrar: {to_collect}""",
 
-    'service_approved_invoice': """MAQGO: Servicio Aprobado.
+    'service_approved_invoice': """Servicio aprobado.
 
 ¡Tu servicio fue aprobado! Ya puedes facturar a MAQGO.
 
@@ -230,14 +230,14 @@ Datos para facturar (a MAQGO, no al cliente):
 
 Sube tu factura en la app para recibir el pago.""",
 
-    'invoice_uploaded': """MAQGO: Factura Recibida.
+    'invoice_uploaded': """Factura recibida.
 
 Hemos recibido tu factura N° {invoice_number}.
 
 Tu pago de {net_amount} estará en tu cuenta en 2 días hábiles.
-Te notificaremos cuando el depósito esté listo.""",
+Revisa el estado del pago en la app.""",
 
-    'payment_sent': """MAQGO: Pago Realizado.
+    'payment_sent': """Pago realizado.
 
 ¡Listo! Hemos transferido {net_amount} a tu cuenta.
 
@@ -429,7 +429,7 @@ def send_whatsapp(
         }
 
     CONTACT_WHATSAPP_TEMPLATES = {
-        # Cliente - coordinación
+        # Cliente - estado del servicio
         'client_request_sent',
         'client_provider_accepted',
         'client_provider_arrived',
@@ -438,7 +438,7 @@ def send_whatsapp(
         'confirmation_client',
         'provider_en_route',
         'provider_request_accepted',
-        # Proveedor - coordinación
+        # Proveedor - estado del servicio
         'new_request_provider',
         # Ciclo de servicio
         'service_started',
@@ -447,7 +447,7 @@ def send_whatsapp(
         'operator_assigned',
     }
     if template in CONTACT_WHATSAPP_TEMPLATES and not WHATSAPP_STATUS_UPDATES_ENABLED:
-        logger.info(f"[WHATSAPP DISABLED][chat-only] template={template} to={phone_number}")
+        logger.info(f"[WHATSAPP DISABLED] template={template} to={phone_number}")
         return {
             'success': True,
             'demo_mode': DEMO_MODE,

@@ -1197,7 +1197,7 @@ async def cancel_service_client(
 
     refund_request_result = None
     if refund_amount > 0:
-        # Devolución pasa por MAQGO: solicitud → aprobación admin → Transbank
+        # Devolución: solicitud → aprobación admin → Transbank
         refund_request_result = await refund_request_service.create_request(
             service_request_id=request_id,
             amount=refund_amount,
@@ -1580,7 +1580,7 @@ async def confirm_entry(
                 user_id=provider_id,
                 title="Ingreso autorizado",
                 body=f"El cliente autorizo el ingreso en el servicio {request_id}.",
-                url=f"/chat/{request_id}",
+                url="/provider/arrival",
                 tag=f"sr:{request_id}",
             )
         except Exception:

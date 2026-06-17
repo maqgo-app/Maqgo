@@ -225,7 +225,7 @@ async def send_invoice_to_client(
         
         {voucher_html}
         
-        <p style="margin-top: 20px;">Si tienes alguna consulta, contáctanos por el chat dentro de MAQGO.</p>
+        <p style="margin-top: 20px;">Si tienes alguna consulta, contáctanos desde Soporte dentro de la app.</p>
         <p>Gracias por usar MAQGO.</p>
         
         <p style="font-size: 12px; color: #888; margin-top: 30px;">

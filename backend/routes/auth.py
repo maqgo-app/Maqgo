@@ -1954,7 +1954,7 @@ async def _send_password_reset_fallback_email(email_to: str) -> bool:
     """Envía aviso de recuperación por email cuando SMS queda temporalmente bloqueado."""
     sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
     frontend_url = os.environ.get("FRONTEND_URL", "https://www.maqgo.cl").rstrip("/")
-    subject = "MAQGO: recuperacion de cuenta (SMS temporalmente bloqueado)"
+    subject = "Recuperación de cuenta (SMS temporalmente bloqueado)"
     text = (
         "Detectamos varios intentos seguidos de envio de codigo SMS para recuperar tu cuenta MAQGO.\n\n"
         "Por seguridad, pausamos temporalmente el envio de SMS por 30 minutos.\n"
@@ -2526,7 +2526,7 @@ async def debug_test_sms(request: Request, body: dict = Body(...)):
     Permite diagnosticar problemas de envío sin flujo OTP.
     """
     phone = body.get("phone", "")
-    message = body.get("message", "MAQGO: Test de SMS desde debug endpoint.")
+    message = body.get("message", "Test de SMS desde debug endpoint.")
     
     logger.info("DEBUG_SMS_TEST_START phone=%s", _phone_tail_log(str(phone)))
 

@@ -157,26 +157,38 @@ async def notify_user(
 
 async def notify_service_event(db: AsyncIOMotorDatabase, client_id: str, service_request_id: str, kind: str, extra: Optional[dict] = None) -> dict:
     k = str(kind or "").strip().lower()
-    title = "MAQGO"
-    body = "Tienes una actualización en tu servicio."
+    title = "Actualización del servicio"
+    body = "Revisa el estado del servicio en la app."
     if k == "confirmed":
         title = "Servicio confirmado"
-        body = "Ya tienes un proveedor asignado. Revisa el estado en la app."
+        body = "Tu servicio quedó confirmado. Revisa el estado del servicio en la app."
     elif k == "arrival":
         title = "Operador llegó"
-        body = "El operador marcó llegada. Revisa el estado en la app."
+        body = "El operador marcó llegada. Revisa el estado del servicio en la app."
     elif k == "started":
         title = "Servicio iniciado"
-        body = "El servicio comenzó. Revisa el estado en la app."
+        body = "El servicio comenzó. Revisa el estado del servicio en la app."
     elif k == "incident":
         title = "Demora reportada"
         reason = str((extra or {}).get("reason") or "").strip()
         body = f"Motivo: {reason}" if reason else "El operador reportó una demora/incidente."
     elif k == "incident_cleared":
         title = "Incidente resuelto"
-        body = "El servicio continúa. Revisa el estado en la app."
+        body = "El servicio continúa. Revisa el estado del servicio en la app."
     elif k == "finished":
         title = "Servicio finalizado"
-        body = "El servicio se marcó como finalizado. Revisa el resumen en la app."
-    url = f"/chat/{service_request_id}"
+        body = "El servicio se marcó como finalizado. Revisa el estado del servicio en la app."
+
+    url = "/client/home"
+    if k == "confirmed":
+        url = "/client/assigned"
+    elif k == "arrival":
+        url = "/client/provider-arrived"
+    elif k == "started":
+        url = "/client/service-active"
+    elif k in ("incident", "incident_cleared"):
+        url = "/client/assigned"
+    elif k == "finished":
+        url = "/client/service-finished"
+
     return await notify_user(db=db, user_id=client_id, title=title, body=body, url=url, tag=f"sr:{service_request_id}")

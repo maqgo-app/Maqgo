@@ -82,26 +82,24 @@ def _template_service_auto_started(
     app_url: str,
 ) -> tuple[str, str, str]:
     srid = str(service_request_id or "").strip() or "—"
-    subject = f"MAQGO — Servicio activado automáticamente ({srid})"
+    subject = f"Servicio activado automáticamente ({srid})"
     intro = "Tu servicio se activó automáticamente, según el flujo de operación, tras la confirmación de llegada del operador."
     bullets = [
         f"Servicio: {srid}",
-        "Si hay un problema de acceso o coordinación, usa el chat del servicio para dejar registro.",
-        "Si detectas algo incorrecto, repórtalo desde la app y MAQGO prioriza la resolución.",
+        "Revisa el estado del servicio y los avisos en la app.",
+        "Si detectas algo incorrecto, repórtalo desde la app.",
     ]
-    cta_url = f"{(app_url or '').rstrip('/')}/chat/{escape(srid)}" if app_url else f"/chat/{escape(srid)}"
+    cta_url = f"{(app_url or '').rstrip('/')}/client/service-active" if app_url else "/client/service-active"
     html = _build_maqgo_email_html(
         preheader=f"Servicio {srid} activado automáticamente",
         title="Servicio activado automáticamente",
         intro=intro,
         bullets=bullets,
-        cta_label="Abrir chat del servicio",
+        cta_label="Ver estado del servicio",
         cta_url=cta_url,
     )
     text = "\n".join(
         [
-            "MAQGO",
-            "",
             "Servicio activado automáticamente",
             "",
             f"Servicio: {srid}",
@@ -109,10 +107,10 @@ def _template_service_auto_started(
             "Tu servicio se activó automáticamente, según el flujo de operación, tras la confirmación de llegada del operador.",
             "",
             "Acciones:",
-            "- Si hay un problema de acceso o coordinación, usa el chat del servicio para dejar registro.",
-            "- Si detectas algo incorrecto, repórtalo desde la app y MAQGO prioriza la resolución.",
+            "- Revisa el estado del servicio y los avisos en la app.",
+            "- Si detectas algo incorrecto, repórtalo desde la app.",
             "",
-            f"Chat: {cta_url}",
+            f"Estado del servicio: {cta_url}",
         ]
     )
     return subject, text, html
@@ -181,4 +179,3 @@ async def send_client_event_email(
     if status != "sent":
         return {"ok": False, "sent": False, "error": last_error, "dedupe_key": key, "to": email}
     return {"ok": True, "sent": True, "dedupe_key": key, "to": email, "provider": send_result.get("provider")}
-
