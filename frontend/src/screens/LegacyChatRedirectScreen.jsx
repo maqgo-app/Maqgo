@@ -38,7 +38,8 @@ function LegacyChatRedirectScreen() {
     const run = async () => {
       const id = String(serviceId || '').trim();
       if (!id) {
-        navigate('/client/home', { replace: true });
+        const fallback = role === 'provider' || role === 'operator' ? '/provider/home' : '/client/home';
+        navigate(fallback, { replace: true });
         return;
       }
 
@@ -97,4 +98,3 @@ function LegacyChatRedirectScreen() {
 }
 
 export default LegacyChatRedirectScreen;
-
