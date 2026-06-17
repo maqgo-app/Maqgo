@@ -61,7 +61,7 @@ function PrivacyScreen() {
           </p>
           <p>
             <strong>Datos de uso:</strong> historial de servicios, preferencias de búsqueda 
-            y mensajes del chat.
+            y uso de la aplicación.
           </p>
         </Section>
 
@@ -70,9 +70,9 @@ function PrivacyScreen() {
           <ul style={{ paddingLeft: 20 }}>
             <li>Conectarte con proveedores cerca de ti</li>
             <li>Procesar pagos de forma segura</li>
-            <li>Coordinar el servicio</li>
+            <li>Gestionar el servicio</li>
             <li>Emitir facturas cuando las necesites</li>
-            <li>Avisarte del estado de tus servicios</li>
+            <li>Mostrarte el estado de tus servicios</li>
             <li>Mejorar la app</li>
           </ul>
         </Section>
@@ -86,14 +86,13 @@ function PrivacyScreen() {
           </p>
         </Section>
 
-        <Section title="4. Mensajería y comunicaciones">
+        <Section title="4. Avisos y registros del servicio">
           <p style={{ marginBottom: 12 }}>
-            Los mensajes intercambiados a través del chat de MAQGO se almacenan para 
-            facilitar la coordinación del servicio y resolver eventuales disputas.
+            Los registros del servicio (avisos y estados) se almacenan para operar el servicio 
+            y resolver eventuales disputas.
           </p>
           <p>
-            Los mensajes se eliminan automáticamente 30 días después de completado el 
-            servicio, salvo que exista una disputa activa que requiera su conservación.
+            Los registros se eliminan automáticamente según la política de retención aplicable.
           </p>
         </Section>
 
@@ -144,8 +143,7 @@ function PrivacyScreen() {
         <Section title="9. Contacto">
           <p>
             Para ejercer tus derechos o realizar consultas sobre el tratamiento de tus 
-            datos personales, contáctanos a través del chat de soporte disponible en 
-            la aplicación.
+            datos personales, contáctanos desde Soporte dentro de la app.
           </p>
         </Section>
 

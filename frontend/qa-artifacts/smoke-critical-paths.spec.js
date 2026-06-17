@@ -122,14 +122,14 @@ test.describe('Smoke crítico: login SMS + embudo cliente', () => {
     await page.getByRole('button', { name: /^continuar$/i }).click();
     await expect(page).toHaveURL(/\/client\/providers\/?$/, { timeout: 15_000 });
 
-    await page.getByRole('button', { name: /^seleccionar proveedor$/i }).first().click();
+    await page.getByRole('button', { name: /^opci[oó]n\s+\d+,/i }).first().click();
     await page.getByRole('button', { name: /enviar solicitud/i }).click();
     await expect(page).toHaveURL(/\/client\/confirm\/?$/, { timeout: 15_000 });
     await expect(page.getByRole('heading', { name: /revisa tu solicitud/i })).toBeVisible({ timeout: 15_000 });
 
     await page.getByRole('button', { name: /^volver$/i }).click();
     await expect(page).toHaveURL(/\/client\/providers\/?$/, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: /^proveedor seleccionado$/i }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /seleccionado/i }).first()).toBeVisible();
 
     await page.getByRole('button', { name: /^volver$/i }).click();
     await expect(page).toHaveURL(/\/client\/service-location\/?$/, { timeout: 15_000 });
@@ -177,7 +177,7 @@ test.describe('Smoke crítico: login SMS + embudo cliente', () => {
     await page.getByRole('button', { name: /^continuar$/i }).click();
     await expect(page).toHaveURL(/\/client\/providers\/?$/, { timeout: 15_000 });
 
-    await page.getByRole('button', { name: /^seleccionar proveedor$/i }).first().click();
+    await page.getByRole('button', { name: /^opci[oó]n\s+\d+,/i }).first().click();
     await page.getByRole('button', { name: /enviar solicitud/i }).click();
     await expect(page).toHaveURL(/\/client\/confirm\/?$/, { timeout: 15_000 });
 

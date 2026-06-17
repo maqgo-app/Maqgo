@@ -124,9 +124,7 @@ function TermsScreen() {
             Es importante que queden claros los siguientes puntos:
           </p>
           <ul style={{ paddingLeft: 20, marginBottom: 12 }}>
-            <li><strong>MAQGO actúa como intermediario de cobro.</strong> Facilita la coordinación, 
-            facturación y pago entre las partes. El cobro al cliente y el pago al proveedor se gestionan 
-            a través de la plataforma.</li>
+            <li><strong>MAQGO actúa como intermediario de cobro.</strong> Facilita facturación y pago entre las partes. El cobro al cliente y el pago al proveedor se gestionan a través de la plataforma.</li>
             <li><strong>MAQGO no es dueño de la maquinaria.</strong> No es propietario de las 
             maquinarias ni empleador de los operadores. Los proveedores son independientes y 
             ofrecen sus propios equipos.</li>
@@ -186,9 +184,7 @@ function TermsScreen() {
 
         <Section title="5. Comunicación">
           <p>
-            Una vez confirmado el servicio, cliente y operador pueden coordinarse a través 
-            del chat integrado de MAQGO. El chat incluye mensajes predefinidos para 
-            facilitar la comunicación durante el desplazamiento del operador.
+            Durante el servicio, revisa el estado del servicio y los avisos dentro de la app.
           </p>
         </Section>
 
@@ -256,14 +252,13 @@ function TermsScreen() {
           <p>
             <strong>Del cliente:</strong> Proporcionar acceso seguro al lugar de trabajo, 
             asegurar condiciones adecuadas para la operación de la maquinaria, y estar 
-            disponible para coordinar el servicio.
+            disponible durante el servicio.
           </p>
         </Section>
 
         <Section title="10. Contacto">
           <p>
-            Para consultas, reclamos o sugerencias, contáctanos a través del chat de soporte 
-            disponible en la aplicación.
+            Para consultas, reclamos o sugerencias, contáctanos desde Soporte dentro de la app.
           </p>
           <p>Los reclamos deben ingresarse dentro de las primeras 24 horas desde finalizado el servicio.</p>
         </Section>

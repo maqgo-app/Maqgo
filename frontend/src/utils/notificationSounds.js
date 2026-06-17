@@ -243,17 +243,6 @@ export const playTapSound = () => {
   playTone(1200, 0.03, 'sine', 0.1);
 };
 
-/** Mensaje nuevo en chat servicio (tono corto y distintivo) */
-export const playChatIncomingSound = () => {
-  playSequence(
-    [
-      { freq: 784, dur: 0.07, type: 'sine', vol: 0.22 },
-      { freq: 1175, dur: 0.09, type: 'sine', vol: 0.24 },
-    ],
-    220
-  );
-};
-
 // ============ HELPERS ============
 
 /**
@@ -279,7 +268,6 @@ export const sounds = {
   notification: playNotificationSound,
   timerWarning: playTimerWarningSound,
   tap: playTapSound,
-  chatIncoming: playChatIncomingSound,
 };
 
 export default sounds;

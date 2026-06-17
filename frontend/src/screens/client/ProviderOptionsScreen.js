@@ -968,7 +968,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
                 : (machinerySpec ? ` (${machinerySpec})` : '')}
             </h2>
             <p style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, textAlign: 'center', margin: '0 0 14px', lineHeight: 1.45 }}>
-              Estamos activando proveedores en tu zona. Te avisaremos apenas tengamos opciones disponibles.
+              Estamos activando proveedores en tu zona. La disponibilidad se actualizará cuando existan opciones.
             </p>
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, textAlign: 'center', margin: '0 0 14px', lineHeight: 1.45 }}>
               Tu solicitud: {bookingSummaryShort}

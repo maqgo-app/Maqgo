@@ -262,7 +262,7 @@ function AdminRoute() {
         <div style={{ width: '100%', maxWidth: 420 }}>
           <h1 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 800 }}>Panel Administrativo</h1>
           <p style={{ margin: '0 0 18px', color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: 1.5 }}>
-            Acceso exclusivo para el equipo MAQGO.
+            Acceso exclusivo para el equipo administrativo.
           </p>
           <form onSubmit={submitAdminLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>

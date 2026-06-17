@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getObject, getArray, getJSON } from '../../utils/safeStorage';
 import { useNavigate } from 'react-router-dom';
-import MaqgoLogo from '../../components/MaqgoLogo';
 import OnTheWayMap from '../../components/OnTheWayMap';
 import { playAcceptedSound, playArrivingSound, playNotificationSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
 import axios from 'axios';
 import BACKEND_URL from '../../utils/api';
+import ServiceStateLayout from '../../components/serviceState/ServiceStateLayout';
+import { Truck, UserCheck } from 'lucide-react';
+import { getOperatorDisplayNameForSite, getOperatorRutForSite, getProviderLicensePlate } from '../../utils/providerDisplay';
 
 /**
  * Pantalla: Tu maquinaria ha sido asignada (MVP)
@@ -103,6 +105,10 @@ function MachineryAssignedScreen() {
   }, []);
 
   const [etaMinutes, setEtaMinutes] = useState(provider.eta_minutes || 40);
+
+  const operatorName = getOperatorDisplayNameForSite(provider) || 'Operador asignado';
+  const operatorRut = getOperatorRutForSite(provider) || '';
+  const licensePlate = getProviderLicensePlate(provider) || '';
   
   // Estado del timeout
   const [, setElapsedMinutes] = useState(0);
@@ -324,425 +330,146 @@ function MachineryAssignedScreen() {
     navigate('/client/home');
   };
 
-  return (
-    <div className="maqgo-app maqgo-client-funnel">
-      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
-        {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <MaqgoLogo size="small" />
-        </div>
-
-        {/* Banner de alerta: Operador cerca */}
-        {showNearbyBanner && (
-          <div style={{
-            background: 'linear-gradient(135deg, #EC6819 0%, #FF8C42 100%)',
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 16,
-            textAlign: 'center',
-            animation: 'pulse-banner 1s infinite'
-          }}>
-            <style>{`
-              @keyframes pulse-banner {
-                0%, 100% { transform: scale(1); }
-                50% { transform: scale(1.02); }
-              }
-            `}</style>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              gap: 12
-            }}>
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="white"/>
-                  <circle cx="12" cy="9" r="2.5" fill="#EC6819"/>
-                </svg>
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0 }}>
-                  El proveedor está llegando al lugar de acceso
-                </p>
-                <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '4px 0 0' }}>
-                  Prepárate para recibir al operador
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Estado principal */}
-        <div style={{
-          background: 'rgba(144, 189, 211, 0.15)',
-          borderRadius: 12,
-          padding: 24,
-          marginBottom: 16,
-          textAlign: 'center'
-        }}>
-          <div style={{
-            width: 60,
-            height: 60,
-            borderRadius: '50%',
-            background: 'rgba(144, 189, 211, 0.2)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 12px'
-          }}>
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
-              <path d="M9 12L11 14L15 10M21 12C21 16.97 16.97 21 12 21C7.03 21 3 16.97 3 12C3 7.03 7.03 3 12 3C16.97 3 21 7.03 21 12Z" stroke="#90BDD3" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h1 className="maqgo-h1" style={{ margin: '0 0 8px' }}>
-            ¡Operador asignado!
-          </h1>
-          <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, margin: 0 }}>
-            Tu reserva está confirmada.
-          </p>
-        </div>
-
-        {/* Estado: preparándose (mapa estático) o en camino (mapa + ETA) */}
-        {serviceStatus === 'assigned' ? (
-          <div
-            style={{
-              background: '#363636',
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 16
-            }}
-          >
-            <p
-              style={{
-                color: 'rgba(255,255,255,0.9)',
-                fontSize: 14,
-                margin: 0,
-                lineHeight: 1.5
-              }}
-            >
-              Tu operador se está preparando. Te avisaremos cuando vaya en camino.
-            </p>
-          </div>
-        ) : (
-          <div style={{
-            background: '#363636',
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 16
-          }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 12,
-              marginBottom: 12
-            }}>
-              <div style={{
-                width: 12,
-                height: 12,
-                borderRadius: '50%',
-                background: '#EC6819',
-                animation: 'pulse 1.5s infinite'
-              }} />
-              <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 600, textTransform: 'uppercase' }}>
-                Operador en camino
-              </span>
-              <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
-            </div>
-            
-            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-              El operador está en camino a tu ubicación.
-            </p>
-
-            {/* ETA estimado */}
-            <div style={{
-              background: '#2A2A2A',
-              borderRadius: 8,
-              padding: '10px 14px',
-              marginTop: 12,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8
-            }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.95)" strokeWidth="2"/>
-                <path d="M12 6V12L16 14" stroke="rgba(255,255,255,0.95)" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>
-                Llegada estimada: <strong style={{ color: '#fff' }}>~{etaMinutes} min</strong>
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Mapa: pins fijos cuando assigned, movimiento cuando en_route */}
-        <OnTheWayMap 
-          operatorLocation={{
-            lat: operatorLocationSim.lat,
-            lng: operatorLocationSim.lng,
-            name: 'Operador'
+  const alerts = [];
+  if (showNearbyBanner) {
+    alerts.push({
+      tone: 'info',
+      title: 'Proximidad',
+      description: 'El proveedor está llegando al lugar de acceso.'
+    });
+  }
+  if (activeIncident) {
+    alerts.push({
+      tone: 'warn',
+      title: 'Retraso reportado',
+      description: `Motivo: ${INCIDENT_MESSAGES[activeIncident.reason] || String(activeIncident.reason || '').toLowerCase()}.`,
+    });
+  }
+  if (isProtectedWindow && activeIncident) {
+    alerts.push({
+      tone: 'warn',
+      title: 'Tiempo de gracia',
+      description: `${protectedMinutesLeft} min restantes.`,
+    });
+  }
+  if (showTimeoutOption && !isProtectedWindow) {
+    alerts.push({
+      tone: 'danger',
+      title: 'No-show del operador',
+      description: activeIncident
+        ? 'Pasó el plazo de espera. Puedes reportar y cancelar sin cargo.'
+        : 'Pasó el plazo de espera sin aviso en ruta. Puedes reportar y cancelar sin cargo.',
+      rightSlot: (
+        <button
+          type="button"
+          onClick={() => setShowNoShowModal(true)}
+          data-testid="no-show-btn"
+          style={{
+            height: 30,
+            padding: '0 10px',
+            borderRadius: 999,
+            background: 'rgba(236, 104, 25, 0.16)',
+            border: '1px solid rgba(236, 104, 25, 0.35)',
+            color: '#EC6819',
+            fontSize: 12,
+            fontWeight: 800,
+            cursor: 'pointer'
           }}
-          serviceLocation={{
-            lat: workLocation.lat,
-            lng: workLocation.lng,
-            address: location || 'Tu obra'
-          }}
-        />
+        >
+          Reportar
+        </button>
+      )
+    });
+  }
 
-        {/* Notificación de incidente del proveedor */}
-        {activeIncident && (
-          <div style={{
-            background: 'rgba(255, 193, 7, 0.15)',
-            border: '1px solid rgba(255, 193, 7, 0.3)',
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 16
-          }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <div style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                background: 'rgba(255, 193, 7, 0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="#FFC107" strokeWidth="2"/>
-                  <path d="M12 6V12" stroke="#FFC107" strokeWidth="2" strokeLinecap="round"/>
-                  <circle cx="12" cy="16" r="1" fill="#FFC107"/>
-                </svg>
-              </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ color: '#FFC107', fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>
-                  Retraso reportado por el operador
-                </p>
-                <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '0 0 8px', lineHeight: 1.4 }}>
-                  El operador ha reportado un retraso debido a {INCIDENT_MESSAGES[activeIncident.reason] || activeIncident.reason.toLowerCase()}.
-                </p>
-                {isProtectedWindow && (
-                  <div style={{
-                    background: 'rgba(255, 193, 7, 0.1)',
-                    borderRadius: 6,
-                    padding: '8px 12px',
-                    marginTop: 8
-                  }}>
-                    <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: 0 }}>
-                      Tiempo de gracia: <strong style={{ color: '#FFC107' }}>{protectedMinutesLeft} min restantes</strong>
-                    </p>
-                  </div>
-                )}
-              </div>
+  const selectedHours = parseInt(localStorage.getItem('selectedHours') || '4', 10);
+  const durationLabel = isPerTripMachineryType(machinery)
+    ? 'Valor viaje'
+    : `${selectedHours} horas${selectedHours >= 6 ? ' + 1hr colación' : ''}`;
+
+  const layout = (
+    <ServiceStateLayout
+      topBar={{ showBack: false, showHome: true, onHome: () => navigate('/client/home') }}
+      header={{
+        icon: serviceStatus === 'assigned' ? <UserCheck size={22} /> : <Truck size={22} />,
+        title: serviceStatus === 'assigned' ? 'Operador asignado' : 'Operador en camino',
+        subtitle: serviceStatus === 'assigned' ? 'El operador se está preparando.' : 'Seguimiento de ruta y llegada estimada.',
+        badgeLabel: serviceStatus === 'assigned' ? 'Asignado' : 'En camino',
+        badgeTone: serviceStatus === 'assigned' ? 'info' : 'info',
+        meta: serviceId ? [{ label: 'ID servicio', value: String(serviceId).slice(0, 8) }] : [],
+      }}
+      primaryTitle={serviceStatus === 'assigned' ? 'Estado' : 'Seguimiento'}
+      primary={
+        <div>
+          {serviceStatus === 'assigned' ? (
+            <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, lineHeight: 1.45 }}>
+              El operador se está preparando. La llegada estimada se actualizará en Avisos.
             </div>
-          </div>
-        )}
-
-        {/* TIMEOUT: Opción de No-Show - Solo si no está en ventana protegida */}
-        {showTimeoutOption && !isProtectedWindow && (
-          <div style={{
-            background: 'rgba(236, 104, 25, 0.15)',
-            border: '1px solid rgba(236, 104, 25, 0.5)',
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 16
-          }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <div style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                background: 'rgba(236, 104, 25, 0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="#EC6819" strokeWidth="2"/>
-                  <path d="M12 6V12" stroke="#EC6819" strokeWidth="2" strokeLinecap="round"/>
-                  <circle cx="12" cy="16" r="1" fill="#EC6819"/>
-                </svg>
-              </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ color: '#EC6819', fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>
-                  ¿El operador no ha llegado?
-                </p>
-                <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: '0 0 12px' }}>
-                  {activeIncident
-                    ? 'Pasaron más de 90 min desde la hora indicada. El operador había informado algo en ruta; si aun así no ha llegado, puedes reportar y cancelar sin cargo.'
-                    : 'Pasaron más de 60 min desde la hora indicada de llegada y el operador no informó nada en ruta. Puedes reportar y cancelar sin cargo. Te reembolsamos todo.'}
-                </p>
-                <button
-                  onClick={() => setShowNoShowModal(true)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    background: '#EC6819',
-                    border: 'none',
-                    borderRadius: 20,
-                    color: '#fff',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                  data-testid="no-show-btn"
-                >
-                  Reportar y cancelar sin cargo
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Datos del operador */}
-        <div style={{
-          background: '#2A2A2A',
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 16
-        }}>
-          <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 4 }}>
-            Operador asignado
-          </div>
-          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, margin: '0 0 12px', lineHeight: 1.35 }}>
-            La coordinación del servicio se realiza por el chat interno de MAQGO.
-          </p>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <div style={{
-              width: 45,
-              height: 45,
-              borderRadius: '50%',
-              background: '#444',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="8" r="4" fill="rgba(255,255,255,0.95)"/>
-                <path d="M4 20C4 16 8 14 12 14C16 14 20 16 20 20" stroke="rgba(255,255,255,0.95)" strokeWidth="2"/>
-              </svg>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ color: '#fff', fontSize: 16, fontWeight: 600 }}>
-                Equipo MAQGO asignado
-              </div>
-              <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, marginTop: 4 }}>
-                Recibirás avisos y cambios por el chat de MAQGO.
-              </div>
-            </div>
-          </div>
-
-          {/* Estado operativo */}
-          <div style={{
-            background: '#EC6819',
-            borderRadius: 8,
-            padding: '10px 14px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, textTransform: 'uppercase' }}>
-              Estado
-            </span>
-            <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>
-              Operador confirmado
-            </span>
-          </div>
-        </div>
-
-        {/* Maquinaria y ubicación */}
-        <div style={{
-          background: '#2A2A2A',
-          borderRadius: 12,
-          padding: 14,
-          marginBottom: 16
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <div
-              style={{
-                width: 56,
-                height: 42,
-                borderRadius: 8,
-                background: '#444',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                flexShrink: 0
-              }}
-            >
-              {provider.primaryPhoto ? (
-                <img
-                  src={provider.primaryPhoto}
-                  alt="Foto maquinaria"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <svg width="20" height="16" viewBox="0 0 40 32" fill="none">
-                  <rect x="4" y="16" width="24" height="10" rx="2" fill="#EC6819"/>
-                  <rect x="20" y="10" width="10" height="8" rx="1" fill="#EC6819"/>
-                  <circle cx="10" cy="28" r="3" fill="#fff"/>
-                  <circle cx="22" cy="28" r="3" fill="#fff"/>
-                </svg>
-              )}
-            </div>
+          ) : (
             <div>
-              <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>
-                {MACHINERY_NAMES[machinery] || machinery}
-              </div>
-              <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
-                {isPerTripMachineryType(machinery) ? 'Valor viaje' : `${localStorage.getItem('selectedHours') || 4} horas`}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, lineHeight: 1.45 }}>
+                  El operador está en camino a tu ubicación.
+                </div>
+                <div style={{
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  borderRadius: 999,
+                  padding: '6px 10px',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 800
+                }}>
+                  ~{etaMinutes} min
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 8,
-            paddingTop: 10,
-            borderTop: '1px solid #444'
-          }}>
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-              <path d="M10 1C6.69 1 4 3.69 4 7C4 11.5 10 19 10 19S16 11.5 16 7C16 3.69 13.31 1 10 1Z" stroke="rgba(255,255,255,0.95)" strokeWidth="1.5" fill="none"/>
-              <circle cx="10" cy="7" r="2" fill="rgba(255,255,255,0.95)"/>
-            </svg>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-              {location || 'Ubicación de la reserva'}
-            </span>
+          )}
+
+          <div style={{ marginTop: 12 }}>
+            <OnTheWayMap
+              operatorLocation={{
+                lat: operatorLocationSim.lat,
+                lng: operatorLocationSim.lng,
+                name: 'Operador'
+              }}
+              serviceLocation={{
+                lat: workLocation.lat,
+                lng: workLocation.lng,
+                address: location || 'Tu obra'
+              }}
+            />
           </div>
         </div>
+      }
+      summary={{
+        title: 'Resumen',
+        machinery: MACHINERY_NAMES[machinery] || machinery,
+        operatorName,
+        operatorRut,
+        licensePlate,
+        location: location || 'Por confirmar',
+        duration: durationLabel,
+      }}
+      alerts={alerts}
+      secondaryActions={
+        import.meta.env.VITE_IS_PRODUCTION !== 'true' && (localStorage.getItem('currentServiceId') || '').startsWith('demo-')
+          ? [{
+              key: 'demo-arrival',
+              label: 'Simular llegada (Demo)',
+              variant: 'outline',
+              onClick: () => navigate('/client/provider-arrived'),
+            }]
+          : []
+      }
+    />
+  );
+
+  return (
+    <>
+      {layout}
 
         {/* Solo modo demo: atajo para llegar hasta el final (oculto en producción) */}
-        {import.meta.env.VITE_IS_PRODUCTION !== 'true' && (localStorage.getItem('currentServiceId') || '').startsWith('demo-') && (
-          <button
-            onClick={() => navigate('/client/provider-arrived')}
-            style={{
-              width: '100%',
-              padding: 14,
-              background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.2)',
-              borderRadius: 25,
-              color: 'rgba(255,255,255,0.95)',
-              fontSize: 12,
-              cursor: 'pointer'
-            }}
-          >
-            Simular llegada (Demo)
-          </button>
-        )}
-
         {/* Modal de confirmación No-Show */}
         {showNoShowModal && (
           <div style={{
@@ -853,8 +580,7 @@ function MachineryAssignedScreen() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </>
   );
 }
 

@@ -189,7 +189,7 @@ function CancelServiceScreen() {
                   Ya empezó
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                  El servicio ya está en curso. Si tienes un problema, escríbenos por el chat.
+                  El servicio ya está en curso. Si tienes un problema, contáctanos desde Soporte.
                 </p>
               </div>
             </div>

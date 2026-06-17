@@ -63,10 +63,6 @@ function OperatorDataScreen() {
   const [rutErrors, setRutErrors] = useState({});
   const [operators, setOperators] = useState(initialFromStorage.operators);
 
-  if (!draftEnabled) {
-    return <Navigate to="/provider/home" replace />;
-  }
-
   useEffect(() => {
     if (isCompanyAccount && sameAsOwner) setSameAsOwner(false);
   }, [isCompanyAccount, sameAsOwner]);
@@ -76,6 +72,10 @@ function OperatorDataScreen() {
     const hasData = operators.some(op => op.nombre || op.apellido || op.rut || op.photo);
     if (hasData) localStorage.setItem('operatorsData', JSON.stringify(operators));
   }, [operators]);
+
+  if (!draftEnabled) {
+    return <Navigate to="/provider/home" replace />;
+  }
 
   const updateOperator = (index, field, value) => {
     setOperators(prev => prev.map((op, i) => 

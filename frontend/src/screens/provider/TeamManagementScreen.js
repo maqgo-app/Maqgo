@@ -89,9 +89,9 @@ function TeamManagementScreen() {
     can_delete_machines: false,
   });
   const [didAttemptInvite, setDidAttemptInvite] = useState(false);
-  const [financeSummary, setFinanceSummary] = useState({ facturado: 0, porCobrar: 0, pagado: 0 });
-  const [worksByMaster, setWorksByMaster] = useState({});
-  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [, setFinanceSummary] = useState({ facturado: 0, porCobrar: 0, pagado: 0 });
+  const [, setWorksByMaster] = useState({});
+  const [, setDashboardLoading] = useState(false);
   const [editMember, setEditMember] = useState(null);
   const [editMemberType, setEditMemberType] = useState('operator');
   const [editName, setEditName] = useState('');
@@ -249,11 +249,6 @@ function TeamManagementScreen() {
     const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
     return `${origin}/operator/join?code=${encodeURIComponent(c)}`;
   };
-
-  const formatClp = (value) =>
-    new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(
-      Number(value || 0) || 0
-    );
 
   const computeFinanceFromServices = (services) => {
     const list = Array.isArray(services) ? services : [];

@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import MaqgoLogo from '../../components/MaqgoLogo';
 import { getMachineryDisplayName } from '../../utils/machineryNames';
 
 import BACKEND_URL from '../../utils/api';
 import { getObjectFirst } from '../../utils/safeStorage';
-import { getClientProviderDisplayName } from '../../utils/privacy';
-import OpenServiceChatButton from '../../components/OpenServiceChatButton';
+import ServiceStateLayout from '../../components/serviceState/ServiceStateLayout';
+import { Activity } from 'lucide-react';
+import { getOperatorDisplayNameForSite, getOperatorRutForSite, getProviderLicensePlate } from '../../utils/providerDisplay';
+import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 
 /**
  * Pantalla C14 - Servicio en Curso
@@ -15,7 +16,6 @@ import OpenServiceChatButton from '../../components/OpenServiceChatButton';
 function ServiceActiveScreen() {
   const navigate = useNavigate();
   const [service, setService] = useState(null);
-  const serviceId = localStorage.getItem('currentServiceId');
   const lastErrorLogAtRef = useRef(0);
   const inFlightRef = useRef(false);
   const errorStreakRef = useRef(0);
@@ -40,7 +40,9 @@ function ServiceActiveScreen() {
           setService({
             machineryType: getMachineryDisplayName(localStorage.getItem('selectedMachinery') || 'retroexcavadora'),
             status: 'in_progress',
-            providerOperatorName: getClientProviderDisplayName(savedProvider),
+            providerOperatorName: savedProvider?.providerOperatorName || savedProvider?.operator_name || savedProvider?.operatorName || '',
+            operatorRut: savedProvider?.operatorRut || savedProvider?.operator_rut || '',
+            licensePlate: savedProvider?.licensePlate || savedProvider?.license_plate || '',
           });
         }
       } catch (e) {
@@ -111,116 +113,60 @@ function ServiceActiveScreen() {
           operator_rut: service.operatorRut ?? service.operator_rut ?? savedProvider.operator_rut,
         }
       : savedProvider;
+  const locationLabel = getBookingLocationLineOrEmpty() || 'Por confirmar';
+  const machineryLabel = service ? getMachineryDisplayName(service.machineryType) : 'Cargando...';
+  const operatorName = getOperatorDisplayNameForSite(mergedForSite) || 'Por confirmar';
+  const operatorRut = getOperatorRutForSite(mergedForSite) || 'Por confirmar';
+  const licensePlate = getProviderLicensePlate(mergedForSite) || 'Por confirmar';
+
   return (
-    <div className="maqgo-app maqgo-client-funnel">
-      <div className="maqgo-screen">
-        {/* Header */}
-        <div style={{ marginBottom: 40 }}>
-          <MaqgoLogo size="small" />
-        </div>
-
-        {/* Estado */}
-        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+    <ServiceStateLayout
+      topBar={{ showBack: false, showHome: true, onHome: () => navigate('/client/home') }}
+      header={{
+        icon: <Activity size={22} />,
+        title: 'Servicio en curso',
+        subtitle: 'Estado operativo del servicio.',
+        badgeLabel: 'En curso',
+        badgeTone: 'info',
+        meta: [],
+      }}
+      primaryTitle="Estado"
+      primary={
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, lineHeight: 1.45 }}>
+            Servicio activo.
+          </div>
           <div style={{
-            width: 100,
-            height: 100,
-            borderRadius: '50%',
-            background: '#EC6819',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 20px',
-            position: 'relative'
+            background: 'rgba(236, 104, 25, 0.14)',
+            border: '1px solid rgba(236, 104, 25, 0.22)',
+            color: '#EC6819',
+            borderRadius: 999,
+            padding: '6px 10px',
+            fontSize: 12,
+            fontWeight: 900,
+            letterSpacing: 0.6,
+            textTransform: 'uppercase'
           }}>
-            <svg width="50" height="50" viewBox="0 0 50 50" fill="none">
-              <circle cx="25" cy="25" r="20" stroke="#fff" strokeWidth="3" fill="none"/>
-              <path d="M25 12V25L32 32" stroke="#fff" strokeWidth="3" strokeLinecap="round"/>
-            </svg>
-            {/* Pulso */}
-            <div style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              borderRadius: '50%',
-              border: '3px solid #EC6819',
-              animation: 'maqgo-pulse-service-active 2s infinite'
-            }}/>
-          </div>
-
-          <span style={{
-            display: 'inline-block',
-            background: '#90BDD3',
-            color: '#fff',
-            fontSize: 14,
-            fontWeight: 700,
-            padding: '8px 20px',
-            borderRadius: 20,
-            letterSpacing: 1
-          }}>
-            SERVICIO EN CURSO
-          </span>
-        </div>
-
-        {/* Info del servicio */}
-        <div style={{
-          background: '#363636',
-          borderRadius: 16,
-          padding: 24,
-          marginBottom: 20
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>Maquinaria</span>
-            <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
-              {service ? getMachineryDisplayName(service.machineryType) : 'Cargando...'}
-            </span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>Operador</span>
-            <span style={{ color: '#fff', fontSize: 14, fontWeight: 600, textAlign: 'right', maxWidth: '62%' }}>
-              Equipo MAQGO
-            </span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>Contacto</span>
-            <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
-              Chat interno MAQGO
-            </span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>Estado</span>
-            <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>Activo</span>
+            Activo
           </div>
         </div>
-
-        <div className="maqgo-spacer"></div>
-
-        <OpenServiceChatButton
-          serviceId={serviceId || service?.id}
-          otherName="Equipo MAQGO"
-          label="Abrir chat"
-          style={{ width: '100%', marginTop: 16, background: '#2A2A2A' }}
-        />
-
-        {/* Solo modo demo (Continuar sin tarjeta): atajo para llegar hasta el final */}
-        {(localStorage.getItem('currentServiceId') || '').startsWith('demo-') && (
-          <button 
-            className="maqgo-btn-primary"
-            onClick={handleFinish}
-            data-testid="finish-service-btn"
-          >
-            Finalizar servicio (Demo)
-          </button>
-        )}
-
-        <style>{`
-          @keyframes maqgo-pulse-service-active {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.3); opacity: 0; }
-            100% { transform: scale(1); opacity: 0; }
-          }
-        `}</style>
-      </div>
-    </div>
+      }
+      summary={{
+        title: 'Resumen',
+        machinery: machineryLabel,
+        operatorName,
+        operatorRut,
+        licensePlate,
+        location: locationLabel,
+        duration: '',
+      }}
+      alerts={[]}
+      secondaryActions={
+        (localStorage.getItem('currentServiceId') || '').startsWith('demo-')
+          ? [{ key: 'finish-demo', label: 'Finalizar servicio (Demo)', variant: 'primary', onClick: handleFinish, testId: 'finish-service-btn' }]
+          : []
+      }
+    />
   );
 }
 

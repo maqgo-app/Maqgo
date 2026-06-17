@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import MaqgoLogo from '../../components/MaqgoLogo';
-import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import { playServiceCompletedSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
+import ServiceStateLayout from '../../components/serviceState/ServiceStateLayout';
+import { CheckCircle2, Flag, Star } from 'lucide-react';
 
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
@@ -37,11 +37,6 @@ function getRealStartAndEnd(startIso, endIso) {
     hasRealEnd
   };
 }
-
-const SERVICE_FINISHED_STEPS = [
-  { label: 'Resumen del servicio' },
-  { label: 'Tu evaluación' },
-];
 
 function buildBreakdownFromTotal(totalPagado, needsInvoice) {
   if (!totalPagado || totalPagado <= 0) return null;
@@ -264,350 +259,207 @@ function ServiceFinishedScreen() {
 
   // PASO 1: Reporte del servicio
   if (step === 'report') {
+    const operatorName = serviceData.provider?.providerOperatorName || serviceData.provider?.operator_name || 'Por confirmar';
+    const operatorRut = serviceData.provider?.operator_rut || serviceData.provider?.operatorRut || 'Por confirmar';
+    const licensePlate = (serviceData.provider?.licensePlate || serviceData.provider?.license_plate || serviceData.provider?.patente || 'Por confirmar').toString().toUpperCase();
+    const invoiceText = serviceData.pricing?.needsInvoice
+      ? 'Tu factura se emite dentro de los plazos legales del mes en que fue contratada y pagada la reserva, y se envía al correo indicado.'
+      : 'El resumen del servicio se enviará al correo electrónico.';
+    const durationLabel = serviceData.isPerTrip ? 'Servicio por viaje' : `${serviceData.hours} horas`;
+    const extraRows = serviceData.isPerTrip
+      ? [{ label: 'Tipo', value: 'Servicio por viaje' }]
+      : [
+          { label: 'Ingreso a obra', value: serviceData.startTime || '—' },
+          { label: 'Salida de obra', value: serviceData.hasRealEnd ? serviceData.endTime : '—' },
+        ];
+
     return (
-      <div className="maqgo-app maqgo-client-funnel">
-        <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
-          {/* Header */}
-          <div style={{ marginBottom: 20, textAlign: 'center' }}>
-            <MaqgoLogo size="small" />
-            <ProviderOnboardingProgress currentStep={1} steps={SERVICE_FINISHED_STEPS} />
-          </div>
-
-          {/* Título */}
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <div style={{
-              width: 70,
-              height: 70,
-              borderRadius: '50%',
-              background: '#90BDD3',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px'
-            }}>
-              <svg width="35" height="35" viewBox="0 0 35 35" fill="none">
-                <path d="M9 17L15 23L26 12" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <h1 className="maqgo-h1" style={{ marginBottom: 4 }}>
-              Servicio finalizado
-            </h1>
-            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, margin: 0 }}>
-              Resumen de tu reserva
-            </p>
-          </div>
-
-          {/* Resumen del servicio: datos de la reserva */}
-          <div style={{
-            background: '#363636',
-            borderRadius: 14,
-            padding: 16,
-            marginBottom: 16
-          }}>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-              Datos de tu reserva
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Maquinaria</span>
-              <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{MACHINERY_NAMES[serviceData.machinery] || serviceData.machinery}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Operador</span>
-              <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, textAlign: 'right', maxWidth: '62%' }}>
-                Equipo MAQGO
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Coordinación</span>
-              <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>
-                Chat interno MAQGO
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Ubicación de la obra</span>
-              <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, maxWidth: '60%', textAlign: 'right' }}>{serviceData.location}</span>
-            </div>
-            {!serviceData.isPerTrip && (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Duración contratada</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{serviceData.hours} horas</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Ingreso a obra</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{serviceData.startTime || '—'}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Salida de obra</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{serviceData.hasRealEnd ? serviceData.endTime : '—'}</span>
-                </div>
-              </>
-            )}
-            {serviceData.isPerTrip && (
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Tipo</span>
-                <span style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>Servicio por viaje</span>
+      <ServiceStateLayout
+        topBar={{ showBack: false, showHome: true, onHome: () => navigate('/client/home') }}
+        header={{
+          icon: <Flag size={22} />,
+          title: 'Servicio finalizado',
+          subtitle: 'Resumen y cierre del servicio.',
+          badgeLabel: 'Finalizado',
+          badgeTone: 'success',
+          meta: [],
+        }}
+        primaryTitle="Detalle de cobro"
+        primary={(() => {
+          const b = getClientBreakdown(serviceData.pricing);
+          return (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
+                  Servicio {serviceData.isPerTrip ? '(viaje)' : `(${serviceData.hours}h)`}
+                </span>
+                <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.service)}</span>
               </div>
-            )}
-          </div>
-
-          {/* Detalle del cobro */}
-          <div style={{
-            background: '#2A2A2A',
-            borderRadius: 14,
-            padding: 16,
-            marginBottom: 16
-          }}>
-            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-              Detalle del cobro
-            </p>
-            {(() => {
-              const b = getClientBreakdown(serviceData.pricing);
-              return (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-                      Servicio {serviceData.isPerTrip ? '(viaje)' : `(${serviceData.hours}h)`}
-                    </span>
-                    <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.service)}</span>
-                  </div>
-                  {b.bonus > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>Alta demanda</span>
-                      <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.bonus)}</span>
-                    </div>
-                  )}
-                  {b.transport > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>Traslado</span>
-                      <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.transport)}</span>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: b.needsInvoice && b.ivaTotal > 0 ? 6 : 10 }}>
-                    <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-                      Tarifa por Servicio MAQGO{b.needsInvoice ? ' (neta)' : ' (IVA incluido)'}
-                    </span>
-                    <span style={{ color: '#fff', fontSize: 12 }}>
-                      {formatPrice(b.needsInvoice ? b.tarifaNeta : b.tarifaConIva)}
-                    </span>
-                  </div>
-                  {b.needsInvoice && b.ivaTotal > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                      <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>IVA (19%)</span>
-                      <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.ivaTotal)}</span>
-                    </div>
-                  )}
-                  <div style={{ 
-                    borderTop: '1px solid rgba(255,255,255,0.2)', 
-                    paddingTop: 10, 
-                    marginTop: 4,
-                    display: 'flex', 
-                    justifyContent: 'space-between' 
-                  }}>
-                    <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>Total pagado</span>
-                    <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 700 }}>{formatPrice(b.total)}</span>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-
-          {/* Info documento recibido */}
-          <div style={{
-            background: '#2A2A2A',
-            borderRadius: 10,
-            padding: 12,
-            marginBottom: 20
-          }}>
-            <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: 0, textAlign: 'center' }}>
-              {serviceData.pricing?.needsInvoice 
-                ? 'Tu factura se emite dentro de los plazos legales del mes en que fue contratada y pagada la reserva, y se envía al correo que indicaste.'
-                : 'Tu resumen de servicio será enviado a tu correo electrónico en los próximos días'
-              }
-            </p>
-          </div>
-
-          {/* Botón continuar */}
-          <button 
-            className="maqgo-btn-primary"
-            onClick={() => setStep('rating')}
-          >
-            Continuar a evaluación
-          </button>
-        </div>
-      </div>
+              {b.bonus > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>Alta demanda</span>
+                  <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.bonus)}</span>
+                </div>
+              )}
+              {b.transport > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>Traslado</span>
+                  <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.transport)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: b.needsInvoice && b.ivaTotal > 0 ? 6 : 10 }}>
+                <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
+                  Tarifa por Servicio MAQGO{b.needsInvoice ? ' (neta)' : ' (IVA incluido)'}
+                </span>
+                <span style={{ color: '#fff', fontSize: 12 }}>
+                  {formatPrice(b.needsInvoice ? b.tarifaNeta : b.tarifaConIva)}
+                </span>
+              </div>
+              {b.needsInvoice && b.ivaTotal > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>IVA (19%)</span>
+                  <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.ivaTotal)}</span>
+                </div>
+              )}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: 10, marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>Total pagado</span>
+                <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 800 }}>{formatPrice(b.total)}</span>
+              </div>
+            </div>
+          );
+        })()}
+        summary={{
+          title: 'Resumen',
+          machinery: MACHINERY_NAMES[serviceData.machinery] || serviceData.machinery,
+          operatorName,
+          operatorRut,
+          licensePlate,
+          location: serviceData.location,
+          duration: durationLabel,
+          extraRows,
+        }}
+        alerts={[{ tone: 'info', title: serviceData.pricing?.needsInvoice ? 'Factura' : 'Resumen', description: invoiceText }]}
+        secondaryActions={[{ key: 'to-rating', label: 'Continuar a evaluación', variant: 'primary', onClick: () => setStep('rating') }]}
+      />
     );
   }
 
   // PASO 2: Valorización del proveedor
   if (step === 'rating') {
+    const operatorName = serviceData.provider?.providerOperatorName || serviceData.provider?.operator_name || 'Operador';
+    const operatorRut = serviceData.provider?.operator_rut || serviceData.provider?.operatorRut || 'Por confirmar';
+    const licensePlate = (serviceData.provider?.licensePlate || serviceData.provider?.license_plate || serviceData.provider?.patente || 'Por confirmar').toString().toUpperCase();
     return (
-      <div className="maqgo-app maqgo-client-funnel">
-        <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
-          {/* Header */}
-          <div style={{ marginBottom: 20, textAlign: 'center' }}>
-            <MaqgoLogo size="small" />
-            <ProviderOnboardingProgress currentStep={2} steps={SERVICE_FINISHED_STEPS} />
-          </div>
-
-          {/* Título */}
-          <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 8 }}>
-            Evalúa el servicio
-          </h1>
-          <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, textAlign: 'center', marginBottom: 30 }}>
-            Tu opinión ayuda a otros usuarios
-          </p>
-
-          {/* Info proveedor */}
-          <div style={{
-            background: '#363636',
-            borderRadius: 14,
-            padding: 16,
-            marginBottom: 24,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14
-          }}>
-            <div style={{
-              width: 55,
-              height: 55,
-              borderRadius: '50%',
-              background: '#444',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="8" r="4" fill="rgba(255,255,255,0.95)"/>
-                <path d="M4 20C4 16 8 14 12 14C16 14 20 16 20 20" stroke="rgba(255,255,255,0.95)" strokeWidth="2"/>
-              </svg>
+      <ServiceStateLayout
+        topBar={{ showBack: false, showHome: true, onHome: () => navigate('/client/home') }}
+        header={{
+          icon: <Star size={22} />,
+          title: 'Evaluación',
+          subtitle: 'Califica el servicio.',
+          badgeLabel: 'Finalizado',
+          badgeTone: 'success',
+          meta: [],
+        }}
+        primaryTitle="Evaluación"
+        primary={
+          <div>
+            <div style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, marginBottom: 12 }}>
+              ¿Cómo calificarías el servicio?
             </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 16 }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setRating(star)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+                  data-testid={`star-${star}`}
+                >
+                  <svg width="40" height="40" viewBox="0 0 44 44" fill="none">
+                    <path
+                      d="M22 4L27 16H40L30 25L34 38L22 29L10 38L14 25L4 16H17L22 4Z"
+                      fill={rating >= star ? '#EC6819' : '#444'}
+                      stroke={rating >= star ? '#EC6819' : '#555'}
+                      strokeWidth="2"
+                    />
+                  </svg>
+                </button>
+              ))}
+            </div>
+
             <div>
-              <p style={{ color: '#fff', fontSize: 16, fontWeight: 600, margin: 0 }}>
-                Equipo MAQGO
-              </p>
-              <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0 }}>
-                {serviceData.machinery}
-              </p>
+              <div style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, marginBottom: 8, fontWeight: 700 }}>
+                Comentario (opcional)
+              </div>
+              <textarea
+                value={comment}
+                onChange={e => setComment(e.target.value)}
+                placeholder="Comentario"
+                rows={4}
+                style={{
+                  width: '100%',
+                  padding: 14,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  borderRadius: 12,
+                  fontSize: 14,
+                  color: 'rgba(255,255,255,0.95)',
+                  resize: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
             </div>
           </div>
-
-          {/* Estrellas */}
-          <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>
-            ¿Cómo calificarías el servicio?
-          </p>
-          
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 30 }}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                onClick={() => setRating(star)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
-                data-testid={`star-${star}`}
-              >
-                <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
-                  <path 
-                    d="M22 4L27 16H40L30 25L34 38L22 29L10 38L14 25L4 16H17L22 4Z" 
-                    fill={rating >= star ? '#EC6819' : '#444'}
-                    stroke={rating >= star ? '#EC6819' : '#555'}
-                    strokeWidth="2"
-                  />
-                </svg>
-              </button>
-            ))}
-          </div>
-
-          {/* Comentario */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, display: 'block' }}>
-              Comentario (opcional)
-            </label>
-            <textarea
-              value={comment}
-              onChange={e => setComment(e.target.value)}
-              placeholder="Cuéntanos tu experiencia..."
-              rows={4}
-              style={{
-                width: '100%',
-                padding: 14,
-                background: '#F5EFE6',
-                border: 'none',
-                borderRadius: 12,
-                fontSize: 15,
-                color: '#1A1A1A',
-                resize: 'none',
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
-
-          {/* Botones */}
-          <button 
-            className="maqgo-btn-primary"
-            onClick={handleSubmitRating}
-            disabled={rating === 0 || loading}
-            aria-busy={loading}
-            aria-label={loading ? 'Enviando evaluación' : 'Enviar evaluación'}
-            style={{ opacity: rating > 0 ? 1 : 0.5, marginBottom: 12 }}
-          >
-            {loading ? (
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <span style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
-                Enviando...
-              </span>
-            ) : (
-              'Enviar evaluación'
-            )}
-          </button>
-          
-          <button 
-            onClick={() => navigate('/client/home')}
-            style={{
-              width: '100%',
-              padding: 14,
-              background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: 25,
-              color: 'rgba(255,255,255,0.95)',
-              fontSize: 15,
-              cursor: 'pointer'
-            }}
-          >
-            Omitir
-          </button>
-        </div>
-      </div>
+        }
+        summary={{
+          title: 'Servicio',
+          machinery: MACHINERY_NAMES[serviceData.machinery] || serviceData.machinery,
+          operatorName,
+          operatorRut,
+          licensePlate,
+          location: serviceData.location,
+          duration: serviceData.isPerTrip ? 'Servicio por viaje' : `${serviceData.hours} horas`,
+        }}
+        alerts={[]}
+        secondaryActions={[
+          {
+            key: 'submit',
+            label: 'Enviar evaluación',
+            variant: 'primary',
+            onClick: handleSubmitRating,
+            disabled: rating === 0 || loading,
+            loading,
+            ariaLabel: loading ? 'Enviando evaluación' : 'Enviar evaluación',
+          },
+          {
+            key: 'skip',
+            label: 'Omitir',
+            variant: 'outline',
+            onClick: () => navigate('/client/home'),
+          }
+        ]}
+      />
     );
   }
 
   // PASO 3: Confirmación final
   return (
-    <div className="maqgo-app maqgo-client-funnel">
-      <div className="maqgo-screen" style={{ justifyContent: 'center', alignItems: 'center', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
-        <div style={{
-          width: 90,
-          height: 90,
-          borderRadius: '50%',
-          background: '#90BDD3',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: 24
-        }}>
-          <svg width="45" height="45" viewBox="0 0 45 45" fill="none">
-            <path d="M12 22L19 29L33 15" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
-        
-        <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 12, fontSize: 24 }}>
-          ¡Gracias por tu evaluación!
-        </h1>
-        
-        <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, textAlign: 'center' }}>
-          Redirigiendo al inicio...
-        </p>
-      </div>
-    </div>
+    <ServiceStateLayout
+      topBar={{ showBack: false, showHome: true, onHome: () => navigate('/client/home') }}
+      header={{
+        icon: <CheckCircle2 size={22} />,
+        title: 'Evaluación enviada',
+        subtitle: 'Redirigiendo al inicio.',
+        badgeLabel: 'Finalizado',
+        badgeTone: 'success',
+        meta: [],
+      }}
+      primaryTitle="Estado"
+      primary={<div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, lineHeight: 1.45 }}>Completado.</div>}
+      summary={null}
+      alerts={[]}
+      secondaryActions={[]}
+    />
   );
 }
 

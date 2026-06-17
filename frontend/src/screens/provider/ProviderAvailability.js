@@ -238,7 +238,7 @@ function ProviderAvailability({ userId: userIdProp }) {
                 <div className="pulse-core"></div>
               </div>
               <p className="waiting-text">Esperando solicitudes...</p>
-              <p className="waiting-subtext">Te notificaremos cuando llegue una solicitud</p>
+              <p className="waiting-subtext">Verás la próxima solicitud en esta pantalla</p>
             </div>
           )}
         </div>

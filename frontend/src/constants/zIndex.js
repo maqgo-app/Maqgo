@@ -7,10 +7,7 @@ export const Z_INDEX = {
   sticky: 10,
   dropdown: 100,
   floatingButton: 900,
-  chatBelow: 998,
-  chatAbove: 999,
   overlay: 1000,
-  serviceChat: 2000,
   fixedBar: 9999,
   modal: 10000
 };

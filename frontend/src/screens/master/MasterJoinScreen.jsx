@@ -85,14 +85,6 @@ function normalizeMasterPermissions(input) {
   };
 }
 
-function joinDisplayName(...parts) {
-  return parts
-    .map((part) => String(part || '').trim())
-    .filter(Boolean)
-    .join(' ')
-    .trim();
-}
-
 function MasterJoinScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -123,7 +115,6 @@ function MasterJoinScreen() {
       setError('Ingresa el código completo');
       return;
     }
-    const name = joinDisplayName(firstName, lastName);
     const phoneE164 = normalizeChileanMobileE164(phone);
     if (!firstName.trim()) {
       setError('Ingresa tu nombre');
@@ -226,17 +217,16 @@ function MasterJoinScreen() {
               Nombre
             </label>
             <input
-              value={formatRut(rut)}
+              value={firstName}
               onChange={(e) => {
                 setError('');
-                setRut(sanitizeRutInput(e.target.value));
+                setFirstName(e.target.value);
               }}
               placeholder="Tu nombre"
               className="maqgo-input"
               style={{
                 width: '100%',
                 marginBottom: 0,
-                borderColor: rut && !validatePersonRut(rut) ? 'var(--maqgo-orange)' : undefined,
               }}
             />
           </div>

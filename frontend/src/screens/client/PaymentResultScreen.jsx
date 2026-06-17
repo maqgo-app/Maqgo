@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useSearchParams } from 'react-router-dom';
 import { getObject, getArray } from '../../utils/safeStorage';
 import { getPerTripDateLabel, getPerTripCountLabel } from '../../utils/bookingDates';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import MaqgoLogo from '../../components/MaqgoLogo';
 import { clearBookingProgress } from '../../utils/abandonmentTracker';
 import { playPaymentSuccessSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
@@ -23,108 +21,12 @@ import { getBookingBackRoute } from '../../utils/bookingFlow';
 import { getBookingLocationP5 } from '../../utils/mapPlaceToAddress';
 import { useCheckoutState } from '../../context/CheckoutContext';
 import { touchCheckoutStateForExhaustiveUi } from '../../domain/checkout/checkoutStateMachine';
+import { CheckCircle2 } from 'lucide-react';
+import { getOperatorDisplayNameForSite, getOperatorRutForSite, getProviderLicensePlate } from '../../utils/providerDisplay';
+import ServiceStateLayout from '../../components/serviceState/ServiceStateLayout';
 
 const MIN_HOURS_IMMEDIATE = 4;
 const MAX_HOURS_IMMEDIATE = 8;
-
-// Íconos SVG específicos para cada tipo de maquinaria
-const MachineryIcon = ({ type, size = 18 }) => {
-  const icons = {
-    retroexcavadora: (
-      <svg width={size} height={size * 0.8} viewBox="0 0 40 32" fill="none">
-        <rect x="4" y="16" width="20" height="10" rx="2" fill="#EC6819"/>
-        <rect x="18" y="8" width="8" height="10" rx="1" fill="#EC6819"/>
-        <path d="M26 10L34 4L36 8L28 14" stroke="#EC6819" strokeWidth="2" fill="none"/>
-        <circle cx="8" cy="28" r="3" fill="#fff"/>
-        <circle cx="20" cy="28" r="3" fill="#fff"/>
-      </svg>
-    ),
-    excavadora: (
-      <svg width={size} height={size * 0.8} viewBox="0 0 40 32" fill="none">
-        <rect x="2" y="18" width="18" height="8" rx="2" fill="#EC6819"/>
-        <rect x="14" y="10" width="10" height="10" rx="1" fill="#EC6819"/>
-        <path d="M24 12L32 4L38 6L36 12L28 16" stroke="#EC6819" strokeWidth="2.5" fill="none"/>
-        <rect x="2" y="26" width="20" height="4" rx="1" fill="#fff"/>
-      </svg>
-    ),
-    bulldozer: (
-      <svg width={size} height={size * 0.8} viewBox="0 0 40 32" fill="none">
-        <rect x="8" y="14" width="22" height="10" rx="2" fill="#EC6819"/>
-        <rect x="2" y="12" width="6" height="14" rx="1" fill="#EC6819"/>
-        <rect x="12" y="8" width="8" height="8" rx="1" fill="#EC6819"/>
-        <rect x="8" y="24" width="22" height="4" rx="1" fill="#fff"/>
-      </svg>
-    ),
-    motoniveladora: (
-      <svg width={size} height={size * 0.8} viewBox="0 0 40 32" fill="none">
-        <rect x="4" y="16" width="28" height="8" rx="2" fill="#EC6819"/>
-        <rect x="20" y="10" width="10" height="8" rx="1" fill="#EC6819"/>
-        <path d="M8 24L4 28L12 28L8 24Z" fill="#fff"/>
-        <circle cx="8" cy="26" r="2" fill="#fff"/>
-        <circle cx="28" cy="26" r="3" fill="#fff"/>
-      </svg>
-    ),
-    compactadora: (
-      <svg width={size} height={size * 0.8} viewBox="0 0 40 32" fill="none">
-        <rect x="10" y="12" width="16" height="10" rx="2" fill="#EC6819"/>
-        <circle cx="8" cy="22" r="6" stroke="#EC6819" strokeWidth="3" fill="none"/>
-        <circle cx="32" cy="22" r="6" stroke="#EC6819" strokeWidth="3" fill="none"/>
-        <rect x="14" y="6" width="8" height="8" rx="1" fill="#EC6819"/>
-      </svg>
-    ),
-    minicargador: (
-      <svg width={size} height={size * 0.8} viewBox="0 0 40 32" fill="none">
-        <rect x="6" y="14" width="18" height="12" rx="2" fill="#EC6819"/>
-        <rect x="10" y="8" width="10" height="8" rx="1" fill="#EC6819"/>
-        <path d="M24 16L32 12L34 16L26 20" stroke="#EC6819" strokeWidth="2" fill="none"/>
-        <circle cx="10" cy="28" r="3" fill="#fff"/>
-        <circle cx="20" cy="28" r="3" fill="#fff"/>
-      </svg>
-    ),
-    grua: (
-      <svg width={size} height={size * 0.8} viewBox="0 0 40 32" fill="none">
-        <rect x="4" y="20" width="20" height="8" rx="2" fill="#EC6819"/>
-        <rect x="8" y="8" width="6" height="14" rx="1" fill="#EC6819"/>
-        <path d="M11 8L11 2L32 2L32 6" stroke="#EC6819" strokeWidth="2"/>
-        <path d="M32 6L32 16" stroke="#EC6819" strokeWidth="2"/>
-        <circle cx="8" cy="30" r="2" fill="#fff"/>
-        <circle cx="20" cy="30" r="2" fill="#fff"/>
-      </svg>
-    ),
-    camion_pluma: (
-      <svg width={size} height={size * 0.8} viewBox="0 0 40 32" fill="none">
-        <rect x="2" y="18" width="24" height="10" rx="2" fill="#EC6819"/>
-        <rect x="20" y="12" width="8" height="8" rx="1" fill="#EC6819"/>
-        <path d="M12 18L12 6L28 6" stroke="#EC6819" strokeWidth="2.5"/>
-        <path d="M28 6L28 14" stroke="#EC6819" strokeWidth="2"/>
-        <circle cx="6" cy="30" r="2" fill="#fff"/>
-        <circle cx="18" cy="30" r="2" fill="#fff"/>
-        <circle cx="24" cy="30" r="2" fill="#fff"/>
-      </svg>
-    ),
-    camion_aljibe: (
-      <svg width={size} height={size * 0.8} viewBox="0 0 40 32" fill="none">
-        <ellipse cx="14" cy="20" rx="12" ry="6" fill="#EC6819"/>
-        <rect x="24" y="16" width="10" height="10" rx="2" fill="#EC6819"/>
-        <circle cx="8" cy="28" r="2" fill="#fff"/>
-        <circle cx="20" cy="28" r="2" fill="#fff"/>
-        <circle cx="30" cy="28" r="2" fill="#fff"/>
-        <path d="M6 14C6 14 10 10 14 10C18 10 22 14 22 14" stroke="#90BDD3" strokeWidth="1.5"/>
-      </svg>
-    ),
-    camion_tolva: (
-      <svg width={size} height={size * 0.8} viewBox="0 0 40 32" fill="none">
-        <path d="M4 12L8 24H24L20 12H4Z" fill="#EC6819"/>
-        <rect x="24" y="16" width="10" height="10" rx="2" fill="#EC6819"/>
-        <circle cx="10" cy="28" r="2" fill="#fff"/>
-        <circle cx="22" cy="28" r="2" fill="#fff"/>
-        <circle cx="30" cy="28" r="2" fill="#fff"/>
-      </svg>
-    ),
-  };
-
-  return icons[type] || icons.retroexcavadora;
-};
 
 /**
  * Pantalla de Resultado de Pago
@@ -132,7 +34,7 @@ const MachineryIcon = ({ type, size = 18 }) => {
  * Muestra el resultado del procesamiento del pago:
  * - Estado: procesando → aceptado/rechazado
  * - Si aceptado: desglose completo + datos del proveedor
- * - Notificaciones de coordinación por MAQGO (chat interno / push)
+ * - Comunicación por MAQGO (Avisos + mensajes controlados)
  * 
  * WORLD-CLASS: Esta es la pantalla donde se revela el proveedor
  * porque el pago ya fue procesado exitosamente.
@@ -462,8 +364,7 @@ function PaymentResultScreen() {
     processPayment();
   }, [processPayment]);
 
-  // WhatsApp deshabilitado para coordinación cliente <-> proveedor.
-  // La coordinación ocurre por chat interno (ruta /chat/:serviceId).
+  // Canal externo deshabilitado.
 
   const handleContinue = () => {
     // Mostrar primero "preparándose", luego a los 10 s "en camino"
@@ -603,96 +504,36 @@ function PaymentResultScreen() {
   const perTripScheduledLabel = getPerTripDateLabel(selectedDates, selectedDate, { prefix: 'Valor viaje ·' });
   const perTripBreakdownLabel = getPerTripCountLabel(selectedDates, selectedDates?.length || 1);
 
+  const operatorName = getOperatorDisplayNameForSite(provider);
+  const operatorRut = getOperatorRutForSite(provider);
+  const licensePlate = getProviderLicensePlate(provider);
+  const durationLabel = isPerTripMachineryType(machinery)
+    ? (reservationType === 'scheduled' ? perTripScheduledLabel : 'Valor viaje · Inicio HOY')
+    : (reservationType === 'scheduled' ? `Jornada · ${formatDateShort(selectedDate)}` : `${hours}h · Reserva prioritaria`);
+
   return (
-    <div className="maqgo-app maqgo-client-funnel" data-checkout-state={checkoutState}>
-      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 120px', overflowY: 'auto' }}>
-        {/* Botones de navegación */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          marginBottom: 12
-        }}>
-          <button 
-            onClick={() => navigate(backRoute || '/client/home')}
-            style={{ background: 'none', border: 'none', padding: 8, cursor: 'pointer' }}
-            aria-label="Volver"
-          >
-            <BackArrowIcon style={{ color: '#fff' }} />
-          </button>
-          <button 
-            onClick={() => navigate('/client/home')}
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              padding: '8px 12px', 
-              cursor: 'pointer',
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: 13
-            }}
-          >
-            Inicio
-          </button>
-        </div>
-
-        {/* Header compacto: Logo + Estado + Título */}
-        <div style={{ textAlign: 'center', marginBottom: 12 }}>
-          <MaqgoLogo size="small" />
-          <div style={{
-            width: 50,
-            height: 50,
-            borderRadius: '50%',
-            background: 'rgba(255, 167, 38, 0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '10px auto 8px'
-          }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="#FFA726" strokeWidth="2"/>
-              <path d="M12 6v6l4 2" stroke="#FFA726" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h1 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: '0 0 4px' }}>
-            ¡Reserva confirmada!
-          </h1>
-          <p style={{ color: '#4CAF50', fontSize: 13, fontWeight: 600, margin: '0 0 8px' }}>
-            Un operador ha aceptado tu solicitud
-          </p>
-          <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0 }}>
-            Orden #{orderNumber}
-          </p>
-        </div>
-
-        {/* Mensaje de confirmación */}
-        <div
-          style={{
-            background: 'rgba(76, 175, 80, 0.1)',
-            borderRadius: 10,
-            padding: 12,
-            marginBottom: 12
-          }}
-        >
-          <p
-            style={{
-              color: 'rgba(255,255,255,0.95)',
-              fontSize: 12,
-              margin: 0,
-              textAlign: 'center',
-              lineHeight: 1.5
-            }}
-          >
-            El cobro se realizó correctamente y tu servicio quedó confirmado. Te avisaremos con sonido y vibración cuando el proveedor salga en camino hacia tu ubicación.
-          </p>
-        </div>
-
-        {/* DESGLOSE COMPLETO - Compacto */}
-        <div style={{
-          background: '#2A2A2A',
-          borderRadius: 10,
-          padding: 12,
-          marginBottom: 10
-        }}>
+    <div data-checkout-state={checkoutState}>
+      <ServiceStateLayout
+        topBar={{
+          showBack: true,
+          onBack: () => navigate(backRoute || '/client/home'),
+          showHome: true,
+          onHome: () => navigate('/client/home'),
+        }}
+        header={{
+          icon: <CheckCircle2 size={22} />,
+          title: 'Reserva confirmada',
+          subtitle: 'Pago confirmado. Revisa Avisos para cambios de estado.',
+          badgeLabel: 'Confirmado',
+          badgeTone: 'success',
+          meta: [{ label: 'ID de orden', value: `#${orderNumber}` }],
+        }}
+        primaryTitle="Detalle de cobro"
+        primary={
+          <div>
+            <div style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, lineHeight: 1.45, marginBottom: 12 }}>
+              El cobro se realizó correctamente.
+            </div>
           {/* Encabezado: Inicio del servicio */}
           <div style={{ 
             marginBottom: 10,
@@ -803,7 +644,7 @@ function PaymentResultScreen() {
               marginBottom: 4
             }}>
               <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: 0, lineHeight: 1.45 }}>
-                📄 Tu factura se emite dentro de los plazos legales del mes en que fue contratada y pagada la reserva, y se envía al correo que indicaste.
+                Tu factura se emite dentro de los plazos legales del mes en que fue contratada y pagada la reserva, y se envía al correo que indicaste.
               </p>
             </div>
           )}
@@ -817,138 +658,27 @@ function PaymentResultScreen() {
               lineHeight: 1.4,
               textAlign: 'center'
             }}>
-              La reserva prioritaria considera tiempos de traslado y coordinación logística.
+              La reserva prioritaria considera tiempos de traslado y logística.
               El sobreprecio aplica únicamente al inicio del servicio.
             </p>
           )}
-        </div>
-
-        {/* OPERADOR ASIGNADO - Compacto */}
-        <div style={{
-          background: '#363636',
-          borderRadius: 10,
-          padding: 12,
-          marginBottom: 10
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center',
-            gap: 4,
-            marginBottom: 8
-          }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#90BDD3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span style={{ color: '#90BDD3', fontSize: 13, fontWeight: 600, textTransform: 'uppercase' }}>
-              Operador asignado
-            </span>
           </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ color: '#fff', fontSize: 16, fontWeight: 600 }}>
-              Equipo MAQGO en camino
-            </div>
-            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, margin: '6px 0 0', lineHeight: 1.35 }}>
-              La coordinación y cualquier actualización se realizan dentro del chat de MAQGO.
-            </p>
-          </div>
-
-          {/* ETA cliente */}
-          <div style={{ 
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            background: '#2A2A2A',
-            borderRadius: 8,
-            padding: '10px 14px'
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 9, marginBottom: 2 }}>LLEGADA ESTIMADA</div>
-              <div style={{ color: '#90BDD3', fontSize: 14, fontWeight: 600 }}>{provider?.eta_minutes || 40} min</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Maquinaria + Ubicación en una fila compacta */}
-        <div style={{
-          background: '#2A2A2A',
-          borderRadius: 10,
-          padding: 10,
-          marginBottom: 10,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10
-        }}>
-          <div style={{
-            width: 36,
-            height: 36,
-            borderRadius: 6,
-            background: '#444',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0
-          }}>
-            <MachineryIcon type={machinery} size={22} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: '#fff', fontSize: 13, fontWeight: 500 }}>{MACHINERY_NAMES[machinery] || machinery}</div>
-            <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {isPerTripMachineryType(machinery)
-                ? (reservationType === 'scheduled' ? perTripScheduledLabel : 'Valor viaje · Inicio HOY')
-                : (reservationType === 'scheduled' ? `Jornada · ${formatDateShort(selectedDate)}` : `${hours}h · Reserva prioritaria`)
-              } · {location}
-            </div>
-          </div>
-        </div>
-
-        {/* Notificación WhatsApp removida: coordinación via chat interno */}
-
-        {/* QUÉ PASA DESPUÉS */}
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(144, 189, 211, 0.1) 0%, rgba(144, 189, 211, 0.05) 100%)',
-          border: '1px solid rgba(144, 189, 211, 0.2)',
-          borderRadius: 10,
-          padding: 12,
-          marginBottom: 12
-        }}>
-          <p style={{ 
-            color: '#90BDD3', 
-            fontSize: 12, 
-            fontWeight: 600, 
-            margin: '0 0 8px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6
-          }}>
-            <span>→</span> ¿Qué sigue ahora?
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#4CAF50', fontSize: 12 }}>1.</span>
-              <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>Te avisaremos cuando el operador salga en camino (aprox. {provider?.eta_minutes || 40} min a tu obra)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#4CAF50', fontSize: 12 }}>2.</span>
-              <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>Te avisaremos cuando llegue</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#4CAF50', fontSize: 12 }}>3.</span>
-              <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>Confirma su llegada y comienza el servicio</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Botón continuar - NO FIJO, parte del flujo */}
-        <button 
-          className="maqgo-btn-primary"
-          onClick={handleContinue}
-          style={{ fontSize: 14, marginTop: 4 }}
-          data-testid="continue-to-tracking-btn"
-        >
-          Ver seguimiento en tiempo real
-        </button>
-      </div>
+        }
+        summary={{
+          title: 'Resumen',
+          machinery: MACHINERY_NAMES[machinery] || machinery,
+          operatorName,
+          operatorRut,
+          licensePlate,
+          location: location || 'Por confirmar',
+          duration: durationLabel,
+          extraRows: [{ label: 'Llegada estimada', value: `${provider?.eta_minutes || 40} min` }],
+        }}
+        alerts={[{ tone: 'info', title: 'Seguimiento', description: 'Revisa Avisos para cambios de estado.' }]}
+        secondaryActions={[
+          { key: 'continue', label: 'Ver seguimiento en tiempo real', variant: 'primary', onClick: handleContinue, testId: 'continue-to-tracking-btn' },
+        ]}
+      />
     </div>
   );
 }

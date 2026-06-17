@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useContext, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './utils/api'; // Configura timeout global axios (evita esperas indefinidas)
 import { ROUTES } from './constants';
@@ -14,11 +14,9 @@ import ForgotPasswordScreen from './screens/ForgotPasswordScreen.jsx'; // Import
 import AuthContext, { AuthProvider } from './context/AuthContext';
 import ToastProvider from './components/Toast';
 import BottomNavigation from './components/BottomNavigation';
-import ChatBot from './components/ChatBot';
 import ScrollToTop from './components/ScrollToTop';
 import OfflineBanner from './components/OfflineBanner';
 import InstallPwaBanner from './components/InstallPwaBanner.jsx';
-import EnablePushBanner from './components/EnablePushBanner.jsx';
 import AdminRoute from './components/AdminRoute';
 import ProtectedRoute from './components/ProtectedRoute';
 import ProviderOnboardingGate from './components/ProviderOnboardingGate';
@@ -108,7 +106,6 @@ function ProviderSensitiveGate({ children }) {
 
 // Code-splitting: pantallas se cargan bajo demanda (menor bundle inicial, carga más rápida)
 // Públicas
-const ServiceChatScreen = lazy(() => import('./screens/ServiceChatScreen.jsx'));
 const SupportAccessScreen = lazy(() => import('./screens/SupportAccessScreen.jsx'));
 
 // Cliente
@@ -239,26 +236,11 @@ function AppContent() {
   const isAdminRoute = path === '/admin' || path.startsWith('/admin/');
   const hostname = typeof window !== 'undefined' ? String(window.location.hostname || '') : '';
   const isAdminHost = hostname === 'admin.maqgo.cl' || hostname.startsWith('admin.');
-  const showChatBot = !isAdminRoute && !isAdminHost;
   const showPwaBanners = !isAdminRoute && !isAdminHost;
-  const hasValueMoment = useMemo(() => {
-    try {
-      if (typeof window === 'undefined') return false;
-      const currentServiceId = String(localStorage.getItem('currentServiceId') || '').trim();
-      return Boolean(currentServiceId);
-    } catch {
-      return false;
-    }
-  }, [path]);
-  const shouldShowPushPrompt =
-    showPwaBanners &&
-    Boolean(auth?.user?.id) &&
-    (path.startsWith('/chat/') || (path.startsWith('/client/') && hasValueMoment));
   const shouldShowInstallPrompt =
     showPwaBanners &&
     Boolean(auth?.user?.id) &&
-    (path.startsWith('/client/') || path.startsWith('/chat/')) &&
-    !shouldShowPushPrompt;
+    path.startsWith('/client/');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -333,7 +315,6 @@ function AppContent() {
       <div className="maqgo-app-shell-main">
       <OfflineBanner />
       {shouldShowInstallPrompt ? <InstallPwaBanner bottomOffset={fixedBottomBarHeight} /> : null}
-      {shouldShowPushPrompt ? <EnablePushBanner user={auth?.user} bottomOffset={fixedBottomBarHeight} /> : null}
       <ScrollToTop />
       <div className="maqgo-app-shell-routes">
       <Suspense fallback={<BookingFlowFallback />}>
@@ -379,9 +360,6 @@ function AppContent() {
         </Route>
 
         <Route element={<ProtectedRoute />}>
-        {/* Chat por servicio (canal obligatorio cliente ↔ proveedor) */}
-        <Route path="/chat/:serviceId" element={<ServiceChatScreen />} />
-
         {/* Cliente */}
         <Route path="/client/booking" element={<BookingFlowEntry />} />
         <Route path="/client/home" element={<ClientHome />} />
@@ -587,7 +565,7 @@ function AppContent() {
       </div>
       </div>
       {showBottomNav && <BottomNavigation />}
-      {showChatBot && <ChatBot />}
+      {null}
       </BookingNavigationGuard>
     </div>
     </CheckoutProvider>

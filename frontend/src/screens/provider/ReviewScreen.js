@@ -37,10 +37,6 @@ function ReviewScreen() {
       .replace(/\D/g, '')
       .slice(-9);
 
-  if (!draftEnabled) {
-    return <Navigate to="/provider/home" replace />;
-  }
-
   useEffect(() => {
     setProviderData(getObject('providerData', {}));
     setMachineData(getProviderDraftObject('machineData', {}));
@@ -49,6 +45,10 @@ function ReviewScreen() {
     setOperators(Array.isArray(ops) ? ops : []);
     setPhotos(Array.isArray(imgs) ? imgs : []);
   }, []);
+
+  if (!draftEnabled) {
+    return <Navigate to="/provider/home" replace />;
+  }
 
   const handleConfirm = async () => {
     setLoading(true);

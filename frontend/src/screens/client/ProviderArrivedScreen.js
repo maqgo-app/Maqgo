@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ChatFloatingButton from '../../components/ChatFloatingButton';
 import { playArrivedSound, unlockAudio } from '../../utils/notificationSounds';
 import { playNearbyAlert, playSuccessAlert, playAccessGrantedAlert } from '../../utils/alertSound';
 import { vibrate } from '../../utils/uberUX';
-import MaqgoLogo from '../../components/MaqgoLogo';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { MACHINERY_PER_TRIP } from '../../utils/pricing';
 import { getObjectFirst } from '../../utils/safeStorage';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
+import ServiceStateLayout from '../../components/serviceState/ServiceStateLayout';
+import { MapPin } from 'lucide-react';
+import { getOperatorDisplayNameForSite, getOperatorRutForSite, getProviderLicensePlate } from '../../utils/providerDisplay';
+import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 
 // Constantes de tiempo (en segundos)
 const MAX_WAIT_TIME = 30 * 60; // 30 minutos
@@ -32,6 +34,9 @@ function ProviderArrivedScreen() {
   const clientOnTheWayRef = useRef(false);
   const lastReminderRef = useRef(0);
   const serviceId = localStorage.getItem('currentServiceId') || `service-${Date.now()}`;
+  const operatorName = getOperatorDisplayNameForSite(provider) || 'Operador asignado';
+  const operatorRut = getOperatorRutForSite(provider) || '';
+  const licensePlate = getProviderLicensePlate(provider) || '';
 
   useEffect(() => {
     clientOnTheWayRef.current = clientOnTheWay;
@@ -81,18 +86,18 @@ function ProviderArrivedScreen() {
           const last = lastReminderRef.current;
           if (newMinutes >= 25 && last < 25) {
             lastReminderRef.current = 25;
-            setReminderMessage('⚠️ ¡Solo 5 minutos para autorizar ingreso!');
+            setReminderMessage('Quedan 5 minutos para autorizar ingreso.');
             setShowReminder(true);
             playNearbyAlert();
             vibrate([300, 100, 300, 100, 500]);
           } else if (newMinutes >= 15 && last < 15) {
             lastReminderRef.current = 15;
-            setReminderMessage('El operador lleva 15 minutos esperando');
+            setReminderMessage('El operador lleva 15 minutos esperando.');
             setShowReminder(true);
             vibrate([200, 100, 200]);
           } else if (newMinutes >= 5 && last < 5) {
             lastReminderRef.current = 5;
-            setReminderMessage('El operador lleva 5 minutos esperando');
+            setReminderMessage('El operador lleva 5 minutos esperando.');
             setShowReminder(true);
             vibrate([150, 50, 150]);
           }
@@ -142,331 +147,130 @@ function ProviderArrivedScreen() {
     setShowReminder(false);
   };
 
-  return (
-    <div className="maqgo-app maqgo-client-funnel">
-      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 30px' }}>
-        {/* Logo */}
-        <div style={{ marginBottom: 20 }}>
-          <MaqgoLogo size="small" />
-        </div>
-
-        {/* Banner de recordatorio */}
-        {showReminder && (
-          <div style={{
-            background: waitingMinutes >= 25 
-              ? 'linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%)' 
-              : 'linear-gradient(135deg, #FFC107 0%, #FF9800 100%)',
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 16,
-            textAlign: 'center',
-            animation: 'pulse-banner 1s ease-in-out infinite'
-          }}>
-            <style>{`
-              @keyframes pulse-banner {
-                0%, 100% { transform: scale(1); }
-                50% { transform: scale(1.02); }
-              }
-            `}</style>
-            <p style={{ 
-              color: waitingMinutes >= 25 ? '#fff' : '#1a1a1a', 
-              fontSize: 14, 
-              fontWeight: 600, 
-              margin: 0 
-            }}>
-              {reminderMessage}
-            </p>
-            <button
-              onClick={() => setShowReminder(false)}
-              style={{
-                marginTop: 10,
-                padding: '6px 16px',
-                background: 'rgba(255,255,255,0.3)',
-                border: 'none',
-                borderRadius: 15,
-                color: waitingMinutes >= 25 ? '#fff' : '#1a1a1a',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              Entendido
-            </button>
-          </div>
-        )}
-
-        {/* Banner "Ya voy" confirmado */}
-        {clientOnTheWay && (
-          <div style={{
-            background: 'linear-gradient(135deg, #90BDD3 0%, #00ACC1 100%)',
-            borderRadius: 12,
-            padding: 12,
-            marginBottom: 16,
-            textAlign: 'center'
-          }}>
-            <p style={{ color: '#fff', fontSize: 13, fontWeight: 600, margin: 0 }}>
-              ✓ El operador sabe que vas en camino
-            </p>
-          </div>
-        )}
-
-        {/* Timer de espera visible */}
-        <div style={{
-          background: waitingMinutes >= 25 ? 'rgba(255, 107, 107, 0.15)' : 'rgba(255, 193, 7, 0.15)',
-          borderRadius: 12,
-          padding: '12px 16px',
-          marginBottom: 16,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke={waitingMinutes >= 25 ? '#ff6b6b' : '#FFC107'} strokeWidth="2"/>
-              <path d="M12 6V12L16 14" stroke={waitingMinutes >= 25 ? '#ff6b6b' : '#FFC107'} strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            <div>
-              <p style={{ color: waitingMinutes >= 25 ? '#ff6b6b' : '#FFC107', fontSize: 12, fontWeight: 600, margin: 0 }}>
-                Operador esperando
-              </p>
-              <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '2px 0 0' }}>
-                {waitingMinutes} min de 30
-              </p>
-            </div>
-          </div>
-          <div style={{ 
-            color: waitingMinutes >= 25 ? '#ff6b6b' : '#FFC107', 
-            fontSize: 18, 
-            fontWeight: 700,
-            fontFamily: 'monospace'
-          }}>
-            {formatTime(timeLeft)}
-          </div>
-        </div>
-
-        {/* Regla de los 30 minutos (política punto 7) */}
-        <p style={{
-          color: 'rgba(255,255,255,0.7)',
-          fontSize: 13,
-          textAlign: 'center',
-          marginBottom: 16,
-          lineHeight: 1.4
-        }}>
-          Tienes 30 min para autorizar el ingreso. Si no respondes, el servicio inicia solo y se cobra lo acordado.
-        </p>
-
-        {/* Icono llegada */}
-        <div style={{
-          width: 90,
-          height: 90,
-          borderRadius: '50%',
-          background: '#90BDD3',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 20px'
-        }}>
-          <svg width="45" height="45" viewBox="0 0 50 50" fill="none">
-            <path d="M15 25L22 32L35 18" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
-
-        {/* Título */}
-        <h1 style={{
-          color: '#fff',
-          fontSize: 22,
-          fontWeight: 700,
-          textAlign: 'center',
-          marginBottom: 8
-        }}>
-          ¡El operador ha llegado!
-        </h1>
-
-        <p style={{
-          color: 'rgba(255,255,255,0.9)',
-          fontSize: 14,
-          textAlign: 'center',
-          marginBottom: 20
-        }}>
-          Te espera en la ubicación indicada
-        </p>
-
-        {/* Card con datos de la reserva */}
-        <div style={{
-          background: '#363636',
-          borderRadius: 14,
-          padding: 14,
-          marginBottom: 16
-        }}>
-          {/* Maquinaria */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 10,
-            paddingBottom: 10,
-            borderBottom: '1px solid #444'
-          }}>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Maquinaria</span>
-            <span style={{ color: '#EC6819', fontSize: 13, fontWeight: 600 }}>
-              {MACHINERY_NAMES[machinery] || machinery}
-            </span>
-          </div>
-
-          {/* PATENTE SUPER DESTACADA - Para identificar en obra */}
-          <div 
-            style={{ 
-              background: '#EC6819',
-              borderRadius: 10,
-              padding: 14,
-              marginBottom: 12,
-              textAlign: 'center'
-            }}
-            data-testid="license-plate-arrived"
-          >
-            <div style={{ 
-              color: 'rgba(255,255,255,0.8)', 
-              fontSize: 13, 
-              textTransform: 'uppercase',
-              letterSpacing: 1,
-              marginBottom: 4
-            }}>
-              Estado de llegada
-            </div>
-            <div style={{ 
-              color: '#fff', 
-              fontSize: 20, 
-              fontWeight: 700,
-              letterSpacing: 0.5,
-            }}>
-              Equipo MAQGO en acceso
-            </div>
-          </div>
-
-          {/* Horas */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Duración</span>
-            <span style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>
-              {MACHINERY_PER_TRIP.includes(machinery) ? 'Valor viaje' : `${hours} horas${hours >= 6 ? ' + 1hr colación' : ''}`}
-            </span>
-          </div>
-        </div>
-
-        {/* Info operador */}
-        <div style={{
-          background: '#363636',
-          borderRadius: 14,
-          padding: 14,
-          marginBottom: 20
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-            <div style={{
-              width: 50,
-              height: 50,
-              borderRadius: '50%',
-              background: '#444',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
-                <circle cx="14" cy="10" r="5" fill="rgba(255,255,255,0.95)"/>
-                <path d="M4 24C4 19 9 16 14 16C19 16 24 19 24 24" stroke="rgba(255,255,255,0.95)" strokeWidth="2"/>
-              </svg>
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: 0 }}>
-                Equipo MAQGO en acceso
-              </p>
-              <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '4px 0 0' }}>
-                La coordinación de ingreso se realiza dentro del chat de MAQGO.
-              </p>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                <path d="M8 1L9.5 5.5H14.5L10.5 8.5L12 13.5L8 10.5L4 13.5L5.5 8.5L1.5 5.5H6.5L8 1Z" fill="#EC6819"/>
-              </svg>
-              <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{(provider.rating ?? 4.8).toFixed(1)}</span>
-            </div>
-          </div>
-          <div style={{
-            background: '#2D2D2D',
-            borderRadius: 8,
-            padding: '8px 12px',
-          }}>
-            <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
-              Recibirás actualizaciones del ingreso por el chat interno de MAQGO.
-            </span>
-          </div>
-        </div>
-
-        {/* Botón "Ya voy" - si cliente no puede atender inmediatamente */}
-        {!clientOnTheWay && (
-          <button 
-            onClick={handleOnMyWay}
-            data-testid="on-my-way-btn"
-            style={{
-              width: '100%',
-              padding: 14,
-              background: 'transparent',
-              border: '2px solid #90BDD3',
-              borderRadius: 10,
-              color: '#90BDD3',
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: 'pointer',
-              marginTop: 16,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="#90BDD3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            ¡Ya voy! (avisar al operador)
-          </button>
-        )}
-
-        {/* Botón permitir entrada */}
-        <button 
-          className="maqgo-btn-primary"
-          onClick={handleLetIn}
-          data-testid="let-in-btn"
+  const locationLabel = getBookingLocationLineOrEmpty() || 'Por confirmar';
+  const alerts = [];
+  if (showReminder) {
+    alerts.push({
+      tone: waitingMinutes >= 25 ? 'danger' : 'warn',
+      title: 'Recordatorio',
+      description: reminderMessage,
+      rightSlot: (
+        <button
+          type="button"
+          onClick={() => setShowReminder(false)}
           style={{
-            background: '#90BDD3',
-            padding: 16,
-            fontSize: 15,
-            marginTop: clientOnTheWay ? 16 : 12
+            height: 30,
+            padding: '0 10px',
+            borderRadius: 999,
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            color: 'rgba(255,255,255,0.92)',
+            fontSize: 12,
+            fontWeight: 800,
+            cursor: 'pointer'
           }}
         >
-          Permitir entrada e iniciar servicio
+          Entendido
         </button>
+      )
+    });
+  }
+  if (clientOnTheWay) {
+    alerts.push({
+      tone: 'success',
+      title: 'Notificación enviada',
+      description: 'El operador fue notificado.'
+    });
+  }
 
-        <p style={{
-          color: 'rgba(255,255,255,0.9)',
-          fontSize: 13,
-          textAlign: 'center',
-          marginTop: 12
-        }}>
-          Regla de 30 min: Si no das acceso, el servicio inicia automáticamente
-        </p>
-      </div>
+  return (
+    <ServiceStateLayout
+      topBar={{ showBack: false, showHome: true, onHome: () => navigate('/client/home') }}
+      header={{
+        icon: <MapPin size={22} />,
+        title: 'Operador llegó',
+        subtitle: 'Autoriza el ingreso para iniciar el servicio.',
+        badgeLabel: 'Llegado',
+        badgeTone: 'info',
+        meta: [{ label: 'Tiempo', value: formatTime(timeLeft) }],
+      }}
+      primaryTitle="Ingreso"
+      primary={
+        <div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '10px 12px',
+            borderRadius: 12,
+            background: waitingMinutes >= 25 ? 'rgba(244, 67, 54, 0.12)' : 'rgba(255, 193, 7, 0.12)',
+            border: waitingMinutes >= 25 ? '1px solid rgba(244, 67, 54, 0.22)' : '1px solid rgba(255, 193, 7, 0.22)'
+          }}>
+            <div>
+              <div style={{ color: waitingMinutes >= 25 ? '#F44336' : '#FFC107', fontSize: 12, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase' }}>
+                Operador esperando
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginTop: 2 }}>
+                {waitingMinutes} min de 30
+              </div>
+            </div>
+            <div style={{ color: waitingMinutes >= 25 ? '#F44336' : '#FFC107', fontSize: 18, fontWeight: 800, fontFamily: 'monospace' }}>
+              {formatTime(timeLeft)}
+            </div>
+          </div>
 
-      {/* Botón flotante de chat - Discreto */}
-      <ChatFloatingButton
-        serviceId={serviceId}
-        userType="client"
-        userName={localStorage.getItem('userName') || 'Cliente'}
-        otherName="Equipo MAQGO"
-      />
-    </div>
+          <div style={{ marginTop: 12, color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 1.4 }}>
+            Si no autorizas el ingreso, el servicio inicia automáticamente al finalizar el tiempo.
+          </div>
+
+          <div style={{
+            marginTop: 12,
+            background: '#EC6819',
+            borderRadius: 14,
+            padding: 14,
+            textAlign: 'center'
+          }}
+            data-testid="license-plate-arrived"
+          >
+            <div style={{ color: 'rgba(255,255,255,0.86)', fontSize: 12, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>
+              Patente
+            </div>
+            <div style={{ color: '#fff', fontSize: 22, fontWeight: 900, letterSpacing: 0.6 }}>
+              {licensePlate ? licensePlate.toUpperCase() : 'Por confirmar'}
+            </div>
+          </div>
+        </div>
+      }
+      summary={{
+        title: 'Resumen',
+        machinery: MACHINERY_NAMES[machinery] || machinery,
+        operatorName,
+        operatorRut,
+        licensePlate,
+        location: locationLabel,
+        duration: MACHINERY_PER_TRIP.includes(machinery) ? 'Valor viaje' : `${hours} horas${hours >= 6 ? ' + 1hr colación' : ''}`,
+      }}
+      alerts={alerts}
+      secondaryActions={[
+        ...(clientOnTheWay
+          ? []
+          : [{
+              key: 'on-my-way',
+              label: 'Ya voy (avisar al operador)',
+              variant: 'outline',
+              onClick: handleOnMyWay,
+              testId: 'on-my-way-btn',
+            }]),
+        {
+          key: 'let-in',
+          label: 'Permitir entrada e iniciar servicio',
+          variant: 'primary',
+          onClick: handleLetIn,
+          testId: 'let-in-btn',
+        }
+      ]}
+    />
   );
 }
 

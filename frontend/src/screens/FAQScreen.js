@@ -37,7 +37,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Cómo me comunico con el operador?',
-        a: 'Una vez confirmada tu solicitud, puedes comunicarte con el operador a través del chat de MAQGO. El chat incluye mensajes rápidos para facilitar la coordinación.'
+        a: 'Durante el servicio, revisa el estado del servicio y los avisos dentro de la app.'
       },
       {
         q: '¿Recibiré factura?',
@@ -119,7 +119,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Qué puedo hacer como operador?',
-        a: 'Puedes ver tu disponibilidad, recibir solicitudes de reserva, aceptar o rechazar trabajos, marcar llegada y salida de obras, chatear con el cliente y ver tu historial de servicios realizados.'
+        a: 'Puedes ver tu disponibilidad, recibir solicitudes de reserva, aceptar o rechazar trabajos, marcar llegada y salida de obras y ver tu historial de servicios realizados.'
       },
       {
         q: '¿Qué NO puedo ver como operador?',

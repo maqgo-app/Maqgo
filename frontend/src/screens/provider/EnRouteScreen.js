@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
-import ChatFloatingButton from '../../components/ChatFloatingButton';
-import OpenServiceChatButton from '../../components/OpenServiceChatButton';
 import { useToast } from '../../components/Toast';
 import axios from 'axios';
 
 // Radio máximo para validar llegada (en metros)
 const ARRIVAL_RADIUS_METERS = 300;
 
-// Radio para notificar al cliente (vía MAQGO: chat/push interno)
+// Radio para notificar al cliente
 const ARRIVING_NOTIFY_RADIUS_METERS = 500;
 
 // Coordenadas de demo para la obra (Santiago Centro)
@@ -127,8 +125,8 @@ function EnRouteScreen() {
     return R * c; // Distancia en metros
   };
 
-  // WhatsApp deshabilitado para coordinación proveedor <-> cliente.
-  // El canal de coordinación es el chat interno (/chat/:serviceId).
+  // Canal externo deshabilitado.
+  // Información del servicio basada en estados.
 
   const handleConfirmArrival = () => {
     setCheckingLocation(true);
@@ -293,8 +291,7 @@ function EnRouteScreen() {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${param}`, '_blank');
   };
 
-  // Regla: chat es el único canal entre cliente y proveedor.
-  // Se elimina el botón de llamada directa.
+  // Sin llamada directa.
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
@@ -453,27 +450,11 @@ function EnRouteScreen() {
                 {serviceData.clientName?.split(' ')[0]} {serviceData.clientName?.split(' ')[1]?.charAt(0)}.
               </div>
               <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
-                Contacto protegido por MAQGO
+                Contacto protegido
               </div>
             </div>
-            {/* Sin llamada directa; se usa el chat de MAQGO */}
           </div>
-          <div style={{
-            marginTop: 10,
-            padding: '8px 10px',
-            background: 'rgba(236, 104, 25, 0.1)',
-            borderRadius: 6,
-            fontSize: 13,
-            color: 'rgba(255,255,255,0.9)'
-          }}>
-            El chat es el único canal para coordinar entre cliente y proveedor.
-          </div>
-
-          <OpenServiceChatButton
-            serviceId={serviceId}
-            otherName={serviceData.clientName || 'Cliente'}
-            label="Abrir chat"
-          />
+          {null}
         </div>
 
         {/* Servicio */}
@@ -817,13 +798,7 @@ function EnRouteScreen() {
           </div>
         )}
 
-        {/* Botón flotante de chat - Discreto */}
-        <ChatFloatingButton
-          serviceId={serviceId}
-          userType="operator"
-          userName={assignedOperator?.name || 'Operador'}
-          otherName={serviceData.clientName || 'Cliente'}
-        />
+        {null}
       </div>
     </div>
   );

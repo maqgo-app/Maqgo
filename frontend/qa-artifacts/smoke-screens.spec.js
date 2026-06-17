@@ -35,32 +35,6 @@ async function installApiMocks(context) {
       );
     }
 
-    // messages
-    if (url.includes('/api/messages/service/') && url.includes('/delta')) {
-      return route.fulfill(json(200, []));
-    }
-    if (url.includes('/api/messages/service/')) {
-      return route.fulfill(
-        json(200, [
-          {
-            id: 'm1',
-            service_id: 'svc-123',
-            sender_type: 'operator',
-            sender_id: 'op-1',
-            content: 'Voy en camino',
-            created_at: new Date(Date.now() - 60_000).toISOString(),
-            read: false,
-          },
-        ])
-      );
-    }
-    if (url.includes('/api/messages/read/')) {
-      return route.fulfill(json(200, { success: true }));
-    }
-    if (url.includes('/api/messages/send')) {
-      return route.fulfill(json(200, { success: true, message_id: 'm-new', created_at: new Date().toISOString() }));
-    }
-
     // users/admin/providers (fallback benigno)
     if (url.includes('/api/users/') && method === 'GET') {
       return route.fulfill(json(200, { id: 'user-1', role: 'provider', available: true, name: 'Test User' }));
@@ -160,20 +134,6 @@ test.describe('Smoke: pantallas críticas con mocks', () => {
       // Debe existir el contenedor principal.
       await expect(page.locator('.maqgo-app')).toHaveCount(1);
     }
-
-    await context.close();
-  });
-
-  test('chat: abre conversación y no crashea', async ({ browser }) => {
-    const context = await browser.newContext();
-    await installApiMocks(context);
-    await context.addInitScript(seedForClientServiceFlow);
-    const page = await context.newPage();
-
-    await page.goto(`${BASE_URL}/chat/svc-123`, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForLoadState('load');
-    await expect(page.getByRole('alert')).toHaveCount(0);
-    await expect(page.getByText(/Cargando mensajes|Inicia la conversación|Voy en camino/i)).toBeVisible();
 
     await context.close();
   });
