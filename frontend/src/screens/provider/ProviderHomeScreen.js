@@ -1076,7 +1076,7 @@ function ProviderHomeScreen() {
                   cursor: 'pointer'
                 }}
               >
-                Ahora no
+                Cerrar
               </button>
               {canSeeBank ? (
                 <button

@@ -125,70 +125,49 @@ export default function InstallPwaBanner({ bottomOffset = 0 }) {
         backdropFilter: 'blur(10px)',
       }}
       role="status"
-      aria-label="Instalar MAQGO"
+      aria-label="Instalar"
     >
-      <div style={{ fontWeight: 700, marginBottom: 6 }}>Instala MAQGO en tu teléfono</div>
-      <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 10 }}>
-        Se abre más rápido y podrás recibir avisos del servicio como una app.
-      </div>
-      {ios && (
-        <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 10 }}>
-          En iPhone: Compartir → Agregar a pantalla de inicio.
-        </div>
-      )}
-      {!ios && !hasPrompt && (
-        <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 10 }}>
-          En Android: menú del navegador → Instalar app.
-        </div>
-      )}
-      <div style={{ display: 'flex', gap: 10 }}>
-        {hasPrompt ? (
-          <button
-            onClick={onInstall}
-            style={{
-              flex: 1,
-              background: '#EC6819',
-              border: 'none',
-              borderRadius: 12,
-              padding: '10px 12px',
-              color: '#fff',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            Instalar
-          </button>
-        ) : (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.92)' }}>Instalar</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {hasPrompt && !ios ? (
+            <button
+              onClick={onInstall}
+              style={{
+                background: '#EC6819',
+                border: 'none',
+                borderRadius: 999,
+                padding: '8px 12px',
+                color: '#fff',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              Instalar
+            </button>
+          ) : null}
           <button
             onClick={onDismiss}
+            aria-label="Cerrar"
             style={{
-              flex: 1,
+              width: 34,
+              height: 34,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               background: 'transparent',
               border: '1px solid rgba(255,255,255,0.25)',
-              borderRadius: 12,
-              padding: '10px 12px',
+              borderRadius: 999,
               color: 'rgba(255,255,255,0.9)',
-              fontWeight: 600,
+              fontSize: 18,
+              fontWeight: 900,
               cursor: 'pointer',
+              lineHeight: 1,
             }}
           >
-            Entendido
+            ×
           </button>
-        )}
-        <button
-          onClick={onDismiss}
-          style={{
-            background: 'transparent',
-            border: '1px solid rgba(255,255,255,0.25)',
-            borderRadius: 12,
-            padding: '10px 12px',
-            color: 'rgba(255,255,255,0.9)',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          Ahora no
-        </button>
+        </div>
       </div>
     </div>
   );

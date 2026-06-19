@@ -247,7 +247,7 @@ export const CancellationWithCharge = ({ amount, onClose }) => (
       El proveedor ya había confirmado el servicio.
     </ErrorDescription>
     <ChargeNotice amount={amount} />
-    {onClose && <SecondaryButton onClick={onClose}>Entendido</SecondaryButton>}
+    {onClose && <SecondaryButton onClick={onClose}>OK</SecondaryButton>}
   </ErrorStateContainer>
 );
 
@@ -281,7 +281,7 @@ export const ProviderRequestExpired = ({ onClose }) => (
     <ErrorDescription>
       No aceptaste la solicitud dentro del tiempo límite.
     </ErrorDescription>
-    {onClose && <SecondaryButton onClick={onClose}>Entendido</SecondaryButton>}
+    {onClose && <SecondaryButton onClick={onClose}>OK</SecondaryButton>}
   </ErrorStateContainer>
 );
 

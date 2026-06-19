@@ -1200,7 +1200,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
                   cursor: 'pointer'
                 }}
               >
-                Entendido
+                OK
               </button>
             </div>
           </div>

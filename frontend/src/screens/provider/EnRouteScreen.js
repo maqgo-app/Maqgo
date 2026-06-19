@@ -658,7 +658,7 @@ function EnRouteScreen() {
                 className="maqgo-btn-primary"
                 style={{ marginBottom: 10 }}
               >
-                Entendido
+                OK
               </button>
               {String(gpsError || '').toLowerCase().includes('metros de la obra') ? null : (
                 <button

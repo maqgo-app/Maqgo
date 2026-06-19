@@ -170,7 +170,7 @@ function ProviderArrivedScreen() {
             cursor: 'pointer'
           }}
         >
-          Entendido
+          OK
         </button>
       )
     });
