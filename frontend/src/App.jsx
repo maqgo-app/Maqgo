@@ -16,7 +16,6 @@ import ToastProvider from './components/Toast';
 import BottomNavigation from './components/BottomNavigation';
 import ScrollToTop from './components/ScrollToTop';
 import OfflineBanner from './components/OfflineBanner';
-import InstallPwaBanner from './components/InstallPwaBanner.jsx';
 import AdminRoute from './components/AdminRoute';
 import ProtectedRoute from './components/ProtectedRoute';
 import ProviderOnboardingGate from './components/ProviderOnboardingGate';
@@ -237,14 +236,6 @@ function AppContent() {
   const showBottomNav = !hideNav && mainPathsWithNav.some(p => path === p || path.startsWith(p + '/'));
   const isAdminRoute = path === '/admin' || path.startsWith('/admin/');
 
-  const hostname = typeof window !== 'undefined' ? String(window.location.hostname || '') : '';
-  const isAdminHost = hostname === 'admin.maqgo.cl' || hostname.startsWith('admin.');
-  const shouldShowInstallPrompt =
-    !isAdminRoute &&
-    !isAdminHost &&
-    Boolean(auth?.user?.id) &&
-    path.startsWith('/client/');
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
     let ro;
@@ -317,7 +308,6 @@ function AppContent() {
       <BookingNavigationGuard>
       <div className="maqgo-app-shell-main">
       <OfflineBanner />
-      {shouldShowInstallPrompt ? <InstallPwaBanner bottomOffset={fixedBottomBarHeight} /> : null}
       <ScrollToTop />
       <div className="maqgo-app-shell-routes">
       <Suspense fallback={<BookingFlowFallback />}>
