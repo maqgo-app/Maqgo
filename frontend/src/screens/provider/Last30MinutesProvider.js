@@ -131,7 +131,7 @@ function Last30MinutesProvider() {
               <h3>Solicitar Extensión</h3>
               <p>¿Necesitas más tiempo para completar el trabajo?</p>
               <p className="modal-note">
-                El cliente será notificado y deberá aprobar el cargo adicional.
+                La solicitud quedará registrada y requerirá aprobación.
               </p>
               <div className="modal-buttons">
                 <button onClick={() => setShowExtendOption(false)} className="modal-btn cancel">

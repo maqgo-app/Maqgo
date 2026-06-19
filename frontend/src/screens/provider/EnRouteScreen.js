@@ -757,7 +757,7 @@ function EnRouteScreen() {
               </div>
 
               <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
-                El cliente será notificado y tendrás 20 minutos de ventana protegida.
+                El incidente quedará registrado.
               </p>
 
               <button

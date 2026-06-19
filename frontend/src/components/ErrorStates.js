@@ -293,7 +293,7 @@ export const ProviderAcceptanceConfirmed = ({ onContinue }) => (
     <IconSuccess size={70} />
     <ErrorTitle style={{ color: '#4CAF50' }}>Servicio confirmado</ErrorTitle>
     <ErrorDescription>
-      El cliente fue notificado y el cobro será ejecutado automáticamente.
+      La solicitud fue confirmada.
     </ErrorDescription>
     <PrimaryButton onClick={onContinue}>Ir al servicio</PrimaryButton>
   </ErrorStateContainer>

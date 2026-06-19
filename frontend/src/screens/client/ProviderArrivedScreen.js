@@ -176,11 +176,7 @@ function ProviderArrivedScreen() {
     });
   }
   if (clientOnTheWay) {
-    alerts.push({
-      tone: 'success',
-      title: 'Notificación enviada',
-      description: 'El operador fue notificado.'
-    });
+    void 0;
   }
 
   return (

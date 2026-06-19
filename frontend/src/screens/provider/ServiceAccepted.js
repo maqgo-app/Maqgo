@@ -7,7 +7,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
  * Pantalla de Servicio Aceptado - Proveedor
  * Diseño industrial MAQGO
  * 
- * Texto actualizado: "El cliente fue notificado y el cobro será ejecutado automáticamente"
+ * Texto actualizado: "La solicitud fue confirmada"
  */
 function ServiceAccepted() {
   const navigate = useNavigate();
@@ -46,14 +46,14 @@ function ServiceAccepted() {
         </div>
 
         <h1 style={styles.title}>Servicio confirmado</h1>
-        <p style={styles.subtitle}>El cliente fue notificado y el cobro será ejecutado automáticamente.</p>
+        <p style={styles.subtitle}>La solicitud fue confirmada.</p>
 
         {/* Info de pago - actualizado */}
         <div style={styles.paymentCard}>
           <span style={styles.paymentIcon}>💳</span>
           <div>
             <span style={styles.paymentTitle}>Cobro automático</span>
-            <span style={styles.paymentDesc}>El cliente será cobrado ahora que aceptaste el servicio</span>
+            <span style={styles.paymentDesc}>El cobro se ejecutará automáticamente.</span>
           </div>
         </div>
 

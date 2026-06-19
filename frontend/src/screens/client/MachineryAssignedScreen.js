@@ -527,7 +527,7 @@ function MachineryAssignedScreen() {
                   margin: '0 0 8px'
                 }}
               >
-                Tu reserva se cancelará sin cobro y recibirás el reembolso completo. El operador será notificado.
+                Tu reserva se cancelará sin cobro y recibirás el reembolso completo.
               </p>
               <p
                 style={{
