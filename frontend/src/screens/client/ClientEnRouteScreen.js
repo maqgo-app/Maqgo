@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import OnTheWayMap from '../../components/OnTheWayMap';
 import { getObject, getJSON } from '../../utils/safeStorage';
-import { getProviderLicensePlate, getOperatorDisplayNameForSite, getOperatorRutForSite } from '../../utils/providerDisplay';
+import { getProviderLicensePlateDisplay, getOperatorDisplayNameForSite, getOperatorRutDisplayForSite } from '../../utils/providerDisplay';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 import { MACHINERY_NAMES, getProviderSpecDisplay, isPerTripMachineryType } from '../../utils/machineryNames';
 import { playArrivingSound, playNotificationSound, unlockAudio } from '../../utils/notificationSounds';
@@ -54,9 +54,10 @@ function ClientEnRouteScreen() {
   const [etaMinutes, setEtaMinutes] = useState(providerNormalized.eta_minutes || 40);
 
   const operatorFullName = getOperatorDisplayNameForSite(providerNormalized) || 'Operador asignado';
-  const operatorRut = getOperatorRutForSite(providerNormalized) || 'Por confirmar';
-  const licensePlateLabel = getProviderLicensePlate(providerNormalized) || 'Por confirmar';
-  const rating = Number(providerNormalized.rating ?? providerNormalized.rating_avg ?? 0) || 0;
+  const operatorRut = getOperatorRutDisplayForSite(providerNormalized);
+  const licensePlateLabel = getProviderLicensePlateDisplay(providerNormalized);
+  const ratingRaw = providerNormalized.rating ?? providerNormalized.rating_avg;
+  const rating = Number.isFinite(Number(ratingRaw)) ? Number(ratingRaw) : null;
 
   const workLocation = useMemo(() => ({
     lat: parseFloat(localStorage.getItem('serviceLat')) || -33.4489,
@@ -227,10 +228,12 @@ function ClientEnRouteScreen() {
               </div>
               <div>
                 <p style={{ color: '#fff', fontSize: 16, fontWeight: 800, margin: 0 }}>{operatorFullName}</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                  <Star size={14} color="#FFC107" fill="#FFC107" />
-                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: 700 }}>{rating ? rating.toFixed(1) : '—'}</span>
-                </div>
+                {rating != null ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                    <Star size={14} color="#FFC107" fill="#FFC107" />
+                    <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: 700 }}>{rating.toFixed(1)}</span>
+                  </div>
+                ) : null}
               </div>
             </div>
 

@@ -23,8 +23,8 @@ class TestOTPServiceSend:
     def test_send_otp_success(self, mock_send_sms, mock_redis):
         """Envío exitoso: Redis guarda OTP y LabsMobile envía SMS"""
         mock_r = MagicMock()
-        mock_r.get.return_value = "0"
-        mock_r.ttl.return_value = 600
+        mock_r.get.side_effect = lambda k: None if str(k).startswith('otp:') else '0'
+        mock_r.ttl.side_effect = lambda k: 0 if str(k).startswith('otp:') else 600
         mock_pipe = MagicMock()
         mock_r.pipeline.return_value = mock_pipe
         mock_redis.return_value = mock_r
@@ -39,7 +39,8 @@ class TestOTPServiceSend:
         mock_pipe.setex.assert_called()
         mock_send_sms.assert_called_once()
         msg = mock_send_sms.call_args[0][1]
-        assert 'Tu código MAQGO es:' in msg
+        assert 'MAQGO' in msg
+        assert 'Código de verificación' in msg
         # El OTP debe existir como grupo de 6 dígitos en el SMS
         import re
         assert re.search(r'\b\d{6}\b', msg), f"SMS no contiene OTP 6 dígitos. msg={msg!r}"
@@ -66,8 +67,8 @@ class TestOTPServiceSend:
     def test_send_otp_rate_limit(self, mock_send_sms, mock_redis):
         """Rate limit: máx 3 OTP por número cada 10 min"""
         mock_r = MagicMock()
-        mock_r.get.side_effect = lambda k: "3" if "rate" in str(k) else "0"
-        mock_r.ttl.return_value = 120
+        mock_r.get.side_effect = lambda k: '3' if str(k).startswith('otp_rate:') else None
+        mock_r.ttl.side_effect = lambda k: 120 if str(k).startswith('otp_rate:') else 0
         mock_redis.return_value = mock_r
 
         from services.otp_service import send_otp

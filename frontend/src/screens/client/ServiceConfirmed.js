@@ -39,7 +39,7 @@ function ServiceConfirmed() {
       header={{
         icon: <CheckCircle2 size={22} />,
         title: 'Servicio confirmado',
-        subtitle: 'Revisa Avisos para cambios de estado.',
+        subtitle: 'Revisa el Centro de Avisos para cambios de estado.',
         badgeLabel: 'Confirmado',
         badgeTone: 'success',
         meta: service?.id ? [{ label: 'ID servicio', value: String(service.id).slice(0, 8) }] : [],

@@ -127,6 +127,7 @@ test.describe('Smoke: provider onboarding + perfil', () => {
     await installApiMocks(context);
     await context.addInitScript(seedProviderSession);
     await context.addInitScript(() => {
+      localStorage.setItem('providerOnboardingCompleted', 'false');
       localStorage.setItem(
         'machineData',
         JSON.stringify({
@@ -143,10 +144,22 @@ test.describe('Smoke: provider onboarding + perfil', () => {
     await page.waitForLoadState('load');
 
     await page.getByTestId('price-input').fill('110000');
-    const transportInput = page.getByTestId('transport-input');
-    if (await transportInput.count()) {
-      await transportInput.fill('30000');
-      await expect(transportInput).toHaveValue('30.000');
+    const transportSameComuna = page.getByTestId('transport-input-same-comuna');
+    if (await transportSameComuna.count()) {
+      await transportSameComuna.fill('30000');
+      await expect(transportSameComuna).toHaveValue('30.000');
+    }
+
+    const transportSameRegion = page.getByTestId('transport-input-same-region');
+    if (await transportSameRegion.count()) {
+      await transportSameRegion.fill('30000');
+      await expect(transportSameRegion).toHaveValue('30.000');
+    }
+
+    const transportOtherRegion = page.getByTestId('transport-input-other-region');
+    if (await transportOtherRegion.count()) {
+      await transportOtherRegion.fill('30000');
+      await expect(transportOtherRegion).toHaveValue('30.000');
     }
 
     const frontalPickerGroup = page.getByRole('button', { name: /^Subir frontal$/i }).locator('..');

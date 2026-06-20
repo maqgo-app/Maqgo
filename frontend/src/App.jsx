@@ -131,6 +131,8 @@ const ServiceActiveScreen = lazy(() => import('./screens/client/ServiceActiveScr
 const ServiceSummary = lazy(() => import('./screens/client/ServiceSummary'));
 const RateService = lazy(() => import('./screens/client/RateService'));
 const ProviderArrivedScreen = lazy(() => import('./screens/client/ProviderArrivedScreen'));
+const AvisosHubScreen = lazy(() => import('./screens/client/AvisosHubScreen.jsx'));
+const AvisosHubCardBasedScreen = lazy(() => import('./screens/client/AvisosHubCardBasedScreen.jsx'));
 const ServiceNotificationScreen = lazy(() => import('./screens/client/ServiceNotificationScreen'));
 const CancelServiceScreen = lazy(() => import('./screens/client/CancelServiceScreen'));
 const WorkdayConfirmation = lazy(() => import('./screens/client/WorkdayConfirmation'));
@@ -196,10 +198,10 @@ const PrivacyScreen = lazy(() => import('./screens/PrivacyScreen'));
 
 function AppContent() {
   const location = useLocation();
-  const auth = useContext(AuthContext);
+  useContext(AuthContext);
   const [, setUserRole] = useState(() => localStorage.getItem('userRole') || null);
   const [, setUserId] = useState(() => localStorage.getItem('userId') || null);
-  const [fixedBottomBarHeight, setFixedBottomBarHeight] = useState(0);
+  const [, setFixedBottomBarHeight] = useState(0);
 
   const path = location.pathname;
 
@@ -234,7 +236,6 @@ function AppContent() {
     '/profile', '/faq', '/terms', '/privacy'
   ];
   const showBottomNav = !hideNav && mainPathsWithNav.some(p => path === p || path.startsWith(p + '/'));
-  const isAdminRoute = path === '/admin' || path.startsWith('/admin/');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -393,6 +394,8 @@ function AppContent() {
         <Route path="/client/summary" element={<ServiceSummary />} />
         <Route path="/client/rate" element={<RateService />} />
         <Route path="/client/provider-arrived" element={<ProviderArrivedScreen />} />
+        {import.meta.env.DEV ? <Route path="/client/avisos" element={<AvisosHubScreen />} /> : null}
+        {import.meta.env.DEV ? <Route path="/client/avisos-cards" element={<AvisosHubCardBasedScreen />} /> : null}
         {import.meta.env.DEV ? <Route path="/client/notification" element={<ServiceNotificationScreen />} /> : null}
         <Route path="/client/cancel" element={<CancelServiceScreen />} />
         <Route path="/client/history" element={<HistoryScreen />} />

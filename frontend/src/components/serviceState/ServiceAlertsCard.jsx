@@ -8,16 +8,18 @@ function toneToColor(tone) {
   return '#90BDD3';
 }
 
-function ServiceAlertsCard({ alerts = [] }) {
+function ServiceAlertsCard({ alerts = [], title = 'Avisos', rightLabel = null }) {
   return (
     <MaqgoCard style={{ borderRadius: 14, padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
         <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase' }}>
-          Avisos
+          {title}
         </div>
-        <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 12, fontWeight: 600 }}>
-          Fuente de verdad
-        </div>
+        {rightLabel ? (
+          <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 12, fontWeight: 600 }}>
+            {rightLabel}
+          </div>
+        ) : null}
       </div>
 
       {alerts.length ? (
@@ -67,11 +69,10 @@ function ServiceAlertsCard({ alerts = [] }) {
       )}
 
       <div style={{ marginTop: 12, color: 'rgba(255,255,255,0.62)', fontSize: 12, lineHeight: 1.35 }}>
-        El estado y los eventos del servicio se registran en Avisos.
+        El estado y los eventos del servicio se registran en el Centro de Avisos.
       </div>
     </MaqgoCard>
   );
 }
 
 export default ServiceAlertsCard;
-

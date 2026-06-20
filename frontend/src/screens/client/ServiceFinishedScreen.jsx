@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { playServiceCompletedSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
-import ServiceStateLayout from '../../components/serviceState/ServiceStateLayout';
-import { CheckCircle2, Flag, Star } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { CON_FACTURA_FACTOR, getClientBreakdown } from '../../utils/pricing';
 import { getObject, getObjectFirst } from '../../utils/safeStorage';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
+import { getOperatorDisplayNameForSite, getOperatorRutDisplayForSite, getProviderLicensePlateDisplay } from '../../utils/providerDisplay';
+import ServiceSecondaryActions from '../../components/serviceState/ServiceSecondaryActions';
+import MaqgoLogo from '../../components/MaqgoLogo';
+import MaqgoCard from '../../components/base/MaqgoCard';
 
 /**
  * Arma un desglose que sume exactamente totalPagado (evita desglose incoherente con factura).
@@ -68,10 +71,6 @@ function buildBreakdownFromTotal(totalPagado, needsInvoice) {
  */
 function ServiceFinishedScreen() {
   const navigate = useNavigate();
-  const [step, setStep] = useState('report'); // 'report' | 'rating' | 'done'
-  const [rating, setRating] = useState(0);
-  const [comment, setComment] = useState('');
-  const [loading, setLoading] = useState(false);
   
   // Reproducir sonido de servicio completado al cargar
   useEffect(() => {
@@ -221,47 +220,10 @@ function ServiceFinishedScreen() {
     }).format(price || 0);
   };
 
-  const handleSubmitRating = async () => {
-    if (rating === 0) return;
-    setLoading(true);
-    
-    try {
-      const serviceId = localStorage.getItem('currentServiceId');
-      const userId = localStorage.getItem('userId');
-      
-      await axios.post(
-        `${BACKEND_URL}/api/ratings`,
-        {
-          serviceId,
-          fromUserId: userId,
-          toUserId: serviceData.provider.id,
-          stars: rating,
-          comment,
-        },
-        { timeout: 12000 }
-      );
-    } catch (e) {
-      if (import.meta.env.DEV) {
-        console.error('Error submitting rating:', e);
-      } else {
-        console.error('Error submitting rating:', e?.message || 'unknown');
-      }
-    }
-    
-    setLoading(false);
-    setStep('done');
-    
-    // Redirigir después de 3 segundos
-    setTimeout(() => {
-      navigate('/client/home');
-    }, 3000);
-  };
-
-  // PASO 1: Reporte del servicio
-  if (step === 'report') {
-    const operatorName = serviceData.provider?.providerOperatorName || serviceData.provider?.operator_name || 'Por confirmar';
-    const operatorRut = serviceData.provider?.operator_rut || serviceData.provider?.operatorRut || 'Por confirmar';
-    const licensePlate = (serviceData.provider?.licensePlate || serviceData.provider?.license_plate || serviceData.provider?.patente || 'Por confirmar').toString().toUpperCase();
+  {
+    const operatorName = getOperatorDisplayNameForSite(serviceData.provider) || 'Operador asignado';
+    const operatorRut = getOperatorRutDisplayForSite(serviceData.provider);
+    const licensePlate = getProviderLicensePlateDisplay(serviceData.provider);
     const invoiceText = serviceData.pricing?.needsInvoice
       ? 'Tu factura se emite dentro de los plazos legales del mes en que fue contratada y pagada la reserva, y se envía al correo indicado.'
       : 'El resumen del servicio se enviará al correo electrónico.';
@@ -273,194 +235,128 @@ function ServiceFinishedScreen() {
           { label: 'Salida de obra', value: serviceData.hasRealEnd ? serviceData.endTime : '—' },
         ];
 
+    const b = getClientBreakdown(serviceData.pricing);
+
     return (
-      <ServiceStateLayout
-        topBar={{ showBack: false, showHome: true, onHome: () => navigate('/client/home') }}
-        header={{
-          icon: <Flag size={22} />,
-          title: 'Servicio finalizado',
-          subtitle: 'Resumen y cierre del servicio.',
-          badgeLabel: 'Finalizado',
-          badgeTone: 'success',
-          meta: [],
-        }}
-        primaryTitle="Detalle de cobro"
-        primary={(() => {
-          const b = getClientBreakdown(serviceData.pricing);
-          return (
-            <div>
+      <div className="maqgo-app maqgo-client-funnel">
+        <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
+          <div className="w-full mx-auto" style={{ maxWidth: 520 }}>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <MaqgoLogo customSize={120} />
+            </div>
+
+            <div style={{ height: 10 }} />
+
+            <div style={{ textAlign: 'center', padding: '6px 0 14px' }}>
+              <div
+                style={{
+                  width: 54,
+                  height: 54,
+                  borderRadius: 999,
+                  background: 'rgba(144, 189, 211, 0.18)',
+                  border: '1px solid rgba(144, 189, 211, 0.28)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 10px'
+                }}
+                aria-hidden="true"
+              >
+                <CheckCircle2 size={22} color="#90BDD3" />
+              </div>
+              <div style={{ color: '#fff', fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Servicio finalizado</div>
+              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, marginTop: 6 }}>Resumen de tu reserva</div>
+            </div>
+
+            <MaqgoCard>
+              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.9 }}>
+                Datos de tu reserva
+              </div>
+
+              <div style={{ height: 10 }} />
+
+              {[
+                ['Maquinaria', MACHINERY_NAMES[serviceData.machinery] || serviceData.machinery || 'Por confirmar'],
+                ['Operador', operatorName],
+                ['RUT operador', operatorRut],
+                ['Patente', licensePlate],
+                ['Ubicación de la obra', serviceData.location || 'Por confirmar'],
+                ['Duración contratada', durationLabel],
+                ...extraRows.map((r) => [r.label, r.value]),
+              ].map(([label, value]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12 }}>{label}</div>
+                  <div style={{ color: '#fff', fontSize: 12, fontWeight: 800, textAlign: 'right', maxWidth: '62%' }}>{value}</div>
+                </div>
+              ))}
+            </MaqgoCard>
+
+            <div style={{ height: 10 }} />
+
+            <MaqgoCard>
+              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.9 }}>
+                Detalle del cobro
+              </div>
+
+              <div style={{ height: 10 }} />
+
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
+                <span style={{ color: 'rgba(255,255,255,0.90)', fontSize: 12 }}>
                   Servicio {serviceData.isPerTrip ? '(viaje)' : `(${serviceData.hours}h)`}
                 </span>
                 <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.service)}</span>
               </div>
-              {b.bonus > 0 && (
+
+              {b.transport > 0 ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>Alta demanda</span>
-                  <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.bonus)}</span>
-                </div>
-              )}
-              {b.transport > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>Traslado</span>
+                  <span style={{ color: 'rgba(255,255,255,0.90)', fontSize: 12 }}>Traslado</span>
                   <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.transport)}</span>
                 </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: b.needsInvoice && b.ivaTotal > 0 ? 6 : 10 }}>
-                <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
+              ) : null}
+
+              {b.bonus > 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.90)', fontSize: 12 }}>Alta demanda</span>
+                  <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.bonus)}</span>
+                </div>
+              ) : null}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ color: 'rgba(255,255,255,0.90)', fontSize: 12 }}>
                   Tarifa por Servicio MAQGO{b.needsInvoice ? ' (neta)' : ' (IVA incluido)'}
                 </span>
-                <span style={{ color: '#fff', fontSize: 12 }}>
-                  {formatPrice(b.needsInvoice ? b.tarifaNeta : b.tarifaConIva)}
-                </span>
+                <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.needsInvoice ? b.tarifaNeta : b.tarifaConIva)}</span>
               </div>
-              {b.needsInvoice && b.ivaTotal > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>IVA (19%)</span>
+
+              {b.needsInvoice && b.ivaTotal > 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ color: 'rgba(255,255,255,0.90)', fontSize: 12 }}>IVA (19%)</span>
                   <span style={{ color: '#fff', fontSize: 12 }}>{formatPrice(b.ivaTotal)}</span>
                 </div>
-              )}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: 10, marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>Total pagado</span>
-                <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 800 }}>{formatPrice(b.total)}</span>
+              ) : null}
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.20)', paddingTop: 10, marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#fff', fontSize: 13, fontWeight: 800 }}>Total pagado</span>
+                <span style={{ color: '#EC6819', fontSize: 13, fontWeight: 900 }}>{formatPrice(b.total)}</span>
               </div>
-            </div>
-          );
-        })()}
-        summary={{
-          title: 'Resumen',
-          machinery: MACHINERY_NAMES[serviceData.machinery] || serviceData.machinery,
-          operatorName,
-          operatorRut,
-          licensePlate,
-          location: serviceData.location,
-          duration: durationLabel,
-          extraRows,
-        }}
-        alerts={[{ tone: 'info', title: serviceData.pricing?.needsInvoice ? 'Factura' : 'Resumen', description: invoiceText }]}
-        secondaryActions={[{ key: 'to-rating', label: 'Continuar a evaluación', variant: 'primary', onClick: () => setStep('rating') }]}
-      />
-    );
-  }
+            </MaqgoCard>
 
-  // PASO 2: Valorización del proveedor
-  if (step === 'rating') {
-    const operatorName = serviceData.provider?.providerOperatorName || serviceData.provider?.operator_name || 'Operador';
-    const operatorRut = serviceData.provider?.operator_rut || serviceData.provider?.operatorRut || 'Por confirmar';
-    const licensePlate = (serviceData.provider?.licensePlate || serviceData.provider?.license_plate || serviceData.provider?.patente || 'Por confirmar').toString().toUpperCase();
-    return (
-      <ServiceStateLayout
-        topBar={{ showBack: false, showHome: true, onHome: () => navigate('/client/home') }}
-        header={{
-          icon: <Star size={22} />,
-          title: 'Evaluación',
-          subtitle: 'Califica el servicio.',
-          badgeLabel: 'Finalizado',
-          badgeTone: 'success',
-          meta: [],
-        }}
-        primaryTitle="Evaluación"
-        primary={
-          <div>
-            <div style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, marginBottom: 12 }}>
-              ¿Cómo calificarías el servicio?
-            </div>
+            <div style={{ height: 10 }} />
 
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 16 }}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  onClick={() => setRating(star)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
-                  data-testid={`star-${star}`}
-                >
-                  <svg width="40" height="40" viewBox="0 0 44 44" fill="none">
-                    <path
-                      d="M22 4L27 16H40L30 25L34 38L22 29L10 38L14 25L4 16H17L22 4Z"
-                      fill={rating >= star ? '#EC6819' : '#444'}
-                      stroke={rating >= star ? '#EC6819' : '#555'}
-                      strokeWidth="2"
-                    />
-                  </svg>
-                </button>
-              ))}
-            </div>
+            <MaqgoCard style={{ background: 'rgba(255,255,255,0.04)' }}>
+              <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 1.45 }}>{invoiceText}</div>
+            </MaqgoCard>
 
-            <div>
-              <div style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, marginBottom: 8, fontWeight: 700 }}>
-                Comentario (opcional)
-              </div>
-              <textarea
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                placeholder="Comentario"
-                rows={4}
-                style={{
-                  width: '100%',
-                  padding: 14,
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.10)',
-                  borderRadius: 12,
-                  fontSize: 14,
-                  color: 'rgba(255,255,255,0.95)',
-                  resize: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
+            <div style={{ height: 14 }} />
+
+            <ServiceSecondaryActions
+              actions={[{ key: 'to-rating', label: 'Continuar a evaluación', variant: 'primary', onClick: () => navigate('/client/rate') }]}
+            />
           </div>
-        }
-        summary={{
-          title: 'Servicio',
-          machinery: MACHINERY_NAMES[serviceData.machinery] || serviceData.machinery,
-          operatorName,
-          operatorRut,
-          licensePlate,
-          location: serviceData.location,
-          duration: serviceData.isPerTrip ? 'Servicio por viaje' : `${serviceData.hours} horas`,
-        }}
-        alerts={[]}
-        secondaryActions={[
-          {
-            key: 'submit',
-            label: 'Enviar evaluación',
-            variant: 'primary',
-            onClick: handleSubmitRating,
-            disabled: rating === 0 || loading,
-            loading,
-            ariaLabel: loading ? 'Enviando evaluación' : 'Enviar evaluación',
-          },
-          {
-            key: 'skip',
-            label: 'Omitir',
-            variant: 'outline',
-            onClick: () => navigate('/client/home'),
-          }
-        ]}
-      />
+        </div>
+      </div>
     );
   }
-
-  // PASO 3: Confirmación final
-  return (
-    <ServiceStateLayout
-      topBar={{ showBack: false, showHome: true, onHome: () => navigate('/client/home') }}
-      header={{
-        icon: <CheckCircle2 size={22} />,
-        title: 'Evaluación enviada',
-        subtitle: 'Redirigiendo al inicio.',
-        badgeLabel: 'Finalizado',
-        badgeTone: 'success',
-        meta: [],
-      }}
-      primaryTitle="Estado"
-      primary={<div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, lineHeight: 1.45 }}>Completado.</div>}
-      summary={null}
-      alerts={[]}
-      secondaryActions={[]}
-    />
-  );
 }
 
 export default ServiceFinishedScreen;

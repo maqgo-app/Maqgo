@@ -6,9 +6,11 @@ import { playAcceptedSound, playArrivingSound, playNotificationSound, unlockAudi
 import { vibrate } from '../../utils/uberUX';
 import axios from 'axios';
 import BACKEND_URL from '../../utils/api';
-import ServiceStateLayout from '../../components/serviceState/ServiceStateLayout';
+import ServiceSecondaryActions from '../../components/serviceState/ServiceSecondaryActions';
+import MaqgoLogo from '../../components/MaqgoLogo';
+import MaqgoCard from '../../components/base/MaqgoCard';
 import { Truck, UserCheck } from 'lucide-react';
-import { getOperatorDisplayNameForSite, getOperatorRutForSite, getProviderLicensePlate } from '../../utils/providerDisplay';
+import { getOperatorDisplayNameForSite, getOperatorRutDisplayForSite, getProviderLicensePlateDisplay } from '../../utils/providerDisplay';
 
 /**
  * Pantalla: Tu maquinaria ha sido asignada (MVP)
@@ -107,8 +109,8 @@ function MachineryAssignedScreen() {
   const [etaMinutes, setEtaMinutes] = useState(provider.eta_minutes || 40);
 
   const operatorName = getOperatorDisplayNameForSite(provider) || 'Operador asignado';
-  const operatorRut = getOperatorRutForSite(provider) || '';
-  const licensePlate = getProviderLicensePlate(provider) || '';
+  const operatorRut = getOperatorRutDisplayForSite(provider);
+  const licensePlate = getProviderLicensePlateDisplay(provider);
   
   // Estado del timeout
   const [, setElapsedMinutes] = useState(0);
@@ -388,81 +390,140 @@ function MachineryAssignedScreen() {
     : `${selectedHours} horas${selectedHours >= 6 ? ' + 1hr colación' : ''}`;
 
   const layout = (
-    <ServiceStateLayout
-      topBar={{ showBack: false, showHome: true, onHome: () => navigate('/client/home') }}
-      header={{
-        icon: serviceStatus === 'assigned' ? <UserCheck size={22} /> : <Truck size={22} />,
-        title: serviceStatus === 'assigned' ? 'Operador asignado' : 'Operador en camino',
-        subtitle: serviceStatus === 'assigned' ? 'El operador se está preparando.' : 'Seguimiento de ruta y llegada estimada.',
-        badgeLabel: serviceStatus === 'assigned' ? 'Asignado' : 'En camino',
-        badgeTone: serviceStatus === 'assigned' ? 'info' : 'info',
-        meta: serviceId ? [{ label: 'ID servicio', value: String(serviceId).slice(0, 8) }] : [],
-      }}
-      primaryTitle={serviceStatus === 'assigned' ? 'Estado' : 'Seguimiento'}
-      primary={
-        <div>
-          {serviceStatus === 'assigned' ? (
-            <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, lineHeight: 1.45 }}>
-              El operador se está preparando. La llegada estimada se actualizará en Avisos.
+    <div className="maqgo-app maqgo-client-funnel">
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
+        <div className="w-full mx-auto" style={{ maxWidth: 520 }}>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <MaqgoLogo customSize={120} />
+          </div>
+
+          <div style={{ height: 10 }} />
+
+          <MaqgoCard style={{ background: '#2A2A2A', padding: 18, textAlign: 'center' }}>
+            <div
+              style={{
+                width: 54,
+                height: 54,
+                borderRadius: 999,
+                background: 'rgba(144, 189, 211, 0.18)',
+                border: '1px solid rgba(144, 189, 211, 0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 10px'
+              }}
+              aria-hidden="true"
+            >
+              {serviceStatus === 'assigned' ? <UserCheck size={22} color="#90BDD3" /> : <Truck size={22} color="#90BDD3" />}
             </div>
-          ) : (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, lineHeight: 1.45 }}>
-                  El operador está en camino a tu ubicación.
-                </div>
-                <div style={{
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.10)',
-                  borderRadius: 999,
-                  padding: '6px 10px',
-                  color: '#fff',
-                  fontSize: 12,
-                  fontWeight: 800
-                }}>
-                  ~{etaMinutes} min
-                </div>
+            <div style={{ color: '#fff', fontSize: 20, fontWeight: 900, lineHeight: 1.2 }}>
+              {serviceStatus === 'assigned' ? '¡Operador asignado!' : 'Operador en camino'}
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, marginTop: 6 }}>
+              {serviceStatus === 'assigned' ? 'Tu reserva está confirmada.' : 'Seguimiento de tu servicio.'}
+            </div>
+          </MaqgoCard>
+
+          <div style={{ height: 10 }} />
+
+          <MaqgoCard style={{ background: 'rgba(255,255,255,0.04)' }}>
+            <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, lineHeight: 1.45 }}>
+              {serviceStatus === 'assigned'
+                ? 'Tu operador se está preparando.'
+                : 'Tu operador está en camino. Revisa el mapa y la llegada estimada.'}
+            </div>
+          </MaqgoCard>
+
+          <div style={{ height: 10 }} />
+
+          <MaqgoCard>
+            <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.9 }}>
+              Operador asignado
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
+              Prepárate para recibir al operador. Verifica nombre, RUT y patente en portería.
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'center' }}>
+              <div style={{ width: 34, height: 34, borderRadius: 999, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <UserCheck size={16} color="rgba(255,255,255,0.9)" />
+              </div>
+              <div>
+                <div style={{ color: '#fff', fontSize: 15, fontWeight: 900 }}>{operatorName}</div>
+                <div style={{ color: 'rgba(255,255,255,0.60)', fontSize: 12, marginTop: 2 }}>Operación en obra</div>
               </div>
             </div>
-          )}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+              <div style={{ flex: '1 1 160px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, padding: '10px 12px' }}>
+                <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.9 }}>
+                  RUT
+                </div>
+                <div style={{ color: '#fff', fontSize: 13, fontWeight: 900, marginTop: 4 }}>{operatorRut}</div>
+              </div>
+              <div style={{ flex: '1 1 160px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, padding: '10px 12px' }}>
+                <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.9 }}>
+                  Patente
+                </div>
+                <div style={{ color: '#fff', fontSize: 13, fontWeight: 900, marginTop: 4 }}>{licensePlate}</div>
+              </div>
+            </div>
+          </MaqgoCard>
 
-          <div style={{ marginTop: 12 }}>
-            <OnTheWayMap
-              operatorLocation={{
-                lat: operatorLocationSim.lat,
-                lng: operatorLocationSim.lng,
-                name: 'Operador'
-              }}
-              serviceLocation={{
-                lat: workLocation.lat,
-                lng: workLocation.lng,
-                address: location || 'Tu obra'
-              }}
-            />
-          </div>
+          <div style={{ height: 10 }} />
+
+          <MaqgoCard style={{ background: 'rgba(255,255,255,0.04)' }}>
+            <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 1.45 }}>
+              Las actualizaciones del servicio se registran en el Centro de Avisos.
+            </div>
+          </MaqgoCard>
+
+          <div style={{ height: 10 }} />
+
+          <MaqgoCard>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>{MACHINERY_NAMES[machinery] || machinery}</div>
+                <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 4 }}>{durationLabel}</div>
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 800, textAlign: 'right' }}>{location || ''}</div>
+            </div>
+          </MaqgoCard>
+
+          <div style={{ height: 10 }} />
+
+          {serviceStatus !== 'assigned' ? (
+            <MaqgoCard style={{ padding: 0, overflow: 'hidden' }}>
+              <OnTheWayMap
+                operatorLocation={{
+                  lat: operatorLocationSim.lat,
+                  lng: operatorLocationSim.lng,
+                  name: 'Operador'
+                }}
+                serviceLocation={{
+                  lat: workLocation.lat,
+                  lng: workLocation.lng,
+                  address: location || 'Tu obra'
+                }}
+              />
+            </MaqgoCard>
+          ) : null}
+
+          <div style={{ height: 14 }} />
+
+          <ServiceSecondaryActions
+            actions={
+              import.meta.env.VITE_IS_PRODUCTION !== 'true' && (localStorage.getItem('currentServiceId') || '').startsWith('demo-')
+                ? [{
+                    key: 'demo-arrival',
+                    label: 'Simular llegada (Demo)',
+                    variant: 'outline',
+                    onClick: () => navigate('/client/provider-arrived'),
+                  }]
+                : []
+            }
+          />
         </div>
-      }
-      summary={{
-        title: 'Resumen',
-        machinery: MACHINERY_NAMES[machinery] || machinery,
-        operatorName,
-        operatorRut,
-        licensePlate,
-        location: location || 'Por confirmar',
-        duration: durationLabel,
-      }}
-      alerts={alerts}
-      secondaryActions={
-        import.meta.env.VITE_IS_PRODUCTION !== 'true' && (localStorage.getItem('currentServiceId') || '').startsWith('demo-')
-          ? [{
-              key: 'demo-arrival',
-              label: 'Simular llegada (Demo)',
-              variant: 'outline',
-              onClick: () => navigate('/client/provider-arrived'),
-            }]
-          : []
-      }
-    />
+      </div>
+    </div>
   );
 
   return (

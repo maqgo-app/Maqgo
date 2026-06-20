@@ -22,9 +22,9 @@ function ServiceSummaryCard({
 }) {
   const rows = [
     { label: 'Maquinaria', value: machinery || 'Por confirmar' },
-    { label: 'Operador', value: operatorName || 'Por confirmar' },
-    { label: 'RUT', value: operatorRut || 'Por confirmar' },
-    { label: 'Patente', value: licensePlate ? String(licensePlate).toUpperCase() : 'Por confirmar' },
+    { label: 'Operador', value: operatorName || 'Operador asignado' },
+    { label: 'RUT', value: operatorRut || 'Información no disponible' },
+    { label: 'Patente', value: licensePlate ? String(licensePlate).toUpperCase() : 'Patente pendiente de confirmar' },
     { label: 'Ubicación', value: location || 'Por confirmar' },
     ...(duration ? [{ label: 'Duración', value: duration }] : []),
     ...extraRows,
@@ -45,4 +45,3 @@ function ServiceSummaryCard({
 }
 
 export default ServiceSummaryCard;
-

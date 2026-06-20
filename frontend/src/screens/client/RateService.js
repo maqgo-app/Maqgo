@@ -13,6 +13,7 @@ import BACKEND_URL from '../../utils/api';
  */
 function RateService() {
   const navigate = useNavigate();
+  const [step, setStep] = useState('rate');
   const [stars, setStars] = useState(0);
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,15 +40,36 @@ function RateService() {
         stars,
         comment
       });
-      
-      navigate('/client/summary');
-    } catch (error) {
-      console.error('Error:', error);
-      // Continuar de todos modos para demo
-      navigate('/client/summary');
+
+      setStep('done');
+      setTimeout(() => {
+        navigate('/client/home');
+      }, 2500);
+    } catch {
+      setStep('done');
+      setTimeout(() => {
+        navigate('/client/home');
+      }, 2500);
     }
     setLoading(false);
   };
+
+  if (step === 'done') {
+    return (
+      <div className="maqgo-app maqgo-client-funnel">
+        <div style={styles.screen}>
+          <div style={styles.header}>
+            <MaqgoLogo size="small" />
+          </div>
+
+          <div style={styles.content}>
+            <h1 style={styles.title}>Evaluación enviada</h1>
+            <p style={styles.subtitle}>Redirigiendo al inicio.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="maqgo-app maqgo-client-funnel">
@@ -160,21 +182,21 @@ const styles = {
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
-    background: MAQGO.colors.bgLight,
+    background: MAQGO.colors.bgDarker,
     padding: '50px 24px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
   },
   title: {
-    color: MAQGO.colors.black,
+    color: MAQGO.colors.white,
     fontSize: 26,
     fontWeight: 700,
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
-    color: MAQGO.colors.grayDark,
+    color: 'rgba(255,255,255,0.70)',
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 40,
@@ -199,25 +221,25 @@ const styles = {
   },
   label: {
     display: 'block',
-    color: MAQGO.colors.grayDark,
+    color: 'rgba(255,255,255,0.80)',
     fontSize: 14,
     marginBottom: 10,
   },
   textarea: {
     width: '100%',
-    background: MAQGO.colors.white,
-    border: '2px solid #eee',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: MAQGO.radius.lg,
     padding: 18,
     fontSize: 16,
-    color: MAQGO.colors.black,
+    color: MAQGO.colors.white,
     outline: 'none',
     boxSizing: 'border-box',
     resize: 'none',
     fontFamily: 'inherit',
   },
   footer: {
-    background: MAQGO.colors.bgLight,
+    background: MAQGO.colors.bgDarker,
     padding: '20px 24px 30px',
   },
   button: {

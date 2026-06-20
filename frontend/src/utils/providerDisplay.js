@@ -29,6 +29,30 @@ export function getOperatorRutForSite(provider) {
   return String(raw || '').trim();
 }
 
+function formatRutWithDots(digits) {
+  return String(digits || '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+export function getOperatorRutDisplayForSite(provider) {
+  const raw = getOperatorRutForSite(provider);
+  const cleaned = String(raw || '')
+    .toUpperCase()
+    .replace(/[^0-9K]/g, '');
+
+  if (!cleaned) return 'Información no disponible';
+
+  if (/^\d{7,8}[0-9K]$/.test(cleaned)) {
+    const dv = cleaned.slice(-1);
+    const digits = cleaned.slice(0, -1);
+    return `${formatRutWithDots(digits)}-${dv}`;
+  }
+
+  const digitsOnly = cleaned.replace(/[^0-9]/g, '');
+  if (digitsOnly.length >= 7) return `${formatRutWithDots(digitsOnly.slice(0, 8))}-*`;
+  if (digitsOnly.length >= 4) return `${formatRutWithDots(digitsOnly)}-*`;
+  return `${digitsOnly || '*'}-*`;
+}
+
 /**
  * Nombre del operador desde un registro guardado (historial, lista). No usa `assignedOperator` global.
  */
@@ -65,6 +89,20 @@ export function getProviderLicensePlate(provider) {
   if (!s) return '';
   const letters = s.replace(/[^A-Z]/g, '').slice(0, 4);
   const digits = s.replace(/[^0-9]/g, '').slice(0, 2);
-  if (letters.length === 4 && digits.length === 2) return `${letters}-${digits}`;
+  if (letters.length === 4 && digits.length === 2) return `${letters}${digits}`;
   return String(raw).trim().toUpperCase();
+}
+
+export function getProviderLicensePlateDisplay(provider) {
+  const raw = getProviderLicensePlate(provider);
+  const cleaned = String(raw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!cleaned) return 'Patente pendiente de confirmar';
+
+  const letters = cleaned.replace(/[^A-Z]/g, '').slice(0, 4);
+  const digits = cleaned.replace(/[^0-9]/g, '').slice(0, 2);
+  if (letters.length === 4 && digits.length === 2) return `${letters}${digits}`;
+
+  const basis = (letters || cleaned).slice(0, 3);
+  if (!basis) return '***';
+  return `${basis}***`;
 }

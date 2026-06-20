@@ -45,7 +45,9 @@ function LegacyChatRedirectScreen() {
 
       try {
         localStorage.setItem('currentServiceId', id);
-      } catch {}
+      } catch {
+        void 0;
+      }
 
       try {
         const res = await axios.get(`${BACKEND_URL}/api/service-requests/${encodeURIComponent(id)}`);
@@ -66,11 +68,13 @@ function LegacyChatRedirectScreen() {
             };
             localStorage.setItem('acceptedProvider', JSON.stringify(acceptedProvider));
           }
-        } catch {}
+        } catch {
+          void 0;
+        }
 
         const destination = role === 'provider' || role === 'operator' ? mapProviderDestination(status) : mapClientDestination(status);
         if (!cancelled) navigate(destination, { replace: true });
-      } catch (e) {
+      } catch {
         if (cancelled) return;
         setError('No se pudo abrir este enlace.');
         const fallback = role === 'provider' || role === 'operator' ? '/provider/home' : '/client/home';

@@ -7,10 +7,13 @@ import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { MACHINERY_PER_TRIP } from '../../utils/pricing';
 import { getObjectFirst } from '../../utils/safeStorage';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
-import ServiceStateLayout from '../../components/serviceState/ServiceStateLayout';
+import ServiceSecondaryActions from '../../components/serviceState/ServiceSecondaryActions';
 import { MapPin } from 'lucide-react';
-import { getOperatorDisplayNameForSite, getOperatorRutForSite, getProviderLicensePlate } from '../../utils/providerDisplay';
+import { getOperatorRutDisplayForSite, getProviderLicensePlateDisplay } from '../../utils/providerDisplay';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
+import MaqgoButton from '../../components/base/MaqgoButton';
+import MaqgoLogo from '../../components/MaqgoLogo';
+import MaqgoCard from '../../components/base/MaqgoCard';
 
 // Constantes de tiempo (en segundos)
 const MAX_WAIT_TIME = 30 * 60; // 30 minutos
@@ -19,7 +22,7 @@ const MAX_WAIT_TIME = 30 * 60; // 30 minutos
  * Pantalla: El operador ha llegado
  * Timer de 30 minutos - si no responde, servicio inicia automáticamente
  * Notificaciones periódicas al cliente
- * Opción "Ya voy" para avisar al operador
+ * Opción "Ya voy" (solo demo)
  */
 function ProviderArrivedScreen() {
   const navigate = useNavigate();
@@ -34,9 +37,8 @@ function ProviderArrivedScreen() {
   const clientOnTheWayRef = useRef(false);
   const lastReminderRef = useRef(0);
   const serviceId = localStorage.getItem('currentServiceId') || `service-${Date.now()}`;
-  const operatorName = getOperatorDisplayNameForSite(provider) || 'Operador asignado';
-  const operatorRut = getOperatorRutForSite(provider) || '';
-  const licensePlate = getProviderLicensePlate(provider) || '';
+  const operatorRut = getOperatorRutDisplayForSite(provider);
+  const licensePlate = getProviderLicensePlateDisplay(provider);
 
   useEffect(() => {
     clientOnTheWayRef.current = clientOnTheWay;
@@ -179,94 +181,126 @@ function ProviderArrivedScreen() {
     void 0;
   }
 
+  const durationLabel = MACHINERY_PER_TRIP.includes(machinery) ? 'Valor viaje' : `${hours} horas${hours >= 6 ? ' + 1hr colación' : ''}`;
+
   return (
-    <ServiceStateLayout
-      topBar={{ showBack: false, showHome: true, onHome: () => navigate('/client/home') }}
-      header={{
-        icon: <MapPin size={22} />,
-        title: 'Operador llegó',
-        subtitle: 'Autoriza el ingreso para iniciar el servicio.',
-        badgeLabel: 'Llegado',
-        badgeTone: 'info',
-        meta: [{ label: 'Tiempo', value: formatTime(timeLeft) }],
-      }}
-      primaryTitle="Ingreso"
-      primary={
-        <div>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            padding: '10px 12px',
-            borderRadius: 12,
-            background: waitingMinutes >= 25 ? 'rgba(244, 67, 54, 0.12)' : 'rgba(255, 193, 7, 0.12)',
-            border: waitingMinutes >= 25 ? '1px solid rgba(244, 67, 54, 0.22)' : '1px solid rgba(255, 193, 7, 0.22)'
-          }}>
-            <div>
-              <div style={{ color: waitingMinutes >= 25 ? '#F44336' : '#FFC107', fontSize: 12, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase' }}>
-                Operador esperando
-              </div>
-              <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginTop: 2 }}>
-                {waitingMinutes} min de 30
-              </div>
-            </div>
-            <div style={{ color: waitingMinutes >= 25 ? '#F44336' : '#FFC107', fontSize: 18, fontWeight: 800, fontFamily: 'monospace' }}>
-              {formatTime(timeLeft)}
-            </div>
+    <div className="maqgo-app maqgo-client-funnel">
+      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
+        <div className="w-full mx-auto" style={{ maxWidth: 520 }}>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <MaqgoLogo customSize={120} />
           </div>
 
-          <div style={{ marginTop: 12, color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 1.4 }}>
-            Si no autorizas el ingreso, el servicio inicia automáticamente al finalizar el tiempo.
-          </div>
+          <div style={{ height: 10 }} />
 
-          <div style={{
-            marginTop: 12,
-            background: '#EC6819',
-            borderRadius: 14,
-            padding: 14,
-            textAlign: 'center'
-          }}
-            data-testid="license-plate-arrived"
-          >
-            <div style={{ color: 'rgba(255,255,255,0.86)', fontSize: 12, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>
-              Patente
+          <MaqgoCard style={{ background: '#2A2A2A', padding: 18, textAlign: 'center' }}>
+            <div
+              style={{
+                width: 54,
+                height: 54,
+                borderRadius: 999,
+                background: 'rgba(144, 189, 211, 0.18)',
+                border: '1px solid rgba(144, 189, 211, 0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 10px'
+              }}
+              aria-hidden="true"
+            >
+              <MapPin size={22} color="#90BDD3" />
             </div>
-            <div style={{ color: '#fff', fontSize: 22, fontWeight: 900, letterSpacing: 0.6 }}>
-              {licensePlate ? licensePlate.toUpperCase() : 'Por confirmar'}
+            <div style={{ color: '#fff', fontSize: 20, fontWeight: 900, lineHeight: 1.2 }}>
+              Operador llegó
             </div>
-          </div>
+            <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, marginTop: 6 }}>
+              Autoriza el ingreso para iniciar el servicio.
+            </div>
+          </MaqgoCard>
+
+          <div style={{ height: 10 }} />
+
+          <MaqgoCard>
+            <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.9 }}>
+              Verifica identidad
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 1.45, marginTop: 8 }}>
+              Verifica RUT y patente antes de autorizar el ingreso.
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+              <div style={{ flex: '1 1 160px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, padding: '10px 12px' }}>
+                <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.9 }}>
+                  RUT
+                </div>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 900, marginTop: 6 }}>{operatorRut}</div>
+              </div>
+
+              <div style={{ flex: '1 1 160px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, padding: '10px 12px' }} data-testid="license-plate-arrived">
+                <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.9 }}>
+                  Patente
+                </div>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 900, marginTop: 6 }}>{licensePlate}</div>
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <MaqgoButton variant="primary" onClick={handleLetIn} data-testid="let-in-primary-inline">
+                Autorizar ingreso
+              </MaqgoButton>
+            </div>
+          </MaqgoCard>
+
+          <div style={{ height: 10 }} />
+
+          <MaqgoCard style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 11, fontWeight: 900, letterSpacing: 0.8, textTransform: 'uppercase' }}>Tiempo de espera</div>
+                <div style={{ color: 'rgba(255,255,255,0.86)', fontSize: 12, marginTop: 2 }}>{waitingMinutes} min de 30</div>
+              </div>
+              <div style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>{formatTime(timeLeft)}</div>
+            </div>
+            <div style={{ marginTop: 8, color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 1.4 }}>
+              Si no autorizas el ingreso, el servicio inicia automáticamente al finalizar el tiempo.
+            </div>
+          </MaqgoCard>
+
+          <div style={{ height: 10 }} />
+
+          <MaqgoCard style={{ background: 'rgba(255,255,255,0.04)' }}>
+            <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 1.45 }}>
+              Las actualizaciones del servicio se registran en el Centro de Avisos.
+            </div>
+          </MaqgoCard>
+
+          <div style={{ height: 10 }} />
+
+          <MaqgoCard>
+            <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.9 }}>
+              Equipo reservado
+            </div>
+            <div style={{ color: '#fff', fontSize: 14, fontWeight: 900, marginTop: 8 }}>{MACHINERY_NAMES[machinery] || machinery}</div>
+            <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 4 }}>{durationLabel}</div>
+            {locationLabel ? (
+              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 6 }}>{locationLabel}</div>
+            ) : null}
+          </MaqgoCard>
+
+          <div style={{ height: 14 }} />
+
+          <ServiceSecondaryActions
+            actions={clientOnTheWay
+              ? []
+              : [{
+                  key: 'on-my-way',
+                  label: 'Ya voy',
+                  variant: 'outline',
+                  onClick: handleOnMyWay,
+                  testId: 'on-my-way-btn',
+                }]}
+          />
         </div>
-      }
-      summary={{
-        title: 'Resumen',
-        machinery: MACHINERY_NAMES[machinery] || machinery,
-        operatorName,
-        operatorRut,
-        licensePlate,
-        location: locationLabel,
-        duration: MACHINERY_PER_TRIP.includes(machinery) ? 'Valor viaje' : `${hours} horas${hours >= 6 ? ' + 1hr colación' : ''}`,
-      }}
-      alerts={alerts}
-      secondaryActions={[
-        ...(clientOnTheWay
-          ? []
-          : [{
-              key: 'on-my-way',
-              label: 'Ya voy (avisar al operador)',
-              variant: 'outline',
-              onClick: handleOnMyWay,
-              testId: 'on-my-way-btn',
-            }]),
-        {
-          key: 'let-in',
-          label: 'Permitir entrada e iniciar servicio',
-          variant: 'primary',
-          onClick: handleLetIn,
-          testId: 'let-in-btn',
-        }
-      ]}
-    />
+      </div>
+    </div>
   );
 }
 
