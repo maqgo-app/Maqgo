@@ -122,7 +122,6 @@ const PaymentResultScreen = lazy(() => import('./screens/client/PaymentResultScr
 const SearchingProviderScreen = lazy(() => import('./screens/client/SearchingProvider'));
 const WaitingConfirmationScreen = lazy(() => import('./screens/client/WaitingConfirmationScreen'));
 const MachineryAssignedScreen = lazy(() => import('./screens/client/MachineryAssignedScreen'));
-const ClientEnRouteScreen = lazy(() => import('./screens/client/ClientEnRouteScreen'));
 const ServiceConfirmed = lazy(() => import('./screens/client/ServiceConfirmed'));
 const ServiceInProgress = lazy(() => import('./screens/client/ServiceInProgress'));
 const Last30Minutes = lazy(() => import('./screens/client/Last30Minutes'));
@@ -384,7 +383,6 @@ function AppContent() {
         <Route path="/client/searching" element={<SearchingProviderScreen />} />
         <Route path="/client/waiting-confirmation" element={<WaitingConfirmationScreen />} />
         <Route path="/client/assigned" element={<MachineryAssignedScreen />} />
-        <Route path="/client/en-route" element={<ClientEnRouteScreen />} />
         <Route path="/client/service-confirmed" element={<ServiceConfirmed />} />
         <Route path="/client/in-progress" element={<ServiceInProgress />} />
         <Route path="/client/last-30" element={<Last30Minutes />} />

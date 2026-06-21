@@ -7,7 +7,7 @@ const BASE_URL = resolvePlaywrightBaseUrl();
 test.describe('Screenshots: Cliente flujo operacional final', () => {
   test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
 
-  test('flujo post-reserva (5 pantallas)', async ({ browser }) => {
+  test('flujo post-reserva (6 pantallas)', async ({ browser }) => {
     const context = await browser.newContext();
     await installApiMocks(context);
     await context.addInitScript(seedClientServiceFlow);
@@ -56,13 +56,13 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
     };
 
     await page.goto(`${BASE_URL}/client/payment-result?simulate=connection_error`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await expect(page.getByRole('heading', { name: /reserva confirmada/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/reserva confirmada/i)).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForTimeout(600);
     await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-confirmed.png', fullPage: true });
 
     await page.goto(`${BASE_URL}/client/assigned`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await expect(page.getByRole('heading', { name: /operador asignado/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/¡operador asignado!/i)).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForTimeout(600);
     await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-assigned.png', fullPage: true });
@@ -71,13 +71,13 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
       localStorage.setItem('operatorArrived', 'true');
     });
     await page.goto(`${BASE_URL}/client/provider-arrived`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await expect(page.getByRole('heading', { name: /operador.*lleg/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/operador.*lleg/i)).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForTimeout(600);
     await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-arrived.png', fullPage: true });
 
     await page.goto(`${BASE_URL}/client/service-active`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await expect(page.getByRole('heading', { name: /servicio en curso/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/servicio en curso/i)).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForTimeout(600);
     await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-active.png', fullPage: true });
@@ -87,6 +87,12 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
     await assertNoPushBanner();
     await page.waitForTimeout(600);
     await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-finished.png', fullPage: true });
+
+    await page.goto(`${BASE_URL}/client/rate`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await expect(page.getByText(/¿cómo fue tu experiencia\?/i)).toBeVisible({ timeout: 15_000 });
+    await assertNoPushBanner();
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-rate.png', fullPage: true });
 
     await context.close();
   });
