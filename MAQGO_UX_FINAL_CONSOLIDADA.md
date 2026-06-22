@@ -39,8 +39,8 @@ Prototipos internos para comparación visual (mock, sin backend):
 - `frontend/src/screens/client/AvisosHubCardBasedScreen.jsx` (ruta DEV: `/client/avisos-cards`)
 
 Pantallazos comparativos:
-- `frontend/public/qa-screenshots-history/avisos-hub/avisos-hub.png`
-- `frontend/public/qa-screenshots-history/avisos-hub/avisos-hub-cards.png`
+- `archive/qa-screenshots/qa-screenshots-history/avisos-hub/avisos-hub.png`
+- `archive/qa-screenshots/qa-screenshots-history/avisos-hub/avisos-hub-cards.png`
 
 ### D) Pantallas históricas existentes (implementadas hoy en producción)
 Rutas y archivos actuales del flujo cliente (post-pago):

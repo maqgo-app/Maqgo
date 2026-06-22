@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const baseUrl = process.argv[2];
-const outDir = process.argv[3] || 'public/qa-screenshots-history/service-flow-premium-full';
+const outDir = process.argv[3] || '../archive/qa-screenshots/qa-screenshots-history/service-flow-premium-full';
 
 if (!baseUrl) {
   console.error('Usage: node capture_client_service_flow_full.mjs <baseUrl> [outDir]');

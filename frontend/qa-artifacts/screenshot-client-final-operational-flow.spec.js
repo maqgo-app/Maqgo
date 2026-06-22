@@ -59,13 +59,13 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
     await expect(page.getByText(/reserva confirmada/i)).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForTimeout(600);
-    await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-confirmed.png', fullPage: true });
+    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-confirmed.png', fullPage: true });
 
     await page.goto(`${BASE_URL}/client/assigned`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await expect(page.getByText(/¡operador asignado!/i)).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForTimeout(600);
-    await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-assigned.png', fullPage: true });
+    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-assigned.png', fullPage: true });
 
     await context.addInitScript(() => {
       localStorage.setItem('operatorArrived', 'true');
@@ -74,30 +74,30 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
     await expect(page.getByText(/operador.*lleg/i)).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForTimeout(600);
-    await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-arrived.png', fullPage: true });
+    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-arrived.png', fullPage: true });
 
     await page.goto(`${BASE_URL}/client/service-active`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await expect(page.getByText(/servicio en curso/i)).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForTimeout(600);
-    await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-active.png', fullPage: true });
+    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-active.png', fullPage: true });
 
     await page.goto(`${BASE_URL}/client/service-finished`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await expect(page.getByText('Servicio finalizado')).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForTimeout(600);
-    await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-finished.png', fullPage: true });
+    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-finished.png', fullPage: true });
 
     await page.goto(`${BASE_URL}/client/rate`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await expect(page.getByText(/¿cómo fue tu experiencia\?/i)).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForTimeout(600);
-    await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-rate.png', fullPage: true });
+    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-rate.png', fullPage: true });
 
     await page.goto(`${BASE_URL}/client/avisos`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await expect(page.getByText(/centro de avisos/i)).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(600);
-    await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-avisos.png', fullPage: true });
+    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-avisos.png', fullPage: true });
 
     await context.close();
   });
