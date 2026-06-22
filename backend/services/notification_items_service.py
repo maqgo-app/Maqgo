@@ -208,6 +208,17 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             occurred_at=str(sr.get('operator_assigned_at') or sr.get('confirmedAt') or sr.get('createdAt') or _now_iso()),
         )
 
+    operator_id = sr.get('operator_id') or sr.get('operatorId')
+    operator_assigned_at = sr.get('operator_assigned_at') or sr.get('operatorAssignedAt')
+    if operator_id or operator_assigned_at:
+        await upsert_notification_item(
+            db,
+            recipient_user_id=client_id,
+            service_request_id=srid,
+            kind='assigned',
+            occurred_at=str(operator_assigned_at or sr.get('confirmedAt') or sr.get('createdAt') or _now_iso()),
+        )
+
     events = sr.get('events') if isinstance(sr.get('events'), list) else []
     for ev in events:
         if not isinstance(ev, dict):

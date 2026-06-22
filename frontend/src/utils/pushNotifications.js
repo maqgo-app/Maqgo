@@ -56,3 +56,31 @@ export async function requestPushPermissionAndSubscribe() {
   return await ensurePushSubscribedIfGranted();
 }
 
+export async function unsubscribePushNotifications() {
+  if (typeof window === 'undefined') return { success: false, skipped: true };
+  if (!('serviceWorker' in navigator)) return { success: false, skipped: true };
+  if (!('PushManager' in window)) return { success: false, skipped: true };
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (!sub) return { success: true, skipped: true };
+
+  const endpoint = String(sub.endpoint || '').trim();
+  try {
+    await fetchWithAuth(`${BACKEND_URL}/api/push/unsubscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+      redirectOn401: false,
+    });
+  } catch {
+    void 0;
+  }
+
+  try {
+    await sub.unsubscribe();
+  } catch {
+    void 0;
+  }
+
+  return { success: true };
+}

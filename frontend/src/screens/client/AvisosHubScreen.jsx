@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ServiceTopBar from '../../components/serviceState/ServiceTopBar';
-import { requestPushPermissionAndSubscribe } from '../../utils/pushNotifications';
+import { requestPushPermissionAndSubscribe, unsubscribePushNotifications } from '../../utils/pushNotifications';
 import {
   ackNotification,
   fetchNotifications,
@@ -9,26 +8,37 @@ import {
   markNotificationRead,
 } from '../../utils/notificationsClient';
 
-function formatDayLabel(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  const today = new Date();
-  const isSameDay =
-    d.getFullYear() === today.getFullYear() &&
-    d.getMonth() === today.getMonth() &&
-    d.getDate() === today.getDate();
-  if (isSameDay) return 'Hoy';
-  return d.toLocaleDateString('es-CL', { weekday: 'long', day: '2-digit', month: 'long' });
-}
-
 function formatTimeLabel(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 }
 
+function isTodayIso(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return false;
+  const today = new Date();
+  return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+}
+
+function formatFullDateTime(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = months[d.getMonth()] || '';
+  const yyyy = d.getFullYear();
+  return `${dd} ${mm} ${yyyy} · ${formatTimeLabel(iso)}`;
+}
+
+function formatModalTimestamp(iso) {
+  if (!iso) return '';
+  if (isTodayIso(iso)) return `Hoy · ${formatTimeLabel(iso)}`;
+  return formatFullDateTime(iso);
+}
+
 function toneToColors(severity) {
-  if (severity === 'critical') return { bg: 'rgba(244, 67, 54, 0.14)', border: 'rgba(244, 67, 54, 0.26)', dot: '#F44336' };
+  if (severity === 'critical') return { bg: 'rgba(236, 104, 25, 0.14)', border: 'rgba(236, 104, 25, 0.30)', dot: '#EC6819' };
   if (severity === 'important') return { bg: 'rgba(236, 104, 25, 0.12)', border: 'rgba(236, 104, 25, 0.28)', dot: '#EC6819' };
   return { bg: 'rgba(144, 189, 211, 0.10)', border: 'rgba(144, 189, 211, 0.22)', dot: '#90BDD3' };
 }
@@ -46,6 +56,7 @@ function AvisosHubScreen() {
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -84,50 +95,64 @@ function AvisosHubScreen() {
     return items;
   }, [filter, items]);
 
-  const pushStatusLabel = useMemo(() => {
-    if (pushPermission === 'unsupported') return 'No disponible';
-    if (pushPermission === 'granted') return 'Activado';
-    if (pushPermission === 'denied') return 'Bloqueado';
-    return 'Desactivado';
-  }, [pushPermission]);
+  const pushEnabled = pushPermission === 'granted';
 
-  const pushActionLabel = useMemo(() => {
-    if (pushPermission === 'default') return 'Activar';
-    if (pushPermission === 'granted') return 'Gestionar';
-    if (pushPermission === 'denied') return 'Gestionar';
-    return null;
-  }, [pushPermission]);
+  const headerCardStyle = {
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    borderRadius: 14,
+    padding: '12px 14px',
+  };
 
-  const handlePushAction = async () => {
+  const headerTitleStyle = {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 900,
+    letterSpacing: 0.2,
+  };
+
+  const headerSubtitleStyle = {
+    color: 'rgba(255,255,255,0.70)',
+    fontSize: 12,
+    marginTop: 6,
+    lineHeight: 1.25,
+  };
+
+  const onTogglePush = async () => {
+    if (pushBusy) return;
     if (typeof window === 'undefined') return;
     if (!('Notification' in window)) return;
 
-    if (window.Notification.permission === 'default') {
-      const result = await requestPushPermissionAndSubscribe();
-      setPushPermission(result?.permission || window.Notification.permission);
-      return;
-    }
+    setPushBusy(true);
+    try {
+      if (pushEnabled) {
+        await unsubscribePushNotifications();
+        setPushPermission(window.Notification.permission);
+        return;
+      }
 
-    window.alert('Para gestionar Push, usa los ajustes de notificaciones del navegador o del dispositivo.');
+      const result = await requestPushPermissionAndSubscribe();
+      if (result?.denied) setPushPermission('denied');
+      else setPushPermission(window.Notification.permission);
+    } finally {
+      setPushBusy(false);
+    }
   };
 
   const grouped = useMemo(() => {
-    const out = new Map();
+    const todayItems = [];
+    const olderItems = [];
     for (const a of filtered) {
       const at = a?.createdAt || a?.updatedAt;
-      const dayKey = new Date(at).toISOString().slice(0, 10);
-      if (!out.has(dayKey)) out.set(dayKey, []);
-      out.get(dayKey).push(a);
+      if (isTodayIso(at)) todayItems.push(a);
+      else olderItems.push(a);
     }
-    return Array.from(out.entries())
-      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-      .map(([dayKey, list]) => ({
-        dayKey,
-        list: list.sort((x, y) => ((x?.createdAt || '') < (y?.createdAt || '') ? 1 : -1)),
-      }));
+    const sortDesc = (x, y) => ((x?.createdAt || '') < (y?.createdAt || '') ? 1 : -1);
+    return {
+      today: todayItems.sort(sortDesc),
+      older: olderItems.sort(sortDesc),
+    };
   }, [filtered]);
-
-  const pinned = useMemo(() => items.filter((a) => a?.pinned), [items]);
 
   const openItem = async (a) => {
     setSelected(a);
@@ -146,39 +171,43 @@ function AvisosHubScreen() {
 
   return (
     <div className="maqgo-app maqgo-client-funnel">
-      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}>
+      <div
+        className="maqgo-screen"
+        style={{
+          padding: '16px 24px 24px',
+          paddingBottom: 'calc(60px + env(safe-area-inset-bottom, 0px))',
+        }}
+      >
         <div className="w-full mx-auto" style={{ maxWidth: 1040 }}>
-          <ServiceTopBar showBack showHome />
-
-          <div style={{ height: 12 }} />
-
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-            <div>
-              <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: 800, letterSpacing: 0.2 }}>Centro de Avisos</div>
-              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 4 }}>
-                Registro de eventos del servicio
-              </div>
+          <div style={headerCardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={headerTitleStyle}>Centro de Avisos</div>
+              {unread > 0 ? (
+                <div
+                  style={{
+                    minWidth: 24,
+                    height: 24,
+                    padding: '0 8px',
+                    borderRadius: 999,
+                    background: '#EC6819',
+                    color: '#fff',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 8px 24px rgba(236, 104, 25, 0.28)',
+                  }}
+                >
+                  {unread > 99 ? '99+' : unread}
+                </div>
+              ) : null}
             </div>
 
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 10px',
-                borderRadius: 999,
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.10)',
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: 99, background: unread ? '#EC6819' : 'rgba(255,255,255,0.22)' }} />
-              <span style={{ color: 'rgba(255,255,255,0.88)', fontSize: 12, fontWeight: 800 }}>
-                {unread ? `${unread} sin leer` : 'Todo al día'}
-              </span>
-            </div>
+            <div style={headerSubtitleStyle}>Actualizaciones de tu servicio, en un solo lugar</div>
           </div>
 
-          <div style={{ height: 14 }} />
+          <div style={{ height: 10 }} />
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <button
@@ -231,42 +260,59 @@ function AvisosHubScreen() {
             </button>
           </div>
 
-          <div style={{ height: 14 }} />
-
-          <div style={{ padding: 14, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div>
-                <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 11, fontWeight: 900, letterSpacing: 0.8, textTransform: 'uppercase' }}>Push (opcional)</div>
-                <div style={{ color: '#fff', fontSize: 13, fontWeight: 900, marginTop: 6 }}>{pushStatusLabel}</div>
-                <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>
-                  Alertas fuera de la app (si está disponible).
-                </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              padding: '10px 12px',
+              borderRadius: 14,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.10)',
+              marginTop: 12,
+              marginBottom: 14,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: '#fff', fontSize: 13, fontWeight: 900 }}>Notificaciones Push</div>
+              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 4, lineHeight: 1.3 }}>
+                Recibe avisos importantes incluso cuando la app está cerrada.
               </div>
-
-              {pushActionLabel ? (
-                <button
-                  type="button"
-                  onClick={handlePushAction}
-                  style={{
-                    height: 38,
-                    padding: '0 14px',
-                    borderRadius: 999,
-                    border: pushPermission === 'default' ? '1px solid rgba(236,104,25,0.40)' : '1px solid rgba(255,255,255,0.14)',
-                    background: pushPermission === 'default' ? 'rgba(236,104,25,0.16)' : 'rgba(255,255,255,0.06)',
-                    color: 'rgba(255,255,255,0.92)',
-                    fontSize: 12,
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {pushActionLabel}
-                </button>
-              ) : null}
             </div>
-          </div>
 
-          <div style={{ height: 16 }} />
+            <button
+              type="button"
+              onClick={onTogglePush}
+              disabled={pushBusy || pushPermission === 'unsupported'}
+              aria-label={pushEnabled ? 'Desactivar notificaciones push' : 'Activar notificaciones push'}
+              style={{
+                position: 'relative',
+                width: 52,
+                height: 30,
+                borderRadius: 999,
+                border: pushEnabled ? '1px solid rgba(236,104,25,0.55)' : '1px solid rgba(255,255,255,0.14)',
+                background: pushEnabled ? 'rgba(236,104,25,0.22)' : 'rgba(255,255,255,0.06)',
+                cursor: pushBusy || pushPermission === 'unsupported' ? 'not-allowed' : 'pointer',
+                padding: 0,
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 3,
+                  left: pushEnabled ? 24 : 3,
+                  width: 24,
+                  height: 24,
+                  borderRadius: 999,
+                  background: '#fff',
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
+                  transition: 'left 180ms ease',
+                }}
+              />
+            </button>
+          </div>
 
           {loading ? (
             <div style={{ padding: 18, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}>
@@ -277,20 +323,20 @@ function AvisosHubScreen() {
               <div style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>No se pudieron cargar avisos</div>
               <div style={{ color: 'rgba(255,255,255,0.80)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>{error}</div>
             </div>
-          ) : grouped.length === 0 ? (
+          ) : grouped.today.length === 0 && grouped.older.length === 0 ? (
             <div style={{ padding: 18, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}>
               <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, fontWeight: 800 }}>Sin avisos</div>
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 6 }}>No hay eventos para este filtro.</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {pinned.length ? (
+              {grouped.today.length ? (
                 <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, overflow: 'hidden' }}>
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase' }}>Críticos</div>
+                    <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase' }}>HOY</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {pinned.slice(0, 3).map((a) => {
+                    {grouped.today.map((a, idx) => {
                       const colors = toneToColors(a?.severity);
                       const isUnread = !a?.readAt;
                       const at = a?.createdAt || a?.updatedAt;
@@ -299,7 +345,15 @@ function AvisosHubScreen() {
                           key={a.id}
                           type="button"
                           onClick={() => openItem(a)}
-                          style={{ width: '100%', textAlign: 'left', padding: 14, background: colors.bg, border: 'none', borderTop: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}
+                          style={{
+                            width: '100%',
+                            textAlign: 'left',
+                            padding: 14,
+                            background: colors.bg,
+                            border: 'none',
+                            borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                            cursor: 'pointer',
+                          }}
                         >
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
@@ -310,12 +364,9 @@ function AvisosHubScreen() {
                                 <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center' }}>
                                   <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700 }}>{formatTimeLabel(at)}</div>
                                   {a.ackRequired ? (
-                                    <>
-                                      <div style={{ width: 4, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.25)' }} />
-                                      <div style={{ color: '#fff', fontSize: 11, fontWeight: 900, padding: '4px 8px', borderRadius: 999, background: 'rgba(244, 67, 54, 0.18)', border: `1px solid ${colors.border}` }}>
-                                        Requiere acción
-                                      </div>
-                                    </>
+                                    <div style={{ color: '#fff', fontSize: 11, fontWeight: 900, padding: '4px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)' }}>
+                                      Requiere acción
+                                    </div>
                                   ) : null}
                                 </div>
                               </div>
@@ -334,16 +385,14 @@ function AvisosHubScreen() {
                   </div>
                 </div>
               ) : null}
-              {grouped.map(({ dayKey, list }) => (
-                <div key={dayKey} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, overflow: 'hidden' }}>
-                  <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase' }}>
-                      {formatDayLabel(dayKey)}
-                    </div>
-                  </div>
 
+              {grouped.older.length ? (
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, overflow: 'hidden' }}>
+                  <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase' }}>ANTERIORES</div>
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {list.map((a) => {
+                    {grouped.older.map((a, idx) => {
                       const colors = toneToColors(a?.severity);
                       const isUnread = !a?.readAt;
                       const at = a?.createdAt || a?.updatedAt;
@@ -358,7 +407,7 @@ function AvisosHubScreen() {
                             padding: 14,
                             background: colors.bg,
                             border: 'none',
-                            borderTop: '1px solid rgba(255,255,255,0.06)',
+                            borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
                             cursor: 'pointer',
                           }}
                         >
@@ -366,50 +415,21 @@ function AvisosHubScreen() {
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                               <div style={{ marginTop: 3, width: 10, height: 10, borderRadius: 99, background: colors.dot }} />
                               <div>
-                                <div style={{ color: '#fff', fontSize: 14, fontWeight: isUnread ? 900 : 800, lineHeight: 1.25 }}>
-                                  {a.title}
-                                </div>
-                                <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>
-                                  {a.body}
-                                </div>
+                                <div style={{ color: '#fff', fontSize: 14, fontWeight: isUnread ? 900 : 800, lineHeight: 1.25 }}>{a.title}</div>
+                                <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>{a.body}</div>
                                 <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center' }}>
-                                  <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700 }}>
-                                    {formatTimeLabel(at)}
-                                  </div>
+                                  <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700 }}>{formatFullDateTime(at)}</div>
                                   {a.ackRequired ? (
-                                    <>
-                                      <div style={{
-                                        color: '#fff',
-                                        fontSize: 11,
-                                        fontWeight: 900,
-                                        padding: '4px 8px',
-                                        borderRadius: 999,
-                                        background: 'rgba(244, 67, 54, 0.18)',
-                                        border: `1px solid ${colors.border}`,
-                                      }}>
-                                        Requiere acción
-                                      </div>
-                                    </>
+                                    <div style={{ color: '#fff', fontSize: 11, fontWeight: 900, padding: '4px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)' }}>
+                                      Requiere acción
+                                    </div>
                                   ) : null}
                                 </div>
                               </div>
                             </div>
-
                             {isUnread ? (
-                              <div style={{
-                                minWidth: 74,
-                                display: 'flex',
-                                justifyContent: 'flex-end',
-                              }}>
-                                <div style={{
-                                  background: 'rgba(236,104,25,0.14)',
-                                  border: '1px solid rgba(236,104,25,0.28)',
-                                  color: 'rgba(255,255,255,0.92)',
-                                  fontSize: 11,
-                                  fontWeight: 900,
-                                  padding: '6px 10px',
-                                  borderRadius: 999,
-                                }}>
+                              <div style={{ minWidth: 74, display: 'flex', justifyContent: 'flex-end' }}>
+                                <div style={{ background: 'rgba(236,104,25,0.14)', border: '1px solid rgba(236,104,25,0.28)', color: 'rgba(255,255,255,0.92)', fontSize: 11, fontWeight: 900, padding: '6px 10px', borderRadius: 999 }}>
                                   Nuevo
                                 </div>
                               </div>
@@ -420,7 +440,7 @@ function AvisosHubScreen() {
                     })}
                   </div>
                 </div>
-              ))}
+              ) : null}
             </div>
           )}
         </div>
@@ -456,7 +476,7 @@ function AvisosHubScreen() {
                 <div>
                   <div style={{ color: '#fff', fontSize: 16, fontWeight: 900 }}>{selected.title}</div>
                   <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 6 }}>
-                    {formatDayLabel(selected.createdAt || selected.updatedAt)} · {formatTimeLabel(selected.createdAt || selected.updatedAt)}
+                    {formatModalTimestamp(selected.createdAt || selected.updatedAt)}
                   </div>
                 </div>
                 <button

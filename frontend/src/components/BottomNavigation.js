@@ -1,15 +1,16 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Z_INDEX } from '../constants/zIndex';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
 import { getSessionRole, isProviderSession } from '../utils/userAuthState';
 import { useAuth } from '../context/authHooks';
+import { fetchUnreadCount } from '../utils/notificationsClient';
 
 /**
  * Ítem de navegación
  * isPrimary: Inicio - destaca más cuando está activo
  */
-const NavItem = ({ icon, label, active, onClick, isPrimary }) => (
+const NavItem = ({ icon, label, active, onClick, isPrimary, badgeCount }) => (
   <button
     type="button"
     onClick={(e) => { e.preventDefault(); onClick?.(); }}
@@ -26,8 +27,30 @@ const NavItem = ({ icon, label, active, onClick, isPrimary }) => (
       minWidth: isPrimary ? 64 : 56
     }}
   >
-    <div style={{ color: active ? '#EC6819' : 'rgba(255,255,255,0.7)' }}>
+    <div style={{ position: 'relative', color: active ? '#EC6819' : 'rgba(255,255,255,0.7)' }}>
       {icon}
+      {badgeCount > 0 ? (
+        <span
+          style={{
+            position: 'absolute',
+            top: -2,
+            right: -6,
+            minWidth: 16,
+            height: 16,
+            padding: '0 5px',
+            borderRadius: 999,
+            background: '#EC6819',
+            color: '#fff',
+            fontSize: 10,
+            fontWeight: 900,
+            lineHeight: '16px',
+            textAlign: 'center',
+            boxShadow: '0 2px 10px rgba(236, 104, 25, 0.30)',
+          }}
+        >
+          {badgeCount > 99 ? '99+' : badgeCount}
+        </span>
+      ) : null}
     </div>
     <span style={{
       fontSize: isPrimary ? 11 : 10,
@@ -70,6 +93,19 @@ const Icons = {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
       <path d="M12 6V18M9 9C9 7.89543 10.3431 7 12 7C13.6569 7 15 7.89543 15 9C15 10.1046 13.6569 11 12 11C10.3431 11 9 11.8954 9 13C9 14.1046 10.3431 15 12 15C13.6569 15 15 14.1046 15 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/>
+    </svg>
+  ),
+  avisos: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M15 17H9C7.89543 17 7 16.1046 7 15V11C7 8.23858 9.23858 6 12 6C14.7614 6 17 8.23858 17 11V15C17 16.1046 16.1046 17 15 17Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M10 17C10 18.1046 10.8954 19 12 19C13.1046 19 14 18.1046 14 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M7 11V10C7 7.23858 9.23858 5 12 5C14.7614 5 17 7.23858 17 10V11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   ),
   logout: (
@@ -129,12 +165,47 @@ export function ClientNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+
+  const [unreadAvisos, setUnreadAvisos] = useState(0);
+
+  const isClientSession = useMemo(() => {
+    const userRole = getSessionRole();
+    const userId = localStorage.getItem('userId');
+    return Boolean(userId && userRole === 'client');
+  }, []);
   
   const isActive = (path) => location.pathname.includes(path);
 
   const dockStyle = isDesktop
     ? { left: '50%', right: 'auto', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, borderRadius: '0 0 40px 40px' }
     : { left: 0, right: 0, transform: 'none', width: 'auto', maxWidth: 'none', borderRadius: 0 };
+
+  useEffect(() => {
+    if (!isClientSession) return;
+    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+    if (!token) return;
+
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        const res = await fetchUnreadCount();
+        if (!mounted) return;
+        const nextVal = Number(res?.unread || 0);
+        setUnreadAvisos(Number.isFinite(nextVal) ? nextVal : 0);
+      } catch {
+        if (!mounted) return;
+        setUnreadAvisos(0);
+      }
+    };
+
+    load();
+    const id = window.setInterval(load, 20000);
+    return () => {
+      mounted = false;
+      window.clearInterval(id);
+    };
+  }, [isClientSession]);
 
   return (
     <div style={{
@@ -156,6 +227,13 @@ export function ClientNavigation() {
         label="Inicio"
         icon={Icons.home}
         isPrimary
+      />
+      <NavItem
+        active={isActive('/client/avisos')}
+        onClick={() => navigate('/client/avisos')}
+        label="Avisos"
+        icon={Icons.avisos}
+        badgeCount={unreadAvisos}
       />
       <NavItem
         active={isActive('/client/history')}
