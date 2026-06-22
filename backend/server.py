@@ -201,11 +201,13 @@ async def lifespan(app: FastAPI):
         from db_config import get_db_name, get_mongo_url
         from services.idempotency import ensure_indexes as ensure_idempotency_indexes
         from services.payment_metrics_store import ensure_indexes as ensure_payment_metrics_indexes
+        from services.notification_items_service import ensure_indexes as ensure_notification_indexes
 
         _ic = AsyncIOMotorClient(get_mongo_url())
         _db = _ic[get_db_name()]
         await ensure_idempotency_indexes(_db)
         await ensure_payment_metrics_indexes(_db)
+        await ensure_notification_indexes(_db)
 
         # Índices service_requests
         await _db.service_requests.create_index([("id", 1)])
@@ -333,6 +335,7 @@ services_router = None
 invoices_router = None
 messages_router = None
 push_router = None
+notifications_router = None
 admin_reports_router = None
 admin_reports_cron_router = None
 admin_config_router = None
@@ -415,6 +418,12 @@ try:
     logger.info("ROUTER LOADED: push")
 except Exception as e:
     logger.error(f"ROUTER FAILED: push - {e}")
+
+try:
+    from routes.notifications import router as notifications_router  # type: ignore
+    logger.info("ROUTER LOADED: notifications")
+except Exception as e:
+    logger.error(f"ROUTER FAILED: notifications - {e}")
 try:
     from routes.admin_reports import router as admin_reports_router, cron_router as admin_reports_cron_router  # type: ignore
     logger.info("ROUTER LOADED: admin_reports + cron")
@@ -541,6 +550,7 @@ _include_if_present(services_router, "services")
 _include_if_present(operators_router, "operators")
 _include_if_present(invoices_router, "invoices")
 _include_if_present(push_router, "push")
+_include_if_present(notifications_router, "notifications")
 _include_if_present(admin_reports_router, "admin_reports")
 _include_if_present(admin_reports_cron_router, "admin_reports_cron")
 _include_if_present(admin_config_router, "admin_config")

@@ -474,6 +474,25 @@ function MachineryAssignedScreen() {
             <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13, lineHeight: 1.45 }}>
               Las actualizaciones del servicio se registran en el Centro de Avisos.
             </div>
+
+            <div style={{ height: 10 }} />
+
+            <button
+              type="button"
+              onClick={() => navigate('/client/avisos')}
+              style={{
+                width: '100%',
+                height: 42,
+                borderRadius: 12,
+                border: '1px solid rgba(255,255,255,0.14)',
+                background: 'rgba(255,255,255,0.06)',
+                color: 'rgba(255,255,255,0.92)',
+                fontWeight: 900,
+                cursor: 'pointer',
+              }}
+            >
+              Ver Centro de Avisos
+            </button>
           </MaqgoCard>
 
           <div style={{ height: 10 }} />

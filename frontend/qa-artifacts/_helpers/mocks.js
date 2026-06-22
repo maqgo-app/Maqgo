@@ -166,6 +166,42 @@ export async function installApiMocks(context, options = {}) {
       );
     }
 
+    // --- notifications (Centro de Avisos cliente) ---
+    if (url.includes('/api/notifications/unread-count') && method === 'GET') {
+      return route.fulfill(json(200, { unread: 2 }));
+    }
+    if (url.includes('/api/notifications/') && (method === 'POST' || method === 'PUT')) {
+      return route.fulfill(json(200, { success: true }));
+    }
+    if (url.includes('/api/notifications') && method === 'GET') {
+      const now = new Date();
+      const items = [
+        {
+          id: 'client:user-1:sr:svc-123:arrival',
+          title: 'Operador llegó',
+          body: 'El operador marcó llegada. Autoriza el ingreso para iniciar.',
+          severity: 'critical',
+          createdAt: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
+          readAt: null,
+          ackRequired: true,
+          pinned: true,
+          deepLink: '/client/provider-arrived',
+        },
+        {
+          id: 'client:user-1:sr:svc-123:confirmed',
+          title: 'Reserva confirmada',
+          body: 'Tu reserva quedó confirmada. Revisa el estado del servicio.',
+          severity: 'important',
+          createdAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
+          readAt: null,
+          ackRequired: false,
+          pinned: false,
+          deepLink: '/client/assigned',
+        },
+      ];
+      return route.fulfill(json(200, { items, nextCursor: null }));
+    }
+
     // --- providers/match (embudo cliente) ---
     if (url.includes('/api/providers/match') && method === 'GET') {
       return route.fulfill(

@@ -235,6 +235,37 @@ async def _notify_whatsapp_client_status(
                 }
             },
         )
+
+        try:
+            from services.notification_items_service import record_delivery, upsert_notification_item
+
+            template_to_kind = {
+                'confirmation_client': 'confirmed',
+                'client_provider_arrived': 'arrival',
+                'service_started': 'started',
+                'service_finished': 'finished',
+                'client_incident_reported': 'incident',
+                'client_incident_cleared': 'incident_cleared',
+            }
+            kind = template_to_kind.get(str(template or '').strip())
+            if kind:
+                item = await upsert_notification_item(
+                    db,
+                    recipient_user_id=str(client_id),
+                    service_request_id=str(request_id),
+                    kind=kind,
+                    extra=params or {},
+                    pinned=kind in {'arrival', 'incident'},
+                )
+                await record_delivery(
+                    db,
+                    notification_id=item['id'],
+                    channel='whatsapp',
+                    status=status_val,
+                    meta={'template': template},
+                )
+        except Exception:
+            pass
     except Exception as e:
         try:
             now_iso = datetime.now(timezone.utc).isoformat()
@@ -289,6 +320,27 @@ async def _notify_push_client_event(
                 }
             },
         )
+
+        try:
+            from services.notification_items_service import record_delivery, upsert_notification_item
+
+            item = await upsert_notification_item(
+                db,
+                recipient_user_id=str(client_id),
+                service_request_id=str(request_id),
+                kind=str(kind),
+                extra=extra,
+                pinned=str(kind).strip().lower() in {'arrival', 'incident', 'finished'},
+            )
+            await record_delivery(
+                db,
+                notification_id=item['id'],
+                channel='push_web',
+                status='sent' if int(res.get('sent', 0) or 0) > 0 else 'skipped',
+                meta={'sent': int(res.get('sent', 0) or 0), 'skipped': int(res.get('skipped', 0) or 0)},
+            )
+        except Exception:
+            pass
     except Exception as e:
         try:
             now_iso = datetime.now(timezone.utc).isoformat()

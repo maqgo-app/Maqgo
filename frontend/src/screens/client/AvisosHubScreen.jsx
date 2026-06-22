@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ServiceTopBar from '../../components/serviceState/ServiceTopBar';
+import { requestPushPermissionAndSubscribe } from '../../utils/pushNotifications';
+import {
+  ackNotification,
+  fetchNotifications,
+  fetchUnreadCount,
+  markNotificationRead,
+} from '../../utils/notificationsClient';
 
 function formatDayLabel(iso) {
   const d = new Date(iso);
@@ -19,75 +27,14 @@ function formatTimeLabel(iso) {
   return d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 }
 
-function toneToColors(tone) {
-  if (tone === 'critical') return { bg: 'rgba(244, 67, 54, 0.14)', border: 'rgba(244, 67, 54, 0.26)', dot: '#F44336' };
-  if (tone === 'warning') return { bg: 'rgba(255, 193, 7, 0.14)', border: 'rgba(255, 193, 7, 0.26)', dot: '#FFC107' };
-  if (tone === 'success') return { bg: 'rgba(76, 175, 80, 0.14)', border: 'rgba(76, 175, 80, 0.26)', dot: '#4CAF50' };
+function toneToColors(severity) {
+  if (severity === 'critical') return { bg: 'rgba(244, 67, 54, 0.14)', border: 'rgba(244, 67, 54, 0.26)', dot: '#F44336' };
+  if (severity === 'important') return { bg: 'rgba(236, 104, 25, 0.12)', border: 'rgba(236, 104, 25, 0.28)', dot: '#EC6819' };
   return { bg: 'rgba(144, 189, 211, 0.10)', border: 'rgba(144, 189, 211, 0.22)', dot: '#90BDD3' };
 }
 
-function buildMockAvisos() {
-  const now = Date.now();
-  return [
-    {
-      id: 'a-1',
-      tone: 'success',
-      title: 'Servicio confirmado',
-      body: 'Tu servicio quedó confirmado. Revisa el estado del servicio en la app.',
-      at: new Date(now - 9 * 60 * 1000).toISOString(),
-      actor: 'Sistema',
-      unread: true,
-    },
-    {
-      id: 'a-2',
-      tone: 'info',
-      title: 'Operador asignado',
-      body: 'Se asignó un operador a tu servicio. Verifica RUT y patente en portería.',
-      at: new Date(now - 7 * 60 * 1000).toISOString(),
-      actor: 'Sistema',
-      unread: true,
-    },
-    {
-      id: 'a-3',
-      tone: 'warning',
-      title: 'Demora reportada',
-      body: 'El operador reportó una demora/incidente. El evento quedó registrado en Avisos.',
-      at: new Date(now - 4 * 60 * 1000).toISOString(),
-      actor: 'Operador',
-      unread: false,
-    },
-    {
-      id: 'a-4',
-      tone: 'info',
-      title: 'Operador en camino',
-      body: 'Revisa el seguimiento en la pantalla del servicio.',
-      at: new Date(now - 2 * 60 * 1000).toISOString(),
-      actor: 'Sistema',
-      unread: false,
-    },
-    {
-      id: 'a-5',
-      tone: 'critical',
-      title: 'Acción requerida',
-      body: 'Se requiere confirmación en portería para autorizar el ingreso. Este aviso requiere atención.',
-      at: new Date(now - 40 * 60 * 1000).toISOString(),
-      actor: 'Sistema',
-      unread: true,
-      requiresAck: true,
-    },
-    {
-      id: 'a-6',
-      tone: 'info',
-      title: 'Servicio finalizado',
-      body: 'El servicio se marcó como finalizado. Ya puedes ver el resumen y evaluar.',
-      at: new Date(now - 26 * 60 * 60 * 1000).toISOString(),
-      actor: 'Sistema',
-      unread: false,
-    },
-  ];
-}
-
 function AvisosHubScreen() {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState(null);
   const [pushPermission, setPushPermission] = useState(() => {
@@ -95,11 +42,10 @@ function AvisosHubScreen() {
     if (!('Notification' in window)) return 'unsupported';
     return window.Notification.permission;
   });
-  const [mockUnread, setMockUnread] = useState(() => {
-    const list = buildMockAvisos();
-    return new Set(list.filter((a) => a.unread).map((a) => a.id));
-  });
-  const items = useMemo(() => buildMockAvisos(), []);
+  const [items, setItems] = useState([]);
+  const [unread, setUnread] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -107,11 +53,36 @@ function AvisosHubScreen() {
     setPushPermission(window.Notification.permission);
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const [listRes, unreadRes] = await Promise.all([fetchNotifications({ limit: 80 }), fetchUnreadCount()]);
+        if (!mounted) return;
+        setItems(Array.isArray(listRes?.items) ? listRes.items : []);
+        setUnread(Number(unreadRes?.unread || 0));
+        setLoading(false);
+      } catch (e) {
+        if (!mounted) return;
+        setError(String(e?.message || e || 'Error cargando avisos'));
+        setLoading(false);
+      }
+    };
+    load();
+    const id = window.setInterval(load, 15000);
+    return () => {
+      mounted = false;
+      window.clearInterval(id);
+    };
+  }, []);
+
   const filtered = useMemo(() => {
-    if (filter === 'important') return items.filter((a) => a.tone === 'critical' || a.requiresAck);
-    if (filter === 'unread') return items.filter((a) => mockUnread.has(a.id));
+    if (filter === 'important') return items.filter((a) => a?.severity === 'critical' || a?.ackRequired);
+    if (filter === 'unread') return items.filter((a) => !a?.readAt);
     return items;
-  }, [filter, items, mockUnread]);
+  }, [filter, items]);
 
   const pushStatusLabel = useMemo(() => {
     if (pushPermission === 'unsupported') return 'No disponible';
@@ -132,8 +103,8 @@ function AvisosHubScreen() {
     if (!('Notification' in window)) return;
 
     if (window.Notification.permission === 'default') {
-      const result = await window.Notification.requestPermission();
-      setPushPermission(result);
+      const result = await requestPushPermissionAndSubscribe();
+      setPushPermission(result?.permission || window.Notification.permission);
       return;
     }
 
@@ -143,32 +114,32 @@ function AvisosHubScreen() {
   const grouped = useMemo(() => {
     const out = new Map();
     for (const a of filtered) {
-      const dayKey = new Date(a.at).toISOString().slice(0, 10);
+      const at = a?.createdAt || a?.updatedAt;
+      const dayKey = new Date(at).toISOString().slice(0, 10);
       if (!out.has(dayKey)) out.set(dayKey, []);
       out.get(dayKey).push(a);
     }
     return Array.from(out.entries())
       .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-      .map(([dayKey, list]) => ({ dayKey, list: list.sort((x, y) => (x.at < y.at ? 1 : -1)) }));
+      .map(([dayKey, list]) => ({
+        dayKey,
+        list: list.sort((x, y) => ((x?.createdAt || '') < (y?.createdAt || '') ? 1 : -1)),
+      }));
   }, [filtered]);
 
-  const unreadCount = useMemo(() => {
-    let c = 0;
-    for (const a of items) if (mockUnread.has(a.id)) c += 1;
-    return c;
-  }, [items, mockUnread]);
+  const pinned = useMemo(() => items.filter((a) => a?.pinned), [items]);
 
-  const markAsRead = (id) => {
-    setMockUnread((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  };
-
-  const openItem = (a) => {
+  const openItem = async (a) => {
     setSelected(a);
-    markAsRead(a.id);
+    if (!a?.readAt && a?.id) {
+      try {
+        await markNotificationRead(a.id);
+      } catch {
+        void 0;
+      }
+      setUnread((v) => Math.max(0, Number(v || 0) - 1));
+      setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
+    }
   };
 
   const closeModal = () => setSelected(null);
@@ -183,7 +154,7 @@ function AvisosHubScreen() {
 
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
             <div>
-              <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: 800, letterSpacing: 0.2 }}>Avisos</div>
+              <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: 800, letterSpacing: 0.2 }}>Centro de Avisos</div>
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 4 }}>
                 Registro de eventos del servicio
               </div>
@@ -200,9 +171,9 @@ function AvisosHubScreen() {
                 border: '1px solid rgba(255,255,255,0.10)',
               }}
             >
-              <span style={{ width: 8, height: 8, borderRadius: 99, background: unreadCount ? '#EC6819' : 'rgba(255,255,255,0.22)' }} />
+              <span style={{ width: 8, height: 8, borderRadius: 99, background: unread ? '#EC6819' : 'rgba(255,255,255,0.22)' }} />
               <span style={{ color: 'rgba(255,255,255,0.88)', fontSize: 12, fontWeight: 800 }}>
-                {unreadCount ? `${unreadCount} sin leer` : 'Todo al día'}
+                {unread ? `${unread} sin leer` : 'Todo al día'}
               </span>
             </div>
           </div>
@@ -297,13 +268,72 @@ function AvisosHubScreen() {
 
           <div style={{ height: 16 }} />
 
-          {grouped.length === 0 ? (
+          {loading ? (
+            <div style={{ padding: 18, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}>
+              <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, fontWeight: 800 }}>Cargando avisos…</div>
+            </div>
+          ) : error ? (
+            <div style={{ padding: 18, borderRadius: 14, background: 'rgba(244, 67, 54, 0.10)', border: '1px solid rgba(244, 67, 54, 0.26)' }}>
+              <div style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>No se pudieron cargar avisos</div>
+              <div style={{ color: 'rgba(255,255,255,0.80)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>{error}</div>
+            </div>
+          ) : grouped.length === 0 ? (
             <div style={{ padding: 18, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}>
               <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, fontWeight: 800 }}>Sin avisos</div>
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 6 }}>No hay eventos para este filtro.</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {pinned.length ? (
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, overflow: 'hidden' }}>
+                  <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase' }}>Críticos</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {pinned.slice(0, 3).map((a) => {
+                      const colors = toneToColors(a?.severity);
+                      const isUnread = !a?.readAt;
+                      const at = a?.createdAt || a?.updatedAt;
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => openItem(a)}
+                          style={{ width: '100%', textAlign: 'left', padding: 14, background: colors.bg, border: 'none', borderTop: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                              <div style={{ marginTop: 3, width: 10, height: 10, borderRadius: 99, background: colors.dot }} />
+                              <div>
+                                <div style={{ color: '#fff', fontSize: 14, fontWeight: isUnread ? 900 : 800, lineHeight: 1.25 }}>{a.title}</div>
+                                <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>{a.body}</div>
+                                <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center' }}>
+                                  <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700 }}>{formatTimeLabel(at)}</div>
+                                  {a.ackRequired ? (
+                                    <>
+                                      <div style={{ width: 4, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.25)' }} />
+                                      <div style={{ color: '#fff', fontSize: 11, fontWeight: 900, padding: '4px 8px', borderRadius: 999, background: 'rgba(244, 67, 54, 0.18)', border: `1px solid ${colors.border}` }}>
+                                        Requiere acción
+                                      </div>
+                                    </>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                            {isUnread ? (
+                              <div style={{ minWidth: 74, display: 'flex', justifyContent: 'flex-end' }}>
+                                <div style={{ background: 'rgba(236,104,25,0.14)', border: '1px solid rgba(236,104,25,0.28)', color: 'rgba(255,255,255,0.92)', fontSize: 11, fontWeight: 900, padding: '6px 10px', borderRadius: 999 }}>
+                                  Nuevo
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
               {grouped.map(({ dayKey, list }) => (
                 <div key={dayKey} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, overflow: 'hidden' }}>
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -314,8 +344,9 @@ function AvisosHubScreen() {
 
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {list.map((a) => {
-                      const colors = toneToColors(a.tone);
-                      const isUnread = mockUnread.has(a.id);
+                      const colors = toneToColors(a?.severity);
+                      const isUnread = !a?.readAt;
+                      const at = a?.createdAt || a?.updatedAt;
                       return (
                         <button
                           key={a.id}
@@ -343,13 +374,10 @@ function AvisosHubScreen() {
                                 </div>
                                 <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center' }}>
                                   <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700 }}>
-                                    {formatTimeLabel(a.at)}
+                                    {formatTimeLabel(at)}
                                   </div>
-                                  <div style={{ width: 4, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.25)' }} />
-                                  <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700 }}>{a.actor}</div>
-                                  {a.requiresAck ? (
+                                  {a.ackRequired ? (
                                     <>
-                                      <div style={{ width: 4, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.25)' }} />
                                       <div style={{
                                         color: '#fff',
                                         fontSize: 11,
@@ -428,7 +456,7 @@ function AvisosHubScreen() {
                 <div>
                   <div style={{ color: '#fff', fontSize: 16, fontWeight: 900 }}>{selected.title}</div>
                   <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 6 }}>
-                    {formatDayLabel(selected.at)} · {formatTimeLabel(selected.at)} · {selected.actor}
+                    {formatDayLabel(selected.createdAt || selected.updatedAt)} · {formatTimeLabel(selected.createdAt || selected.updatedAt)}
                   </div>
                 </div>
                 <button
@@ -461,10 +489,38 @@ function AvisosHubScreen() {
               <div style={{ height: 16 }} />
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                {selected.requiresAck ? (
+                {selected.deepLink ? (
                   <button
                     type="button"
-                    onClick={closeModal}
+                    onClick={() => {
+                      closeModal();
+                      navigate(selected.deepLink);
+                    }}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 12,
+                      border: '1px solid rgba(255,255,255,0.14)',
+                      background: 'rgba(255,255,255,0.06)',
+                      color: 'rgba(255,255,255,0.92)',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Ver estado
+                  </button>
+                ) : null}
+                {selected.ackRequired ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await ackNotification(selected.id);
+                        setItems((prev) => prev.map((x) => (x?.id === selected.id ? { ...x, ackAt: new Date().toISOString(), pinned: false, readAt: x.readAt || new Date().toISOString() } : x)));
+                      } catch {
+                        void 0;
+                      }
+                      closeModal();
+                    }}
                     style={{
                       padding: '12px 14px',
                       borderRadius: 12,

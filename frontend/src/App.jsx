@@ -392,7 +392,7 @@ function AppContent() {
         <Route path="/client/summary" element={<ServiceSummary />} />
         <Route path="/client/rate" element={<RateService />} />
         <Route path="/client/provider-arrived" element={<ProviderArrivedScreen />} />
-        {import.meta.env.DEV ? <Route path="/client/avisos" element={<AvisosHubScreen />} /> : null}
+        <Route path="/client/avisos" element={<AvisosHubScreen />} />
         {import.meta.env.DEV ? <Route path="/client/avisos-cards" element={<AvisosHubCardBasedScreen />} /> : null}
         {import.meta.env.DEV ? <Route path="/client/notification" element={<ServiceNotificationScreen />} /> : null}
         <Route path="/client/cancel" element={<CancelServiceScreen />} />

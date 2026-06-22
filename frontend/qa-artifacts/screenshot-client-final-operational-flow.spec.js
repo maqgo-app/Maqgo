@@ -7,7 +7,7 @@ const BASE_URL = resolvePlaywrightBaseUrl();
 test.describe('Screenshots: Cliente flujo operacional final', () => {
   test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
 
-  test('flujo post-reserva (6 pantallas)', async ({ browser }) => {
+  test('flujo post-reserva (6 pantallas + avisos)', async ({ browser }) => {
     const context = await browser.newContext();
     await installApiMocks(context);
     await context.addInitScript(seedClientServiceFlow);
@@ -93,6 +93,11 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
     await assertNoPushBanner();
     await page.waitForTimeout(600);
     await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-rate.png', fullPage: true });
+
+    await page.goto(`${BASE_URL}/client/avisos`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await expect(page.getByText(/centro de avisos/i)).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: 'public/qa-screenshots-final/final73-client-avisos.png', fullPage: true });
 
     await context.close();
   });
