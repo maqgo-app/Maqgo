@@ -14,7 +14,7 @@ def _severity_for_kind(kind: str) -> str:
     k = str(kind or '').strip().lower()
     if k in {'arrival', 'entry_pending', 'entry_authorized', 'incident', 'cancelled', 'payment_failed'}:
         return 'critical'
-    if k in {'confirmed', 'en_route', 'started', 'finished', 'incident_cleared'}:
+    if k in {'confirmed', 'assigned', 'en_route', 'started', 'finished', 'incident_cleared'}:
         return 'important'
     return 'normal'
 
@@ -22,7 +22,7 @@ def _severity_for_kind(kind: str) -> str:
 def _deep_link_for_kind(kind: str, service_request_id: str) -> str:
     _ = service_request_id
     k = str(kind or '').strip().lower()
-    if k in {'confirmed', 'en_route', 'incident', 'incident_cleared'}:
+    if k in {'confirmed', 'assigned', 'en_route', 'incident', 'incident_cleared'}:
         return '/client/assigned'
     if k in {'arrival', 'entry_pending', 'entry_authorized'}:
         return '/client/provider-arrived'
@@ -41,6 +41,8 @@ def _title_body_for_kind(kind: str, extra: Optional[dict] = None) -> Tuple[str, 
     k = str(kind or '').strip().lower()
     if k == 'confirmed':
         return 'Reserva confirmada', 'Tu reserva quedó confirmada. Revisa el estado del servicio.'
+    if k == 'assigned':
+        return 'Operador asignado', 'Se asignó un operador a tu servicio.'
     if k == 'en_route':
         return 'Operador en camino', 'El operador está en camino a tu ubicación.'
     if k == 'arrival':
@@ -212,7 +214,31 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             continue
         et = str(ev.get('type') or '').strip()
         at = str(ev.get('at') or ev.get('createdAt') or '')
-        if et == 'arrival':
+        if et == 'confirmed':
+            await upsert_notification_item(
+                db,
+                recipient_user_id=client_id,
+                service_request_id=srid,
+                kind='confirmed',
+                occurred_at=at,
+            )
+        elif et == 'accepted':
+            await upsert_notification_item(
+                db,
+                recipient_user_id=client_id,
+                service_request_id=srid,
+                kind='assigned',
+                occurred_at=at,
+            )
+        elif et == 'en_route':
+            await upsert_notification_item(
+                db,
+                recipient_user_id=client_id,
+                service_request_id=srid,
+                kind='en_route',
+                occurred_at=at,
+            )
+        elif et == 'arrival':
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,

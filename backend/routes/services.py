@@ -1000,7 +1000,16 @@ async def operator_accept_service(
                 "operator_name": operator.get("name") or operator.get("providerData", {}).get("name") or "Operador",
                 "operator_assigned_at": datetime.utcnow().isoformat(),
                 "status": "en_route"
-            }
+            },
+            "$push": {
+                "events": {
+                    "type": "en_route",
+                    "at": datetime.utcnow().isoformat(),
+                    "operator_id": operator_id,
+                    "providerId": owner_id,
+                    "source": "operator_accept_service",
+                }
+            },
         }
     )
     if result.matched_count == 0:
