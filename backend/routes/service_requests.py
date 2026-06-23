@@ -252,6 +252,7 @@ async def _notify_whatsapp_client_status(
                 item = await upsert_notification_item(
                     db,
                     recipient_user_id=str(client_id),
+                    audience_role='client',
                     service_request_id=str(request_id),
                     kind=kind,
                     extra=params or {},
@@ -327,6 +328,7 @@ async def _notify_push_client_event(
             item = await upsert_notification_item(
                 db,
                 recipient_user_id=str(client_id),
+                audience_role='client',
                 service_request_id=str(request_id),
                 kind=str(kind),
                 extra=extra,

@@ -261,6 +261,14 @@ export function ProviderNavigation() {
   const { can } = useAuth();
   const providerRole = localStorage.getItem('providerRole') || 'owner';
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+
+  const [unreadAvisos, setUnreadAvisos] = useState(0);
+
+  const isProviderSessionOk = useMemo(() => {
+    const userRole = getSessionRole();
+    const userId = localStorage.getItem('userId');
+    return Boolean(userId && userRole === 'provider');
+  }, []);
   
   // Operadores solo ven: Inicio | Historial | Perfil (sin Cobros ni Máquinas)
   const isOperatorOnly = providerRole === 'operator';
@@ -271,6 +279,33 @@ export function ProviderNavigation() {
     }
     return location.pathname.includes(paths);
   };
+
+  useEffect(() => {
+    if (!isProviderSessionOk) return;
+    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+    if (!token) return;
+
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        const res = await fetchUnreadCount();
+        if (!mounted) return;
+        const nextVal = Number(res?.unread || 0);
+        setUnreadAvisos(Number.isFinite(nextVal) ? nextVal : 0);
+      } catch {
+        if (!mounted) return;
+        setUnreadAvisos(0);
+      }
+    };
+
+    load();
+    const id = window.setInterval(load, 20000);
+    return () => {
+      mounted = false;
+      window.clearInterval(id);
+    };
+  }, [isProviderSessionOk]);
 
   // Navegación para Operador (sin Cobros ni Máquinas)
   if (isOperatorOnly) {
@@ -298,6 +333,13 @@ export function ProviderNavigation() {
           label="Inicio"
           icon={Icons.home}
           isPrimary
+        />
+        <NavItem
+          active={isActive('/operator/avisos')}
+          onClick={() => navigate('/operator/avisos')}
+          label="Avisos"
+          icon={Icons.avisos}
+          badgeCount={unreadAvisos}
         />
         <NavItem
           active={isActive('/provider/history')}
@@ -348,6 +390,13 @@ export function ProviderNavigation() {
         label="Inicio"
         icon={Icons.home}
         isPrimary
+      />
+      <NavItem
+        active={isActive('/provider/avisos')}
+        onClick={() => navigate('/provider/avisos')}
+        label="Avisos"
+        icon={Icons.avisos}
+        badgeCount={unreadAvisos}
       />
       {showMachines ? (
         <NavItem

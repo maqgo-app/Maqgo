@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { requestPushPermissionAndSubscribe, unsubscribePushNotifications } from '../../utils/pushNotifications';
+import BACKEND_URL from '../../utils/api';
 import {
   ackNotification,
   fetchNotifications,
@@ -43,7 +44,7 @@ function toneToColors(severity) {
   return { bg: 'rgba(144, 189, 211, 0.10)', border: 'rgba(144, 189, 211, 0.22)', dot: '#90BDD3' };
 }
 
-function AvisosHubScreen() {
+function AvisosHubScreen({ audienceRole = 'client' }) {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState(null);
@@ -57,11 +58,35 @@ function AvisosHubScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pushBusy, setPushBusy] = useState(false);
+  const [pushBackend, setPushBackend] = useState({ checked: false, enabled: undefined, publicKey: undefined });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!('Notification' in window)) return;
     setPushPermission(window.Notification.permission);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPushConfig = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/push/vapid-public-key`);
+        const json = await res.json();
+        if (cancelled) return;
+        setPushBackend({
+          checked: true,
+          enabled: Boolean(json?.enabled),
+          publicKey: json?.publicKey || null,
+        });
+      } catch {
+        if (cancelled) return;
+        setPushBackend({ checked: true, enabled: undefined, publicKey: undefined });
+      }
+    };
+    loadPushConfig();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -95,7 +120,9 @@ function AvisosHubScreen() {
     return items;
   }, [filter, items]);
 
-  const pushEnabled = pushPermission === 'granted';
+  const pushBackendAvailable = pushBackend?.checked && pushBackend?.enabled === true && Boolean(pushBackend?.publicKey);
+  const pushBackendUnavailable = pushBackend?.checked && (pushBackend?.enabled === false || pushBackend?.publicKey === null);
+  const pushEnabled = pushBackendAvailable ? pushPermission === 'granted' : pushPermission === 'granted';
 
   const headerCardStyle = {
     background: 'rgba(255,255,255,0.04)',
@@ -120,6 +147,7 @@ function AvisosHubScreen() {
 
   const onTogglePush = async () => {
     if (pushBusy) return;
+    if (pushBackendUnavailable) return;
     if (typeof window === 'undefined') return;
     if (!('Notification' in window)) return;
 
@@ -169,8 +197,14 @@ function AvisosHubScreen() {
 
   const closeModal = () => setSelected(null);
 
+  const headerSubtitle = useMemo(() => {
+    if (audienceRole === 'provider') return 'Actualizaciones de tu operación, en un solo lugar';
+    if (audienceRole === 'operator') return 'Actualizaciones de tu servicio, en un solo lugar';
+    return 'Actualizaciones de tu servicio, en un solo lugar';
+  }, [audienceRole]);
+
   return (
-    <div className="maqgo-app maqgo-client-funnel">
+    <div className={audienceRole === 'client' ? 'maqgo-app maqgo-client-funnel' : 'maqgo-app'}>
       <div
         className="maqgo-screen"
         style={{
@@ -204,7 +238,7 @@ function AvisosHubScreen() {
               ) : null}
             </div>
 
-            <div style={headerSubtitleStyle}>Actualizaciones de tu servicio, en un solo lugar</div>
+            <div style={headerSubtitleStyle}>{headerSubtitle}</div>
           </div>
 
           <div style={{ height: 10 }} />
@@ -277,41 +311,60 @@ function AvisosHubScreen() {
             <div style={{ minWidth: 0 }}>
               <div style={{ color: '#fff', fontSize: 13, fontWeight: 900 }}>Notificaciones Push</div>
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 4, lineHeight: 1.3 }}>
-                Recibe avisos importantes incluso cuando la app está cerrada.
+                {pushBackendUnavailable ? 'No disponible por ahora.' : 'Recibe avisos importantes incluso cuando la app está cerrada.'}
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onTogglePush}
-              disabled={pushBusy || pushPermission === 'unsupported'}
-              aria-label={pushEnabled ? 'Desactivar notificaciones push' : 'Activar notificaciones push'}
-              style={{
-                position: 'relative',
-                width: 52,
-                height: 30,
-                borderRadius: 999,
-                border: pushEnabled ? '1px solid rgba(236,104,25,0.55)' : '1px solid rgba(255,255,255,0.14)',
-                background: pushEnabled ? 'rgba(236,104,25,0.22)' : 'rgba(255,255,255,0.06)',
-                cursor: pushBusy || pushPermission === 'unsupported' ? 'not-allowed' : 'pointer',
-                padding: 0,
-                flexShrink: 0,
-              }}
-            >
-              <span
+            {pushBackendUnavailable ? (
+              <div
                 style={{
-                  position: 'absolute',
-                  top: 3,
-                  left: pushEnabled ? 24 : 3,
-                  width: 24,
-                  height: 24,
+                  color: 'rgba(255,255,255,0.70)',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  padding: '8px 10px',
                   borderRadius: 999,
-                  background: '#fff',
-                  boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
-                  transition: 'left 180ms ease',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  background: 'rgba(255,255,255,0.06)',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
                 }}
-              />
-            </button>
+              >
+                No disponible
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onTogglePush}
+                disabled={pushBusy || pushPermission === 'unsupported'}
+                aria-label={pushEnabled ? 'Desactivar notificaciones push' : 'Activar notificaciones push'}
+                style={{
+                  position: 'relative',
+                  width: 52,
+                  height: 30,
+                  borderRadius: 999,
+                  border: pushEnabled ? '1px solid rgba(236,104,25,0.55)' : '1px solid rgba(255,255,255,0.14)',
+                  background: pushEnabled ? 'rgba(236,104,25,0.22)' : 'rgba(255,255,255,0.06)',
+                  cursor:
+                    pushBusy || pushPermission === 'unsupported' ? 'not-allowed' : 'pointer',
+                  padding: 0,
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 3,
+                    left: pushEnabled ? 24 : 3,
+                    width: 24,
+                    height: 24,
+                    borderRadius: 999,
+                    background: '#fff',
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
+                    transition: 'left 180ms ease',
+                  }}
+                />
+              </button>
+            )}
           </div>
 
           {loading ? (

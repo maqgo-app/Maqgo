@@ -227,11 +227,11 @@ function AppContent() {
   const hideNav = noNavPaths.some(p => path === p || path.startsWith(p + '/'));
   // MOSTRAR footer en pantallas principales: home, máquinas, perfil, historial (incluye subrutas)
   const mainPathsWithNav = [
-    '/client/home', '/client/history', '/client/detalle-servicio',
+    '/client/home', '/client/avisos', '/client/history', '/client/detalle-servicio',
     '/provider/home', '/provider/machines', '/provider/edit-machine',
-    '/provider/profile', '/provider/history', '/provider/cobros', '/provider/dashboard', '/provider/my-services',
+    '/provider/avisos', '/provider/profile', '/provider/history', '/provider/cobros', '/provider/dashboard', '/provider/my-services',
     '/provider/operator', '/provider/team', '/provider/tariffs',
-    '/operator/home', '/operator/history', '/operator/completed',
+    '/operator/home', '/operator/avisos', '/operator/history', '/operator/completed',
     '/profile', '/faq', '/terms', '/privacy'
   ];
   const showBottomNav = !hideNav && mainPathsWithNav.some(p => path === p || path.startsWith(p + '/'));
@@ -465,6 +465,7 @@ function AppContent() {
           }
         />
         <Route path={ROUTES.PROVIDER_HOME} element={<ProviderHomeScreen />} />
+        <Route path="/provider/avisos" element={<AvisosHubScreen audienceRole="provider" />} />
         <Route path="/provider/availability" element={<Navigate to="/provider/home" replace />} />
         <Route path="/provider/request" element={<RequestReceivedScreen />} />
         <Route path="/provider/request-received" element={<RequestReceivedScreen />} />
@@ -549,6 +550,7 @@ function AppContent() {
 
         {/* Operador */}
         <Route path="/operator/home" element={<OperatorHomeScreen />} />
+        <Route path="/operator/avisos" element={<AvisosHubScreen audienceRole="operator" />} />
         <Route path="/operator/history" element={<OperatorHistoryScreen />} />
         <Route path="/operator/completed" element={<OperatorServiceCompletedScreen />} />
 

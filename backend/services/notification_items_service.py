@@ -12,16 +12,42 @@ def _now_iso() -> str:
 
 def _severity_for_kind(kind: str) -> str:
     k = str(kind or '').strip().lower()
-    if k in {'arrival', 'entry_pending', 'entry_authorized', 'incident', 'cancelled', 'payment_failed'}:
+    if k in {'arrival', 'entry_pending', 'entry_authorized', 'incident', 'cancelled', 'payment_failed', 'nueva_oferta', 'oferta_expira'}:
         return 'critical'
-    if k in {'confirmed', 'assigned', 'en_route', 'started', 'finished', 'incident_cleared'}:
+    if k in {'confirmed', 'assigned', 'en_route', 'started', 'finished', 'incident_cleared', 'factura_lista', 'pago_enviado'}:
         return 'important'
     return 'normal'
 
 
-def _deep_link_for_kind(kind: str, service_request_id: str) -> str:
-    _ = service_request_id
+def _deep_link_for_kind(kind: str, service_request_id: str, audience_role: str) -> str:
     k = str(kind or '').strip().lower()
+    ar = str(audience_role or '').strip().lower() or 'client'
+    if ar == 'provider':
+        if k == 'confirmed':
+            return '/provider/home'
+        if k == 'assigned':
+            return '/provider/accepted'
+        if k == 'en_route':
+            return '/provider/en-route'
+        if k in {'arrival', 'entry_pending', 'entry_authorized'}:
+            return '/provider/arrival'
+        if k == 'started':
+            return '/provider/service-active'
+        if k == 'finished':
+            return '/provider/service-finished'
+        if k in {'incident', 'incident_cleared'}:
+            return '/provider/in-progress'
+        if k == 'cancelled':
+            return '/provider/history'
+        if k == 'factura_lista':
+            return '/provider/upload-invoice'
+        if k == 'pago_enviado':
+            return '/provider/cobros'
+        return '/provider/home'
+    if ar == 'operator':
+        if k in {'finished', 'cancelled'}:
+            return '/operator/history'
+        return '/operator/home'
     if k in {'confirmed', 'assigned', 'en_route', 'incident', 'incident_cleared'}:
         return '/client/assigned'
     if k in {'arrival', 'entry_pending', 'entry_authorized'}:
@@ -37,19 +63,42 @@ def _deep_link_for_kind(kind: str, service_request_id: str) -> str:
     return '/client/home'
 
 
-def _title_body_for_kind(kind: str, extra: Optional[dict] = None) -> Tuple[str, str]:
+def _title_body_for_kind(kind: str, extra: Optional[dict] = None, audience_role: str = 'client') -> Tuple[str, str]:
     k = str(kind or '').strip().lower()
+    ar = str(audience_role or '').strip().lower() or 'client'
     if k == 'confirmed':
+        if ar == 'provider':
+            return 'Servicio confirmado', 'El servicio fue confirmado. Revisa el estado y próximos pasos.'
+        if ar == 'operator':
+            return 'Servicio confirmado', 'Servicio confirmado. Revisa tu operación.'
         return 'Reserva confirmada', 'Tu reserva quedó confirmada. Revisa el estado del servicio.'
     if k == 'assigned':
+        if ar == 'operator':
+            return 'Servicio asignado', 'Se te asignó un servicio.'
         return 'Operador asignado', 'Se asignó un operador a tu servicio.'
     if k == 'en_route':
+        if ar == 'operator':
+            return 'En camino', 'Estás en camino al servicio.'
+        if ar == 'provider':
+            return 'Operador en camino', 'El operador va en camino al servicio.'
         return 'Operador en camino', 'El operador está en camino a tu ubicación.'
     if k == 'arrival':
+        if ar == 'operator':
+            return 'Llegada registrada', 'Se registró llegada al servicio.'
+        if ar == 'provider':
+            return 'Operador llegó', 'El operador marcó llegada al servicio.'
         return 'Operador llegó', 'El operador marcó llegada. Autoriza el ingreso para iniciar.'
     if k == 'entry_pending':
+        if ar == 'provider':
+            return 'Esperando autorización de ingreso', 'Falta autorización de ingreso del cliente.'
+        if ar == 'operator':
+            return 'Esperando autorización de ingreso', 'Falta autorización de ingreso del cliente.'
         return 'Esperando autorización de ingreso', 'Autoriza el ingreso para que el servicio pueda comenzar.'
     if k == 'entry_authorized':
+        if ar == 'provider':
+            return 'Ingreso autorizado', 'El cliente autorizó el ingreso. El servicio puede comenzar.'
+        if ar == 'operator':
+            return 'Ingreso autorizado', 'El cliente autorizó el ingreso.'
         return 'Ingreso autorizado', 'Autorizaste el ingreso. El servicio puede comenzar.'
     if k == 'started':
         return 'Servicio iniciado', 'El servicio comenzó.'
@@ -61,14 +110,29 @@ def _title_body_for_kind(kind: str, extra: Optional[dict] = None) -> Tuple[str, 
     if k == 'incident_cleared':
         return 'Incidente resuelto', 'El incidente se marcó como resuelto.'
     if k == 'cancelled':
+        if ar == 'provider':
+            return 'Servicio cancelado', 'El servicio fue cancelado.'
+        if ar == 'operator':
+            return 'Servicio cancelado', 'El servicio fue cancelado.'
         return 'Servicio cancelado', 'Tu servicio fue cancelado.'
     if k == 'payment_failed':
         return 'Pago fallido', 'El cobro no pudo procesarse. Revisa el estado de tu reserva.'
+    if k == 'factura_lista':
+        return 'Factura lista', 'Tienes una factura lista para revisar y gestionar.'
+    if k == 'pago_enviado':
+        return 'Pago enviado', 'Se registró un pago enviado asociado a un servicio.'
+    if k == 'nueva_oferta':
+        return 'Nueva oferta', 'Tienes una nueva oferta disponible.'
+    if k == 'oferta_expira':
+        return 'Oferta por expirar', 'Una oferta está por expirar. Revisa ahora.'
     return 'Actualización', 'Revisa el estado en la app.'
 
 
-def _dedupe_key(client_id: str, service_request_id: str, kind: str) -> str:
-    return f'client:{str(client_id)}:sr:{str(service_request_id)}:{str(kind)}'
+def _dedupe_key(recipient_user_id: str, service_request_id: str, kind: str, audience_role: str) -> str:
+    ar = str(audience_role or '').strip().lower() or 'client'
+    if ar == 'client':
+        return f'client:{str(recipient_user_id)}:sr:{str(service_request_id)}:{str(kind)}'
+    return f'{ar}:{str(recipient_user_id)}:sr:{str(service_request_id)}:{str(kind)}'
 
 
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
@@ -83,6 +147,7 @@ async def upsert_notification_item(
     db: AsyncIOMotorDatabase,
     *,
     recipient_user_id: str,
+    audience_role: str,
     service_request_id: str,
     kind: str,
     extra: Optional[dict] = None,
@@ -93,13 +158,14 @@ async def upsert_notification_item(
 ) -> dict:
     now = _now_iso()
     k = str(kind or '').strip().lower()
-    dedupe = _dedupe_key(recipient_user_id, service_request_id, k)
-    title, body = _title_body_for_kind(k, extra)
+    ar = str(audience_role or '').strip().lower() or 'client'
+    dedupe = _dedupe_key(recipient_user_id, service_request_id, k, ar)
+    title, body = _title_body_for_kind(k, extra, ar)
     occ = str(occurred_at or '').strip() or now
     doc = {
         'id': dedupe,
         'recipientUserId': str(recipient_user_id),
-        'audienceRole': 'client',
+        'audienceRole': ar,
         'subjectType': 'service_request',
         'subjectId': str(service_request_id),
         'eventType': k,
@@ -110,7 +176,7 @@ async def upsert_notification_item(
         'actionRequired': bool(action_required),
         'ackRequired': bool(ack_required),
         'pinned': bool(pinned),
-        'deepLink': _deep_link_for_kind(k, service_request_id),
+        'deepLink': _deep_link_for_kind(k, service_request_id, ar),
         'dedupeKey': dedupe,
         'occurredAt': occ,
         'updatedAt': now,
@@ -194,6 +260,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
         await upsert_notification_item(
             db,
             recipient_user_id=client_id,
+            audience_role='client',
             service_request_id=srid,
             kind='confirmed',
             occurred_at=str(sr.get('confirmedAt') or sr.get('createdAt') or _now_iso()),
@@ -203,6 +270,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
         await upsert_notification_item(
             db,
             recipient_user_id=client_id,
+            audience_role='client',
             service_request_id=srid,
             kind='en_route',
             occurred_at=str(sr.get('operator_assigned_at') or sr.get('confirmedAt') or sr.get('createdAt') or _now_iso()),
@@ -214,6 +282,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
         await upsert_notification_item(
             db,
             recipient_user_id=client_id,
+            audience_role='client',
             service_request_id=srid,
             kind='assigned',
             occurred_at=str(operator_assigned_at or sr.get('confirmedAt') or sr.get('createdAt') or _now_iso()),
@@ -229,6 +298,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='confirmed',
                 occurred_at=at,
@@ -237,6 +307,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='assigned',
                 occurred_at=at,
@@ -245,6 +316,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='en_route',
                 occurred_at=at,
@@ -253,6 +325,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='arrival',
                 occurred_at=at,
@@ -262,6 +335,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='entry_authorized',
                 occurred_at=at,
@@ -270,6 +344,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='started',
                 occurred_at=at,
@@ -278,6 +353,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='finished',
                 occurred_at=at,
@@ -286,6 +362,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='incident',
                 occurred_at=at,
@@ -296,6 +373,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='incident_cleared',
                 occurred_at=at,
@@ -304,6 +382,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='cancelled',
                 occurred_at=at,
@@ -313,6 +392,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='payment_failed',
                 occurred_at=at,
@@ -323,6 +403,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
         await upsert_notification_item(
             db,
             recipient_user_id=client_id,
+            audience_role='client',
             service_request_id=srid,
             kind='arrival',
             occurred_at=str(sr.get('arrivalDetectedAt') or _now_iso()),
@@ -332,6 +413,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
             await upsert_notification_item(
                 db,
                 recipient_user_id=client_id,
+                audience_role='client',
                 service_request_id=srid,
                 kind='entry_pending',
                 occurred_at=str(sr.get('arrivalDetectedAt') or _now_iso()),
@@ -344,12 +426,13 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
         await upsert_notification_item(
             db,
             recipient_user_id=client_id,
+            audience_role='client',
             service_request_id=srid,
             kind='entry_authorized',
             occurred_at=str(sr.get('clientEntryConfirmedAt') or _now_iso()),
         )
         await db.notification_items.update_one(
-            {'dedupeKey': _dedupe_key(client_id, srid, 'entry_pending')},
+            {'dedupeKey': _dedupe_key(client_id, srid, 'entry_pending', 'client')},
             {'$set': {'pinned': False, 'updatedAt': _now_iso()}},
         )
 
@@ -357,6 +440,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
         await upsert_notification_item(
             db,
             recipient_user_id=client_id,
+            audience_role='client',
             service_request_id=srid,
             kind='started',
             occurred_at=str(sr.get('startedAt') or _now_iso()),
@@ -367,6 +451,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
         await upsert_notification_item(
             db,
             recipient_user_id=client_id,
+            audience_role='client',
             service_request_id=srid,
             kind='incident',
             occurred_at=str(inc.get('reportedAt') or _now_iso()),
@@ -378,6 +463,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
         await upsert_notification_item(
             db,
             recipient_user_id=client_id,
+            audience_role='client',
             service_request_id=srid,
             kind='payment_failed',
             occurred_at=str(sr.get('paymentFailedAt') or _now_iso()),
@@ -388,6 +474,7 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
         await upsert_notification_item(
             db,
             recipient_user_id=client_id,
+            audience_role='client',
             service_request_id=srid,
             kind='cancelled',
             occurred_at=str(sr.get('cancelled_at') or _now_iso()),
@@ -398,7 +485,290 @@ async def backfill_service_notifications_for_client(db: AsyncIOMotorDatabase, cl
         await upsert_notification_item(
             db,
             recipient_user_id=client_id,
+            audience_role='client',
             service_request_id=srid,
             kind='finished',
             occurred_at=str(sr.get('finishedAt') or _now_iso()),
         )
+
+
+async def backfill_service_notifications_for_provider(db: AsyncIOMotorDatabase, provider_user_id: str, sr: dict) -> None:
+    srid = str(sr.get('id') or '')
+    if not srid:
+        return
+    status = str(sr.get('status') or '').strip().lower()
+
+    if status in {'confirmed', 'en_route', 'in_progress', 'last_30', 'finished'}:
+        await upsert_notification_item(
+            db,
+            recipient_user_id=provider_user_id,
+            audience_role='provider',
+            service_request_id=srid,
+            kind='confirmed',
+            occurred_at=str(sr.get('confirmedAt') or sr.get('createdAt') or _now_iso()),
+        )
+
+    operator_id = sr.get('operator_id') or sr.get('operatorId')
+    operator_assigned_at = sr.get('operator_assigned_at') or sr.get('operatorAssignedAt')
+    if operator_id or operator_assigned_at:
+        await upsert_notification_item(
+            db,
+            recipient_user_id=provider_user_id,
+            audience_role='provider',
+            service_request_id=srid,
+            kind='assigned',
+            occurred_at=str(operator_assigned_at or sr.get('confirmedAt') or sr.get('createdAt') or _now_iso()),
+        )
+
+    if status == 'en_route':
+        await upsert_notification_item(
+            db,
+            recipient_user_id=provider_user_id,
+            audience_role='provider',
+            service_request_id=srid,
+            kind='en_route',
+            occurred_at=str(operator_assigned_at or sr.get('confirmedAt') or sr.get('createdAt') or _now_iso()),
+        )
+
+    if sr.get('arrivalDetectedAt'):
+        await upsert_notification_item(
+            db,
+            recipient_user_id=provider_user_id,
+            audience_role='provider',
+            service_request_id=srid,
+            kind='arrival',
+            occurred_at=str(sr.get('arrivalDetectedAt') or _now_iso()),
+            pinned=True,
+        )
+        if not sr.get('clientEntryConfirmedAt'):
+            await upsert_notification_item(
+                db,
+                recipient_user_id=provider_user_id,
+                audience_role='provider',
+                service_request_id=srid,
+                kind='entry_pending',
+                occurred_at=str(sr.get('arrivalDetectedAt') or _now_iso()),
+                action_required=True,
+                ack_required=False,
+                pinned=True,
+            )
+
+    if sr.get('clientEntryConfirmedAt'):
+        await upsert_notification_item(
+            db,
+            recipient_user_id=provider_user_id,
+            audience_role='provider',
+            service_request_id=srid,
+            kind='entry_authorized',
+            occurred_at=str(sr.get('clientEntryConfirmedAt') or _now_iso()),
+        )
+        await db.notification_items.update_one(
+            {'dedupeKey': _dedupe_key(provider_user_id, srid, 'entry_pending', 'provider')},
+            {'$set': {'pinned': False, 'updatedAt': _now_iso()}},
+        )
+
+    if status in {'in_progress', 'last_30'} or sr.get('startedAt'):
+        await upsert_notification_item(
+            db,
+            recipient_user_id=provider_user_id,
+            audience_role='provider',
+            service_request_id=srid,
+            kind='started',
+            occurred_at=str(sr.get('startedAt') or _now_iso()),
+        )
+
+    if sr.get('activeIncident'):
+        inc = sr.get('activeIncident') if isinstance(sr.get('activeIncident'), dict) else {}
+        await upsert_notification_item(
+            db,
+            recipient_user_id=provider_user_id,
+            audience_role='provider',
+            service_request_id=srid,
+            kind='incident',
+            occurred_at=str(inc.get('reportedAt') or _now_iso()),
+            extra={'reason': inc.get('reason')},
+            pinned=True,
+        )
+
+    if status.startswith('cancelled') or status in {'cancel_with_fee', 'cancelled_no_arrival'}:
+        await upsert_notification_item(
+            db,
+            recipient_user_id=provider_user_id,
+            audience_role='provider',
+            service_request_id=srid,
+            kind='cancelled',
+            occurred_at=str(sr.get('cancelled_at') or _now_iso()),
+            pinned=True,
+        )
+
+    if status == 'finished' or sr.get('finishedAt'):
+        await upsert_notification_item(
+            db,
+            recipient_user_id=provider_user_id,
+            audience_role='provider',
+            service_request_id=srid,
+            kind='finished',
+            occurred_at=str(sr.get('finishedAt') or _now_iso()),
+        )
+
+
+async def backfill_service_notifications_for_operator(
+    db: AsyncIOMotorDatabase,
+    operator_user_id: str,
+    sr: dict,
+    *,
+    effective_provider_account_id: Optional[str] = None,
+) -> None:
+    srid = str(sr.get('id') or '')
+    if not srid:
+        return
+    status = str(sr.get('status') or '').strip().lower()
+
+    if status == 'offer_sent' and effective_provider_account_id:
+        oid = str(sr.get('currentOfferId') or '')
+        attempts = sr.get('matchingAttempts') if isinstance(sr.get('matchingAttempts'), list) else []
+        has_pending = False
+        for a in attempts:
+            if not isinstance(a, dict):
+                continue
+            if a.get('status') != 'pending':
+                continue
+            if str(a.get('providerId') or '') == str(effective_provider_account_id):
+                has_pending = True
+                break
+        if oid == str(effective_provider_account_id) or has_pending:
+            await upsert_notification_item(
+                db,
+                recipient_user_id=operator_user_id,
+                audience_role='operator',
+                service_request_id=srid,
+                kind='nueva_oferta',
+                occurred_at=str(sr.get('offerSentAt') or sr.get('createdAt') or _now_iso()),
+                pinned=True,
+            )
+            expires_at = str(sr.get('offerExpiresAt') or '').strip()
+            if expires_at:
+                try:
+                    exp_dt = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                    now_dt = datetime.now(timezone.utc)
+                    remaining = (exp_dt - now_dt).total_seconds()
+                    if remaining <= 120:
+                        await upsert_notification_item(
+                            db,
+                            recipient_user_id=operator_user_id,
+                            audience_role='operator',
+                            service_request_id=srid,
+                            kind='oferta_expira',
+                            occurred_at=expires_at,
+                            pinned=True,
+                        )
+                except Exception:
+                    pass
+
+    operator_id = sr.get('operator_id') or sr.get('operatorId')
+    if operator_id and str(operator_id) == str(operator_user_id):
+        if status in {'confirmed', 'en_route', 'in_progress', 'last_30', 'finished'}:
+            await upsert_notification_item(
+                db,
+                recipient_user_id=operator_user_id,
+                audience_role='operator',
+                service_request_id=srid,
+                kind='confirmed',
+                occurred_at=str(sr.get('confirmedAt') or sr.get('createdAt') or _now_iso()),
+            )
+
+        operator_assigned_at = sr.get('operator_assigned_at') or sr.get('operatorAssignedAt')
+        if operator_assigned_at:
+            await upsert_notification_item(
+                db,
+                recipient_user_id=operator_user_id,
+                audience_role='operator',
+                service_request_id=srid,
+                kind='assigned',
+                occurred_at=str(operator_assigned_at or _now_iso()),
+            )
+
+        if status == 'en_route':
+            await upsert_notification_item(
+                db,
+                recipient_user_id=operator_user_id,
+                audience_role='operator',
+                service_request_id=srid,
+                kind='en_route',
+                occurred_at=str(operator_assigned_at or sr.get('confirmedAt') or sr.get('createdAt') or _now_iso()),
+            )
+
+        if sr.get('arrivalDetectedAt'):
+            await upsert_notification_item(
+                db,
+                recipient_user_id=operator_user_id,
+                audience_role='operator',
+                service_request_id=srid,
+                kind='arrival',
+                occurred_at=str(sr.get('arrivalDetectedAt') or _now_iso()),
+            )
+            if not sr.get('clientEntryConfirmedAt'):
+                await upsert_notification_item(
+                    db,
+                    recipient_user_id=operator_user_id,
+                    audience_role='operator',
+                    service_request_id=srid,
+                    kind='entry_pending',
+                    occurred_at=str(sr.get('arrivalDetectedAt') or _now_iso()),
+                    action_required=True,
+                    ack_required=False,
+                )
+
+        if sr.get('clientEntryConfirmedAt'):
+            await upsert_notification_item(
+                db,
+                recipient_user_id=operator_user_id,
+                audience_role='operator',
+                service_request_id=srid,
+                kind='entry_authorized',
+                occurred_at=str(sr.get('clientEntryConfirmedAt') or _now_iso()),
+            )
+
+        if status in {'in_progress', 'last_30'} or sr.get('startedAt'):
+            await upsert_notification_item(
+                db,
+                recipient_user_id=operator_user_id,
+                audience_role='operator',
+                service_request_id=srid,
+                kind='started',
+                occurred_at=str(sr.get('startedAt') or _now_iso()),
+            )
+
+        if sr.get('activeIncident'):
+            inc = sr.get('activeIncident') if isinstance(sr.get('activeIncident'), dict) else {}
+            await upsert_notification_item(
+                db,
+                recipient_user_id=operator_user_id,
+                audience_role='operator',
+                service_request_id=srid,
+                kind='incident',
+                occurred_at=str(inc.get('reportedAt') or _now_iso()),
+                extra={'reason': inc.get('reason')},
+                pinned=True,
+            )
+
+        if status.startswith('cancelled') or status in {'cancel_with_fee', 'cancelled_no_arrival'}:
+            await upsert_notification_item(
+                db,
+                recipient_user_id=operator_user_id,
+                audience_role='operator',
+                service_request_id=srid,
+                kind='cancelled',
+                occurred_at=str(sr.get('cancelled_at') or _now_iso()),
+                pinned=True,
+            )
+
+        if status == 'finished' or sr.get('finishedAt'):
+            await upsert_notification_item(
+                db,
+                recipient_user_id=operator_user_id,
+                audience_role='operator',
+                service_request_id=srid,
+                kind='finished',
+                occurred_at=str(sr.get('finishedAt') or _now_iso()),
+            )
