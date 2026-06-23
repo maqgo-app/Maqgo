@@ -82,6 +82,11 @@ agenthub/agents/youtube/db
 # QA artifacts (local)
 backend/qa-artifacts/
 
+# QA screenshots / reports (local)
+archive/qa-screenshots/
+frontend/archive/
+frontend/scripts/_tmp_qa_*
+
 # Archives / large binaries
 **/*.zip
 **/*.tar.gz
