@@ -437,9 +437,9 @@ function WelcomeScreen() {
     <div className="welcome-legal-links" aria-label="Enlaces legales">
       <Link className="welcome-legal-link" to="/faq">FAQ</Link>
       <span className="welcome-legal-sep" aria-hidden>·</span>
-      <Link className="welcome-legal-link" to="/terms">Términos y Condiciones</Link>
-      <span className="welcome-legal-sep" aria-hidden>·</span>
       <Link className="welcome-legal-link" to="/privacy">Políticas de Privacidad</Link>
+      <span className="welcome-legal-sep" aria-hidden>·</span>
+      <Link className="welcome-legal-link" to="/terms">Términos y Condiciones</Link>
     </div>
     <div className="welcome-legal-copy">© <strong>2026 MAQGO</strong>. <strong>Todos los derechos reservados</strong>.</div>
   </div>
