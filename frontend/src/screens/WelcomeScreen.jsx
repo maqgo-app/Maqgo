@@ -436,9 +436,9 @@ function WelcomeScreen() {
   <div className="welcome-legal-footer">
     <div className="welcome-legal-links" aria-label="Enlaces legales">
       <Link className="welcome-legal-link" to="/terms">Términos y Condiciones</Link>
-      <span className="welcome-legal-sep" aria-hidden>·</span>
+      <span className="welcome-legal-sep" aria-hidden>|</span>
       <Link className="welcome-legal-link" to="/privacy">Políticas de Privacidad</Link>
-      <span className="welcome-legal-sep" aria-hidden>·</span>
+      <span className="welcome-legal-sep" aria-hidden>|</span>
       <Link className="welcome-legal-link" to="/faq">Ayuda y Soporte</Link>
     </div>
     <div className="welcome-legal-copy">© <strong>2026 MAQGO</strong>. <strong>Todos los derechos reservados</strong>.</div>
@@ -468,8 +468,8 @@ function WelcomeScreen() {
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-wrap: nowrap;
-      white-space: nowrap;
+      flex-wrap: wrap;
+      white-space: normal;
       font-size: clamp(11px, 0.95vw, 12px);
       line-height: 1.25;
       letter-spacing: 0.01em;
