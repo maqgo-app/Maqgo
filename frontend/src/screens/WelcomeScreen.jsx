@@ -435,9 +435,9 @@ function WelcomeScreen() {
 
   <div className="welcome-legal-footer">
     <div className="welcome-legal-links" aria-label="Enlaces legales">
-      <Link className="welcome-legal-link" to="/terms">Términos y Condiciones</Link>
+        <Link className="welcome-legal-link" to="/terms">Términos</Link>
       <span className="welcome-legal-sep" aria-hidden>|</span>
-      <Link className="welcome-legal-link" to="/privacy">Políticas de Privacidad</Link>
+        <Link className="welcome-legal-link" to="/privacy">Políticas</Link>
       <span className="welcome-legal-sep" aria-hidden>|</span>
       <Link className="welcome-legal-link" to="/faq">Ayuda y Soporte</Link>
     </div>
@@ -468,13 +468,13 @@ function WelcomeScreen() {
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-wrap: wrap;
-      white-space: normal;
-      font-size: clamp(11px, 0.95vw, 12px);
+      flex-wrap: nowrap;
+      white-space: nowrap;
+      font-size: clamp(11px, 0.9vw, 12px);
       line-height: 1.25;
       letter-spacing: 0.01em;
       color: rgba(255,255,255,0.62);
-      gap: clamp(8px, 1.2vw, 12px);
+      gap: clamp(6px, 1vw, 10px);
       max-width: 100%;
       padding: 0 12px;
     }
@@ -516,10 +516,10 @@ function WelcomeScreen() {
         padding: 30px 0 18px;
       }
       .welcome-legal-links {
-        flex-wrap: wrap;
-        white-space: normal;
-        gap: 8px;
-        font-size: 11px;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+        gap: 6px;
+        font-size: 10.5px;
       }
       .welcome-legal-copy {
         font-size: 10.5px;
