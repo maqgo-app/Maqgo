@@ -25,6 +25,9 @@ import BookingPaymentRouteStateBinding from './components/BookingPaymentRouteSta
 import BookingNavigationGuard from './components/BookingNavigationGuard';
 import { peekReturnUrl } from './utils/registrationReturn';
 import { AppNavigateToLogin } from './components/AppNavigateToLogin';
+import FAQScreen from './screens/FAQScreen';
+import TermsScreen from './screens/TermsScreen';
+import PrivacyScreen from './screens/PrivacyScreen';
 
 /** /verified (SMS ok) → selección de rol; sin pantalla intermedia. */
 function LegacyVerifiedToSelectRole() {
@@ -191,9 +194,6 @@ const AdminChangePasswordScreen = lazy(() => import('./screens/admin/AdminChange
 
 // Perfil y legales
 const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
-const FAQScreen = lazy(() => import('./screens/FAQScreen'));
-const TermsScreen = lazy(() => import('./screens/TermsScreen'));
-const PrivacyScreen = lazy(() => import('./screens/PrivacyScreen'));
 
 function AppContent() {
   const location = useLocation();
