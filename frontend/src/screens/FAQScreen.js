@@ -133,12 +133,116 @@ const FAQ_DATA = [
   }
 ];
 
+const ROLE_GROUPS = {
+  client: [
+    {
+      title: 'Sobre MAQGO',
+      questions: ['¿Qué es MAQGO?', '¿MAQGO es dueño de las máquinas?'],
+    },
+    {
+      title: 'Reservas',
+      questions: [
+        '¿Cómo solicito una maquinaria?',
+        '¿Cuál es la tarifa por servicio?',
+        '¿Cómo calcula MAQGO el costo de traslado?',
+        '¿Qué es la bonificación por alta demanda?',
+      ],
+    },
+    {
+      title: 'Servicio',
+      questions: ['¿Cómo me comunico con el operador?', '¿Qué pasa si el operador llega y no estoy?'],
+    },
+    {
+      title: 'Pagos',
+      questions: ['¿Cuándo se cobra mi tarjeta?', '¿Recibiré factura?'],
+    },
+    {
+      title: 'Cancelaciones',
+      questions: ['¿Puedo cancelar una reserva?', '¿Qué pasa si el operador no llega (no-show)?'],
+    },
+  ],
+  provider: [
+    {
+      title: 'Registro y Roles',
+      questions: [
+        '¿Cómo registro mi empresa?',
+        '¿Qué roles existen en mi cuenta?',
+        '¿Cómo invito operadores?',
+        '¿Qué ve cada rol en la app?',
+      ],
+    },
+    {
+      title: 'Maquinarias',
+      questions: ['¿Cómo configuro el traslado de una máquina?', '¿Cómo declara MAQGO la ubicación de mi maquinaria?'],
+    },
+    {
+      title: 'Cobros y Facturación',
+      questions: [
+        '¿Cuál es la tarifa por servicio?',
+        '¿Cuándo recibo mi pago?',
+        '¿Cómo emito la factura a MAQGO?',
+        '¿A qué datos debe ir emitida la factura?',
+      ],
+    },
+  ],
+  operator: [
+    {
+      title: 'Activación',
+      questions: ['¿Qué es "Soy operador (tengo código)"?', '¿Cómo me uno con mi código?'],
+    },
+    {
+      title: 'Servicios',
+      questions: [
+        '¿Qué puedo hacer como operador?',
+        '¿Qué NO puedo ver como operador?',
+        '¿Cómo sé cuándo tengo un servicio?',
+      ],
+    },
+  ],
+};
+
 function FAQScreen() {
   const navigate = useNavigate();
   const [openIndex, setOpenIndex] = useState(null);
   const [activeCategory, setActiveCategory] = useState('Clientes');
 
-  const currentFAQ = FAQ_DATA.find(f => f.category === activeCategory);
+  const session = (() => {
+    try {
+      const userId = String(localStorage.getItem('userId') || '').trim();
+      const token = String(localStorage.getItem('token') || localStorage.getItem('authToken') || '').trim();
+      const userRole = String(localStorage.getItem('userRole') || '').trim();
+      const providerRole = String(localStorage.getItem('providerRole') || '').trim();
+      const isAuthenticated = Boolean(userId && token);
+      const role =
+        isAuthenticated && userRole === 'provider'
+          ? providerRole === 'operator'
+            ? 'operator'
+            : 'provider'
+          : isAuthenticated && userRole === 'client'
+            ? 'client'
+            : null;
+      return { isAuthenticated, role };
+    } catch {
+      return { isAuthenticated: false, role: null };
+    }
+  })();
+
+  const roleCategory = session.role === 'provider' ? 'Proveedores' : session.role === 'operator' ? 'Operadores' : 'Clientes';
+
+  const selectedCategory = session.isAuthenticated ? roleCategory : activeCategory;
+  const currentFAQ = FAQ_DATA.find((f) => f.category === selectedCategory);
+
+  const grouped = (() => {
+    if (!session.isAuthenticated || !session.role) return null;
+    const groups = ROLE_GROUPS[session.role] || [];
+    const byQuestion = new Map((currentFAQ?.questions ?? []).map((q) => [q.q, q]));
+    return groups
+      .map((g) => ({
+        title: g.title,
+        items: g.questions.map((qq) => byQuestion.get(qq)).filter(Boolean),
+      }))
+      .filter((g) => g.items.length > 0);
+  })();
 
   return (
     <div className="maqgo-app maqgo-client-funnel">
@@ -159,99 +263,188 @@ function FAQScreen() {
             <BackArrowIcon />
           </button>
           <h1 className="maqgo-h1">
-            Preguntas frecuentes
+            Ayuda y Soporte
           </h1>
         </div>
 
-        {/* Tabs */}
-        <div style={{ 
-          display: 'flex', 
-          gap: 8, 
-          marginBottom: 24,
-          overflowX: 'auto',
-          paddingBottom: 4
-        }}>
-          {FAQ_DATA.map(cat => (
-            <button
-              key={cat.category}
-              onClick={() => {
-                setActiveCategory(cat.category);
-                setOpenIndex(null);
-              }}
-              style={{
-                padding: '10px 18px',
-                borderRadius: 20,
-                border: 'none',
-                background: activeCategory === cat.category ? '#EC6819' : '#2A2A2A',
-                color: '#fff',
-                fontSize: 14,
-                fontWeight: 500,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {cat.category}
-            </button>
-          ))}
-        </div>
-
-        {/* Preguntas */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {(currentFAQ?.questions ?? []).map((item, idx) => (
-            <div 
-              key={idx}
-              style={{
-                background: '#2A2A2A',
-                borderRadius: 12,
-                overflow: 'hidden'
-              }}
-            >
+        {!session.isAuthenticated && (
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              marginBottom: 24,
+              overflowX: 'auto',
+              paddingBottom: 4,
+            }}
+          >
+            {FAQ_DATA.map((cat) => (
               <button
-                onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
+                key={cat.category}
+                onClick={() => {
+                  setActiveCategory(cat.category);
+                  setOpenIndex(null);
+                }}
                 style={{
-                  width: '100%',
-                  padding: 16,
-                  background: 'none',
+                  padding: '10px 18px',
+                  borderRadius: 20,
                   border: 'none',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
+                  background: activeCategory === cat.category ? '#EC6819' : '#2A2A2A',
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 500,
                   cursor: 'pointer',
-                  textAlign: 'left',
-                  gap: 12
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <span style={{ color: '#fff', fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>
-                  {item.q}
-                </span>
-                <svg 
-                  width="18" 
-                  height="18" 
-                  viewBox="0 0 24 24" 
-                  fill="none"
+                {cat.category}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {grouped
+            ? (() => {
+                let globalIndex = 0;
+                return grouped.flatMap((g, gi) => {
+                  const header = (
+                    <div key={`h-${gi}`} style={{ marginTop: gi === 0 ? 0 : 10 }}>
+                      <div
+                        style={{
+                          color: 'rgba(255,255,255,0.85)',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          letterSpacing: 0.2,
+                          margin: '8px 0 2px',
+                        }}
+                      >
+                        {g.title}
+                      </div>
+                    </div>
+                  );
+
+                  const items = g.items.map((item) => {
+                    const idx = globalIndex;
+                    globalIndex += 1;
+                    return (
+                      <div
+                        key={`${g.title}-${item.q}`}
+                        style={{
+                          background: '#2A2A2A',
+                          borderRadius: 12,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <button
+                          onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
+                          style={{
+                            width: '100%',
+                            padding: 16,
+                            background: 'none',
+                            border: 'none',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            gap: 12,
+                          }}
+                        >
+                          <span style={{ color: '#fff', fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>
+                            {item.q}
+                          </span>
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            style={{
+                              transform: openIndex === idx ? 'rotate(180deg)' : 'rotate(0)',
+                              transition: 'transform 0.2s',
+                              flexShrink: 0,
+                              marginTop: 2,
+                            }}
+                          >
+                            <path d="M6 9L12 15L18 9" stroke="#888" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                        </button>
+
+                        {openIndex === idx && (
+                          <div
+                            style={{
+                              padding: '0 16px 16px',
+                              color: 'rgba(255,255,255,0.8)',
+                              fontSize: 14,
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            {item.a}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+
+                  return [header, ...items];
+                });
+              })()
+            : (currentFAQ?.questions ?? []).map((item, idx) => (
+                <div
+                  key={idx}
                   style={{
-                    transform: openIndex === idx ? 'rotate(180deg)' : 'rotate(0)',
-                    transition: 'transform 0.2s',
-                    flexShrink: 0,
-                    marginTop: 2
+                    background: '#2A2A2A',
+                    borderRadius: 12,
+                    overflow: 'hidden',
                   }}
                 >
-                  <path d="M6 9L12 15L18 9" stroke="#888" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </button>
-              
-              {openIndex === idx && (
-                <div style={{
-                  padding: '0 16px 16px',
-                  color: 'rgba(255,255,255,0.8)',
-                  fontSize: 14,
-                  lineHeight: 1.6
-                }}>
-                  {item.a}
+                  <button
+                    onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
+                    style={{
+                      width: '100%',
+                      padding: 16,
+                      background: 'none',
+                      border: 'none',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      gap: 12,
+                    }}
+                  >
+                    <span style={{ color: '#fff', fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>
+                      {item.q}
+                    </span>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      style={{
+                        transform: openIndex === idx ? 'rotate(180deg)' : 'rotate(0)',
+                        transition: 'transform 0.2s',
+                        flexShrink: 0,
+                        marginTop: 2,
+                      }}
+                    >
+                      <path d="M6 9L12 15L18 9" stroke="#888" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </button>
+
+                  {openIndex === idx && (
+                    <div
+                      style={{
+                        padding: '0 16px 16px',
+                        color: 'rgba(255,255,255,0.8)',
+                        fontSize: 14,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {item.a}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+              ))}
         </div>
 
         {/* Links */}
