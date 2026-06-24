@@ -62,6 +62,22 @@ function applyMasterPermissions(mergedPerms, masterPermissions) {
   };
 }
 
+function mergeProviderPermissionsFromApi(basePerms, apiPerms, role, userId) {
+  const mergedPerms = { ...(basePerms || {}) };
+  const p = apiPerms && typeof apiPerms === 'object' ? apiPerms : {};
+  if (typeof p.can_view_finances === 'boolean') mergedPerms.canViewFinances = p.can_view_finances;
+  if (typeof p.can_view_invoices === 'boolean') mergedPerms.canViewInvoices = p.can_view_invoices;
+  if (typeof p.can_upload_invoice === 'boolean') mergedPerms.canUploadInvoice = p.can_upload_invoice;
+  if (typeof p.can_manage_operators === 'boolean') mergedPerms.canManageOperators = p.can_manage_operators;
+  if (typeof p.can_manage_machines === 'boolean') mergedPerms.canManageMachines = p.can_manage_machines;
+  if (typeof p.can_manage_masters === 'boolean') mergedPerms.canManageMasters = p.can_manage_masters;
+  if (typeof p.can_view_bank_data === 'boolean') mergedPerms.canViewBankData = p.can_view_bank_data;
+  if (typeof p.can_accept_requests === 'boolean') mergedPerms.canAcceptRequests = p.can_accept_requests;
+  if (typeof p.can_view_services === 'boolean') mergedPerms.canViewServices = p.can_view_services;
+  if (typeof p.can_delete_machines === 'boolean') mergedPerms.canDeleteMachines = p.can_delete_machines;
+  return role === 'master' ? applyMasterPermissions(mergedPerms, loadMasterPermissionsForUser(userId)) : mergedPerms;
+}
+
 // Permisos por defecto según rol
 const DEFAULT_PERMISSIONS = {
   super_master: {
@@ -177,23 +193,7 @@ export function AuthProvider({ children }) {
             if (role === 'owner') role = 'super_master';
             setProviderRole(role);
             const basePerms = DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.super_master;
-            const apiPerms = roleData?.permissions && typeof roleData.permissions === 'object' ? roleData.permissions : {};
-            const mergedPerms = { ...basePerms };
-            if (typeof apiPerms.can_view_finances === 'boolean') mergedPerms.canViewFinances = apiPerms.can_view_finances;
-            if (typeof apiPerms.can_view_invoices === 'boolean') mergedPerms.canViewInvoices = apiPerms.can_view_invoices;
-            if (typeof apiPerms.can_upload_invoice === 'boolean') mergedPerms.canUploadInvoice = apiPerms.can_upload_invoice;
-            if (typeof apiPerms.can_manage_operators === 'boolean') mergedPerms.canManageOperators = apiPerms.can_manage_operators;
-            if (typeof apiPerms.can_manage_machines === 'boolean') mergedPerms.canManageMachines = apiPerms.can_manage_machines;
-            if (typeof apiPerms.can_manage_masters === 'boolean') mergedPerms.canManageMasters = apiPerms.can_manage_masters;
-            if (typeof apiPerms.can_view_bank_data === 'boolean') mergedPerms.canViewBankData = apiPerms.can_view_bank_data;
-            if (typeof apiPerms.can_accept_requests === 'boolean') mergedPerms.canAcceptRequests = apiPerms.can_accept_requests;
-            if (typeof apiPerms.can_view_services === 'boolean') mergedPerms.canViewServices = apiPerms.can_view_services;
-            if (typeof apiPerms.can_delete_machines === 'boolean') mergedPerms.canDeleteMachines = apiPerms.can_delete_machines;
-            const effectivePerms =
-              role === 'master'
-                ? applyMasterPermissions(mergedPerms, loadMasterPermissionsForUser(userId))
-                : mergedPerms;
-            setPermissions(effectivePerms);
+            setPermissions(mergeProviderPermissionsFromApi(basePerms, roleData?.permissions, role, userId));
             setOwnerId(roleData.owner_id || null);
             setOwnerName(roleData.owner_name);
             localStorage.setItem('providerRole', role);
@@ -334,6 +334,18 @@ export function AuthProvider({ children }) {
         const oid = data.owner_id || null;
         if (!cancelled) {
           await login(userId, userRole, rawProviderRole, oid);
+          if (userRole === 'provider') {
+            const role = (rawProviderRole === 'owner' ? 'super_master' : rawProviderRole) || 'super_master';
+            const basePerms = DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.super_master;
+            const permsFromMe = data?.provider_permissions;
+            if (permsFromMe && typeof permsFromMe === 'object') {
+              setProviderRole(role);
+              setPermissions(mergeProviderPermissionsFromApi(basePerms, permsFromMe, role, userId));
+              setOwnerId(oid);
+            } else {
+              await loadUserData();
+            }
+          }
           try {
             if (data.phone) {
               localStorage.setItem('userPhone', String(data.phone).trim());

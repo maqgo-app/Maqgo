@@ -47,7 +47,7 @@ from services.risk_auth_service import (
     too_many_recent_login_failures,
     upsert_trusted_device,
 )
-from utils.rbac import is_super_master
+from utils.rbac import has_permission, is_super_master
 from services.access_block_service import find_active_phone_block
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -1362,6 +1362,31 @@ async def auth_me(current_user: dict = Depends(get_current_user)):
     # El rol activo lo decide el cliente (Welcome / elección de modo) dentro de una sesión válida.
     effective_role = "admin" if "admin" in roles else "client"
     pr = _provider_role_for_api(current_user, roles)
+
+    provider_permissions = None
+    if "provider" in roles and pr:
+        is_super = pr == "super_master"
+        is_master = pr == "master"
+        has_full_visibility = is_super or is_master
+
+        master_permissions = current_user.get("master_permissions", {}) if is_master else {}
+        if not isinstance(master_permissions, dict):
+            master_permissions = {}
+        can_manage_machines = bool(is_super or (is_master and master_permissions.get("can_manage_machines") is True))
+        can_delete_machines = bool(is_super or (is_master and master_permissions.get("can_delete_machines") is True))
+
+        provider_permissions = {
+            "can_view_finances": has_full_visibility,
+            "can_view_invoices": has_full_visibility,
+            "can_upload_invoice": has_full_visibility,
+            "can_manage_operators": has_full_visibility,
+            "can_manage_masters": is_super,
+            "can_view_bank_data": has_full_visibility,
+            "can_accept_requests": has_permission(current_user, "accept_requests"),
+            "can_view_services": True,
+            "can_manage_machines": can_manage_machines,
+            "can_delete_machines": can_delete_machines,
+        }
     return {
         "id": current_user["id"],
         "name": current_user.get("name"),
@@ -1375,6 +1400,7 @@ async def auth_me(current_user: dict = Depends(get_current_user)):
         "roles": roles,
         "provider_role": pr,
         "owner_id": current_user.get("owner_id"),
+        "provider_permissions": provider_permissions,
     }
 
 
