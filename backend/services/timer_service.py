@@ -646,6 +646,51 @@ class TimerService:
                         )
                 except Exception as e:
                     logger.warning("auto-finish push notify error id=%s err=%s", sid, e)
+
+                try:
+                    enabled_raw = str(os.environ.get("MAQGO_CLIENT_FINISHED_SUMMARY_EMAIL_ENABLED", "true") or "").strip().lower()
+                    enabled = enabled_raw in {"1", "true", "yes", "y", "on"}
+                    if enabled and client_id:
+                        client = await self.db.users.find_one({'id': str(client_id)}, {'_id': 0, 'email': 1})
+                        email = str((client or {}).get('email') or '').strip().lower()
+                        if email:
+                            from services.client_emailer import send_client_event_email
+
+                            app_url = (os.environ.get("FRONTEND_URL", "").strip() or "").rstrip("/")
+                            sr_full = await self.db.service_requests.find_one(
+                                {'id': sid},
+                                {
+                                    '_id': 0,
+                                    'id': 1,
+                                    'finishedAt': 1,
+                                    'totalAmount': 1,
+                                    'hours': 1,
+                                    'machineryType': 1,
+                                    'machineType': 1,
+                                    'location': 1,
+                                },
+                            )
+                            out = await send_client_event_email(
+                                db=self.db,
+                                event_type='service_finished_summary',
+                                to_email=email,
+                                payload={
+                                    'service_request_id': sid,
+                                    'app_url': app_url,
+                                    'finished_at': (sr_full or {}).get('finishedAt') or now.isoformat(),
+                                    'total_amount': (sr_full or {}).get('totalAmount') if isinstance(sr_full, dict) else None,
+                                    'hours': (sr_full or {}).get('hours') if isinstance(sr_full, dict) else None,
+                                    'machinery': (sr_full or {}).get('machineryType') or (sr_full or {}).get('machineType') or '—',
+                                    'location': (sr_full or {}).get('location') if isinstance(sr_full, dict) else None,
+                                },
+                            )
+                            if out.get('sent'):
+                                await self.db.service_requests.update_one(
+                                    {'id': sid},
+                                    {'$set': {'finishedSummaryClientEmailSentAt': now.isoformat(), 'finishedSummaryClientEmail': email}},
+                                )
+                except Exception as e:
+                    logger.warning("auto-finish summary email error id=%s err=%s", sid, e)
         
         return finished_count
     

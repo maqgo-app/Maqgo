@@ -1,4 +1,5 @@
 import uuid
+import os
 
 from fastapi import APIRouter, HTTPException, Body, Depends, status, Request
 from fastapi.responses import JSONResponse
@@ -341,6 +342,67 @@ async def _notify_push_client_event(
                 status='sent' if int(res.get('sent', 0) or 0) > 0 else 'skipped',
                 meta={'sent': int(res.get('sent', 0) or 0), 'skipped': int(res.get('skipped', 0) or 0)},
             )
+
+            k = str(kind or '').strip().lower()
+            sms_fallback_enabled = os.environ.get('MAQGO_SMS_FALLBACK_ENABLED', 'true').lower() == 'true'
+            should_fallback_to_sms = sms_fallback_enabled and k in {'arrival', 'incident'} and int(res.get('sent', 0) or 0) <= 0
+
+            if should_fallback_to_sms:
+                try:
+                    already_sent = await db.notification_deliveries.find_one(
+                        {'notificationId': item['id'], 'channel': 'sms', 'status': 'sent'},
+                        {'_id': 0, 'id': 1},
+                    )
+                    if already_sent:
+                        return
+
+                    client_doc = await db.users.find_one({'id': str(client_id)}, {'_id': 0, 'phone': 1})
+                    phone = _format_cl_phone_e164(client_doc.get('phone') if isinstance(client_doc, dict) else None)
+                    if not phone:
+                        await record_delivery(
+                            db,
+                            notification_id=item['id'],
+                            channel='sms',
+                            status='skipped',
+                            meta={'reason': 'missing_phone'},
+                        )
+                        return
+
+                    if k == 'arrival':
+                        sms_text = 'MAQGO: El operador marcó llegada. Autoriza el ingreso en la app.'
+                    else:
+                        sms_text = 'MAQGO: El operador reportó una demora/incidente. Revisa el estado en la app.'
+
+                    from services.otp_service import send_sms as send_sms_raw
+
+                    ok, err = send_sms_raw(phone, sms_text)
+                    await record_delivery(
+                        db,
+                        notification_id=item['id'],
+                        channel='sms',
+                        status='sent' if ok else 'failed',
+                        meta={'error': err} if err else {},
+                    )
+
+                    try:
+                        await db.service_requests.update_one(
+                            {'id': request_id},
+                            {
+                                '$push': {
+                                    'events': {
+                                        'type': 'client_sms_fallback_status',
+                                        'createdAt': datetime.now(timezone.utc).isoformat(),
+                                        'kind': k,
+                                        'status': 'sent' if ok else 'failed',
+                                        'error': err,
+                                    }
+                                }
+                            },
+                        )
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
         except Exception:
             pass
     except Exception as e:
@@ -1797,6 +1859,39 @@ async def finish_service(
         client_id=request.get("clientId") if request else None,
         kind="finished",
     )
+
+    try:
+        enabled_raw = str(os.environ.get("MAQGO_CLIENT_FINISHED_SUMMARY_EMAIL_ENABLED", "true") or "").strip().lower()
+        enabled = enabled_raw in {"1", "true", "yes", "y", "on"}
+        client_id = request.get("clientId") if request else None
+        if enabled and client_id:
+            client = await db.users.find_one({"id": str(client_id)}, {"_id": 0, "email": 1})
+            email = str((client or {}).get("email") or "").strip().lower()
+            if email:
+                from services.client_emailer import send_client_event_email
+
+                app_url = (os.environ.get("FRONTEND_URL", "").strip() or "").rstrip("/")
+                out = await send_client_event_email(
+                    db=db,
+                    event_type="service_finished_summary",
+                    to_email=email,
+                    payload={
+                        "service_request_id": request_id,
+                        "app_url": app_url,
+                        "finished_at": now.isoformat(),
+                        "total_amount": request.get("totalAmount", 0) if request else 0,
+                        "hours": request.get("hours") if request else None,
+                        "machinery": (request.get("machineryType") if request else None) or (request.get("machineType") if request else None) or "—",
+                        "location": request.get("location") if request else None,
+                    },
+                )
+                if out.get("sent"):
+                    await db.service_requests.update_one(
+                        {"id": request_id},
+                        {"$set": {"finishedSummaryClientEmailSentAt": now.isoformat(), "finishedSummaryClientEmail": email}},
+                    )
+    except Exception:
+        pass
     return {
         'message': 'Servicio finalizado',
         'status': 'finished',

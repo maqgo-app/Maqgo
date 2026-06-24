@@ -116,6 +116,63 @@ def _template_service_auto_started(
     return subject, text, html
 
 
+def _format_clp_amount(value: Any) -> str:
+    try:
+        n = int(round(float(value)))
+    except Exception:
+        return "—"
+    return f"${n:,}".replace(",", ".")
+
+
+def _template_service_finished_summary(
+    *,
+    service_request_id: str,
+    app_url: str,
+    payload: dict[str, Any],
+) -> tuple[str, str, str]:
+    srid = str(service_request_id or "").strip() or "—"
+    total = _format_clp_amount(payload.get("total_amount"))
+    when = str(payload.get("finished_at") or "").strip() or "—"
+    machinery = str(payload.get("machinery") or "").strip() or "—"
+    location = str(payload.get("location") or "").strip() or "—"
+    hours = str(payload.get("hours") or "").strip() or "—"
+
+    subject = f"Resumen de tu servicio ({srid})"
+    intro = "Este es el resumen de tu servicio en MAQGO."
+    bullets = [
+        f"Servicio: {srid}",
+        f"Maquinaria: {machinery}",
+        f"Ubicación: {location}",
+        f"Duración: {hours}",
+        f"Finalizado: {when}",
+        f"Total: {total}",
+    ]
+    cta_url = f"{(app_url or '').rstrip('/')}/client/history" if app_url else "/client/history"
+    html = _build_maqgo_email_html(
+        preheader=f"Resumen del servicio {srid}",
+        title="Resumen de tu servicio",
+        intro=intro,
+        bullets=bullets,
+        cta_label="Ver detalle en la app",
+        cta_url=cta_url,
+    )
+    text = "\n".join(
+        [
+            "Resumen de tu servicio",
+            "",
+            f"Servicio: {srid}",
+            f"Maquinaria: {machinery}",
+            f"Ubicación: {location}",
+            f"Duración: {hours}",
+            f"Finalizado: {when}",
+            f"Total: {total}",
+            "",
+            f"Ver detalle en la app: {cta_url}",
+        ]
+    )
+    return subject, text, html
+
+
 async def send_client_event_email(
     *,
     db,
@@ -135,6 +192,12 @@ async def send_client_event_email(
 
     if t == "service_auto_started":
         subject, text, html = _template_service_auto_started(service_request_id=service_request_id, app_url=app_url)
+    elif t == "service_finished_summary":
+        subject, text, html = _template_service_finished_summary(
+            service_request_id=service_request_id,
+            app_url=app_url,
+            payload=payload,
+        )
     else:
         subject = f"MAQGO — Aviso ({t})"
         text = str(payload.get("text") or "").strip() or "Tienes una actualización en tu servicio."
