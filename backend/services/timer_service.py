@@ -254,6 +254,7 @@ class TimerService:
     async def check_auto_start_post_arrival(self) -> int:
         """
         Auto inicio post llegada: si status=confirmed/en_route, arrivalDetectedAt existe,
+        y la llegada fue verificada,
         y now >= arrivalDetectedAt + 30 minutos → status in_progress, autoStartedAt.
         """
         now = datetime.now(timezone.utc)
@@ -264,6 +265,7 @@ class TimerService:
                 {
                     'status': {'$in': ['confirmed', 'en_route']},
                     'arrivalDetectedAt': {'$exists': True, '$ne': None},
+                    'arrivalLocation.verified': True,
                 },
                 {'_id': 0, 'id': 1, 'clientId': 1, 'arrivalDetectedAt': 1},
             )

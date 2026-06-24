@@ -33,7 +33,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Puedo cancelar una reserva?',
-        a: 'Sí. Cancelación cliente (desde la aceptación): 0–60 min = 0% · 60–120 min = 20% · +120 min = 40%. Presencia confirmada en obra: a partir de este punto ya no puedes cancelar. El sistema nunca cancela automáticamente un servicio; si no hay llegada registrada, se generan avisos críticos a 120, 180 y 240 minutos.'
+        a: 'Sí. Cancelación cliente (desde la aceptación): 0–60 min = 0% · 60–120 min = 20% · +120 min = 40%. Presencia confirmada en obra: a partir de este punto ya no puedes cancelar. Se considera presencia confirmada cuando existe evidencia suficiente, por ejemplo: llegada verificada, cliente autoriza ingreso, auto-start con llegada verificada o servicio iniciado. El sistema nunca cancela automáticamente un servicio; si no hay llegada registrada, se generan avisos críticos a 120, 180 y 240 minutos.'
       },
       {
         q: '¿Cómo me comunico con el operador?',

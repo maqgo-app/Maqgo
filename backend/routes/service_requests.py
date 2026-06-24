@@ -1260,11 +1260,16 @@ async def cancel_service_client(
             detail="No se puede cancelar en el estado actual del servicio"
         )
 
+    arrival_loc = request.get("arrivalLocation") if isinstance(request.get("arrivalLocation"), dict) else {}
+    arrival_verified = bool(arrival_loc.get("verified") is True)
+
+    st_lower = str(request.get("status") or "").strip().lower()
     presence_confirmed = bool(
-        request.get("arrivalDetectedAt")
+        (request.get("arrivalDetectedAt") and arrival_verified)
         or request.get("clientEntryConfirmedAt")
-        or request.get("autoStartedAt")
+        or (request.get("autoStartedAt") and arrival_verified)
         or request.get("startedAt")
+        or st_lower in {"in_progress", "last_30", "finished"}
     )
     if presence_confirmed:
         raise HTTPException(

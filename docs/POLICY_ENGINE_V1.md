@@ -51,11 +51,17 @@
 
 ## Presencia confirmada en obra
 Se considera presencia confirmada cuando existe evidencia suficiente de que la maquinaria y/o el operador llegaron al lugar de trabajo, por ejemplo:
-- arrivalDetectedAt registrado.
+- arrivalDetectedAt registrado con llegada verificada (`arrivalLocation.verified=true`).
 - Cliente autoriza ingreso (client_entry_confirmed).
 - auto_start.
 - Servicio iniciado (started/in_progress).
 - Mensajes guiados y/o interacciones posteriores coherentes que acrediten presencia física.
+
+### Arrival manual
+`arrivalDetectedAt` con `arrivalLocation.verified=false` no constituye presencia confirmada por sí solo.
+
+### Auto-start
+Auto-start solo puede ejecutarse cuando existe llegada verificada (`arrivalLocation.verified=true`).
 
 ## Constitución temporal (clocks contractuales)
 | Clock | Start | Pausa | Bloquea | Resetea | Trigger | Consecuencia |

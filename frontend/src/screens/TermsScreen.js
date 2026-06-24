@@ -199,7 +199,7 @@ function TermsScreen() {
             Presencia confirmada en obra: a partir de este punto el cliente ya no puede cancelar.
           </p>
           <p style={{ marginBottom: 12 }}>
-            Se considera presencia confirmada cuando existe evidencia suficiente de llegada, por ejemplo: llegada registrada, cliente autoriza ingreso, auto-start, servicio iniciado, o mensajes guiados coherentes que acrediten presencia física.
+            Se considera presencia confirmada cuando existe evidencia suficiente de llegada, por ejemplo: llegada verificada, cliente autoriza ingreso, auto-start con llegada verificada, o servicio iniciado.
           </p>
           <p style={{ marginBottom: 12 }}>
             Retrasos sin llegada registrada: a 120, 180 y 240 minutos se generan avisos críticos. Opciones del cliente: seguir esperando, contactar MAQGO o cancelar.

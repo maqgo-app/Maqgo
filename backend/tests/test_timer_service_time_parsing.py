@@ -11,6 +11,18 @@ class FakeUpdateResult:
 
 
 def _matches(doc: dict, query: dict) -> bool:
+    def _get(d: dict, key: str):
+        if "." not in key:
+            return d.get(key)
+        cur = d
+        for part in str(key).split("."):
+            if not isinstance(cur, dict):
+                return None
+            if part not in cur:
+                return None
+            cur = cur.get(part)
+        return cur
+
     for k, v in query.items():
         if k == "$or":
             if not any(_matches(doc, sub) for sub in v):
@@ -23,19 +35,19 @@ def _matches(doc: dict, query: dict) -> bool:
         if isinstance(v, dict):
             for op, op_val in v.items():
                 if op == "$in":
-                    if doc.get(k) not in op_val:
+                    if _get(doc, k) not in op_val:
                         return False
                 elif op == "$ne":
-                    if doc.get(k) == op_val:
+                    if _get(doc, k) == op_val:
                         return False
                 elif op == "$exists":
-                    exists = k in doc
+                    exists = _get(doc, k) is not None
                     if bool(op_val) != exists:
                         return False
                 else:
                     raise AssertionError(f"Unsupported query operator for key={k}: {v}")
             continue
-        if doc.get(k) != v:
+        if _get(doc, k) != v:
             return False
     return True
 
@@ -252,11 +264,11 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
 
         db = FakeDB(
             service_requests_docs=[
-                {"id": "a", "status": "confirmed", "arrivalDetectedAt": past_z},
-                {"id": "b", "status": "confirmed", "arrivalDetectedAt": past_iso},
-                {"id": "c", "status": "confirmed", "arrivalDetectedAt": past},
-                {"id": "d", "status": "confirmed", "arrivalDetectedAt": past.replace(tzinfo=None)},
-                {"id": "e", "status": "confirmed", "arrivalDetectedAt": "not-a-date"},
+                {"id": "a", "status": "confirmed", "arrivalDetectedAt": past_z, "arrivalLocation": {"verified": True}},
+                {"id": "b", "status": "confirmed", "arrivalDetectedAt": past_iso, "arrivalLocation": {"verified": True}},
+                {"id": "c", "status": "confirmed", "arrivalDetectedAt": past, "arrivalLocation": {"verified": True}},
+                {"id": "d", "status": "confirmed", "arrivalDetectedAt": past.replace(tzinfo=None), "arrivalLocation": {"verified": True}},
+                {"id": "e", "status": "confirmed", "arrivalDetectedAt": "not-a-date", "arrivalLocation": {"verified": True}},
             ]
         )
 
