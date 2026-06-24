@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorClient
-from typing import Optional
+from typing import Optional, List
 
 from auth_dependency import get_current_user
 from db_config import get_db_name, get_mongo_url
