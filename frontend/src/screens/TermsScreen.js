@@ -190,16 +190,19 @@ function TermsScreen() {
 
         <Section title="6. Cancelaciones">
           <p style={{ marginBottom: 12 }}>
-            Cuando el operador acepta, tu reserva queda confirmada. Puedes cancelar sin cargo durante los primeros 60 minutos desde la confirmación.
+            MAQGO favorece la ejecución exitosa del servicio por sobre la cancelación. El sistema nunca cancela automáticamente un servicio.
           </p>
           <p style={{ marginBottom: 12 }}>
-            Pasados los 60 minutos, y mientras el proveedor no haya registrado su llegada, aplica un cargo de cancelación del 20% del total del servicio.
+            Cancelación cliente (desde la aceptación): 0–60 min = 0% · 60–120 min = 20% · +120 min = 40%.
           </p>
           <p style={{ marginBottom: 12 }}>
-            Una vez registrada la llegada, no se puede cancelar.
+            Presencia confirmada en obra: a partir de este punto el cliente ya no puede cancelar.
           </p>
           <p style={{ marginBottom: 12 }}>
-            <strong>No-show del proveedor:</strong> Si el proveedor no registra su llegada, la reserva se cancela automáticamente al cumplirse 120 minutos desde la confirmación y se gestiona el reembolso.
+            Se considera presencia confirmada cuando existe evidencia suficiente de llegada, por ejemplo: llegada registrada, cliente autoriza ingreso, auto-start, servicio iniciado, o mensajes guiados coherentes que acrediten presencia física.
+          </p>
+          <p style={{ marginBottom: 12 }}>
+            Retrasos sin llegada registrada: a 120, 180 y 240 minutos se generan avisos críticos. Opciones del cliente: seguir esperando, contactar MAQGO o cancelar.
           </p>
           <p>
             Las reservas programadas (varios días) deben ser días consecutivos. El domingo no 
@@ -258,7 +261,7 @@ function TermsScreen() {
 
         <Section title="10. Contacto">
           <p>
-            Para consultas, reclamos o sugerencias, contáctanos desde Soporte dentro de la app.
+            Para consultas, reclamos o sugerencias, contáctanos desde Ayuda y Soporte dentro de la app.
           </p>
           <p>Los reclamos deben ingresarse dentro de las primeras 24 horas desde finalizado el servicio.</p>
         </Section>

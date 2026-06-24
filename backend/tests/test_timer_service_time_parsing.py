@@ -98,10 +98,17 @@ class FakeCollection:
                 if "$set" in update:
                     for sk, sv in update["$set"].items():
                         new_doc[sk] = sv
+                if "$unset" in update:
+                    for uk in update["$unset"].keys():
+                        if uk in new_doc:
+                            del new_doc[uk]
                 if "$push" in update:
                     for pk, pv in update["$push"].items():
                         cur = list(new_doc.get(pk, [])) if isinstance(new_doc.get(pk), list) else []
-                        cur.append(pv)
+                        if isinstance(pv, dict) and "$each" in pv:
+                            cur.extend(list(pv.get("$each") or []))
+                        else:
+                            cur.append(pv)
                         new_doc[pk] = cur
                 self.docs[idx] = new_doc
                 return FakeUpdateResult(1)
@@ -118,20 +125,10 @@ class FakeDB:
 class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
     def _install_fake_modules(self):
         pricing_rules = types.ModuleType("pricing.business_rules")
-        pricing_rules.CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES = 120
+        pricing_rules.NO_ARRIVAL_ALERT_MINUTES_1 = 120
+        pricing_rules.NO_ARRIVAL_ALERT_MINUTES_2 = 180
+        pricing_rules.NO_ARRIVAL_ALERT_MINUTES_3 = 240
         sys.modules["pricing.business_rules"] = pricing_rules
-
-        refund_mod = types.ModuleType("services.refund_request_service")
-
-        class RefundRequestService:
-            def __init__(self, db):
-                self.db = db
-
-            async def create_request(self, **kwargs):
-                return None
-
-        refund_mod.RefundRequestService = RefundRequestService
-        sys.modules["services.refund_request_service"] = refund_mod
 
         comm_mod = types.ModuleType("communications")
 
@@ -141,13 +138,30 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
         comm_mod.send_whatsapp = send_whatsapp
         sys.modules["communications"] = comm_mod
 
+
         push_mod = types.ModuleType("services.webpush_service")
 
-        async def notify_service_event(db, user_id, service_id, kind, payload):
-            return {"sent": 0, "skipped": 1}
+        async def notify_user(db, user_id, title, body, url, tag="maqgo"):
+            return {"success": True, "sent": 0, "skipped": 0}
 
+        async def notify_service_event(db, client_id, service_request_id, kind, extra=None):
+            return {"success": True, "sent": 0, "skipped": 0}
+
+        push_mod.notify_user = notify_user
         push_mod.notify_service_event = notify_service_event
         sys.modules["services.webpush_service"] = push_mod
+
+        notif_mod = types.ModuleType("services.notification_items_service")
+
+        async def upsert_notification_item(db, *, recipient_user_id, audience_role, service_request_id, kind, extra=None, occurred_at=None, action_required=False, ack_required=False, pinned=False):
+            return {"id": f"{audience_role}:{recipient_user_id}:sr:{service_request_id}:{kind}"}
+
+        async def record_delivery(db, *, notification_id, channel, status, meta=None):
+            return None
+
+        notif_mod.upsert_notification_item = upsert_notification_item
+        notif_mod.record_delivery = record_delivery
+        sys.modules["services.notification_items_service"] = notif_mod
 
     async def asyncSetUp(self):
         self._install_fake_modules()
@@ -179,29 +193,36 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
         from services.timer_service import TimerService
 
         now = datetime.now(timezone.utc).replace(microsecond=0)
-        past = now - timedelta(hours=3)
+        past = now - timedelta(hours=5)
         past_iso = past.isoformat()
         past_z = past_iso.replace("+00:00", "Z")
 
         db = FakeDB(
             service_requests_docs=[
-                {"id": "a", "status": "confirmed", "confirmedAt": past_z, "totalAmount": 0},
-                {"id": "b", "status": "confirmed", "confirmedAt": past_iso, "totalAmount": 0},
-                {"id": "c", "status": "confirmed", "confirmedAt": past, "totalAmount": 0},
-                {"id": "d", "status": "confirmed", "confirmedAt": past.replace(tzinfo=None), "totalAmount": 0},
-                {"id": "e", "status": "confirmed", "confirmedAt": "not-a-date", "totalAmount": 0},
+                {"id": "a", "status": "confirmed", "confirmedAt": past_z, "totalAmount": 0, "clientId": "c1"},
+                {"id": "b", "status": "confirmed", "confirmedAt": past_iso, "totalAmount": 0, "clientId": "c1"},
+                {"id": "c", "status": "confirmed", "confirmedAt": past, "totalAmount": 0, "clientId": "c1"},
+                {"id": "d", "status": "confirmed", "confirmedAt": past.replace(tzinfo=None), "totalAmount": 0, "clientId": "c1"},
+                {"id": "e", "status": "confirmed", "confirmedAt": "not-a-date", "totalAmount": 0, "clientId": "c1"},
             ]
         )
 
         svc = TimerService(db)
-        cancelled = await svc.check_confirmed_no_arrival_timeout()
-        self.assertEqual(cancelled, 4)
+        alerted = await svc.check_confirmed_no_arrival_timeout()
+        self.assertEqual(alerted, 12)
         statuses = {d["id"]: d.get("status") for d in db.service_requests.docs}
-        self.assertEqual(statuses["a"], "cancelled_no_arrival")
-        self.assertEqual(statuses["b"], "cancelled_no_arrival")
-        self.assertEqual(statuses["c"], "cancelled_no_arrival")
-        self.assertEqual(statuses["d"], "cancelled_no_arrival")
+        self.assertEqual(statuses["a"], "confirmed")
+        self.assertEqual(statuses["b"], "confirmed")
+        self.assertEqual(statuses["c"], "confirmed")
+        self.assertEqual(statuses["d"], "confirmed")
         self.assertEqual(statuses["e"], "confirmed")
+
+        by_id = {d["id"]: d for d in db.service_requests.docs}
+        for sid in ("a", "b", "c", "d"):
+            self.assertTrue(by_id[sid].get("noArrivalAlert1SentAt"))
+            self.assertTrue(by_id[sid].get("noArrivalAlert2SentAt"))
+            self.assertTrue(by_id[sid].get("noArrivalAlert3SentAt"))
+        self.assertIsNone(by_id["e"].get("noArrivalAlert1SentAt"))
 
     async def test_check_auto_start_post_arrival_mixed_formats(self):
         from services.timer_service import TimerService

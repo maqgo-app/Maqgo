@@ -12,7 +12,19 @@ def _now_iso() -> str:
 
 def _severity_for_kind(kind: str) -> str:
     k = str(kind or '').strip().lower()
-    if k in {'arrival', 'entry_pending', 'entry_authorized', 'incident', 'cancelled', 'payment_failed', 'nueva_oferta', 'oferta_expira'}:
+    if k in {
+        'arrival',
+        'entry_pending',
+        'entry_authorized',
+        'incident',
+        'cancelled',
+        'payment_failed',
+        'nueva_oferta',
+        'oferta_expira',
+        'no_arrival_120',
+        'no_arrival_180',
+        'no_arrival_240',
+    }:
         return 'critical'
     if k in {'confirmed', 'assigned', 'en_route', 'started', 'finished', 'incident_cleared', 'factura_lista', 'pago_enviado'}:
         return 'important'
@@ -48,7 +60,7 @@ def _deep_link_for_kind(kind: str, service_request_id: str, audience_role: str) 
         if k in {'finished', 'cancelled'}:
             return '/operator/history'
         return '/operator/home'
-    if k in {'confirmed', 'assigned', 'en_route', 'incident', 'incident_cleared'}:
+    if k in {'confirmed', 'assigned', 'en_route', 'incident', 'incident_cleared', 'no_arrival_120', 'no_arrival_180', 'no_arrival_240'}:
         return '/client/assigned'
     if k in {'arrival', 'entry_pending', 'entry_authorized'}:
         return '/client/provider-arrived'
@@ -109,6 +121,12 @@ def _title_body_for_kind(kind: str, extra: Optional[dict] = None, audience_role:
         return 'Incidente reportado', (f'Motivo: {reason}' if reason else 'Se reportó un incidente/demora.')
     if k == 'incident_cleared':
         return 'Incidente resuelto', 'El incidente se marcó como resuelto.'
+    if k == 'no_arrival_120':
+        return 'Demora crítica', 'Han pasado 120 minutos desde la aceptación sin llegada registrada. Revisa el estado y define el siguiente paso.'
+    if k == 'no_arrival_180':
+        return 'Demora crítica', 'Han pasado 180 minutos desde la aceptación sin llegada registrada. Revisa el estado y define el siguiente paso.'
+    if k == 'no_arrival_240':
+        return 'Demora crítica', 'Han pasado 240 minutos desde la aceptación sin llegada registrada. Revisa el estado y define el siguiente paso.'
     if k == 'cancelled':
         if ar == 'provider':
             return 'Servicio cancelado', 'El servicio fue cancelado.'

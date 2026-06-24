@@ -323,8 +323,8 @@ async def main():
     if cancelled_with_fee != 15:
         inconsistent.append(f"cancelled_with_fee esperados 15, obtenidos {cancelled_with_fee}")
     cancelled_no_arrival = next((s['count'] for s in by_status if s['_id'] == 'cancelled_no_arrival'), 0)
-    if cancelled_no_arrival != 20:
-        inconsistent.append(f"cancelled_no_arrival esperados 20, obtenidos {cancelled_no_arrival}")
+    if cancelled_no_arrival != 0:
+        inconsistent.append(f"cancelled_no_arrival esperados 0 (no auto-cancel), obtenidos {cancelled_no_arrival}")
 
     if inconsistent:
         print("\n⚠️  ESTADOS INCONSISTENTES:")

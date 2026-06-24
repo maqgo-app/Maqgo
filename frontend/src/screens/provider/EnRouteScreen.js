@@ -25,7 +25,7 @@ import { isPerTripMachineryType } from '../../utils/machineryNames';
  * - ETA estimado
  * - Datos del cliente
  * - Botón para confirmar llegada (requiere GPS ≤300m)
- * - Botón para reportar incidente (evita bloqueo por No-Show)
+ * - Botón para reportar incidente
  */
 function EnRouteScreen() {
   const navigate = useNavigate();
@@ -212,20 +212,20 @@ function EnRouteScreen() {
   };
 
   const handleReportIncident = async () => {
-    // Registrar incidente (evita bloqueo por No-Show + activa ventana protegida)
+    // Registrar incidente + activar ventana protegida
     const incidentData = {
       providerId: localStorage.getItem('userId'),
       serviceId: localStorage.getItem('currentServiceId'),
       timestamp: new Date().toISOString(),
       type: 'INCIDENT_REPORTED',
       reason: incidentReason,
-      protectedWindowEnd: new Date(Date.now() + 20 * 60 * 1000).toISOString() // 20 min
+      protectedWindowEnd: new Date(Date.now() + 30 * 60 * 1000).toISOString()
     };
 
     try {
       const res = await axios.post(
         `${BACKEND_URL}/api/service-requests/${serviceId}/report-incident`,
-        { reason: incidentReason, protectedWindowMinutes: 20 },
+        { reason: incidentReason, protectedWindowMinutes: 30 },
         { headers: { 'Content-Type': 'application/json' } }
       );
       if (res?.data?.activeIncident) {

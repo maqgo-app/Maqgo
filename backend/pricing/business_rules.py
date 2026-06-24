@@ -1,115 +1,35 @@
-# MAQGO - Constantes de Reglas de Negocio
-# Estas constantes definen la lógica de cancelación y reclamos
+FREE_CANCELLATION_WINDOW_MINUTES = 60
+MID_CANCELLATION_WINDOW_MINUTES = 120
 
-# =============================================================================
-# CONSTANTES GLOBALES - Cancelación cliente (ventana de llegada)
-# =============================================================================
+CANCELLATION_FEE_PERCENT_60_120 = 0.20
+CANCELLATION_FEE_PERCENT_120_PLUS = 0.40
 
-ARRIVAL_GRACE_PERIOD_MINUTES = 90
-LATE_CANCELLATION_FEE_PERCENT = 0.20
+INCIDENT_PROTECTED_WINDOW_MINUTES = 30
+INCIDENT_MAX_AUTO_COUNT = 2
+INCIDENT_MAX_PROTECTED_MINUTES_TOTAL = 60
 
-# Timeout: confirmed sin llegada → cancelar automático (evitar servicios muertos).
-CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES = 120  # 2 horas después de confirmed/scheduled
+NO_ARRIVAL_ALERT_MINUTES_1 = 120
+NO_ARRIVAL_ALERT_MINUTES_2 = 180
+NO_ARRIVAL_ALERT_MINUTES_3 = 240
 
-# Regla de negocio (no-show): Si han pasado 60 min desde la hora indicada (ETA) y el operador
-# no ha informado nada en ruta, el cliente puede cancelar sin cargo; si sí informó en ruta, a los ETA+90 min.
-# Backend además cancela/reembolsa automático a las 2 h sin llegada.
+LATE_CANCELLATION_FEE_PERCENT = CANCELLATION_FEE_PERCENT_60_120
 
-# Estados permitidos del servicio (service_request)
-VALID_STATES = [
-    "pending_provider",      # matching, offer_sent
-    "accepted",             # confirmed
-    "en_route",             # confirmed, proveedor en camino
-    "in_progress",
-    "last_30",
-    "finished",
-    "cancelled_client",
-    "cancelled_provider",
-    "cancelled_late_window",
-    "cancelled_no_arrival",  # timeout: proveedor no marcó llegada
-    "expired",
-    "payment_failed",
-]
-
-# =============================================================================
-# CANCELACIÓN POR CLIENTE - Política Escalonada
-# =============================================================================
-
-# Ventana de cancelación gratuita (en minutos)
-FREE_CANCELLATION_WINDOW_MINUTES = 60  # 1 hora después de aceptar
-
-# Porcentajes de penalización según estado del servicio
-# Basado en el valor NETO del servicio
-CANCELLATION_PERCENTAGES = {
-    "pending": 0,           # Sin asignación = sin cargo
-    "accepted": 0,          # Dentro de 1 hora = gratis
-    "accepted_expired": 20, # > 1 hora, antes de salir = 20%
-    "en_route": 40,         # Operador en camino = 40%
-    "arrived": 60,          # Operador en obra = 60%
-    "in_progress": 100,     # Servicio iniciado = no cancelable
-}
-
-# Distribución de la penalización
-CANCELLATION_DISTRIBUTION = {
-    "provider_percent": 85,   # 85% va al proveedor (después de comisión MAQGO)
-    "maqgo_percent": 10,      # 10% comisión MAQGO cliente (+IVA)
-}
-
-def calculate_cancellation_fee(service_status: str, net_service_value: int, minutes_since_accepted: int = 0) -> dict:
-    """
-    Calcula el cargo por cancelación basado en el estado del servicio.
-    
-    POLÍTICA MAQGO:
-    - < 1 hora después de aceptar: GRATIS
-    - > 1 hora, antes de salir: 20% del valor neto
-    - Operador en camino: 40% del valor neto
-    - Operador en obra: 60% del valor neto
-    - Servicio iniciado: 100% (no cancelable)
-    
-    Args:
-        service_status: Estado actual del servicio
-        net_service_value: Valor neto del servicio en CLP
-        minutes_since_accepted: Minutos desde que el proveedor aceptó
-    
-    Returns:
-        dict con total_fee, provider_amount, maqgo_amount
-    """
-    # Verificar ventana gratuita
-    if service_status == "accepted" and minutes_since_accepted <= FREE_CANCELLATION_WINDOW_MINUTES:
-        return {"total_fee": 0, "provider_amount": 0, "maqgo_amount": 0, "maqgo_iva": 0}
-    
-    # Ajustar estado si expiró la ventana gratuita
-    if service_status == "accepted" and minutes_since_accepted > FREE_CANCELLATION_WINDOW_MINUTES:
-        service_status = "accepted_expired"
-    
-    # Obtener porcentaje de penalización
-    penalty_percent = CANCELLATION_PERCENTAGES.get(service_status, 0)
-    
-    if penalty_percent == 0:
-        return {"total_fee": 0, "provider_amount": 0, "maqgo_amount": 0, "maqgo_iva": 0}
-    
-    # Calcular montos
-    total_fee = int(net_service_value * penalty_percent / 100)
-    maqgo_net = int(total_fee * CANCELLATION_DISTRIBUTION["maqgo_percent"] / 100)
-    maqgo_iva = int(maqgo_net * 0.19)
-    provider_amount = total_fee - maqgo_net - maqgo_iva
-    
-    return {
-        "total_fee": total_fee,
-        "provider_amount": provider_amount,
-        "maqgo_amount": maqgo_net,
-        "maqgo_iva": maqgo_iva,
-        "penalty_percent": penalty_percent
-    }
+CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES = NO_ARRIVAL_ALERT_MINUTES_1
 
 
-# Resumen de cargos por cancelación (ejemplo servicio $100.000 neto)
-CANCELLATION_FEES_EXAMPLE = {
-    "free_window": "$0 (primera hora)",
-    "after_1h": "$20.000 → Proveedor: $17.000 | MAQGO: $3.000",
-    "en_route": "$40.000 → Proveedor: $34.000 | MAQGO: $6.000", 
-    "arrived": "$60.000 → Proveedor: $51.000 | MAQGO: $9.000",
-}
+def calculate_client_cancellation_fee(total_amount_clp: int, effective_minutes_since_accepted: float) -> dict:
+    try:
+        minutes = float(effective_minutes_since_accepted)
+    except Exception:
+        minutes = 0.0
+    if minutes <= FREE_CANCELLATION_WINDOW_MINUTES:
+        percent = 0.0
+    elif minutes <= MID_CANCELLATION_WINDOW_MINUTES:
+        percent = CANCELLATION_FEE_PERCENT_60_120
+    else:
+        percent = CANCELLATION_FEE_PERCENT_120_PLUS
+    fee = int(round(float(total_amount_clp or 0) * percent))
+    return {"fee_amount": fee, "fee_percent": percent}
 
 
 # =============================================================================

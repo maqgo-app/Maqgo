@@ -54,72 +54,202 @@ class TimerService:
         self.db = db
         self._last_check_expired_heartbeat: Optional[float] = None
     
+    async def check_expired_incident_protected_windows(self) -> int:
+        now = datetime.now(timezone.utc)
+        cursor = (
+            self.db.service_requests.find(
+                {
+                    'activeIncident.protectedWindowEnd': {'$exists': True, '$ne': None},
+                },
+                {'_id': 0, 'id': 1, 'activeIncident': 1, 'incidentStats': 1},
+            )
+            .sort([('_id', 1)])
+        )
+        cleared = 0
+        async for sr in cursor:
+            srid = str(sr.get('id') or '').strip()
+            if not srid:
+                continue
+            active = sr.get('activeIncident') or {}
+            end_dt = _parse_offer_expires_at_utc(active.get('protectedWindowEnd'))
+            if not end_dt or end_dt > now:
+                continue
+            minutes_raw = active.get('protectedWindowMinutes')
+            try:
+                minutes_i = int(minutes_raw)
+            except Exception:
+                minutes_i = 0
+            if minutes_i < 0:
+                minutes_i = 0
+
+            stats = sr.get('incidentStats') or {}
+            try:
+                used_total = float(stats.get('protectedMinutesUsedTotal') or 0)
+            except Exception:
+                used_total = 0.0
+            if used_total < 0:
+                used_total = 0.0
+
+            history_item = {
+                'reason': active.get('reason'),
+                'reportedAt': active.get('reportedAt'),
+                'expiredAt': now.isoformat(),
+                'protectedWindowEnd': active.get('protectedWindowEnd'),
+                'protectedWindowMinutes': minutes_i,
+                'protectedMinutesUsed': float(minutes_i),
+                'endedBy': 'timer',
+            }
+            event = {'type': 'incident_window_ended', 'at': now.isoformat()}
+
+            await self.db.service_requests.update_one(
+                {'id': srid},
+                {
+                    '$unset': {'activeIncident': ''},
+                    '$set': {
+                        'incidentStats': {
+                            **stats,
+                            'protectedMinutesUsedTotal': round(float(used_total) + float(minutes_i), 2),
+                        }
+                    },
+                    '$push': {'incidentHistory': history_item, 'events': event},
+                },
+            )
+            cleared += 1
+        return cleared
+
     async def check_confirmed_no_arrival_timeout(self) -> int:
-        """
-        Timeout de confirmación: si status=confirmed, no hay arrival,
-        y now > scheduled_start + 2h → cancelar automáticamente (reembolso total).
-        Evita servicios muertos en DB.
-        """
-        from pricing.business_rules import CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES
-        from services.refund_request_service import RefundRequestService
+        from pricing.business_rules import (
+            NO_ARRIVAL_ALERT_MINUTES_1,
+            NO_ARRIVAL_ALERT_MINUTES_2,
+            NO_ARRIVAL_ALERT_MINUTES_3,
+        )
 
         now = datetime.now(timezone.utc)
-        threshold = now - timedelta(minutes=CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES)
-
         cursor = (
             self.db.service_requests.find(
                 {
                     'status': 'confirmed',
-                    '$or': [
-                        {'arrivalDetectedAt': {'$exists': False}},
-                        {'arrivalDetectedAt': None}
-                    ]
+                    '$or': [{'arrivalDetectedAt': {'$exists': False}}, {'arrivalDetectedAt': None}],
                 },
-                {'_id': 0, 'id': 1, 'confirmedAt': 1, 'createdAt': 1, 'totalAmount': 1},
+                {
+                    '_id': 0,
+                    'id': 1,
+                    'clientId': 1,
+                    'acceptedAt': 1,
+                    'confirmedAt': 1,
+                    'createdAt': 1,
+                    'incidentStats': 1,
+                    'activeIncident': 1,
+                    'noArrivalAlert1SentAt': 1,
+                    'noArrivalAlert2SentAt': 1,
+                    'noArrivalAlert3SentAt': 1,
+                },
             )
             .sort([('_id', 1)])
         )
 
-        refund_request_service = RefundRequestService(self.db)
-        cancelled_count = 0
+        async def send_alert(client_id: str, srid: str, kind: str) -> None:
+            from services.notification_items_service import record_delivery, upsert_notification_item
+            from services.webpush_service import notify_user
 
-        async for service in cursor:
-            scheduled_raw = service.get('confirmedAt') or service.get('createdAt')
-            scheduled_dt = _parse_offer_expires_at_utc(scheduled_raw) or now
-            if scheduled_dt > threshold:
-                continue  # Aún no pasaron 2h desde scheduled_start
+            titles = {
+                'no_arrival_120': 'Demora crítica',
+                'no_arrival_180': 'Demora crítica',
+                'no_arrival_240': 'Demora crítica',
+            }
+            bodies = {
+                'no_arrival_120': 'Han pasado 120 minutos desde la aceptación sin llegada registrada. Revisa el estado y define el siguiente paso.',
+                'no_arrival_180': 'Han pasado 180 minutos desde la aceptación sin llegada registrada. Revisa el estado y define el siguiente paso.',
+                'no_arrival_240': 'Han pasado 240 minutos desde la aceptación sin llegada registrada. Revisa el estado y define el siguiente paso.',
+            }
 
-            total_amount = float(service.get('totalAmount', 0))
-            cancel_event = {'type': 'cancelled_no_arrival', 'at': now.isoformat()}
-
-            if total_amount > 0:
-                await refund_request_service.create_request(
-                    service_request_id=service['id'],
-                    amount=total_amount,
-                    reason="no_arrival_timeout",
-                    requested_by_user_id=None,
-                    source="timer_no_arrival",
-                    meta={"timeout_minutes": CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES},
-                )
-            pay_status = 'refund_requested' if total_amount > 0 else 'none'
-
-            await self.db.service_requests.update_one(
-                {'id': service['id'], 'status': 'confirmed'},
-                {
-                    '$set': {
-                        'status': 'cancelled_no_arrival',
-                        'cancelled_at': now.isoformat(),
-                        'cancellation_reason': 'Timeout: proveedor no marcó llegada',
-                        'paymentStatus': pay_status,
-                    },
-                    '$push': {'events': cancel_event}
-                }
+            item = await upsert_notification_item(
+                self.db,
+                recipient_user_id=str(client_id),
+                audience_role='client',
+                service_request_id=str(srid),
+                kind=str(kind),
+                extra={},
+                pinned=True,
             )
 
-            cancelled_count += 1
-            logger.info(f"Servicio {service['id']} -> cancelled_no_arrival (timeout sin llegada)")
+            push = await notify_user(
+                db=self.db,
+                user_id=str(client_id),
+                title=titles.get(str(kind), 'Actualización del servicio'),
+                body=bodies.get(str(kind), 'Revisa el estado del servicio en la app.'),
+                url='/client/assigned',
+                tag=f'sr:{str(srid)}',
+            )
+            await record_delivery(
+                self.db,
+                notification_id=item['id'],
+                channel='push_web',
+                status='sent' if int(push.get('sent', 0) or 0) > 0 else 'skipped',
+                meta={'sent': int(push.get('sent', 0) or 0), 'skipped': int(push.get('skipped', 0) or 0)},
+            )
 
-        return cancelled_count
+        alerted = 0
+        async for sr in cursor:
+            srid = str(sr.get('id') or '').strip()
+            client_id = str(sr.get('clientId') or '').strip()
+            if not srid or not client_id:
+                continue
+
+            base_dt = _parse_offer_expires_at_utc(sr.get('acceptedAt') or sr.get('confirmedAt') or sr.get('createdAt')) or now
+            elapsed = (now - base_dt).total_seconds() / 60
+            if elapsed < 0:
+                elapsed = 0
+
+            stats = sr.get('incidentStats') or {}
+            try:
+                used_total = float(stats.get('protectedMinutesUsedTotal') or 0)
+            except Exception:
+                used_total = 0.0
+            if used_total < 0:
+                used_total = 0.0
+
+            active = sr.get('activeIncident') or {}
+            active_reported = _parse_offer_expires_at_utc(active.get('reportedAt'))
+            active_end = _parse_offer_expires_at_utc(active.get('protectedWindowEnd'))
+            active_used = 0.0
+            if active_reported and active_end and now > active_reported:
+                active_used = (min(now, active_end) - active_reported).total_seconds() / 60
+                if active_used < 0:
+                    active_used = 0.0
+
+            effective = elapsed - used_total - active_used
+            if effective < 0:
+                effective = 0
+
+            updates = {}
+            event_list = []
+
+            if effective >= float(NO_ARRIVAL_ALERT_MINUTES_1) and not sr.get('noArrivalAlert1SentAt'):
+                await send_alert(client_id, srid, 'no_arrival_120')
+                updates['noArrivalAlert1SentAt'] = now.isoformat()
+                event_list.append({'type': 'no_arrival_alert_120', 'at': now.isoformat(), 'effectiveMinutes': round(float(effective), 2)})
+                alerted += 1
+
+            if effective >= float(NO_ARRIVAL_ALERT_MINUTES_2) and not sr.get('noArrivalAlert2SentAt'):
+                await send_alert(client_id, srid, 'no_arrival_180')
+                updates['noArrivalAlert2SentAt'] = now.isoformat()
+                event_list.append({'type': 'no_arrival_alert_180', 'at': now.isoformat(), 'effectiveMinutes': round(float(effective), 2)})
+                alerted += 1
+
+            if effective >= float(NO_ARRIVAL_ALERT_MINUTES_3) and not sr.get('noArrivalAlert3SentAt'):
+                await send_alert(client_id, srid, 'no_arrival_240')
+                updates['noArrivalAlert3SentAt'] = now.isoformat()
+                event_list.append({'type': 'no_arrival_alert_240', 'at': now.isoformat(), 'effectiveMinutes': round(float(effective), 2)})
+                alerted += 1
+
+            if updates or event_list:
+                update = {'$set': updates} if updates else {}
+                if event_list:
+                    update['$push'] = {'events': {'$each': event_list}}
+                await self.db.service_requests.update_one({'id': srid, 'status': 'confirmed'}, update)
+
+        return alerted
 
     async def check_auto_start_post_arrival(self) -> int:
         """
@@ -917,7 +1047,8 @@ class TimerService:
         """
         logger.debug("Ejecutando verificación de timers...")
         
-        cancelled_no_arrival = await self.check_confirmed_no_arrival_timeout()
+        expired_incident_windows = await self.check_expired_incident_protected_windows()
+        no_arrival_alerts = await self.check_confirmed_no_arrival_timeout()
         auto_arrival = await self.check_auto_arrival_from_tracking()
         auto_started = await self.check_auto_start_post_arrival()
         auto_start_emails = await self.check_pending_client_auto_start_emails()
@@ -928,7 +1059,8 @@ class TimerService:
         auto_approved = await self.check_pending_review_services()
         
         summary = {
-            'cancelled_no_arrival': cancelled_no_arrival,
+            'expired_incident_windows': expired_incident_windows,
+            'no_arrival_alerts': no_arrival_alerts,
             'auto_arrival': auto_arrival,
             'auto_started': auto_started,
             'auto_start_emails': auto_start_emails,
@@ -940,7 +1072,7 @@ class TimerService:
             'checked_at': datetime.now(timezone.utc).isoformat()
         }
         
-        if cancelled_no_arrival or auto_arrival or auto_started or auto_start_emails or rotation_waves or expired_offers or last_30_services or finished_services or auto_approved:
+        if expired_incident_windows or no_arrival_alerts or auto_arrival or auto_started or auto_start_emails or rotation_waves or expired_offers or last_30_services or finished_services or auto_approved:
             logger.info(f"Timer check completado: {summary}")
         
         return summary

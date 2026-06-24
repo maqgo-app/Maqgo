@@ -33,7 +33,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Puedo cancelar una reserva?',
-        a: 'Sí. Puedes cancelar sin cargo durante los primeros 60 minutos desde que el proveedor acepta. Pasado ese plazo y mientras el proveedor no haya registrado su llegada, aplica un cargo de cancelación del 20%. Una vez registrada la llegada, no se puede cancelar. Si el proveedor no registra su llegada dentro de 120 minutos desde la confirmación, la reserva se cancela automáticamente y se gestiona el reembolso.'
+        a: 'Sí. Cancelación cliente (desde la aceptación): 0–60 min = 0% · 60–120 min = 20% · +120 min = 40%. Presencia confirmada en obra: a partir de este punto ya no puedes cancelar. El sistema nunca cancela automáticamente un servicio; si no hay llegada registrada, se generan avisos críticos a 120, 180 y 240 minutos.'
       },
       {
         q: '¿Cómo me comunico con el operador?',
@@ -49,7 +49,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Qué pasa si el operador no llega (no-show)?',
-        a: 'Si el proveedor no registra su llegada, la plataforma cancela automáticamente la reserva al cumplirse 120 minutos desde la confirmación y se gestiona el reembolso.'
+        a: 'No hay cancelación automática por tiempo. Si no se registra llegada, se generan avisos críticos a 120, 180 y 240 minutos. Opciones: seguir esperando, contactar MAQGO o cancelar.'
       },
       {
         q: '¿MAQGO es dueño de las máquinas?',

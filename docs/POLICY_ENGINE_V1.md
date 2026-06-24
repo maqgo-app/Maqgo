@@ -18,14 +18,15 @@
 - last_30
 - finished
 - rated
-- cancelled_* (solo cuando aplica por rule/timer)
+- cancelled_* (solo por acción humana; no hay auto-cancel)
 
 ### Eventos oficiales (auditables, server-side)
 - arrival (con `arrivalLocation.verified=true|false`)
 - auto_start
 - started (manual)
-- cancelled_client / cancel_with_fee / cancelled_no_arrival
-- incident_reported (si aplica)
+- cancelled_client / cancel_with_fee
+- incident (si aplica)
+- no_arrival_alert_120 / no_arrival_alert_180 / no_arrival_alert_240
 - safety_stop (si aplica)
 - access_denied (si aplica)
 - client_entry_confirmed (si aplica)
@@ -35,32 +36,43 @@
 
 ## Policy Keys (valores oficiales)
 - cancellation.free_window_minutes = 60
-- cancellation.late_fee_percent_pre_arrival = 20%
-- no_arrival.timeout_minutes = 120
+- cancellation.mid_window_minutes = 120
+- cancellation.fee_percent_60_120 = 20%
+- cancellation.fee_percent_120_plus = 40%
+- no_arrival.alert_minutes = 120 / 180 / 240
 - waiting.auto_start_sla_minutes = 30
 - arrival.verification_radius_meters = 300
-- incident.protected_window_default_minutes = 20
+- incident.protected_window_default_minutes = 30
+- incident.max_auto_count = 2
+- incident.max_protected_minutes_total = 60
 - dispute.ticket_window_hours = 24
 - evidence.retention_days = 30
+
+## Presencia confirmada en obra
+Se considera presencia confirmada cuando existe evidencia suficiente de que la maquinaria y/o el operador llegaron al lugar de trabajo, por ejemplo:
+- arrivalDetectedAt registrado.
+- Cliente autoriza ingreso (client_entry_confirmed).
+- auto_start.
+- Servicio iniciado (started/in_progress).
+- Mensajes guiados y/o interacciones posteriores coherentes que acrediten presencia física.
 
 ## Constitución temporal (clocks contractuales)
 | Clock | Start | Pausa | Bloquea | Resetea | Trigger | Consecuencia |
 |------|-------|-------|---------|---------|---------|--------------|
-| no_arrival.timeout_minutes | confirmedAt; si no existe, createdAt | incident (protected window activo) | si ya hay arrivalDetectedAt | NO | status=confirmed sin arrival | cancelled_no_arrival + refund_requested |
+| no_arrival.alert_minutes | acceptedAt; si no existe, confirmedAt/createdAt | incident (protected window activo) | si ya hay arrivalDetectedAt | NO | status=confirmed sin arrival | avisos críticos 120/180/240; nunca auto-cancel |
 | waiting.auto_start_sla_minutes | arrivalDetectedAt (solo si arrivalLocation.verified=true) | safety_stop activo | si client_entry_confirmed o in_progress | NO | arrival verified | auto_start → in_progress |
-| cancellation.free_window_minutes | confirmedAt; si no existe, createdAt | incident (protected window activo) | si arrivalDetectedAt existe | NO | client cancel request | <60m = reembolso total; >60m = fee 20% |
+| cancellation.fee_tiers | acceptedAt; si no existe, confirmedAt/createdAt | incident (protected window activo) | si presencia confirmada | NO | client cancel request | 0–60m=0%; 60–120m=20%; +120m=40% |
 | dispute.ticket_window_hours | finishedAt | N/A | N/A | NO | abrir ticket | fuera de plazo = no hold/refund automático |
 
 ## Jerarquía oficial de precedencia contractual (tick server-side)
 1) safety_stop  
 2) transition_consumed (idempotencia: una transición por tick)  
 3) client_entry_confirmed  
-4) cancelled_no_arrival (elegible)  
-5) arrival verified (`arrivalLocation.verified=true`)  
-6) incident_reported (solo pausa clocks sensibles)  
-7) cancellation_requested (válido solo pre-arrival)  
-8) access_denied (abre ventana; no infla estado principal)  
-9) auto_start
+4) arrival verified (`arrivalLocation.verified=true`)  
+5) incident (solo pausa clocks sensibles)  
+6) cancellation_requested (válido solo pre-presencia confirmada)  
+7) access_denied (abre ventana; no infla estado principal)  
+8) auto_start
 
 ## Notas contractuales operacionales
 - arrival verification se determina por GPS dentro de `arrival.verification_radius_meters`.

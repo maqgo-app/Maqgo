@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { CancellationSuccess, CancellationWithCharge } from '../../components/ErrorStates';
-import { getObject } from '../../utils/safeStorage';
-import { CANCELLATION_PERCENTAGES, NON_CANCELLABLE_STATUSES, getCancellationWindowText } from '../../utils/cancellationPolicy';
 import BACKEND_URL from '../../utils/api';
+
+const NON_CANCELLABLE_STATUSES = ['in_progress', 'started'];
 
 /**
  * Pantalla: Cancelar Servicio (CLIENTE)
@@ -26,33 +26,8 @@ function CancelServiceScreen() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [apiError, setApiError] = useState('');
 
-  // Obtener valor del servicio desde localStorage (totalAmount es el que se guarda en Confirm)
-  const serviceTotal = parseInt(
-    localStorage.getItem('serviceTotal') || 
-    localStorage.getItem('totalAmount') || 
-    localStorage.getItem('maxTotalAmount') || 
-    '0'
-  ) || 0;
   const serviceStatus = localStorage.getItem('serviceStatus') || 'pending';
   const cannotCancel = NON_CANCELLABLE_STATUSES.includes(serviceStatus);
-  const reservationType = localStorage.getItem('reservationType') || 'immediate';
-  const urgencyType = localStorage.getItem('urgencyType') || null;
-  const hoursToday = parseInt(localStorage.getItem('selectedHours') || '4', 10);
-  const sinCargoRuleText = getCancellationWindowText({ urgencyType, reservationType, hoursToday });
-  // No-show: si el operador informó en ruta (ej. tráfico), sin cargo solo después de 90 min desde la hora de llegada; si no informó, 60 min
-  const operatorReportedEnRoute = !!getObject('activeIncident', null);
-  const noShowRuleText = operatorReportedEnRoute
-    ? 'Si el operador informó algo en ruta (ej. tráfico), puedes cancelar sin cargo solo después de 90 min desde la hora de llegada indicada.'
-    : 'Si el operador no ha llegado y no informó nada en ruta, puedes cancelar sin cargo después de 60 min desde la hora de llegada indicada.';
-
-  const getCancellationFee = () => {
-    const percentage = CANCELLATION_PERCENTAGES[serviceStatus] || 0;
-    return serviceTotal > 0 ? Math.round(serviceTotal * percentage) : 0;
-  };
-
-  const getCancellationPercentage = () => {
-    return (CANCELLATION_PERCENTAGES[serviceStatus] || 0) * 100;
-  };
 
   const getStatusMessage = () => {
     switch (serviceStatus) {
@@ -65,9 +40,6 @@ function CancelServiceScreen() {
       default: return '';
     }
   };
-
-  const cancellationFee = getCancellationFee();
-  const cancellationPercentage = getCancellationPercentage();
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('es-CL', { 
@@ -115,7 +87,7 @@ function CancelServiceScreen() {
       }
     } else {
       // Demo o sin serviceId: comportamiento anterior (limpiar y confirmar)
-      clearLocalAndConfirm(cancellationFee);
+      clearLocalAndConfirm(0);
     }
   };
 
@@ -167,7 +139,7 @@ function CancelServiceScreen() {
             Regla de cancelación
           </p>
           <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '0 0 6px', lineHeight: 1.5 }}>
-            <strong style={{ color: '#fff' }}>Completar tu reserva no tiene cargo.</strong> Si cancelas después de asignación, aplica cargo: 20% asignado · 40% en camino · 60% en obra · servicio iniciado no cancelable.
+            <strong style={{ color: '#fff' }}>MAQGO favorece ejecutar el servicio.</strong> Si cancelas: 0–60 min desde la aceptación = 0% · 60–120 min = 20% · +120 min = 40%. Con presencia confirmada en obra o servicio iniciado: no se puede cancelar.
           </p>
         </div>
 
@@ -189,7 +161,7 @@ function CancelServiceScreen() {
                   Ya empezó
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                  El servicio ya está en curso. Si tienes un problema, contáctanos desde Soporte.
+                  El servicio ya está en curso. Si tienes un problema, contáctanos desde Ayuda y Soporte.
                 </p>
               </div>
             </div>
@@ -199,81 +171,17 @@ function CancelServiceScreen() {
           </div>
         ) : null}
 
-        {/* Alerta de cargo (solo si se puede cancelar) */}
-        {!cannotCancel && cancellationFee > 0 ? (
+        {!cannotCancel ? (
           <div style={{
-            background: 'rgba(244, 67, 54, 0.1)',
-            border: '1px solid rgba(244, 67, 54, 0.3)',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: 10,
             padding: 14,
             marginBottom: 20
           }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 8,
-              marginBottom: 12,
-              paddingBottom: 10,
-              borderBottom: '1px solid rgba(244, 67, 54, 0.2)'
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M12 9V13M12 17H12.01M21 12C21 16.97 16.97 21 12 21C7.03 21 3 16.97 3 12C3 7.03 7.03 3 12 3C16.97 3 21 7.03 21 12Z" stroke="#F44336" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              <span style={{ color: '#F44336', fontSize: 14, fontWeight: 600 }}>
-                Cargo por cancelación: {cancellationPercentage}%
-              </span>
-            </div>
-
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 10
-            }}>
-              <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>
-                {cancellationPercentage}% del valor de la reserva
-              </span>
-              <span style={{ color: '#F44336', fontSize: 16, fontWeight: 700 }}>
-                {formatPrice(cancellationFee)}
-              </span>
-            </div>
-
-            <div style={{ 
-              background: 'rgba(0,0,0,0.2)', 
-              borderRadius: 6, 
-              padding: 10
-            }}>
-              <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.4 }}>
-                Si decides continuar con tu reserva, no se aplicará este cargo. Solo se cobra si cancelas, porque el operador ya reservó su tiempo para ti.
-              </p>
-              {serviceStatus === 'en_route' && (
-                <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.4 }}>
-                  {noShowRuleText} Desde la pantalla de tu servicio podrás usar “Reportar y cancelar sin cargo” cuando aplique.
-                </p>
-              )}
-            </div>
-          </div>
-        ) : !cannotCancel ? (
-          <div style={{
-            background: 'rgba(144, 189, 211, 0.1)',
-            border: '1px solid rgba(144, 189, 211, 0.3)',
-            borderRadius: 10,
-            padding: 14,
-            marginBottom: 20
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M9 12L11 14L15 10M21 12C21 16.97 16.97 21 12 21C7.03 21 3 16.97 3 12C3 7.03 7.03 3 12 3C16.97 3 21 7.03 21 12Z" stroke="#90BDD3" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              <div>
-                <span style={{ color: '#90BDD3', fontSize: 14, fontWeight: 600 }}>
-                  Sin cargo por cancelación
-                </span>
-                <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
-                  Tu solicitud aún no fue asignada. Si más adelante asignan un operador y cancelas, sí puede haber cargo.
-                </p>
-              </div>
-            </div>
+            <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
+              El cargo (si aplica) se calcula automáticamente según el tiempo transcurrido desde la aceptación. La confirmación final se muestra al cancelar.
+            </p>
           </div>
         ) : null}
 
@@ -395,60 +303,17 @@ function CancelServiceScreen() {
                 ¿Confirmar cancelación?
               </h2>
 
-              {cancellationFee > 0 ? (
-                <div style={{
-                  background: 'rgba(244, 67, 54, 0.1)',
-                  borderRadius: 10,
-                  padding: 14,
-                  marginBottom: 20
-                }}>
-                  <p style={{ 
-                    color: 'rgba(255,255,255,0.9)', 
-                    fontSize: 13, 
-                    textAlign: 'center',
-                    margin: '0 0 8px'
-                  }}>
-                    Se te cobrará el <strong style={{ color: '#F44336' }}>{cancellationPercentage}%</strong> del valor de la reserva:
-                  </p>
-                  <p style={{ 
-                    color: '#F44336', 
-                    fontSize: 24, 
-                    fontWeight: 700, 
-                    textAlign: 'center',
-                    margin: 0
-                  }}>
-                    {formatPrice(cancellationFee)}
-                  </p>
-                  <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, textAlign: 'center', margin: '8px 0 0' }}>
-                    Si cierras y continúas con tu reserva, no se te cobra nada.
-                  </p>
-                  {serviceStatus === 'en_route' && (
-                    <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center', margin: '8px 0 0', lineHeight: 1.4 }}>
-                      {noShowRuleText} Desde la pantalla de la reserva podrás “Reportar y cancelar sin cargo” cuando aplique.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div style={{
-                  background: 'rgba(144, 189, 211, 0.1)',
-                  border: '1px solid rgba(144, 189, 211, 0.25)',
-                  borderRadius: 10,
-                  padding: 14,
-                  marginBottom: 20
-                }}>
-                  <p style={{ color: '#90BDD3', fontSize: 12, fontWeight: 600, margin: '0 0 6px' }}>
-                    Según la política de cancelación
-                  </p>
-                  <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
-                    {serviceStatus === 'pending'
-                      ? 'Tu solicitud aún no fue asignada. Puedes cancelar sin cargo.'
-                      : `${sinCargoRuleText}. Esta cancelación no tiene cargo.`}
-                  </p>
-                  <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, margin: '10px 0 0' }}>
-                    ¿Confirmas que deseas cancelar?
-                  </p>
-                </div>
-              )}
+              <div style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 10,
+                padding: 14,
+                marginBottom: 20
+              }}>
+                <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, textAlign: 'center', margin: 0, lineHeight: 1.45 }}>
+                  Confirmas que deseas cancelar. Si aplica cargo, MAQGO lo calcula automáticamente según el tiempo desde la aceptación.
+                </p>
+              </div>
 
               <p style={{ 
                 color: 'rgba(255,255,255,0.7)', 
@@ -487,9 +352,7 @@ function CancelServiceScreen() {
                   cursor: 'pointer'
                 }}
               >
-                {cancellationFee > 0 
-                  ? `Sí, cancelar y pagar ${formatPrice(cancellationFee)}`
-                  : 'Sí, cancelar reserva'}
+                Sí, cancelar
               </button>
             </div>
           </div>

@@ -9,7 +9,16 @@ from pydantic import BaseModel
 
 from auth_dependency import get_current_user, get_current_admin_strict
 from models.service_request import ServiceRequest, ServiceRequestCreate, Location, calculate_commissions
-from pricing.business_rules import LATE_CANCELLATION_FEE_PERCENT, FREE_CANCELLATION_WINDOW_MINUTES
+from pricing.business_rules import (
+    FREE_CANCELLATION_WINDOW_MINUTES,
+    MID_CANCELLATION_WINDOW_MINUTES,
+    CANCELLATION_FEE_PERCENT_60_120,
+    CANCELLATION_FEE_PERCENT_120_PLUS,
+    INCIDENT_PROTECTED_WINDOW_MINUTES,
+    INCIDENT_MAX_AUTO_COUNT,
+    INCIDENT_MAX_PROTECTED_MINUTES_TOTAL,
+    calculate_client_cancellation_fee,
+)
 from services.utils import haversine_meters
 from services.matching_service import (
     start_matching,
@@ -1230,12 +1239,7 @@ async def cancel_service_client(
     body: dict = Body(default={}),
     current_user: dict = Depends(get_current_user)
 ):
-    """
-    Cancelación por cliente.
-    Ventana gratuita 1h: reembolso total. > 1h: 20%.
-    Si arrivalDetectedAt existe: cancelación bloqueada.
-    Solo el cliente dueño de la solicitud puede cancelar.
-    """
+    """Cancelación por cliente."""
     request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
     if not request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
@@ -1257,21 +1261,54 @@ async def cancel_service_client(
             detail="No se puede cancelar en el estado actual del servicio"
         )
 
-    if request.get('arrivalDetectedAt'):
+    presence_confirmed = bool(
+        request.get("arrivalDetectedAt")
+        or request.get("clientEntryConfirmedAt")
+        or request.get("autoStartedAt")
+        or request.get("startedAt")
+    )
+    if presence_confirmed:
         raise HTTPException(
             status_code=400,
-            detail="No se puede cancelar una vez que el operador ha llegado"
+            detail="No se puede cancelar: presencia en obra confirmada"
         )
 
     now = datetime.now(timezone.utc)
-    scheduled_start_str = request.get('confirmedAt') or request.get('createdAt') or now.isoformat()
-    try:
-        scheduled_start = datetime.fromisoformat(scheduled_start_str.replace('Z', '+00:00'))
-    except Exception:
-        scheduled_start = now
+    accepted_at_dt = (
+        _parse_iso_datetime(request.get("acceptedAt"))
+        or _parse_iso_datetime(request.get("confirmedAt"))
+        or _parse_iso_datetime(request.get("createdAt"))
+        or now
+    )
 
-    minutes_elapsed = (now - scheduled_start).total_seconds() / 60
-    total_client = float(request.get('totalAmount', 0))
+    elapsed_minutes = (now - accepted_at_dt).total_seconds() / 60
+    if elapsed_minutes < 0:
+        elapsed_minutes = 0
+
+    incident_stats = request.get("incidentStats") or {}
+    try:
+        incident_used_total = float(incident_stats.get("protectedMinutesUsedTotal") or 0)
+    except Exception:
+        incident_used_total = 0.0
+    if incident_used_total < 0:
+        incident_used_total = 0.0
+
+    active_incident = request.get("activeIncident") or {}
+    active_reported_at = _parse_iso_datetime(active_incident.get("reportedAt"))
+    active_end = _parse_iso_datetime(active_incident.get("protectedWindowEnd"))
+    active_used = 0.0
+    if active_reported_at and active_end:
+        if now > active_reported_at:
+            active_used = (min(now, active_end) - active_reported_at).total_seconds() / 60
+            if active_used < 0:
+                active_used = 0.0
+
+    effective_minutes = elapsed_minutes - incident_used_total - active_used
+    if effective_minutes < 0:
+        effective_minutes = 0
+
+    total_client = float(request.get("totalAmount", 0))
+    total_client_int = int(round(total_client))
 
     base_cancel_event = {
         "at": now.isoformat(),
@@ -1280,15 +1317,27 @@ async def cancel_service_client(
         "fromStatus": status,
     }
 
+    fee_percent = 0.0
+
     if status in ['matching', 'offer_sent']:
         new_status = 'cancelled_client'
         cancelation_fee = 0
         refund_amount = 0
         cancel_event = {"type": "cancelled_client", **base_cancel_event}
     else:
-        if minutes_elapsed > FREE_CANCELLATION_WINDOW_MINUTES:
-            cancelation_fee = int(total_client * LATE_CANCELLATION_FEE_PERCENT)
-            refund_amount = total_client - cancelation_fee
+        fee = calculate_client_cancellation_fee(total_client_int, effective_minutes)
+        try:
+            fee_percent = float(fee.get("fee_percent") or 0)
+        except Exception:
+            fee_percent = 0.0
+        cancelation_fee = int(fee.get("fee_amount") or 0)
+        if cancelation_fee < 0:
+            cancelation_fee = 0
+        if cancelation_fee > total_client_int:
+            cancelation_fee = total_client_int
+        refund_amount = total_client_int - cancelation_fee
+
+        if cancelation_fee > 0:
             new_status = 'cancelled_with_fee'
             cancel_event = {
                 "type": "cancel_with_fee",
@@ -1296,10 +1345,11 @@ async def cancel_service_client(
                 "newStatus": new_status,
                 "lateFeeAmount": cancelation_fee,
                 "refundAmount": refund_amount,
+                "cancellationFeePercent": fee_percent,
+                "effectiveMinutesSinceAccepted": round(float(effective_minutes), 2),
             }
         else:
             cancelation_fee = 0
-            refund_amount = total_client
             new_status = 'cancelled_client'
             cancel_event = {"type": "cancelled_client", **base_cancel_event, "newStatus": new_status}
 
@@ -1307,6 +1357,8 @@ async def cancel_service_client(
         'status': new_status,
         'late_fee_amount': cancelation_fee,
         'cancelationFee': cancelation_fee if cancelation_fee > 0 else None,
+        'cancellationFeePercent': float(fee_percent) if cancelation_fee > 0 else 0.0,
+        'cancellationEffectiveMinutesSinceAccepted': round(float(effective_minutes), 2),
         'cancellation_reason': body.get('reason'),
         'cancelled_at': now.isoformat(),
     }
@@ -1340,6 +1392,8 @@ async def cancel_service_client(
         'refund_amount': refund_amount,
         'late_fee_amount': cancelation_fee,
         'cancelationFee': cancelation_fee if cancelation_fee > 0 else None,
+        'cancellation_fee_percent': float(fee_percent) if cancelation_fee > 0 else 0.0,
+        'cancellation_effective_minutes_since_accepted': round(float(effective_minutes), 2),
         'refund_request_id': rr_doc.get("id") if rr_doc else None,
         'refund_request_status': rr_doc.get("status") if rr_doc else None,
         'refund_pending_approval': bool(refund_amount > 0),
@@ -1730,15 +1784,32 @@ async def report_incident(
     if len(reason) > 200:
         reason = reason[:200]
 
-    minutes = body.get("protectedWindowMinutes") or body.get("minutes") or 20
+    if request.get("activeIncident"):
+        raise HTTPException(status_code=409, detail="Ya existe un incidente activo")
+
+    stats = request.get("incidentStats") or {}
     try:
-        minutes_i = int(minutes)
+        auto_count = int(stats.get("autoCount") or 0)
     except Exception:
-        minutes_i = 20
+        auto_count = 0
+    try:
+        allocated_total = float(stats.get("protectedMinutesAllocatedTotal") or 0)
+    except Exception:
+        allocated_total = 0.0
+
+    if auto_count >= INCIDENT_MAX_AUTO_COUNT or allocated_total >= INCIDENT_MAX_PROTECTED_MINUTES_TOTAL:
+        raise HTTPException(
+            status_code=409,
+            detail="Incidente adicional requiere revisión manual MAQGO",
+        )
+
+    remaining = INCIDENT_MAX_PROTECTED_MINUTES_TOTAL - allocated_total
+    minutes_i = int(min(float(INCIDENT_PROTECTED_WINDOW_MINUTES), float(remaining)))
     if minutes_i <= 0:
-        minutes_i = 20
-    if minutes_i > 120:
-        minutes_i = 120
+        raise HTTPException(
+            status_code=409,
+            detail="Incidente adicional requiere revisión manual MAQGO",
+        )
 
     now = datetime.now(timezone.utc)
     role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
@@ -1747,12 +1818,23 @@ async def report_incident(
         "reportedAt": now.isoformat(),
         "reportedByUserId": current_user.get("id"),
         "reportedByRole": role,
+        "protectedWindowMinutes": minutes_i,
         "protectedWindowEnd": (now + timedelta(minutes=minutes_i)).isoformat(),
     }
     event = {"type": "incident", "at": now.isoformat(), "reason": reason, "byRole": role}
     await db.service_requests.update_one(
         {"id": request_id},
-        {"$set": {"activeIncident": incident}, "$push": {"events": event}},
+        {
+            "$set": {
+                "activeIncident": incident,
+                "incidentStats": {
+                    **stats,
+                    "autoCount": auto_count + 1,
+                    "protectedMinutesAllocatedTotal": float(allocated_total) + float(minutes_i),
+                },
+            },
+            "$push": {"events": event},
+        },
     )
     await _notify_whatsapp_client_status(
         request_id=request_id,
@@ -1781,9 +1863,54 @@ async def clear_incident(
     now = datetime.now(timezone.utc)
     role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
     event = {"type": "incident_cleared", "at": now.isoformat(), "byRole": role}
+
+    active = request.get("activeIncident") or {}
+    reported_at = _parse_iso_datetime(active.get("reportedAt"))
+    protected_end = _parse_iso_datetime(active.get("protectedWindowEnd"))
+    protected_minutes = active.get("protectedWindowMinutes")
+    try:
+        protected_minutes_i = int(protected_minutes)
+    except Exception:
+        protected_minutes_i = INCIDENT_PROTECTED_WINDOW_MINUTES
+
+    used_minutes = 0.0
+    if reported_at and protected_end and now > reported_at:
+        used_minutes = (min(now, protected_end) - reported_at).total_seconds() / 60
+        if used_minutes < 0:
+            used_minutes = 0.0
+
+    if used_minutes > float(protected_minutes_i):
+        used_minutes = float(protected_minutes_i)
+
+    stats = request.get("incidentStats") or {}
+    try:
+        used_total = float(stats.get("protectedMinutesUsedTotal") or 0)
+    except Exception:
+        used_total = 0.0
+
+    history_item = {
+        "reason": active.get("reason"),
+        "reportedAt": active.get("reportedAt"),
+        "clearedAt": now.isoformat(),
+        "protectedWindowEnd": active.get("protectedWindowEnd"),
+        "protectedWindowMinutes": protected_minutes_i,
+        "protectedMinutesUsed": round(float(used_minutes), 2),
+        "clearedByUserId": current_user.get("id"),
+        "clearedByRole": role,
+    }
+
     await db.service_requests.update_one(
         {"id": request_id},
-        {"$unset": {"activeIncident": ""}, "$push": {"events": event}},
+        {
+            "$unset": {"activeIncident": ""},
+            "$set": {
+                "incidentStats": {
+                    **stats,
+                    "protectedMinutesUsedTotal": round(float(used_total) + float(used_minutes), 2),
+                }
+            },
+            "$push": {"events": event, "incidentHistory": history_item},
+        },
     )
     await _notify_whatsapp_client_status(
         request_id=request_id,
