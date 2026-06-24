@@ -520,10 +520,18 @@ async def create_master_invitation(
     master_rut = _ensure_person_rut(data.master_rut, label="RUT del usuario master")
 
     raw_perms = data.permissions if isinstance(data.permissions, dict) else {}
-    invitation_permissions = {
-        "can_manage_machines": bool(raw_perms.get("can_manage_machines")) if "can_manage_machines" in raw_perms else False,
-        "can_delete_machines": bool(raw_perms.get("can_delete_machines")) if "can_delete_machines" in raw_perms else False,
+    allowed_keys = {
+        "can_manage_machines",
+        "can_delete_machines",
+        "can_assign_operator",
+        "can_edit_master_profile",
+        "can_view_finance",
+        "can_manage_operators",
+        "can_delete_master",
+        "can_view_work_details",
+        "can_create_work",
     }
+    invitation_permissions = {k: bool(raw_perms.get(k)) for k in allowed_keys}
     
     # Generar código único
     code = generate_invite_code()

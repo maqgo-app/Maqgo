@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BackArrowIcon } from '../components/BackArrowIcon';
 import { useNavigate } from 'react-router-dom';
 import { MAQGO_BILLING } from '../utils/commissions';
+import { useAuth } from '../context/authHooks';
 
 const FAQ_DATA = [
   {
@@ -203,28 +204,21 @@ const ROLE_GROUPS = {
 
 function FAQScreen() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const [openIndex, setOpenIndex] = useState(null);
   const [activeCategory, setActiveCategory] = useState('Clientes');
 
   const session = (() => {
-    try {
-      const userId = String(localStorage.getItem('userId') || '').trim();
-      const token = String(localStorage.getItem('token') || localStorage.getItem('authToken') || '').trim();
-      const userRole = String(localStorage.getItem('userRole') || '').trim();
-      const providerRole = String(localStorage.getItem('providerRole') || '').trim();
-      const isAuthenticated = Boolean(userId && token);
-      const role =
-        isAuthenticated && userRole === 'provider'
-          ? providerRole === 'operator'
-            ? 'operator'
-            : 'provider'
-          : isAuthenticated && userRole === 'client'
-            ? 'client'
-            : null;
-      return { isAuthenticated, role };
-    } catch {
-      return { isAuthenticated: false, role: null };
-    }
+    const isAuthenticated = Boolean(!auth.loading && auth.user?.id);
+    const role =
+      isAuthenticated && auth.user?.role === 'provider'
+        ? auth.providerRole === 'operator'
+          ? 'operator'
+          : 'provider'
+        : isAuthenticated && auth.user?.role === 'client'
+          ? 'client'
+          : null;
+    return { isAuthenticated, role };
   })();
 
   const roleCategory = session.role === 'provider' ? 'Proveedores' : session.role === 'operator' ? 'Operadores' : 'Clientes';

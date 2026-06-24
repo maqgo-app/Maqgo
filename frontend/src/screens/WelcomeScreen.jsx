@@ -4,11 +4,8 @@ import MaqgoLogo from '../components/MaqgoLogo';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 import { useWelcomeLayout } from '../hooks/useWelcomeLayout';
 import { shouldShowResumeBooking } from '../utils/abandonmentTracker';
-import {
-  getWelcomeAppHomePath,
-  getWelcomeOperatorDestination,
-  isAdminRoleStored,
-} from '../utils/welcomeHome';
+import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
+import { useAuth } from '../context/authHooks';
 import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
 
 const ICON_SIZE = 24;
@@ -52,13 +49,14 @@ function WelcomeScreen() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const [, setAdminPending] = useState(0);
+  const auth = useAuth();
   const { isDesktop, isNarrowMobile, isShortViewport, viewportHeight, viewportWidth } = useWelcomeLayout();
   // welcome-reveal en DOM desde el 1er frame (opacity 0 en CSS); welcome-mounted tras layout dispara animación (evita flash visible→oculto).
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token || !isAdminRoleStored()) return undefined;
+    if (!token || auth.loading || auth.user?.role !== 'admin') return undefined;
     const ac = new AbortController();
     fetchWithAuth(`${BACKEND_URL}/api/admin/stats`, {
       redirectOn401: false,
@@ -68,7 +66,7 @@ function WelcomeScreen() {
       .then((data) => setAdminPending(data.pending_total || 0))
       .catch(() => {});
     return () => ac.abort();
-  }, []);
+  }, [auth.loading, auth.user?.role]);
 
   useEffect(() => {
     localStorage.removeItem('pendingRoute');
@@ -98,12 +96,11 @@ function WelcomeScreen() {
   // Solo sesión real (JWT): evita “Mi cuenta” con userId demo sin token → 401 en API.
   // token puede ser `token` (legacy) o `authToken` (actual).
   const hasSession = !!((localStorage.getItem('authToken') || localStorage.getItem('token')) && localStorage.getItem('userId'));
-  const storedKnownRole = (localStorage.getItem('userRole') || localStorage.getItem('role') || '').trim();
-  const hasKnownLoginContext = hasSession || (!!storedKnownRole && !!localStorage.getItem('userId'));
+  const hasKnownLoginContext = hasSession;
   /** Admin con sesión: la portada es para mercado; sin ?preview=1 se redirige al panel (login ya manda a /admin). */
   const allowPublicPreview =
     searchParams.get('preview') === '1' || location.state?.previewPublic === true;
-  const isAdminSession = hasSession && isAdminRoleStored();
+  const isAdminSession = hasSession && auth.user?.role === 'admin';
   const showMarketplaceCTAs = true;
 
   if (isAdminSession && !allowPublicPreview) {
@@ -111,23 +108,17 @@ function WelcomeScreen() {
   }
 
   const handleAccount = () => {
+    if (auth.loading) return;
     if (hasSession) {
-      if (isAdminRoleStored()) {
+      if (auth.user?.role === 'admin') {
         navigate('/admin');
         return;
       }
-      const dest = getWelcomeAppHomePath();
-      if (dest === '/welcome') {
-        const providerRole = String(localStorage.getItem('providerRole') || '').trim();
-        const userRole = String(localStorage.getItem('userRole') || '').trim();
-        if (userRole === 'provider' || userRole === 'owner' || userRole === 'manager' || providerRole) {
-          navigate('/provider/home');
-          return;
-        }
-        navigate('/client/home');
+      if (auth.user?.role === 'provider') {
+        navigate(auth.providerRole === 'operator' ? '/operator/home' : getProviderLandingPath());
         return;
       }
-      navigate(dest);
+      navigate('/client/home');
       return;
     }
     try {
@@ -358,7 +349,7 @@ function WelcomeScreen() {
               </button>
 
               <button
-                onClick={() => navigate(getWelcomeOperatorDestination())}
+                onClick={() => navigate('/operator/join')}
                 className="welcome-cta-secondary welcome-reveal"
                 style={{ '--welcome-d': '340ms' }}
                 data-testid="operator-join-btn"

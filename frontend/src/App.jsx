@@ -197,8 +197,6 @@ const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
 function AppContent() {
   const location = useLocation();
   useContext(AuthContext);
-  const [, setUserRole] = useState(() => localStorage.getItem('userRole') || null);
-  const [, setUserId] = useState(() => localStorage.getItem('userId') || null);
   const [, setFixedBottomBarHeight] = useState(0);
 
   const path = location.pathname;

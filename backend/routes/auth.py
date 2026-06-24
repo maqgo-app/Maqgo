@@ -1367,25 +1367,45 @@ async def auth_me(current_user: dict = Depends(get_current_user)):
     if "provider" in roles and pr:
         is_super = pr == "super_master"
         is_master = pr == "master"
-        has_full_visibility = is_super or is_master
+        is_operator = pr == "operator"
 
         master_permissions = current_user.get("master_permissions", {}) if is_master else {}
         if not isinstance(master_permissions, dict):
             master_permissions = {}
-        can_manage_machines = bool(is_super or (is_master and master_permissions.get("can_manage_machines") is True))
-        can_delete_machines = bool(is_super or (is_master and master_permissions.get("can_delete_machines") is True))
+
+        def _mperm(key: str) -> bool:
+            return bool(master_permissions.get(key) is True)
+
+        can_manage_machines = bool(is_super or (is_master and _mperm("can_manage_machines")))
+        can_delete_machines = bool(is_super or (is_master and _mperm("can_delete_machines")))
+        can_assign_operator = bool(is_super or (is_master and _mperm("can_assign_operator")))
+        can_edit_master_profile = bool(is_super or (is_master and _mperm("can_edit_master_profile")))
+        can_view_finance = bool(is_super or (is_master and _mperm("can_view_finance")))
+        can_manage_operators = bool(is_super or (is_master and _mperm("can_manage_operators")))
+        can_delete_master = bool(is_super or (is_master and _mperm("can_delete_master")))
+        can_view_work_details = bool(is_super or (is_master and _mperm("can_view_work_details")))
+        can_create_work = bool(is_super or (is_master and _mperm("can_create_work")))
+        can_accept_requests = bool(has_permission(current_user, "accept_requests"))
+        if is_master:
+            can_accept_requests = bool(can_create_work)
 
         provider_permissions = {
-            "can_view_finances": has_full_visibility,
-            "can_view_invoices": has_full_visibility,
-            "can_upload_invoice": has_full_visibility,
-            "can_manage_operators": has_full_visibility,
-            "can_manage_masters": is_super,
-            "can_view_bank_data": has_full_visibility,
-            "can_accept_requests": has_permission(current_user, "accept_requests"),
-            "can_view_services": True,
+            "can_view_finances": can_view_finance,
+            "can_view_invoices": can_view_finance,
+            "can_upload_invoice": can_view_finance,
+            "can_manage_operators": can_manage_operators,
+            "can_manage_masters": bool(is_super),
+            "can_view_bank_data": bool(is_super),
+            "can_accept_requests": bool(can_accept_requests),
+            "can_view_services": bool(is_super or is_master or is_operator or can_view_work_details or can_create_work),
             "can_manage_machines": can_manage_machines,
             "can_delete_machines": can_delete_machines,
+            "can_assign_operator": can_assign_operator,
+            "can_edit_master_profile": can_edit_master_profile,
+            "can_view_finance": can_view_finance,
+            "can_delete_master": can_delete_master,
+            "can_view_work_details": can_view_work_details,
+            "can_create_work": can_create_work,
         }
     return {
         "id": current_user["id"],

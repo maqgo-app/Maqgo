@@ -184,7 +184,8 @@ function buildInitialIncomingRequest() {
  */
 function RequestReceivedScreen() {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
+  const auth = useAuth();
+  const { hasPermission } = auth;
   const [request, setRequest] = useState(() => buildInitialIncomingRequest());
   const [countdown, setCountdown] = useState(() => getOfferRemainingSeconds(getJSON('incomingRequest', {}) || {}));
   const [loading, setLoading] = useState(false);
@@ -216,7 +217,7 @@ function RequestReceivedScreen() {
         expirationHandledRef.current = true;
         setExpired(true);
         const home =
-          localStorage.getItem('providerRole') === 'operator' ? '/operator/home' : getProviderLandingPath();
+          auth.providerRole === 'operator' ? '/operator/home' : getProviderLandingPath();
         const t = setTimeout(() => navigate(home), 3000);
         return () => clearTimeout(t);
       }
@@ -251,12 +252,12 @@ function RequestReceivedScreen() {
     setAcceptError(null);
     setLoading(true);
     try {
-      const userId = localStorage.getItem('userId');
+      const userId = auth.user?.id;
       const providerIdForOffer = String(
         request?.currentOfferId ||
           request?.providerId ||
           request?.provider_id ||
-          localStorage.getItem('ownerId') ||
+          auth.ownerId ||
           userId ||
           ''
       );
@@ -304,17 +305,17 @@ function RequestReceivedScreen() {
     setLoading(false);
   };
 
-  const isOperator = localStorage.getItem('providerRole') === 'operator';
+  const isOperator = auth.providerRole === 'operator';
   const homeRoute = isOperator ? '/operator/home' : getProviderLandingPath();
 
   const handleReject = async () => {
     try {
-      const userId = localStorage.getItem('userId');
+      const userId = auth.user?.id;
       const providerIdForOffer = String(
         request?.currentOfferId ||
           request?.providerId ||
           request?.provider_id ||
-          localStorage.getItem('ownerId') ||
+          auth.ownerId ||
           userId ||
           ''
       );
@@ -357,7 +358,7 @@ function RequestReceivedScreen() {
   const hasEtaCommitted = typeof request?.etaCommitMinutes === 'number' && request.etaCommitMinutes > 0;
   const requiresPreconfirm = Boolean(isImmediate && !request?.id?.startsWith?.('req-') && (!hasDepartureConfirmed || !hasEtaCommitted));
   const canProceedToAccept = !requiresPreconfirm;
-  const userId = localStorage.getItem('userId') || '';
+  const userId = auth.user?.id || '';
   const operatorGpsConfirmed =
     Boolean(
       isOperator &&
@@ -370,7 +371,7 @@ function RequestReceivedScreen() {
   const canAcceptNow = canProceedToAccept && (canAcceptRequests || operatorGpsConfirmed);
 
   const loadStoredDepartureLocation = async () => {
-    const userId = localStorage.getItem('userId');
+    const userId = auth.user?.id;
     if (!userId) return;
     const isDemoId = userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-');
     if (isDemoId) return;

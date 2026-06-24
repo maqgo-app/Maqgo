@@ -252,6 +252,22 @@ PERMISSIONS = {
 def has_permission(user: dict, permission: str) -> bool:
     """Verifica si el usuario tiene un permiso específico"""
     role = user.get('provider_role', 'super_master')
+
+    if role == 'master':
+        mp = user.get('master_permissions', {})
+        if not isinstance(mp, dict):
+            mp = {}
+        map_master = {
+            'view_financial_data': 'can_view_finance',
+            'view_invoices': 'can_view_finance',
+            'upload_invoice': 'can_view_finance',
+            'manage_operators': 'can_manage_operators',
+            'accept_requests': 'can_create_work',
+            'view_all_services': 'can_view_work_details',
+        }
+        k = map_master.get(str(permission))
+        if k:
+            return mp.get(k) is True
     
     # Verificar permisos base del rol
     if permission in PERMISSIONS.get(role, []):

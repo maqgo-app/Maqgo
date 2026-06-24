@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { BackArrowIcon } from '../components/BackArrowIcon';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth, hasPersistedSessionCredentials } from '../utils/api';
+import { useAuth } from '../context/authHooks';
 
 function Section({ title, children }) {
   return (
@@ -25,6 +26,7 @@ function TermsScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const auth = useAuth();
   const [accepted, setAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -35,11 +37,9 @@ function TermsScreen() {
       String(searchParams.get('next') || location.state?.next || '').trim() ||
       '';
     if (raw.startsWith('/')) return raw;
-    const role = String(localStorage.getItem('userRole') || '').trim();
-    if (role === 'provider') return '/provider/home';
-    if (role === 'operator') return '/operator/home';
+    if (auth.user?.role === 'provider') return auth.providerRole === 'operator' ? '/operator/home' : '/provider/home';
     return '/client/home';
-  }, [searchParams, location.state]);
+  }, [searchParams, location.state, auth.user?.role, auth.providerRole]);
 
   const paddingBottom = acceptMode ? 160 : 60;
 

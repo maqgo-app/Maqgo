@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import BACKEND_URL from '../utils/api';
+import { useAuth } from '../context/authHooks';
 
 function mapClientDestination(status) {
   if (status === 'arrived') return '/client/provider-arrived';
@@ -29,7 +30,15 @@ function normalizeStatusForStorage(status) {
 function LegacyChatRedirectScreen() {
   const navigate = useNavigate();
   const { serviceId } = useParams();
-  const role = useMemo(() => String(localStorage.getItem('userRole') || '').toLowerCase(), []);
+  const auth = useAuth();
+  const role =
+    auth.user?.role === 'provider'
+      ? auth.providerRole === 'operator'
+        ? 'operator'
+        : 'provider'
+      : auth.user?.role === 'client'
+        ? 'client'
+        : '';
   const [error, setError] = useState('');
 
   useEffect(() => {

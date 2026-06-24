@@ -941,17 +941,30 @@ async def get_user_role(
     if provider_role in ['owner', None]:
         provider_role = 'super_master'
     
-    # Determinar permisos según rol
     is_super_master = provider_role == 'super_master'
     is_master = provider_role == 'master'
     is_operator = provider_role == 'operator'
-    has_full_visibility = is_super_master or is_master
 
     master_permissions = user.get('master_permissions', {}) if is_master else {}
     if not isinstance(master_permissions, dict):
         master_permissions = {}
-    can_manage_machines = bool(is_super_master or (is_master and master_permissions.get('can_manage_machines') is True))
-    can_delete_machines = bool(is_super_master or (is_master and master_permissions.get('can_delete_machines') is True))
+
+    def _mperm(key: str) -> bool:
+        return bool(master_permissions.get(key) is True)
+
+    can_manage_machines = bool(is_super_master or (is_master and _mperm('can_manage_machines')))
+    can_delete_machines = bool(is_super_master or (is_master and _mperm('can_delete_machines')))
+    can_assign_operator = bool(is_super_master or (is_master and _mperm('can_assign_operator')))
+    can_edit_master_profile = bool(is_super_master or (is_master and _mperm('can_edit_master_profile')))
+    can_view_finance = bool(is_super_master or (is_master and _mperm('can_view_finance')))
+    can_manage_operators = bool(is_super_master or (is_master and _mperm('can_manage_operators')))
+    can_delete_master = bool(is_super_master or (is_master and _mperm('can_delete_master')))
+    can_view_work_details = bool(is_super_master or (is_master and _mperm('can_view_work_details')))
+    can_create_work = bool(is_super_master or (is_master and _mperm('can_create_work')))
+
+    can_accept_requests = bool(has_permission(user, 'accept_requests'))
+    if is_master:
+        can_accept_requests = bool(can_create_work)
     
     response = {
         'user_id': user_id,
@@ -959,16 +972,22 @@ async def get_user_role(
         'provider_role': provider_role,
         'owner_id': user.get('owner_id') if not is_super_master else None,
         'permissions': {
-            'can_view_finances': has_full_visibility,
-            'can_view_invoices': has_full_visibility,
-            'can_upload_invoice': has_full_visibility,
-            'can_manage_operators': has_full_visibility,
+            'can_view_finances': can_view_finance,
+            'can_view_invoices': can_view_finance,
+            'can_upload_invoice': can_view_finance,
+            'can_manage_operators': can_manage_operators,
             'can_manage_masters': is_super_master,  # Solo Titular puede invitar Masters
-            'can_view_bank_data': has_full_visibility,
-            'can_accept_requests': has_permission(user, 'accept_requests'),
-            'can_view_services': True,
+            'can_view_bank_data': bool(is_super_master),
+            'can_accept_requests': can_accept_requests,
+            'can_view_services': bool(is_super_master or is_master or is_operator or can_view_work_details or can_create_work),
             'can_manage_machines': can_manage_machines,
             'can_delete_machines': can_delete_machines,
+            'can_assign_operator': can_assign_operator,
+            'can_edit_master_profile': can_edit_master_profile,
+            'can_view_finance': can_view_finance,
+            'can_delete_master': can_delete_master,
+            'can_view_work_details': can_view_work_details,
+            'can_create_work': can_create_work,
         }
     }
     

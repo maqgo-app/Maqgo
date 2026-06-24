@@ -63,9 +63,9 @@ function computeTotals(list) {
  */
 function ProviderDashboardSimple() {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
-  const isOperator =
-    typeof window !== 'undefined' && localStorage.getItem('providerRole') === 'operator';
+  const auth = useAuth();
+  const { hasPermission } = auth;
+  const isOperator = auth.providerRole === 'operator';
   const canViewFinances = hasPermission('canViewFinances');
 
   const [services, setServices] = useState([]);
@@ -81,7 +81,7 @@ function ProviderDashboardSimple() {
     if (isOperator) return;
     setLoading(true);
     setError(null);
-    const providerId = localStorage.getItem('userId');
+    const providerId = auth.user?.id;
     if (!providerId) {
       setServices([]);
       setTotals({ pending: 0, toInvoice: 0, paid: 0 });
@@ -117,7 +117,7 @@ function ProviderDashboardSimple() {
     } finally {
       setLoading(false);
     }
-  }, [isOperator]);
+  }, [isOperator, auth.user?.id]);
 
   useEffect(() => {
     if (!isOperator) load();

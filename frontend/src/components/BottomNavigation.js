@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Z_INDEX } from '../constants/zIndex';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
-import { getSessionRole, isProviderSession } from '../utils/userAuthState';
 import { useAuth } from '../context/authHooks';
 import { fetchUnreadCount } from '../utils/notificationsClient';
 
@@ -128,33 +127,28 @@ function goToPortada(navigate) {
  * - Proveedor → ProviderHome
  * - Operador → OperatorHome
  */
-function goToHome(navigate) {
-  const userRole = getSessionRole();
-  const userId = localStorage.getItem('userId');
-  const providerRole = localStorage.getItem('providerRole') || 'owner';
+function goToHome(navigate, auth) {
+  if (auth?.loading) return;
+  const userRole = auth?.user?.role;
+  const userId = auth?.user?.id;
+  const providerRole = auth?.providerRole;
 
-  console.log("CURRENT ROLE (goToHome):", userRole);
-  console.log("CURRENT USER ID:", userId);
-  
   if (!userId || !userRole) {
-    console.log("NO USER ID OR ROLE - redirecting to welcome");
     navigate('/welcome');
     return;
   }
 
   if (userRole === 'admin') {
-    console.log("ADMIN ROLE - redirecting to /admin");
     navigate('/admin');
     return;
   }
 
-  if (isProviderSession()) {
-    console.log("PROVIDER ROLE - redirecting to provider home");
+  if (userRole === 'provider') {
     navigate(providerRole === 'operator' ? '/operator/home' : getProviderLandingPath());
-  } else {
-    console.log("CLIENT ROLE - redirecting to /client/home");
-    navigate('/client/home');
+    return;
   }
+
+  navigate('/client/home');
 }
 
 /**
@@ -164,15 +158,12 @@ function goToHome(navigate) {
 export function ClientNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
+  const auth = useAuth();
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
 
   const [unreadAvisos, setUnreadAvisos] = useState(0);
 
-  const isClientSession = useMemo(() => {
-    const userRole = getSessionRole();
-    const userId = localStorage.getItem('userId');
-    return Boolean(userId && userRole === 'client');
-  }, []);
+  const isClientSession = Boolean(!auth.loading && auth.user?.id && auth.user.role === 'client');
   
   const isActive = (path) => location.pathname.includes(path);
 
@@ -223,7 +214,7 @@ export function ClientNavigation() {
     }}>
       <NavItem
         active={isActive('/client/home') || location.pathname === '/client/machinery'}
-        onClick={() => goToHome(navigate)}
+        onClick={() => goToHome(navigate, auth)}
         label="Inicio"
         icon={Icons.home}
         isPrimary
@@ -258,17 +249,14 @@ export function ClientNavigation() {
 export function ProviderNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { can } = useAuth();
-  const providerRole = localStorage.getItem('providerRole') || 'owner';
+  const auth = useAuth();
+  const { can } = auth;
+  const providerRole = auth.providerRole;
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
 
   const [unreadAvisos, setUnreadAvisos] = useState(0);
 
-  const isProviderSessionOk = useMemo(() => {
-    const userRole = getSessionRole();
-    const userId = localStorage.getItem('userId');
-    return Boolean(userId && userRole === 'provider');
-  }, []);
+  const isProviderSessionOk = Boolean(!auth.loading && auth.user?.id && auth.user.role === 'provider');
   
   // Operadores solo ven: Inicio | Historial | Perfil (sin Cobros ni Máquinas)
   const isOperatorOnly = providerRole === 'operator';
@@ -428,8 +416,10 @@ export function ProviderNavigation() {
 function BottomNavigation() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const role = localStorage.getItem('userRole');
+  const auth = useAuth();
+  const role = auth.user?.role;
 
+  if (auth.loading) return null;
   if (!role) return null;
 
   if (location.pathname === '/terms' && searchParams.get('accept') === '1') {

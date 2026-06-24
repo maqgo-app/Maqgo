@@ -30,42 +30,11 @@ function safeJsonParse(raw, fallback) {
   }
 }
 
-function loadMasterPermissionsForUser(userId) {
-  if (!userId) return null;
-  try {
-    const raw = localStorage.getItem('masterPermissionsByUserId') || '{}';
-    const map = safeJsonParse(raw, {});
-    const perms = map[String(userId)];
-    return perms && typeof perms === 'object' ? perms : null;
-  } catch {
-    return null;
-  }
-}
-
-function applyMasterPermissions(mergedPerms, masterPermissions) {
-  const p = masterPermissions && typeof masterPermissions === 'object' ? masterPermissions : null;
-  if (!p) return mergedPerms;
-  const bool = (k, fallback = false) => (typeof p[k] === 'boolean' ? p[k] : fallback);
-  return {
-    ...mergedPerms,
-    canViewFinances: bool('can_view_finance', mergedPerms.canViewFinances),
-    canViewInvoices: bool('can_view_finance', mergedPerms.canViewInvoices),
-    canUploadInvoice: bool('can_view_finance', mergedPerms.canUploadInvoice),
-    canManageOperators: bool('can_manage_operators', mergedPerms.canManageOperators),
-    canManageMachines: bool('can_manage_machines', mergedPerms.canManageMachines),
-    canCreateWork: bool('can_create_work', mergedPerms.canCreateWork),
-    canAssignOperator: bool('can_assign_operator', mergedPerms.canAssignOperator),
-    canViewWorkDetails: bool('can_view_work_details', mergedPerms.canViewWorkDetails),
-    canEditMasterProfile: bool('can_edit_master_profile', mergedPerms.canEditMasterProfile),
-    canDeleteMaster: bool('can_delete_master', mergedPerms.canDeleteMaster),
-    canDeleteMachines: bool('can_delete_machines', mergedPerms.canDeleteMachines),
-  };
-}
-
 function mergeProviderPermissionsFromApi(basePerms, apiPerms, role, userId) {
   const mergedPerms = { ...(basePerms || {}) };
   const p = apiPerms && typeof apiPerms === 'object' ? apiPerms : {};
   if (typeof p.can_view_finances === 'boolean') mergedPerms.canViewFinances = p.can_view_finances;
+  if (typeof p.can_view_finance === 'boolean') mergedPerms.canViewFinances = p.can_view_finance;
   if (typeof p.can_view_invoices === 'boolean') mergedPerms.canViewInvoices = p.can_view_invoices;
   if (typeof p.can_upload_invoice === 'boolean') mergedPerms.canUploadInvoice = p.can_upload_invoice;
   if (typeof p.can_manage_operators === 'boolean') mergedPerms.canManageOperators = p.can_manage_operators;
@@ -75,7 +44,14 @@ function mergeProviderPermissionsFromApi(basePerms, apiPerms, role, userId) {
   if (typeof p.can_accept_requests === 'boolean') mergedPerms.canAcceptRequests = p.can_accept_requests;
   if (typeof p.can_view_services === 'boolean') mergedPerms.canViewServices = p.can_view_services;
   if (typeof p.can_delete_machines === 'boolean') mergedPerms.canDeleteMachines = p.can_delete_machines;
-  return role === 'master' ? applyMasterPermissions(mergedPerms, loadMasterPermissionsForUser(userId)) : mergedPerms;
+  if (typeof p.can_assign_operator === 'boolean') mergedPerms.canAssignOperator = p.can_assign_operator;
+  if (typeof p.can_create_work === 'boolean') mergedPerms.canCreateWork = p.can_create_work;
+  if (typeof p.can_view_work_details === 'boolean') mergedPerms.canViewWorkDetails = p.can_view_work_details;
+  if (typeof p.can_edit_master_profile === 'boolean') mergedPerms.canEditMasterProfile = p.can_edit_master_profile;
+  if (typeof p.can_delete_master === 'boolean') mergedPerms.canDeleteMaster = p.can_delete_master;
+  void role;
+  void userId;
+  return mergedPerms;
 }
 
 // Permisos por defecto según rol
@@ -159,6 +135,7 @@ export function AuthProvider({ children }) {
   const initialUserRole = localStorage.getItem('userRole');
   const initialProviderRoleRaw = localStorage.getItem('providerRole') || 'super_master';
   const initialProviderRole = initialProviderRoleRaw === 'owner' ? 'super_master' : initialProviderRoleRaw;
+  const initialHasToken = Boolean(localStorage.getItem('token') || localStorage.getItem('authToken'));
 
   const [user, setUser] = useState(
     initialUserId ? { id: initialUserId, role: initialUserRole } : null
@@ -167,7 +144,7 @@ export function AuthProvider({ children }) {
   const [permissions, setPermissions] = useState(
     DEFAULT_PERMISSIONS[initialProviderRole] || DEFAULT_PERMISSIONS.super_master
   );
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(initialHasToken);
   const [ownerId, setOwnerId] = useState(() => localStorage.getItem('ownerId'));
   const [ownerName, setOwnerName] = useState(null);
 
@@ -238,11 +215,7 @@ export function AuthProvider({ children }) {
     const permKey = userRole === 'provider' ? normalizedRole : 'super_master';
     setProviderRole(userRole === 'provider' ? normalizedRole : 'super_master');
     const basePerms = DEFAULT_PERMISSIONS[permKey] || DEFAULT_PERMISSIONS.super_master;
-    const effectivePerms =
-      userRole === 'provider' && normalizedRole === 'master'
-        ? applyMasterPermissions(basePerms, loadMasterPermissionsForUser(userId))
-        : basePerms;
-    setPermissions(effectivePerms);
+    setPermissions(basePerms);
   }, []);
 
   const logout = useCallback(() => {

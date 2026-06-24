@@ -202,45 +202,11 @@ function TeamManagementScreen() {
   const getTeamMemberEndpoint = (ownerId, memberType, memberId) =>
     `${BACKEND_URL}/api/users/${encodeURIComponent(ownerId)}/${memberType === 'master' ? 'masters' : 'operators'}/${encodeURIComponent(memberId)}`;
 
-  const base64UrlEncodeJson = (obj) => {
-    try {
-      const json = JSON.stringify(obj || {});
-      const b64 = btoa(json);
-      return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-    } catch {
-      return '';
-    }
-  };
-
-  const loadMasterInvitePermissionsByCode = () => {
-    try {
-      const raw = localStorage.getItem('masterInvitePermissionsByCode') || '{}';
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-      return {};
-    }
-  };
-
-  const persistMasterInvitePermissionsByCode = (code, perms) => {
-    const c = String(code || '').trim().toUpperCase();
-    if (!c) return;
-    try {
-      const map = loadMasterInvitePermissionsByCode();
-      map[c] = perms;
-      localStorage.setItem('masterInvitePermissionsByCode', JSON.stringify(map));
-    } catch {
-      void 0;
-    }
-  };
-
-  const buildMasterJoinLink = (code, perms) => {
+  const buildMasterJoinLink = (code) => {
     const c = String(code || '').trim().toUpperCase();
     if (!c) return '';
     const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
-    const p = base64UrlEncodeJson(perms || {});
-    const qs = p ? `?code=${encodeURIComponent(c)}&p=${encodeURIComponent(p)}` : `?code=${encodeURIComponent(c)}`;
-    return `${origin}/master/join${qs}`;
+    return `${origin}/master/join?code=${encodeURIComponent(c)}`;
   };
 
   const buildOperatorJoinLink = (code) => {
@@ -294,10 +260,10 @@ function TeamManagementScreen() {
     return out;
   };
 
-  const buildInviteMessage = (code, type = inviteType, permsOverride = null) => {
+  const buildInviteMessage = (code, type = inviteType) => {
     const c = String(code || '').trim().toUpperCase();
     if (type === 'master') {
-      const link = buildMasterJoinLink(c, permsOverride || masterInvitePermissions);
+      const link = buildMasterJoinLink(c);
       return `Tu código de activación MAQGO para usuario master es: ${c}\n\nEste usuario debe ingresar su código de activación desde el link directo de invitación:\n${link}\n\nAhí completará su identidad y quedará activado con los permisos definidos por el supermaster.\n\nLuego iniciará sesión con su celular usando un código SMS (MAQGO).\n\nVálido por 7 días.\nUso único (1 persona).`;
     }
     const link = buildOperatorJoinLink(c);
@@ -489,9 +455,6 @@ function TeamManagementScreen() {
       const response = await axios.post(endpoint, payload);
       
       setInviteCode(response.data.code);
-      if (inviteType === 'master' && response?.data?.code) {
-        persistMasterInvitePermissionsByCode(response.data.code, masterInvitePermissions);
-      }
       setBatchInvites(null);
       setShowCode(true);
       // Limpiar formulario de datos de operador
@@ -1289,10 +1252,7 @@ function TeamManagementScreen() {
                                 if (!code) return;
                                 const link =
                                   inv.invite_type === 'master'
-                                    ? buildMasterJoinLink(
-                                        code,
-                                        (loadMasterInvitePermissionsByCode()?.[code]) || {}
-                                      )
+                                    ? buildMasterJoinLink(code)
                                     : buildOperatorJoinLink(code);
                                 copyTextToClipboard(link, 'Link copiado');
                               }}
@@ -1477,10 +1437,7 @@ function TeamManagementScreen() {
                                 if (!code) return;
                                 const link =
                                   inv.invite_type === 'master'
-                                    ? buildMasterJoinLink(
-                                        code,
-                                        (loadMasterInvitePermissionsByCode()?.[code]) || {}
-                                      )
+                                    ? buildMasterJoinLink(code)
                                     : buildOperatorJoinLink(code);
                                 copyTextToClipboard(link, 'Link copiado');
                               }}
@@ -1929,14 +1886,14 @@ function TeamManagementScreen() {
                       whiteSpace: 'nowrap',
                     }}>
                       {inviteType === 'master'
-                        ? buildMasterJoinLink(inviteCode, masterInvitePermissions)
+                        ? buildMasterJoinLink(inviteCode)
                         : buildOperatorJoinLink(inviteCode)}
                     </div>
                     <button
                       type="button"
                       onClick={() => {
                         const link = inviteType === 'master'
-                          ? buildMasterJoinLink(inviteCode, masterInvitePermissions)
+                          ? buildMasterJoinLink(inviteCode)
                           : buildOperatorJoinLink(inviteCode);
                         copyTextToClipboard(link, 'Link copiado');
                       }}

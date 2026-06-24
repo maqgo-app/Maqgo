@@ -7,6 +7,7 @@ import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNa
 import { getArray } from '../../utils/safeStorage';
 import { applyRepeatBookingFromHistory } from '../../utils/repeatBookingFromHistory';
 import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
+import { useAuth } from '../../context/authHooks';
 
 /**
  * Producción (Vite `import.meta.env.PROD`): NUNCA datos demo — lista vacía si no hay `serviceHistory`.
@@ -120,11 +121,11 @@ const DEMO_SERVICES_CLIENT = [
 
 function HistoryScreen() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const [services, setServices] = useState([]);
   
   // Detectar si es cliente o proveedor
-  const userRole = localStorage.getItem('userRole') || 'client';
-  const isProvider = userRole === 'provider';
+  const isProvider = Boolean(!auth.loading && auth.user?.role === 'provider');
   const [activeTab, setActiveTab] = useState('completed');
 
   useEffect(() => {

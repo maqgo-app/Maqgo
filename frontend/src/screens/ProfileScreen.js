@@ -6,6 +6,7 @@ import BACKEND_URL from '../utils/api';
 import { clearAuthSessionPreservingDraft } from '../utils/sessionCleanup';
 import { persistClientEmailToStorage } from '../utils/clientSessionForPayment';
 import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
+import { useAuth } from '../context/authHooks';
 
 /**
  * Perfil cliente (ruta /profile): enrolamiento OTP + datos opcionales.
@@ -24,6 +25,7 @@ function formatPhoneClDisplay(phone) {
 
 function ProfileScreen() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const [loading, setLoading] = useState(true);
   const [saveLoading, setSaveLoading] = useState(false);
   const [error, setError] = useState('');
@@ -70,7 +72,7 @@ function ProfileScreen() {
     loadMe();
   }, [loadMe]);
 
-  const role = me?.role || localStorage.getItem('userRole') || 'client';
+  const role = me?.role || auth.user?.role || 'client';
   const displayPhone = formatPhoneClDisplay(me?.phone || localStorage.getItem('userPhone'));
 
   const handleSave = async () => {

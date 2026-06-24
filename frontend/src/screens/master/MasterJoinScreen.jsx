@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
@@ -6,36 +6,7 @@ import BackToPortadaButton from '../../components/BackToPortadaButton';
 import BACKEND_URL from '../../utils/api';
 import { getDeviceId } from '../../utils/deviceId';
 import { getHttpErrorMessage } from '../../utils/httpErrors';
-import {
-  formatRut,
-  normalizeChileanMobileDraft,
-  normalizeChileanMobileE164,
-  sanitizeRutInput,
-  validatePersonRut,
-} from '../../utils/chileanValidation';
-
-function safeJsonParse(raw, fallback) {
-  try {
-    const v = JSON.parse(raw);
-    return v && typeof v === 'object' ? v : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function base64UrlDecodeToJson(raw) {
-  const s = String(raw || '').trim();
-  if (!s) return null;
-  try {
-    const normalized = s.replace(/-/g, '+').replace(/_/g, '/');
-    const pad = normalized.length % 4 ? '='.repeat(4 - (normalized.length % 4)) : '';
-    const json = atob(normalized + pad);
-    const parsed = JSON.parse(json);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
+import { formatRut, normalizeChileanMobileDraft, normalizeChileanMobileE164, sanitizeRutInput, validatePersonRut } from '../../utils/chileanValidation';
 
 function persistRegisterDataPhoneDigits(phoneE164) {
   const d = String(phoneE164 || '').replace(/\D/g, '');
@@ -49,47 +20,10 @@ function persistRegisterDataPhoneDigits(phoneE164) {
   }
 }
 
-function loadInvitePermissionsByCode() {
-  try {
-    return safeJsonParse(localStorage.getItem('masterInvitePermissionsByCode') || '{}', {});
-  } catch {
-    return {};
-  }
-}
-
-function storeMasterPermissionsForUser(userId, permissions) {
-  if (!userId || !permissions || typeof permissions !== 'object') return;
-  try {
-    const raw = localStorage.getItem('masterPermissionsByUserId') || '{}';
-    const map = safeJsonParse(raw, {});
-    map[String(userId)] = permissions;
-    localStorage.setItem('masterPermissionsByUserId', JSON.stringify(map));
-  } catch {
-    /* ignore */
-  }
-}
-
-function normalizeMasterPermissions(input) {
-  const p = input && typeof input === 'object' ? input : {};
-  const bool = (k) => (typeof p[k] === 'boolean' ? p[k] : false);
-  return {
-    can_view_finance: bool('can_view_finance'),
-    can_manage_machines: bool('can_manage_machines'),
-    can_manage_operators: bool('can_manage_operators'),
-    can_create_work: bool('can_create_work'),
-    can_assign_operator: bool('can_assign_operator'),
-    can_view_work_details: bool('can_view_work_details'),
-    can_edit_master_profile: bool('can_edit_master_profile'),
-    can_delete_master: bool('can_delete_master'),
-    can_delete_machines: bool('can_delete_machines'),
-  };
-}
-
 function MasterJoinScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fromUrlCode = String(searchParams.get('code') || '').trim().toUpperCase();
-  const permsParam = searchParams.get('p');
 
   const [code, setCode] = useState(fromUrlCode);
   const [firstName, setFirstName] = useState('');
@@ -99,14 +33,6 @@ function MasterJoinScreen() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const resolvedPerms = useMemo(() => {
-    const fromParam = base64UrlDecodeToJson(permsParam);
-    if (fromParam) return normalizeMasterPermissions(fromParam);
-    const byCode = loadInvitePermissionsByCode();
-    const stored = byCode[String(fromUrlCode || code || '').toUpperCase()];
-    return stored ? normalizeMasterPermissions(stored) : null;
-  }, [permsParam, fromUrlCode, code]);
 
   const handleJoin = async () => {
     if (loading) return;
@@ -152,10 +78,6 @@ function MasterJoinScreen() {
         headers: { 'Content-Type': 'application/json' },
       });
       const data = res.data || {};
-      const masterId = data.master_id;
-      if (masterId && resolvedPerms) {
-        storeMasterPermissionsForUser(masterId, resolvedPerms);
-      }
       persistRegisterDataPhoneDigits(phoneE164);
       try {
         localStorage.setItem('desiredRole', 'provider');
