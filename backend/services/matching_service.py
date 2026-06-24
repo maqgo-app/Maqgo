@@ -57,7 +57,7 @@ _ROTATION_UNSET = {
 }
 
 # Estados que indican que el proveedor está ocupado
-ACTIVE_SERVICE_STATES = ['confirmed', 'in_progress', 'last_30']
+ACTIVE_SERVICE_STATES = ['confirmed', 'en_route', 'in_progress', 'last_30']
 
 # Frescura de ubicación (MVP-safe): solo invalida por antigüedad cuando hay timestamp explícito y source GPS.
 GPS_ONLINE_MAX_AGE_SECONDS = 15 * 60
