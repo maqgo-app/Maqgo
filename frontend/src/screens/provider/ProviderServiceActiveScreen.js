@@ -31,10 +31,6 @@ function ProviderServiceActiveScreen() {
   const navigate = useNavigate();
   const [request] = useState(buildProviderActiveRequest);
 
-  const handleFinish = () => {
-    navigate('/provider/service-finished');
-  };
-
   return (
     <div className="maqgo-app maqgo-provider-funnel">
       <div className="maqgo-screen">
@@ -113,14 +109,25 @@ padding: 24,
 
         <div className="maqgo-spacer"></div>
 
-        {/* Botón */}
-        <button 
-          className="maqgo-btn-primary"
-          onClick={handleFinish}
-          data-testid="finish-service-btn"
-        >
-          Finalizar servicio
-        </button>
+        <div style={{
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 12,
+          padding: 14,
+          textAlign: 'center'
+        }}>
+          <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
+            El servicio finaliza automáticamente al cumplirse el tiempo contratado.
+          </p>
+          <button
+            type="button"
+            className="maqgo-btn-secondary"
+            onClick={() => navigate('/provider/home')}
+            style={{ marginTop: 12 }}
+          >
+            Volver al inicio
+          </button>
+        </div>
 
         <style>{`
           @keyframes pulse {

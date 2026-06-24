@@ -26,7 +26,7 @@ def _severity_for_kind(kind: str) -> str:
         'no_arrival_240',
     }:
         return 'critical'
-    if k in {'confirmed', 'assigned', 'en_route', 'started', 'finished', 'incident_cleared', 'factura_lista', 'pago_enviado'}:
+    if k in {'confirmed', 'assigned', 'en_route', 'started', 'finished', 'last_30', 'incident_cleared', 'factura_lista', 'pago_enviado'}:
         return 'important'
     return 'normal'
 
@@ -47,6 +47,8 @@ def _deep_link_for_kind(kind: str, service_request_id: str, audience_role: str) 
             return '/provider/service-active'
         if k == 'finished':
             return '/provider/service-finished'
+        if k == 'last_30':
+            return '/provider/last-30'
         if k in {'incident', 'incident_cleared'}:
             return '/provider/in-progress'
         if k == 'cancelled':
@@ -59,6 +61,8 @@ def _deep_link_for_kind(kind: str, service_request_id: str, audience_role: str) 
     if ar == 'operator':
         if k in {'finished', 'cancelled'}:
             return '/operator/history'
+        if k == 'last_30':
+            return '/operator/home'
         return '/operator/home'
     if k in {'confirmed', 'assigned', 'en_route', 'incident', 'incident_cleared', 'no_arrival_120', 'no_arrival_180', 'no_arrival_240'}:
         return '/client/assigned'
@@ -68,6 +72,8 @@ def _deep_link_for_kind(kind: str, service_request_id: str, audience_role: str) 
         return '/client/service-active'
     if k == 'finished':
         return '/client/service-finished'
+    if k == 'last_30':
+        return '/client/in-progress'
     if k == 'cancelled':
         return '/client/history'
     if k == 'payment_failed':
@@ -116,6 +122,8 @@ def _title_body_for_kind(kind: str, extra: Optional[dict] = None, audience_role:
         return 'Servicio iniciado', 'El servicio comenzó.'
     if k == 'finished':
         return 'Servicio finalizado', 'El servicio se marcó como finalizado.'
+    if k == 'last_30':
+        return 'Últimos 30 minutos', 'El servicio finalizará próximamente.'
     if k == 'incident':
         reason = str((extra or {}).get('reason') or '').strip()
         return 'Incidente reportado', (f'Motivo: {reason}' if reason else 'Se reportó un incidente/demora.')

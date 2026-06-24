@@ -1933,31 +1933,41 @@ async def clear_incident(
 async def finish_service(
     request_id: str,
     body: dict = Body(default={}),
-    current_user: dict = Depends(get_current_user),
+    current_admin: dict = Depends(get_current_admin_strict),
 ):
-    """
-    Finalizar servicio (proveedor asignado o admin).
-    """
-    if current_user.get("role") != "admin":
-        request = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
-        if not request:
-            raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-        _assert_assigned_provider(current_user, request)
-
     now = datetime.now(timezone.utc)
-    role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
+    role = "admin"
     finished_event = {
         "type": "finished",
         "at": now.isoformat(),
-        "byUserId": current_user.get("id"),
-        "byRole": role,
+        "byUserId": current_admin.get("id"),
+        "byRole": "admin",
+        "source": "admin_override",
+    }
+
+    override_reason = None
+    if isinstance(body, dict):
+        override_reason = body.get("reason")
+    if override_reason is not None:
+        override_reason = str(override_reason).strip()
+        if not override_reason:
+            override_reason = None
+
+    override_event = {
+        "type": "finished_override",
+        "at": now.isoformat(),
+        "byUserId": current_admin.get("id"),
+        "reason": override_reason,
     }
 
     update_data = {
         'status': 'finished',
         'finishedAt': now.isoformat(),
-        "finishedByUserId": current_user.get("id"),
+        "finishedByUserId": current_admin.get("id"),
         "finishedByRole": role,
+        "finishedOverrideAt": now.isoformat(),
+        "finishedOverrideByUserId": current_admin.get("id"),
+        "finishedOverrideReason": override_reason,
         'autoFinished': False  # Cierre manual
     }
     if body.get('endLocation'):
@@ -1965,7 +1975,7 @@ async def finish_service(
 
     result = await db.service_requests.update_one(
         {'id': request_id, 'status': {'$in': ['in_progress', 'last_30']}},
-        {'$set': update_data, '$push': {'events': finished_event}}
+        {'$set': update_data, '$push': {'events': {'$each': [finished_event, override_event]}}}
     )
     
     if result.matched_count == 0:

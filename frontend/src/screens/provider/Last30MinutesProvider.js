@@ -1,12 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { playTimerWarningSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
+import axios from 'axios';
+import BACKEND_URL from '../../utils/api';
 
 function Last30MinutesProvider() {
   const navigate = useNavigate();
-  const [remainingTime, setRemainingTime] = useState(30 * 60); // 30 minutos en segundos
+  const [remainingTime, setRemainingTime] = useState(30 * 60);
   const [showExtendOption, setShowExtendOption] = useState(false);
+
+  const serviceId = useMemo(() => {
+    const raw = localStorage.getItem('currentServiceId') || localStorage.getItem('currentServiceRequestId') || '';
+    return String(raw || '').trim();
+  }, []);
+
+  const [endTimeMs, setEndTimeMs] = useState(null);
 
   useEffect(() => {
     unlockAudio();
@@ -15,27 +24,46 @@ function Last30MinutesProvider() {
   }, []);
 
   useEffect(() => {
+    if (!endTimeMs) return undefined;
     const timer = setInterval(() => {
-      setRemainingTime(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          navigate('/provider/service-finished');
-          return 0;
-        }
-        return prev - 1;
-      });
+      const diff = Math.max(0, Math.floor((endTimeMs - Date.now()) / 1000));
+      setRemainingTime(diff);
     }, 1000);
     return () => clearInterval(timer);
-  }, [navigate]);
+  }, [endTimeMs]);
+
+  useEffect(() => {
+    if (!serviceId || String(serviceId).startsWith('demo-')) return undefined;
+    let active = true;
+    const poll = async () => {
+      try {
+        const res = await axios.get(`${BACKEND_URL}/api/service-requests/${serviceId}`);
+        if (!active) return;
+        const sr = res?.data || {};
+        const rawEnd = sr.endTime;
+        const end = rawEnd ? new Date(String(rawEnd)).getTime() : null;
+        if (Number.isFinite(end)) {
+          setEndTimeMs(end);
+        }
+        if (String(sr.status || '').toLowerCase() === 'finished') {
+          navigate('/provider/service-finished');
+        }
+      } catch {
+        void 0;
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 5000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [navigate, serviceId]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleFinishEarly = () => {
-    navigate('/provider/service-finished');
   };
 
   return (
@@ -115,13 +143,6 @@ function Last30MinutesProvider() {
             <span className="action-text">Solicitar extensión de tiempo</span>
           </button>
 
-          <button 
-            className="action-btn finish"
-            onClick={handleFinishEarly}
-          >
-            <span className="action-icon">✓</span>
-            <span className="action-text">Finalizar servicio ahora</span>
-          </button>
         </div>
 
         {/* Modal de extensión */}
@@ -149,8 +170,7 @@ function Last30MinutesProvider() {
         <div className="info-card">
           <span className="info-icon">ℹ️</span>
           <span className="info-text">
-            El servicio finalizará automáticamente cuando el tiempo llegue a cero. 
-            Se registrará la ubicación GPS final.
+            El servicio finalizará automáticamente al cumplirse el endTime definido por MAQGO.
           </span>
         </div>
       </div>

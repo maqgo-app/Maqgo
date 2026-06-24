@@ -18,6 +18,12 @@
 - in_progress
 - last_30
 - finished
+
+## Término del servicio (oficial)
+- `last_30` se genera automáticamente 30 minutos antes de `endTime`.
+- `finished` se genera exclusivamente de forma automática cuando se cumple `endTime`.
+- Ningún usuario finaliza manualmente un servicio.
+- `PUT /service-requests/{id}/finish` se reserva solo como override admin auditado.
 - rated
 - cancelled_* (solo por acción humana; no hay auto-cancel)
 

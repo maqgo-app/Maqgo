@@ -19,6 +19,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import aiohttp
 
 from db_config import get_db_name, get_mongo_url
+from services.timer_service import TimerService
 
 # Configuración
 BASE_URL = os.environ.get('STRESS_TEST_BASE_URL', 'http://localhost:8000/api')
@@ -215,20 +216,35 @@ async def run_scenario_6(session: aiohttp.ClientSession, base: str, db, n: int) 
     return results
 
 
-async def run_timer_check(session: aiohttp.ClientSession, base: str) -> dict:
-    """Ejecuta verificación de timers."""
-    async with session.post(f'{base}/service-requests/timers/check') as r:
-        return await r.json() if r.status == 200 else {}
+async def run_timer_check_direct(db) -> dict:
+    timer_service = TimerService(db)
+    return await timer_service.run_all_checks()
 
 
 
 
 async def finish_services(session: aiohttp.ClientSession, base: str, db, service_ids: list):
-    """Finaliza servicios in_progress o last_30."""
+    """Fuerza endTime al pasado para que el cierre ocurra por TimerService (política oficial)."""
+    _ = session
+    _ = base
+    now_iso = datetime.now(timezone.utc).isoformat()
+    past_iso = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
     for sid in service_ids:
         svc = await db.service_requests.find_one({'id': sid}, {'_id': 0, 'status': 1})
-        if svc and svc.get('status') in ('in_progress', 'last_30'):
-            await session.put(f"{base}/service-requests/{sid}/finish", json={})
+        if not svc:
+            continue
+        if svc.get('status') not in ('in_progress', 'last_30'):
+            continue
+        await db.service_requests.update_one(
+            {'id': sid},
+            {
+                '$set': {
+                    'endTime': past_iso,
+                    'endTimeForcedAt': now_iso,
+                    'endTimeForcedBy': 'stress_test',
+                }
+            },
+        )
 
 
 async def main():
@@ -261,16 +277,20 @@ async def main():
         print(f"  Escenario 6 (20 timeout): {len(s6)} creados para timeout")
 
         print("\nEjecutando timers (auto_start, timeout, finished)...")
-        timer_result = await run_timer_check(session, base)
+        timer_result = await run_timer_check_direct(db)
         print(f"  Timer: {timer_result}")
 
         # Segunda pasada de timers por si hay más
         await asyncio.sleep(1)
-        await run_timer_check(session, base)
+        await run_timer_check_direct(db)
 
         # Finalizar servicios in_progress (escenarios 1 y 2)
         to_finish = s1 + s2
         await finish_services(session, base, db, to_finish)
+
+        # Ejecutar timers para que el cierre ocurra automáticamente
+        await asyncio.sleep(1)
+        await run_timer_check_direct(db)
 
     # Consultar resultados desde DB
     pipeline = [

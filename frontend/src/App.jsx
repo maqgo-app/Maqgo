@@ -160,7 +160,6 @@ const ProviderServiceActiveScreen = lazy(() => import('./screens/provider/Provid
 const Last30MinutesProvider = lazy(() => import('./screens/provider/Last30MinutesProvider'));
 const ServiceInProgressProvider = lazy(() => import('./screens/provider/ServiceInProgressProvider'));
 const ProviderServiceFinishedScreen = lazy(() => import('./screens/provider/ProviderServiceFinishedScreen'));
-const ServiceFinishedProvider = lazy(() => import('./screens/provider/ServiceFinishedProvider'));
 const RateClient = lazy(() => import('./screens/provider/RateClient'));
 const MyMachinesScreen = lazy(() => import('./screens/provider/MyMachinesScreen'));
 const ProviderDashboardSimple = lazy(() => import('./screens/provider/ProviderDashboardSimple'));

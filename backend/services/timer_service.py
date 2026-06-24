@@ -576,7 +576,7 @@ class TimerService:
                     'status': 'in_progress',
                     'endTime': {'$exists': True, '$ne': None},
                 },
-                {'_id': 0, 'id': 1, 'providerId': 1, 'clientId': 1, 'endTime': 1},
+                {'_id': 0, 'id': 1, 'providerId': 1, 'clientId': 1, 'operator_id': 1, 'operatorId': 1, 'endTime': 1},
             )
             .sort([('_id', 1)])
         )
@@ -607,9 +607,68 @@ class TimerService:
             if result.modified_count > 0:
                 updated_count += 1
                 logger.info(f"Servicio {service['id']} -> last_30 (últimos 30 minutos)")
-                
-                # TODO: Enviar notificación a cliente y proveedor
-                # await send_last_30_notification(service['clientId'], service['providerId'])
+
+                try:
+                    from services.notification_items_service import upsert_notification_item, record_delivery
+                    from services.webpush_service import notify_user
+
+                    sid = str(service.get('id'))
+                    client_id = str(service.get('clientId') or '').strip()
+                    operator_id = str(service.get('operator_id') or service.get('operatorId') or '').strip()
+
+                    if client_id:
+                        item = await upsert_notification_item(
+                            self.db,
+                            recipient_user_id=client_id,
+                            audience_role='client',
+                            service_request_id=sid,
+                            kind='last_30',
+                            extra={},
+                            pinned=False,
+                        )
+                        push = await notify_user(
+                            db=self.db,
+                            user_id=client_id,
+                            title='Últimos 30 minutos',
+                            body='El servicio finalizará próximamente.',
+                            url='/client/in-progress',
+                            tag=f'sr:{sid}',
+                        )
+                        await record_delivery(
+                            self.db,
+                            notification_id=item['id'],
+                            channel='push_web',
+                            status='sent' if int(push.get('sent', 0) or 0) > 0 else 'skipped',
+                            meta={'sent': int(push.get('sent', 0) or 0), 'skipped': int(push.get('skipped', 0) or 0)},
+                        )
+
+                    if operator_id:
+                        item = await upsert_notification_item(
+                            self.db,
+                            recipient_user_id=operator_id,
+                            audience_role='operator',
+                            service_request_id=sid,
+                            kind='last_30',
+                            extra={},
+                            pinned=False,
+                        )
+                        push = await notify_user(
+                            db=self.db,
+                            user_id=operator_id,
+                            title='Últimos 30 minutos',
+                            body='El servicio finalizará próximamente.',
+                            url='/operator/home',
+                            tag=f'sr:{sid}',
+                        )
+                        await record_delivery(
+                            self.db,
+                            notification_id=item['id'],
+                            channel='push_web',
+                            status='sent' if int(push.get('sent', 0) or 0) > 0 else 'skipped',
+                            meta={'sent': int(push.get('sent', 0) or 0), 'skipped': int(push.get('skipped', 0) or 0)},
+                        )
+                except Exception as e:
+                    logger.warning("last_30 notify error id=%s err=%s", service.get('id'), e)
         
         return updated_count
     
@@ -631,7 +690,7 @@ class TimerService:
                     'status': {'$in': ['in_progress', 'last_30']},
                     'endTime': {'$exists': True, '$ne': None},
                 },
-                {'_id': 0, 'id': 1, 'providerId': 1, 'clientId': 1, 'endTime': 1},
+                {'_id': 0, 'id': 1, 'providerId': 1, 'clientId': 1, 'operator_id': 1, 'operatorId': 1, 'endTime': 1},
             )
             .sort([('_id', 1)])
         )
@@ -776,8 +835,63 @@ class TimerService:
                                 }
                             },
                         )
+
+                        try:
+                            from services.notification_items_service import upsert_notification_item, record_delivery
+
+                            item = await upsert_notification_item(
+                                self.db,
+                                recipient_user_id=str(client_id),
+                                audience_role='client',
+                                service_request_id=str(sid),
+                                kind='finished',
+                                extra={},
+                                pinned=True,
+                            )
+                            await record_delivery(
+                                self.db,
+                                notification_id=item['id'],
+                                channel='push_web',
+                                status='sent' if int(res_push.get('sent', 0) or 0) > 0 else 'skipped',
+                                meta={'sent': int(res_push.get('sent', 0) or 0), 'skipped': int(res_push.get('skipped', 0) or 0)},
+                            )
+                        except Exception as e:
+                            logger.warning("auto-finish client aviso error id=%s err=%s", sid, e)
                 except Exception as e:
                     logger.warning("auto-finish push notify error id=%s err=%s", sid, e)
+
+                try:
+                    from services.notification_items_service import upsert_notification_item, record_delivery
+                    from services.webpush_service import notify_user
+
+                    operator_id = str(service.get('operator_id') or service.get('operatorId') or '').strip()
+                    if operator_id:
+                        item = await upsert_notification_item(
+                            self.db,
+                            recipient_user_id=operator_id,
+                            audience_role='operator',
+                            service_request_id=str(sid),
+                            kind='finished',
+                            extra={},
+                            pinned=True,
+                        )
+                        push = await notify_user(
+                            db=self.db,
+                            user_id=operator_id,
+                            title='Servicio finalizado',
+                            body='El servicio finalizó automáticamente.',
+                            url='/operator/home',
+                            tag=f'sr:{str(sid)}',
+                        )
+                        await record_delivery(
+                            self.db,
+                            notification_id=item['id'],
+                            channel='push_web',
+                            status='sent' if int(push.get('sent', 0) or 0) > 0 else 'skipped',
+                            meta={'sent': int(push.get('sent', 0) or 0), 'skipped': int(push.get('skipped', 0) or 0)},
+                        )
+                except Exception as e:
+                    logger.warning("auto-finish operator notify error id=%s err=%s", sid, e)
 
                 try:
                     enabled_raw = str(os.environ.get("MAQGO_CLIENT_FINISHED_SUMMARY_EMAIL_ENABLED", "true") or "").strip().lower()

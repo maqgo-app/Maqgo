@@ -119,7 +119,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Qué puedo hacer como operador?',
-        a: 'Puedes ver tu disponibilidad, recibir solicitudes de reserva, aceptar o rechazar trabajos, marcar llegada y salida de obras y ver tu historial de servicios realizados.'
+        a: 'Puedes ver tu disponibilidad, recibir solicitudes de reserva, aceptar o rechazar trabajos, marcar llegada, reportar incidentes y ver tu historial de servicios realizados. El término del servicio ocurre automáticamente al cumplirse el endTime.'
       },
       {
         q: '¿Qué NO puedo ver como operador?',

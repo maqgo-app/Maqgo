@@ -207,7 +207,7 @@ function ServiceActiveScreen() {
 
           <ServiceSecondaryActions
             actions={
-              (localStorage.getItem('currentServiceId') || '').startsWith('demo-')
+              import.meta.env.DEV && (localStorage.getItem('currentServiceId') || '').startsWith('demo-')
                 ? [{ key: 'finish-demo', label: 'Finalizar servicio (Demo)', variant: 'primary', onClick: handleFinish, testId: 'finish-service-btn' }]
                 : []
             }
