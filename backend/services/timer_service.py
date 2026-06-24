@@ -128,7 +128,7 @@ class TimerService:
         cursor = (
             self.db.service_requests.find(
                 {
-                    'status': 'confirmed',
+                    'status': {'$in': ['confirmed', 'en_route']},
                     '$or': [{'arrivalDetectedAt': {'$exists': False}}, {'arrivalDetectedAt': None}],
                 },
                 {
@@ -253,7 +253,7 @@ class TimerService:
 
     async def check_auto_start_post_arrival(self) -> int:
         """
-        Auto inicio post llegada: si status=confirmed, arrivalDetectedAt existe,
+        Auto inicio post llegada: si status=confirmed/en_route, arrivalDetectedAt existe,
         y now >= arrivalDetectedAt + 30 minutos → status in_progress, autoStartedAt.
         """
         now = datetime.now(timezone.utc)
@@ -262,7 +262,7 @@ class TimerService:
         cursor = (
             self.db.service_requests.find(
                 {
-                    'status': 'confirmed',
+                    'status': {'$in': ['confirmed', 'en_route']},
                     'arrivalDetectedAt': {'$exists': True, '$ne': None},
                 },
                 {'_id': 0, 'id': 1, 'clientId': 1, 'arrivalDetectedAt': 1},
@@ -282,7 +282,7 @@ class TimerService:
                 'at': now.isoformat(),
             }
             result = await self.db.service_requests.update_one(
-                {'id': service['id'], 'status': 'confirmed'},
+                {'id': service['id'], 'status': {'$in': ['confirmed', 'en_route']}},
                 {
                     '$set': {
                         'status': 'in_progress',

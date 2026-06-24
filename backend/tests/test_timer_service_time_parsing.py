@@ -124,6 +124,14 @@ class FakeDB:
 
 class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
     def _install_fake_modules(self):
+        self._patched_module_names = [
+            "pricing.business_rules",
+            "communications",
+            "services.webpush_service",
+            "services.notification_items_service",
+        ]
+        self._orig_modules = {name: sys.modules.get(name) for name in self._patched_module_names}
+
         pricing_rules = types.ModuleType("pricing.business_rules")
         pricing_rules.NO_ARRIVAL_ALERT_MINUTES_1 = 120
         pricing_rules.NO_ARRIVAL_ALERT_MINUTES_2 = 180
@@ -165,6 +173,16 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         self._install_fake_modules()
+
+    async def asyncTearDown(self):
+        patched = getattr(self, "_patched_module_names", [])
+        orig = getattr(self, "_orig_modules", {})
+        for name in patched:
+            if name in orig and orig[name] is not None:
+                sys.modules[name] = orig[name]
+            else:
+                if name in sys.modules:
+                    del sys.modules[name]
 
     def test_parse_datetime_formats(self):
         from services.timer_service import _parse_offer_expires_at_utc

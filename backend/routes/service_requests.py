@@ -1252,8 +1252,7 @@ async def cancel_service_client(
         )
 
     status = request.get('status', '')
-    # Mapear a estados del doc: pending_provider, accepted, en_route
-    cancellable = status in ['matching', 'offer_sent', 'confirmed']
+    cancellable = status in ['matching', 'offer_sent', 'confirmed', 'en_route']
 
     if not cancellable:
         raise HTTPException(
@@ -1467,7 +1466,7 @@ async def patch_assigned_operator(
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
     _assert_assigned_provider(current_user, req)
     st = (req.get("status") or "").lower()
-    if st not in ("confirmed", "in_progress", "last_30"):
+    if st not in ("confirmed", "en_route", "in_progress", "last_30"):
         raise HTTPException(
             status_code=400,
             detail="Estado no permite actualizar operador",
@@ -1655,7 +1654,7 @@ async def start_service(
         "byRole": role,
     }
     result = await db.service_requests.update_one(
-        {'id': request_id, 'status': 'confirmed'},
+        {'id': request_id, 'status': {'$in': ['confirmed', 'en_route']}},
         {
             "$set": {
                 "status": "in_progress",
@@ -1725,7 +1724,7 @@ async def confirm_entry(
     else:
         t = str(raw_start).strip().lower()
         start_now = t in {"1", "true", "yes", "y", "on"}
-    if start_now and request.get("status") == "confirmed":
+    if start_now and request.get("status") in {"confirmed", "en_route"}:
         update.update(
             {
                 "status": "in_progress",

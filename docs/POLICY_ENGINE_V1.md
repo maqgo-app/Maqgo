@@ -14,6 +14,7 @@
 - matching
 - offer_sent
 - confirmed
+- en_route (alias operativo de confirmed; no cambia política económica)
 - in_progress
 - last_30
 - finished
