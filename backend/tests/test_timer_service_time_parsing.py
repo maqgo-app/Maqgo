@@ -347,6 +347,30 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(statuses["e"], "in_progress")
         self.assertEqual(statuses["f"], "in_progress")
 
+    async def test_check_finished_services_ignores_non_operational_statuses(self):
+        from services.timer_service import TimerService
+
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        past_iso = (now - timedelta(minutes=5)).isoformat()
+
+        db = FakeDB(
+            service_requests_docs=[
+                {"id": "m1", "status": "matching", "endTime": past_iso},
+                {"id": "o1", "status": "offer_sent", "endTime": past_iso},
+                {"id": "c1", "status": "confirmed", "endTime": past_iso},
+                {"id": "e1", "status": "en_route", "endTime": past_iso},
+            ]
+        )
+
+        svc = TimerService(db)
+        finished = await svc.check_finished_services()
+        self.assertEqual(finished, 0)
+        statuses = {d["id"]: d.get("status") for d in db.service_requests.docs}
+        self.assertEqual(statuses["m1"], "matching")
+        self.assertEqual(statuses["o1"], "offer_sent")
+        self.assertEqual(statuses["c1"], "confirmed")
+        self.assertEqual(statuses["e1"], "en_route")
+
     async def test_provider_release_when_no_other_active(self):
         from services.timer_service import TimerService
 
