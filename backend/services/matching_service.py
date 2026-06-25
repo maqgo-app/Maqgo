@@ -1,12 +1,11 @@
-"""
-SERVICIO DE MATCHING - MAQGO MVP v1
+"""SERVICIO DE MATCHING - MAQGO MVP v1
 
 Lógica de matching:
 - Filtro duro: disponibilidad, tipo maquinaria, zona, SIN servicio activo
 - Ranking: services/matching_score.py (precio, distancia, responsividad, aceptación; normalización por batch)
-- Lista candidata: como máximo los 5 mejores por score; orden tie-break con penalty de responsividad (match list)
-- Sin selección explícita de cliente y con 2+ candidatos: rotación por olas (2 → 3–4 → 5), ventanas 120s / 300s
-- Con selección o un solo candidato: oferta secuencial clásica (timeout MATCHING_CONFIG)
+- Pool candidato: top 5 por score (para rotación y ofertas paralelas), con olas para no saturar
+- Si el cliente selecciona proveedores: oferta paralela al set elegido (timeout configurable)
+- Si el cliente NO selecciona y hay 2+ candidatos: rotación por olas (3 → +resto hasta top 5)
 """
 import os
 from typing import List, Optional, Tuple, Any, Dict, Mapping
@@ -36,9 +35,12 @@ ROTATION_GLOBAL_OFFER_TTL_SECONDS = 1200
 
 # Configuración del matching (pesos de score en services/matching_score.py)
 MATCHING_CONFIG = {
-    'max_attempts': 5,
+    'max_attempts': 10,
+    'rotation_pool_size': 5,
     'offer_timeout_seconds': 600,
     'max_distance_km': 100,
+    'expanded_distance_km': 150,
+    'expand_min_providers': 3,
     'price_weight': 0.6,
     'distance_weight': 0.4,
 }
@@ -75,7 +77,7 @@ def _rotation_waiting_for_more_waves(sr: Mapping[str, Any], now: datetime) -> bo
         return False
     w2 = _parse_iso_utc(sr.get("matchingRotationWave2At"))
     w3 = _parse_iso_utc(sr.get("matchingRotationWave3At"))
-    if not sr.get("matchingWave2Applied") and len(candidate_ids) >= 3 and w2 and now < w2:
+    if not sr.get("matchingWave2Applied") and len(candidate_ids) > 3 and w2 and now < w2:
         return True
     if (
         sr.get("matchingWave2Applied")
@@ -412,7 +414,8 @@ async def get_available_providers(
     db: AsyncIOMotorDatabase,
     machinery_type: str,
     request_location: dict,
-    excluded_provider_ids: List[str] = None
+    excluded_provider_ids: List[str] = None,
+    max_distance_km: Optional[float] = None,
 ) -> List[dict]:
     """
     Obtiene proveedores disponibles que pasan el filtro duro:
@@ -468,15 +471,17 @@ async def get_available_providers(
     
     # Distancia y precio por proveedor; filtro duro por radio
     candidates: List[Tuple[dict, float, float]] = []
+    distance_limit = float(max_distance_km) if max_distance_km is not None else float(MATCHING_CONFIG['max_distance_km'])
+
     for provider in available_providers:
         distance = _distance_to_provider_km(provider, request_location)
-        if distance > MATCHING_CONFIG['max_distance_km']:
+        if distance > distance_limit:
             continue
         price = float(provider.get('hourlyRate', 20000))
         candidates.append((provider, distance, price))
 
     if not candidates:
-        logger.info(f"Encontrados 0 proveedores dentro de {MATCHING_CONFIG['max_distance_km']} km")
+        logger.info(f"Encontrados 0 proveedores dentro de {distance_limit} km")
         return []
 
     context = build_price_distance_context([(c[2], c[1]) for c in candidates])
@@ -642,11 +647,14 @@ async def send_rotation_wave_one(
     service_request_id: str,
     providers: List[dict],
 ) -> dict:
+    """Rotación por olas (maquinaria pesada).
+
+    - Pool: top-N (N=rotation_pool_size, default 5)
+    - Ola 1: envía a los primeros 3 (o menos si no hay 3)
+    - Ola 2: a T+PRIMARY_RESPONSE_WINDOW agrega el resto del pool (hasta completar 5)
     """
-    Ola 1: solo los 2 mejores del top 5; ventana global ampliada.
-    Olas 2 y 3 las aplica apply_matching_rotation_waves (T+120s y T+300s).
-    """
-    candidate_ids = [p["id"] for p in providers[: MATCHING_CONFIG["max_attempts"]]]
+    pool_size = int(MATCHING_CONFIG.get("rotation_pool_size") or 5)
+    candidate_ids = [p["id"] for p in providers[:pool_size]]
     wave1 = candidate_ids[:3]
     if len(wave1) < 1:
         return {"error": "Sin proveedores para rotación"}
@@ -743,8 +751,8 @@ async def send_rotation_wave_one(
 
 async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_request_id: str) -> None:
     """
-    En T+120s añade proveedores 3–4; en T+300s al 5. No revoca ofertas previas.
-    Idempotente por matchingWave2Applied / matchingWave3Applied.
+    Aplica ola 2 agregando el resto del pool (hasta completar top 5). No revoca ofertas previas.
+    Idempotente por matchingWave2Applied.
     """
     sr = await db.service_requests.find_one({"id": service_request_id}, {"_id": 0})
     if not sr or sr.get("status") != "offer_sent" or not sr.get("matchingRotationMode"):
@@ -765,10 +773,9 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
     wave3_at = _parse_iso_utc(sr.get("matchingRotationWave3At"))
     t0 = _parse_iso_utc(sr.get("matchingRotationStartedAt")) or now
 
-    # Ola 2: índices 3 y 4 (cuarto y quinto)
-    # Wave Guard: filtrar providers que ya no son válidos
-    if not sr.get("matchingWave2Applied") and len(candidate_ids) >= 4 and wave2_at and now >= wave2_at:
-        raw_ids = candidate_ids[3:5]
+    # Ola 2: agregar el resto del pool (índice 3 en adelante)
+    if not sr.get("matchingWave2Applied") and len(candidate_ids) > 3 and wave2_at and now >= wave2_at:
+        raw_ids = candidate_ids[3:]
         new_ids = await filter_valid_providers_for_wave(db, raw_ids)
         if not new_ids:
             await db.service_requests.update_one(
@@ -1064,8 +1071,19 @@ async def start_matching(
             db,
             request.get('machineryType'),
             request_location,
-            excluded_ids
+            excluded_ids,
         )
+
+        if excluded_ids and len(providers) < int(MATCHING_CONFIG.get('expand_min_providers') or 0):
+            expanded = await get_available_providers(
+                db,
+                request.get('machineryType'),
+                request_location,
+                excluded_ids,
+                max_distance_km=float(MATCHING_CONFIG.get('expanded_distance_km') or MATCHING_CONFIG['max_distance_km']),
+            )
+            if len(expanded) > len(providers):
+                providers = expanded
         
         normalized_selected_ids = [
             str(x).strip()
