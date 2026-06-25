@@ -5,6 +5,7 @@ import { playAccessGrantedAlert, playSuccessAlert, playArrivalAlert, vibrate } f
 
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getObjectFirst } from '../../utils/safeStorage';
+import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 
 /**
  * Pantalla: Llegada a Destino (PROVEEDOR)
@@ -22,6 +23,12 @@ function buildArrivalServiceData() {
   };
 }
 
+function resolveServiceRequestId() {
+  const req = getObjectFirst(['activeServiceRequest', 'acceptedRequest', 'incomingRequest'], {});
+  const id = req?.id || req?.requestId || localStorage.getItem('currentServiceId');
+  return id ? String(id).trim() : '';
+}
+
 function ArrivalScreen() {
   const navigate = useNavigate();
   const [serviceData] = useState(buildArrivalServiceData);
@@ -33,6 +40,7 @@ function ArrivalScreen() {
   const [waitingMinutes, setWaitingMinutes] = useState(0);
   const [autoStarting, setAutoStarting] = useState(false);
   const [clientOnTheWay, setClientOnTheWay] = useState(false);
+  const [serviceRequestId] = useState(resolveServiceRequestId);
 
   // Timer de 30 minutos
   const MAX_WAITING_MINUTES = 30;
@@ -55,31 +63,50 @@ function ArrivalScreen() {
     playArrivalAlert();
   }, []);
 
-  // Escuchar cuando el cliente acepta el ingreso
+  // Confirmación de ingreso backend-driven (cross-dispositivo)
   useEffect(() => {
-    const checkClientAcceptance = setInterval(() => {
-      const accepted = localStorage.getItem('clientAcceptedEntry');
-      if (accepted === 'true') {
-        setWaitingForClient(false);
-        setClientAccepted(true);
-        // Reproducir sonido y vibración de confirmación
-        playAccessGrantedAlert();
-        clearInterval(checkClientAcceptance);
-        
-        // Después de 2 segundos, permitir iniciar servicio
-        setTimeout(() => {
-          localStorage.removeItem('clientAcceptedEntry');
-        }, 2000);
-      }
-    }, 1000);
+    if (!serviceRequestId) return undefined;
+    let cancelled = false;
+    const intervalMs = 3000;
 
-    return () => {
-      clearInterval(checkClientAcceptance);
+    const tick = async () => {
+      try {
+        const res = await fetchWithAuth(
+          `${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceRequestId)}`,
+          { redirectOn401: false },
+          12000
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const confirmedAt = data?.clientEntryConfirmedAt;
+        const status = String(data?.status || '').trim();
+
+        if (confirmedAt || status === 'in_progress') {
+          setWaitingForClient(false);
+          setClientAccepted(true);
+          playAccessGrantedAlert();
+          setTimeout(() => {
+            if (!cancelled) handleStartService();
+          }, 1200);
+        }
+      } catch {
+        void 0;
+      }
     };
-  }, []);
+
+    tick();
+    const id = setInterval(tick, intervalMs);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [serviceRequestId, handleStartService]);
 
   // Escuchar cuando el cliente presiona "Ya voy"
   useEffect(() => {
+    const isDemo = import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
+    if (!isDemo) return undefined;
     const checkClientOnTheWay = setInterval(() => {
       const onTheWay = localStorage.getItem('clientOnTheWay');
       if (onTheWay === 'true' && !clientOnTheWay) {
@@ -99,48 +126,26 @@ function ArrivalScreen() {
   useEffect(() => {
     if (!waitingForClient || clientAccepted) return;
 
+    const isDemo = import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
+    const intervalMs = isDemo ? 3000 : 60000;
+
     const timerInterval = setInterval(() => {
-      setWaitingMinutes(prev => {
+      setWaitingMinutes((prev) => {
         const newMinutes = prev + 1;
-        
-        // Si llegamos a 30 minutos, iniciar automáticamente
         if (newMinutes >= MAX_WAITING_MINUTES) {
           setAutoStarting(true);
           setWaitingForClient(false);
           clearInterval(timerInterval);
-          
-          // Auto-iniciar después de 3 segundos
           setTimeout(() => {
             handleStartService();
           }, 3000);
         }
-        
         return newMinutes;
       });
-    }, 60000); // Cada minuto (en demo: cada 3 segundos para probar)
-
-    // Para demo: acelerar el timer (cada 3 segundos = 1 minuto)
-    const demoTimerInterval = setInterval(() => {
-      setWaitingMinutes(prev => {
-        const newMinutes = prev + 1;
-        
-        if (newMinutes >= MAX_WAITING_MINUTES) {
-          setAutoStarting(true);
-          setWaitingForClient(false);
-          clearInterval(demoTimerInterval);
-          
-          setTimeout(() => {
-            handleStartService();
-          }, 3000);
-        }
-        
-        return newMinutes;
-      });
-    }, 3000); // Demo: 3 segundos = 1 minuto
+    }, intervalMs);
 
     return () => {
       clearInterval(timerInterval);
-      clearInterval(demoTimerInterval);
     };
   }, [waitingForClient, clientAccepted, handleStartService]);
 
