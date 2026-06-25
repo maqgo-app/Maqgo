@@ -9,6 +9,7 @@ import logging
 import asyncio
 from pathlib import Path
 from datetime import datetime, timezone
+import uuid
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -137,6 +138,7 @@ async def timer_scheduler():
     try:
         from motor.motor_asyncio import AsyncIOMotorClient
         from services.timer_service import TimerService
+        from services.scheduler_lock import try_acquire_mongo_lock
     except Exception as e:
         logger.warning(f"Timer scheduler no iniciado (dependencias): {e}")
         return
@@ -154,6 +156,9 @@ async def timer_scheduler():
 
     timer_service = TimerService(db)
     interval = _timer_scheduler_interval_sec()
+    owner = str(os.environ.get("MAQGO_INSTANCE_ID") or "").strip() or str(uuid.uuid4())
+    ttl_sec = max(30, int(interval * 4))
+    has_lock = False
     logger.info(
         "⏰ Timer scheduler iniciado (intervalo=%ss, incluye check_expired_offers vía run_all_checks)",
         interval,
@@ -161,7 +166,21 @@ async def timer_scheduler():
 
     while True:
         try:
-            await timer_service.run_all_checks()
+            acquired = await try_acquire_mongo_lock(
+                db,
+                "timer_scheduler",
+                owner=owner,
+                ttl_sec=ttl_sec,
+            )
+            if acquired:
+                if not has_lock:
+                    logger.info("⏰ Timer scheduler lock adquirido (single-runner)")
+                has_lock = True
+                await timer_service.run_all_checks()
+            else:
+                if has_lock:
+                    logger.warning("⏰ Timer scheduler lock perdido; otra instancia ejecutará timers")
+                has_lock = False
         except Exception as e:
             logger.error(f"Error en timer scheduler: {e}")
         await asyncio.sleep(interval)
