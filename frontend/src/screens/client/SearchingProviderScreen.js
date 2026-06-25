@@ -526,7 +526,7 @@ function SearchingProviderScreen() {
                   fill="none"
                   stroke="#EC6819"
                   strokeWidth="8"
-                  strokeDasharray={`${(secondsLeft / SECONDS_PER_ATTEMPT) * 377} 377`}
+                  strokeDasharray={`${Math.min(1, secondsLeft / SECONDS_PER_ATTEMPT) * 377} 377`}
                   strokeLinecap="round"
                   style={{ transition: 'stroke-dasharray 1s linear' }}
                 />
@@ -659,7 +659,7 @@ function SearchingProviderScreen() {
                   background: '#EC6819',
                   height: '100%',
                   width: isRealRequest
-                    ? `${(secondsLeft / SECONDS_PER_ATTEMPT) * 100}%`
+                    ? `${Math.min(1, secondsLeft / SECONDS_PER_ATTEMPT) * 100}%`
                     : `${((maxAttempts * 60 - totalElapsed) / (maxAttempts * 60)) * 100}%`,
                   borderRadius: 4,
                   transition: 'width 1s linear'

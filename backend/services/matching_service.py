@@ -30,10 +30,9 @@ logger = logging.getLogger(__name__)
 _DEBUG_MATCH = os.environ.get("DEBUG_MATCH", "").lower() == "true"
 
 # Ventanas de respuesta (maquinaria pesada: no estilo Uber)
-PRIMARY_RESPONSE_WINDOW = 120  # s — tras esto se amplía a proveedores 3–4 si sigue sin respuesta
-SECONDARY_RESPONSE_WINDOW = 300  # s — ventana total antes de incluir al 5.º
-# Tras la última ola, ventana global para aceptar (no estilo 60 s por proveedor)
-ROTATION_GLOBAL_OFFER_TTL_SECONDS = 3600
+PRIMARY_RESPONSE_WINDOW = 600
+SECONDARY_RESPONSE_WINDOW = 1200
+ROTATION_GLOBAL_OFFER_TTL_SECONDS = 1200
 
 # Configuración del matching (pesos de score en services/matching_score.py)
 MATCHING_CONFIG = {
@@ -648,7 +647,7 @@ async def send_rotation_wave_one(
     Olas 2 y 3 las aplica apply_matching_rotation_waves (T+120s y T+300s).
     """
     candidate_ids = [p["id"] for p in providers[: MATCHING_CONFIG["max_attempts"]]]
-    wave1 = candidate_ids[:2]
+    wave1 = candidate_ids[:3]
     if len(wave1) < 1:
         return {"error": "Sin proveedores para rotación"}
 
@@ -683,7 +682,7 @@ async def send_rotation_wave_one(
                 "matchingRotationWave2At": wave2_at.isoformat(),
                 "matchingRotationWave3At": wave3_at.isoformat(),
                 "matchingWave2Applied": False,
-                "matchingWave3Applied": False,
+                "matchingWave3Applied": True,
             },
             "$push": {"matchingAttempts": {"$each": attempts}},
             "$inc": {"attemptCount": len(wave1)},
@@ -766,10 +765,10 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
     wave3_at = _parse_iso_utc(sr.get("matchingRotationWave3At"))
     t0 = _parse_iso_utc(sr.get("matchingRotationStartedAt")) or now
 
-    # Ola 2: índices 2 y 3 (tercero y cuarto)
+    # Ola 2: índices 3 y 4 (cuarto y quinto)
     # Wave Guard: filtrar providers que ya no son válidos
-    if not sr.get("matchingWave2Applied") and len(candidate_ids) >= 3 and wave2_at and now >= wave2_at:
-        raw_ids = candidate_ids[2:4]
+    if not sr.get("matchingWave2Applied") and len(candidate_ids) >= 4 and wave2_at and now >= wave2_at:
+        raw_ids = candidate_ids[3:5]
         new_ids = await filter_valid_providers_for_wave(db, raw_ids)
         if not new_ids:
             await db.service_requests.update_one(
