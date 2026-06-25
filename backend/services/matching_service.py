@@ -822,6 +822,39 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
                     }
                 },
             )
+
+            client_id = str(sr.get("clientId") or "").strip()
+            if client_id:
+                try:
+                    from services.notification_items_service import upsert_notification_item, record_delivery
+                    from services.webpush_service import notify_user
+
+                    item = await upsert_notification_item(
+                        db,
+                        recipient_user_id=client_id,
+                        audience_role='client',
+                        service_request_id=str(service_request_id),
+                        kind='search_expanded',
+                        extra={'stage': 2, 'added': len(new_ids)},
+                        pinned=False,
+                    )
+                    push = await notify_user(
+                        db=db,
+                        user_id=client_id,
+                        title='Ampliamos la búsqueda',
+                        body='Estamos contactando a más proveedores para confirmar disponibilidad.',
+                        url='/client/searching',
+                        tag=f'sr:{str(service_request_id)}',
+                    )
+                    await record_delivery(
+                        db,
+                        notification_id=item['id'],
+                        channel='push_web',
+                        status='sent' if int(push.get('sent', 0) or 0) > 0 else 'skipped',
+                        meta={'sent': int(push.get('sent', 0) or 0), 'skipped': int(push.get('skipped', 0) or 0)},
+                    )
+                except Exception as e:
+                    logger.warning("search_expanded notify error id=%s err=%s", service_request_id, e)
             if _DEBUG_MATCH:
                 dt_s = (now - t0).total_seconds()
                 logger.info(

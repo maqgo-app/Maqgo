@@ -218,6 +218,16 @@ export const playErrorSound = () => {
   ], 200);
 };
 
+export const playSearchExpandedSound = () => {
+  playSequence(
+    [
+      { freq: 784, dur: 0.08, type: 'sine', vol: 0.25 },
+      { freq: 988, dur: 0.12, type: 'sine', vol: 0.3 },
+    ],
+    320
+  );
+};
+
 /**
  * 💬 Mensaje/notificación genérica
  * Tono suave de "pop"

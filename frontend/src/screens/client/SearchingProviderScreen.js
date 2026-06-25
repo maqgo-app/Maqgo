@@ -9,6 +9,7 @@ import BACKEND_URL from '../../utils/api';
 import { getBookingBackRoute } from '../../utils/bookingFlow';
 import { Z_INDEX } from '../../constants/zIndex';
 import { useCheckoutState } from '../../context/CheckoutContext';
+import { playAcceptedSound, playSearchExpandedSound, unlockAudio } from '../../utils/notificationSounds';
 
 /**
  * Búsqueda secuencial de proveedor (única implementación).
@@ -38,6 +39,9 @@ function SearchingProviderScreen() {
   const [clientPhase, setClientPhase] = useState('searching');
   const { dispatch: dispatchCheckout } = useCheckoutState();
   const providerAcceptedDispatched = useRef(false);
+  const offeredCountRef = useRef(0);
+  const expandedSoundPlayedRef = useRef(false);
+  const acceptedSoundPlayedRef = useRef(false);
 
   const SECONDS_PER_ATTEMPT = 600;
 
@@ -116,6 +120,12 @@ function SearchingProviderScreen() {
       }
 
       if (data.status === 'confirmed') {
+        if (!acceptedSoundPlayedRef.current) {
+          acceptedSoundPlayedRef.current = true;
+          unlockAudio().catch(() => void 0).finally(() => {
+            playAcceptedSound();
+          });
+        }
         if (!providerAcceptedDispatched.current) {
           providerAcceptedDispatched.current = true;
           dispatchCheckout({ type: 'PROVIDER_ACCEPTED' });
@@ -148,6 +158,16 @@ function SearchingProviderScreen() {
         cancelled = true;
       } else if (data.status === 'offer_sent' && typeof data.remainingSeconds === 'number') {
         setSecondsLeft(Math.max(0, data.remainingSeconds));
+
+        const offered = Array.isArray(data.offeredProviderIds) ? data.offeredProviderIds.length : 0;
+        const prev = offeredCountRef.current;
+        offeredCountRef.current = offered;
+        if (!expandedSoundPlayedRef.current && prev <= 3 && offered > 3) {
+          expandedSoundPlayedRef.current = true;
+          unlockAudio().catch(() => void 0).finally(() => {
+            playSearchExpandedSound();
+          });
+        }
       }
     };
 
