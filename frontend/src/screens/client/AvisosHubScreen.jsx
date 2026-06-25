@@ -312,7 +312,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
               <div style={{ color: '#fff', fontSize: 13, fontWeight: 900 }}>Notificaciones Push</div>
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 4, lineHeight: 1.3 }}>
                 {pushBackendUnavailable
-                  ? 'No disponible por ahora.'
+                  ? 'No disponible por ahora (Push desactivado en servidor).'
                   : 'Recibe avisos importantes incluso cuando la app está cerrada. Sin Push, los avisos fuera de la app quedan limitados a casos críticos.'}
               </div>
             </div>

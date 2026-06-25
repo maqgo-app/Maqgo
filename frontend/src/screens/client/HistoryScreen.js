@@ -432,14 +432,7 @@ function HistoryScreen() {
           </p>
         </div>
 
-        {/* Botón según rol */}
-        <button 
-          className="maqgo-btn-primary"
-          onClick={() => navigate(isProvider ? getProviderLandingPath() : '/client/home')}
-          style={{ marginTop: 8 }}
-        >
-          {isProvider ? 'Volver al inicio' : 'Nuevo arriendo'}
-        </button>
+        {/* Navegación principal se hace desde el footer (BottomNavigation). */}
       </div>
     </div>
   );
