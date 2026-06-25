@@ -447,7 +447,7 @@ function ServiceLocationScreen() {
     if (code === 'REF_NO_KEY' || code === 'REF_MAP_FAILED' || code === 'REF_MANUAL_SHORT') {
       return 'Referencia más detallada';
     }
-    if (code === 'NEED_PLACE_OR_MANUAL') return 'Elige sugerencia o modo manual';
+    if (code === 'NEED_PLACE_OR_MANUAL') return 'Completa la dirección';
     if (code === 'MANUAL_NO_STREET_NUMBER') return 'Ingresa una dirección con número';
     return 'Completa los datos';
   })();
@@ -1106,17 +1106,7 @@ function ServiceLocationScreen() {
         >
           {continueButtonLabel}
         </button>
-        <p
-          style={{
-            color: 'rgba(255,255,255,0.65)',
-            fontSize: 13,
-            textAlign: 'center',
-            margin: '10px 4px 0',
-            lineHeight: 1.45
-          }}
-        >
-          Cobro con tarjeta solo si aceptan tu solicitud.
-        </p>
+        
       </div>
     </div>
   );
