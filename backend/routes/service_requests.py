@@ -48,8 +48,10 @@ from datetime import datetime, timezone, timedelta
 from db_config import get_db_name, get_mongo_url
 import logging
 from rate_limit import limiter
+import time
 
 logger = logging.getLogger(__name__)
+_offer_expires_warned_at = {}
 
 def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
     if not value:
@@ -861,25 +863,33 @@ async def get_service_request(
     current_user: dict = Depends(get_current_user),
 ):
     """Obtener una solicitud específica (cliente, proveedor involucrado o admin)."""
-    request = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
-    if not request:
+    sr = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
+    if not sr:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-    _assert_can_read_service(current_user, request)
+    _assert_can_read_service(current_user, sr)
 
     # Calcular tiempo restante si hay oferta activa
-    if request.get('status') == 'offer_sent' and request.get('offerExpiresAt'):
+    if sr.get('status') == 'offer_sent' and sr.get('offerExpiresAt'):
         now = datetime.now(timezone.utc)
-        try:
-            expires_at = datetime.fromisoformat(request['offerExpiresAt'].replace('Z', '+00:00'))
+        expires_at = _parse_iso_datetime(sr.get('offerExpiresAt'))
+        if expires_at:
             remaining = (expires_at - now).total_seconds()
-            request['remainingSeconds'] = max(0, int(remaining))
-        except:
-            pass
+            sr['remainingSeconds'] = max(0, int(remaining))
+        else:
+            last = _offer_expires_warned_at.get(request_id)
+            now_ts = time.time()
+            if not last or (now_ts - float(last)) >= 600:
+                _offer_expires_warned_at[request_id] = now_ts
+                logger.warning(
+                    "offerExpiresAt inválido; request_id=%s offerExpiresAt=%s",
+                    request_id,
+                    str(sr.get('offerExpiresAt')),
+                )
 
-    _attach_client_matching_view(request)
-    await _attach_approx_provider_location(current_user, request)
+    _attach_client_matching_view(sr)
+    await _attach_approx_provider_location(current_user, sr)
     
-    return request
+    return sr
 
 
 class ProviderIntentBody(BaseModel):
