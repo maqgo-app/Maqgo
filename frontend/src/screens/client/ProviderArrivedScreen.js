@@ -36,7 +36,8 @@ function ProviderArrivedScreen() {
   const [clientOnTheWay, setClientOnTheWay] = useState(false);
   const clientOnTheWayRef = useRef(false);
   const lastReminderRef = useRef(0);
-  const serviceId = localStorage.getItem('currentServiceId') || `service-${Date.now()}`;
+  const startedRef = useRef(false);
+  const serviceId = String(localStorage.getItem('currentServiceId') || '').trim();
   const operatorRut = getOperatorRutDisplayForSite(provider);
   const licensePlate = getProviderLicensePlateDisplay(provider);
 
@@ -63,10 +64,44 @@ function ProviderArrivedScreen() {
   }, []);
 
   const handleStartService = useCallback(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
     localStorage.setItem('serviceStartTime', new Date().toISOString());
     localStorage.setItem('serviceStatus', 'started'); // Bloquea cancelación (política punto 6)
     navigate('/client/service-active');
   }, [navigate]);
+
+  useEffect(() => {
+    if (!serviceId) return undefined;
+    let cancelled = false;
+    const intervalMs = 3000;
+
+    const tick = async () => {
+      try {
+        const res = await fetchWithAuth(
+          `${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceId)}`,
+          { redirectOn401: false },
+          12000
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const status = String(data?.status || '').trim();
+        if (status === 'in_progress') {
+          handleStartService();
+        }
+      } catch {
+        void 0;
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, intervalMs);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [serviceId, handleStartService]);
 
   // Timer: un solo intervalo (no recrear cada tick); minutos y recordatorios desde el valor actual de cuenta atrás.
   useEffect(() => {
@@ -74,9 +109,6 @@ function ProviderArrivedScreen() {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          localStorage.setItem('clientAcceptedEntry', 'true');
-          localStorage.setItem('autoStartedService', 'true');
-          handleStartService();
           return 0;
         }
         const next = prev - 1;
@@ -121,7 +153,8 @@ function ProviderArrivedScreen() {
     unlockAudio();
     playAccessGrantedAlert(); // Sonido + vibración de confirmación
     try {
-      await fetchWithAuth(
+      if (!serviceId) return;
+      const res = await fetchWithAuth(
         `${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceId)}/confirm-entry`,
         {
           method: 'POST',
@@ -130,8 +163,10 @@ function ProviderArrivedScreen() {
         },
         12000
       );
+      if (!res.ok) return;
     } catch {
       void 0;
+      return;
     }
     localStorage.setItem('clientAcceptedEntry', 'true');
     localStorage.setItem('clientAcceptedEntryTime', new Date().toISOString());

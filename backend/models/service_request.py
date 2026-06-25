@@ -71,6 +71,15 @@ class ServiceRequest(BaseModel):
     arrivalLocation: Optional[dict] = None  # { lat, lng, capturedAt }
     autoStartedAt: Optional[str] = None
 
+    startedAt: Optional[str] = None
+    startedByUserId: Optional[str] = None
+    startedByRole: Optional[str] = None
+
+    clientEntryConfirmedAt: Optional[str] = None
+    clientEntryConfirmedByUserId: Optional[str] = None
+
+    autoStartClientNoticePendingAt: Optional[str] = None
+
     # Eventos de auditoría (None por defecto; inicializar [] al crear)
     events: Optional[List[dict]] = None
 

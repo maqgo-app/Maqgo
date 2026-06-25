@@ -1691,6 +1691,72 @@ async def start_service(
     return {'message': 'Servicio iniciado', 'status': 'in_progress'}
 
 
+@router.post("/{request_id}/auto-start", response_model=dict)
+async def auto_start_service(
+    request_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    request = await db.service_requests.find_one({"id": request_id}, {"_id": 0})
+    if not request:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    _assert_assigned_provider(current_user, request)
+
+    status_now = str(request.get("status") or "").strip()
+    if status_now == "in_progress":
+        return {"success": True, "status": "in_progress", "already_started": True}
+
+    if status_now not in {"confirmed", "en_route"}:
+        raise HTTPException(status_code=400, detail="Servicio no disponible para auto-inicio")
+
+    arrival_dt = _parse_iso_datetime(request.get("arrivalDetectedAt"))
+    if not arrival_dt:
+        raise HTTPException(status_code=400, detail="El operador aún no ha marcado llegada")
+
+    arrival_location = request.get("arrivalLocation") or {}
+    if arrival_location.get("verified") is not True:
+        raise HTTPException(status_code=400, detail="La llegada debe estar verificada para auto-inicio")
+
+    now = datetime.now(timezone.utc)
+    if now < (arrival_dt + timedelta(minutes=30)):
+        raise HTTPException(status_code=409, detail="Aún no corresponde auto-inicio")
+
+    role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
+    event = {
+        "type": "auto_start",
+        "at": now.isoformat(),
+        "triggeredByUserId": current_user.get("id"),
+        "triggeredByRole": role,
+        "source": "provider_app",
+    }
+
+    result = await db.service_requests.update_one(
+        {"id": request_id, "status": {"$in": ["confirmed", "en_route"]}},
+        {
+            "$set": {
+                "status": "in_progress",
+                "autoStartedAt": now.isoformat(),
+                "autoStartClientNoticePendingAt": now.isoformat(),
+                "startedAt": now.isoformat(),
+                "startedByRole": "system",
+            },
+            "$push": {"events": event},
+        },
+    )
+    if result.matched_count == 0:
+        fresh = await db.service_requests.find_one({"id": request_id}, {"_id": 0, "status": 1})
+        if (fresh or {}).get("status") == "in_progress":
+            return {"success": True, "status": "in_progress", "already_started": True}
+        raise HTTPException(status_code=400, detail="Servicio no disponible para auto-inicio")
+
+    await _notify_push_client_event(
+        request_id=request_id,
+        client_id=request.get("clientId"),
+        kind="started",
+        extra={"source": "auto_start"},
+    )
+    return {"success": True, "status": "in_progress"}
+
+
 @router.post("/{request_id}/confirm-entry", response_model=dict)
 async def confirm_entry(
     request_id: str,

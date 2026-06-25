@@ -282,6 +282,12 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(statuses["d"], "in_progress")
         self.assertEqual(statuses["e"], "confirmed")
 
+        by_id = {d["id"]: d for d in db.service_requests.docs}
+        for sid in ("a", "b", "c", "d"):
+            self.assertTrue(by_id[sid].get("autoStartedAt"))
+            self.assertTrue(by_id[sid].get("startedAt"))
+            self.assertEqual(by_id[sid].get("startedByRole"), "system")
+
     async def test_check_last_30_services_mixed_formats(self):
         from services.timer_service import TimerService
 

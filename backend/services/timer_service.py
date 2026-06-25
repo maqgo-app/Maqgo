@@ -290,6 +290,8 @@ class TimerService:
                         'status': 'in_progress',
                         'autoStartedAt': now.isoformat(),
                         'autoStartClientNoticePendingAt': now.isoformat(),
+                        'startedAt': now.isoformat(),
+                        'startedByRole': 'system',
                     },
                     '$push': {'events': auto_start_event}
                 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { playAccessGrantedAlert, playSuccessAlert, playArrivalAlert, vibrate } from '../../utils/alertSound';
@@ -31,6 +31,7 @@ function resolveServiceRequestId() {
 
 function ArrivalScreen() {
   const navigate = useNavigate();
+  const startedRef = useRef(false);
   const [serviceData] = useState(buildArrivalServiceData);
   const [arrivalTime] = useState(() =>
     new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
@@ -39,6 +40,7 @@ function ArrivalScreen() {
   const [clientAccepted, setClientAccepted] = useState(false);
   const [waitingMinutes, setWaitingMinutes] = useState(0);
   const [autoStarting, setAutoStarting] = useState(false);
+  const [autoStartRequested, setAutoStartRequested] = useState(false);
   const [clientOnTheWay, setClientOnTheWay] = useState(false);
   const [serviceRequestId] = useState(resolveServiceRequestId);
 
@@ -46,6 +48,8 @@ function ArrivalScreen() {
   const MAX_WAITING_MINUTES = 30;
 
   const handleStartService = useCallback(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
     localStorage.setItem('serviceStarted', 'true');
     localStorage.setItem('serviceStartTime', new Date().toISOString());
     navigate('/provider/service-active');
@@ -131,16 +135,11 @@ function ArrivalScreen() {
 
     const timerInterval = setInterval(() => {
       setWaitingMinutes((prev) => {
-        const newMinutes = prev + 1;
-        if (newMinutes >= MAX_WAITING_MINUTES) {
+        const next = Math.min(prev + 1, MAX_WAITING_MINUTES);
+        if (next >= MAX_WAITING_MINUTES) {
           setAutoStarting(true);
-          setWaitingForClient(false);
-          clearInterval(timerInterval);
-          setTimeout(() => {
-            handleStartService();
-          }, 3000);
         }
-        return newMinutes;
+        return next;
       });
     }, intervalMs);
 
@@ -148,6 +147,36 @@ function ArrivalScreen() {
       clearInterval(timerInterval);
     };
   }, [waitingForClient, clientAccepted, handleStartService]);
+
+  useEffect(() => {
+    if (!serviceRequestId) return undefined;
+    if (!waitingForClient || clientAccepted) return undefined;
+    if (waitingMinutes < MAX_WAITING_MINUTES) return undefined;
+    if (autoStartRequested) return undefined;
+    let cancelled = false;
+
+    const attempt = async () => {
+      try {
+        setAutoStartRequested(true);
+        const res = await fetchWithAuth(
+          `${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceRequestId)}/auto-start`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, redirectOn401: false },
+          12000
+        );
+        if (cancelled) return;
+        if (!res.ok) {
+          void 0;
+        }
+      } catch {
+        void 0;
+      }
+    };
+
+    attempt();
+    return () => {
+      cancelled = true;
+    };
+  }, [serviceRequestId, waitingForClient, clientAccepted, waitingMinutes, autoStartRequested]);
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
@@ -188,10 +217,10 @@ function ArrivalScreen() {
               </div>
               <div style={{ textAlign: 'left' }}>
                 <p style={{ color: '#1a1a1a', fontSize: 16, fontWeight: 700, margin: 0 }}>
-                  30 minutos de espera
+                  30 minutos desde la llegada
                 </p>
                 <p style={{ color: 'rgba(0,0,0,0.7)', fontSize: 13, margin: '4px 0 0' }}>
-                  Inicio automático: el cliente no te dejó entrar en 30 min
+                  Si la llegada está verificada, el servicio pasa a En curso automáticamente
                 </p>
               </div>
             </div>
