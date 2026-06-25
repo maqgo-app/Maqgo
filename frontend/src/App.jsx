@@ -199,6 +199,24 @@ function AppContent() {
   useContext(AuthContext);
   const [, setFixedBottomBarHeight] = useState(0);
 
+  const setUserRole = (role) => {
+    try {
+      if (role == null) return;
+      globalThis.localStorage?.setItem('userRole', String(role));
+    } catch {
+      void 0;
+    }
+  };
+
+  const setUserId = (id) => {
+    try {
+      if (id == null) return;
+      globalThis.localStorage?.setItem('userId', String(id));
+    } catch {
+      void 0;
+    }
+  };
+
   const path = location.pathname;
 
   useEffect(() => {

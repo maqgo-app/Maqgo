@@ -35,19 +35,35 @@ export function useWelcomeLayout() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
     const mqDesk = window.matchMedia(`(min-width: ${BREAKPOINT_MOBILE}px)`);
     const onDesk = () => setIsDesktop(mqDesk.matches);
     onDesk();
-    mqDesk.addEventListener('change', onDesk);
-    return () => mqDesk.removeEventListener('change', onDesk);
+    if (typeof mqDesk.addEventListener === 'function') {
+      mqDesk.addEventListener('change', onDesk);
+      return () => mqDesk.removeEventListener('change', onDesk);
+    }
+    if (typeof mqDesk.addListener === 'function') {
+      mqDesk.addListener(onDesk);
+      return () => mqDesk.removeListener(onDesk);
+    }
+    return undefined;
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
     const mqNarrow = window.matchMedia(`(max-width: ${BREAKPOINT_NARROW}px)`);
     const onNarrow = () => setIsNarrowMobile(mqNarrow.matches);
     onNarrow();
-    mqNarrow.addEventListener('change', onNarrow);
-    return () => mqNarrow.removeEventListener('change', onNarrow);
+    if (typeof mqNarrow.addEventListener === 'function') {
+      mqNarrow.addEventListener('change', onNarrow);
+      return () => mqNarrow.removeEventListener('change', onNarrow);
+    }
+    if (typeof mqNarrow.addListener === 'function') {
+      mqNarrow.addListener(onNarrow);
+      return () => mqNarrow.removeListener(onNarrow);
+    }
+    return undefined;
   }, []);
 
   return { isDesktop, isNarrowMobile, isShortViewport, viewportHeight, viewportWidth };
