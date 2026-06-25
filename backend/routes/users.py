@@ -11,7 +11,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from auth_dependency import verify_user_access, get_current_user
 from security.policy import AccessPolicy
-from security.provider_permissions_builder import build_provider_permissions
+from security.access_context import build_access_context
 from models.user import User, UserCreate, ProviderAvailabilityUpdate
 from services.provider_activation_service import is_provider_activation_complete
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -934,20 +934,22 @@ async def get_user_role(
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    is_provider = user.get('role') == 'provider' or ('provider' in (user.get('roles') or []))
+    roles = user.get('roles')
+    if not isinstance(roles, list):
+        roles = []
+    if user.get('role') and user.get('role') not in roles:
+        roles = roles + [user.get('role')]
 
-    provider_role = user.get('provider_role') if is_provider else None
-    if provider_role in ['owner', None] and is_provider:
-        provider_role = 'super_master'
-
+    ctx = build_access_context(user, roles, str(user.get('role') or 'client'))
+    provider_role = ctx.get('provider_role')
     is_super_master = provider_role == 'super_master'
-    permissions = build_provider_permissions(user, provider_role) if provider_role else {}
+    permissions = ctx.get('permissions') or {}
     
     response = {
         'user_id': user_id,
         'role': user.get('role'),  # 'client' o 'provider'
         'provider_role': provider_role,
-        'owner_id': user.get('owner_id') if provider_role and not is_super_master else None,
+        'owner_id': ctx.get('owner_id'),
         'permissions': permissions,
     }
     

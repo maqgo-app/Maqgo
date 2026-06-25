@@ -47,7 +47,7 @@ from services.risk_auth_service import (
     too_many_recent_login_failures,
     upsert_trusted_device,
 )
-from security.provider_permissions_builder import build_provider_permissions
+from security.access_context import build_access_context
 from utils.rbac import is_super_master
 from services.access_block_service import find_active_phone_block
 
@@ -1363,10 +1363,8 @@ async def auth_me(current_user: dict = Depends(get_current_user)):
     # El rol activo lo decide el cliente (Welcome / elección de modo) dentro de una sesión válida.
     effective_role = "admin" if "admin" in roles else "client"
     pr = _provider_role_for_api(current_user, roles)
-
-    provider_permissions = None
-    if "provider" in roles and pr:
-        provider_permissions = build_provider_permissions(current_user, pr)
+    ctx = build_access_context(current_user, roles, effective_role)
+    provider_permissions = ctx.get("permissions") if ctx.get("provider_role") else None
     return {
         "id": current_user["id"],
         "name": current_user.get("name"),
@@ -1379,7 +1377,7 @@ async def auth_me(current_user: dict = Depends(get_current_user)):
         "role": effective_role,
         "roles": roles,
         "provider_role": pr,
-        "owner_id": current_user.get("owner_id"),
+        "owner_id": ctx.get("owner_id"),
         "provider_permissions": provider_permissions,
     }
 
