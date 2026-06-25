@@ -239,8 +239,8 @@ function FAQScreen() {
   })();
 
   return (
-    <div className="maqgo-app maqgo-client-funnel">
-      <div className="maqgo-screen maqgo-screen--scroll" style={{ padding: 24, paddingBottom: 100 }}>
+    <div className="maqgo-app maqgo-client-funnel" style={{ minHeight: '100vh', background: 'var(--maqgo-bg)' }}>
+      <div className="maqgo-screen maqgo-screen--scroll" style={{ padding: 24, paddingBottom: 100, background: 'var(--maqgo-bg)' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
           <button 
@@ -256,9 +256,14 @@ function FAQScreen() {
           >
             <BackArrowIcon />
           </button>
-          <h1 className="maqgo-h1">
-            Ayuda y Soporte
-          </h1>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            <h1 className="maqgo-h1" style={{ margin: 0, color: '#EC6819' }}>
+              Preguntas frecuentes
+            </h1>
+            <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, lineHeight: 1.25 }}>
+              Respuestas claras para clientes, proveedores y operadores
+            </div>
+          </div>
         </div>
 
         {!session.isAuthenticated && (
@@ -302,14 +307,22 @@ function FAQScreen() {
                 let globalIndex = 0;
                 return grouped.flatMap((g, gi) => {
                   const header = (
-                    <div key={`h-${gi}`} style={{ marginTop: gi === 0 ? 0 : 10 }}>
+                    <div
+                      key={`h-${gi}`}
+                      style={{
+                        marginTop: gi === 0 ? 0 : 10,
+                        padding: '10px 12px',
+                        borderRadius: 12,
+                        background: 'rgba(236, 104, 25, 0.10)',
+                        border: '1px solid rgba(236, 104, 25, 0.22)',
+                      }}
+                    >
                       <div
                         style={{
-                          color: 'rgba(255,255,255,0.85)',
+                          color: '#EC6819',
                           fontSize: 13,
-                          fontWeight: 700,
+                          fontWeight: 900,
                           letterSpacing: 0.2,
-                          margin: '8px 0 2px',
                         }}
                       >
                         {g.title}
