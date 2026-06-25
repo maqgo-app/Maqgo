@@ -287,6 +287,8 @@ export const sounds = {
   serviceCompleted: playServiceCompletedSound,
   paymentSuccess: playPaymentSuccessSound,
   error: playErrorSound,
+  searchExpanded: playSearchExpandedSound,
+  offerExpiring: playOfferExpiringSound,
   notification: playNotificationSound,
   timerWarning: playTimerWarningSound,
   tap: playTapSound,
