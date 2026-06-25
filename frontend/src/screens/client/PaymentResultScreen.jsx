@@ -51,7 +51,7 @@ const TBK_ERROR_MAP = {
   '104': 'Fondos insuficientes.',
   '106': 'Excede el límite de intentos de PIN.',
   '107': 'Contacte a su banco emisor.',
-  '108': 'Error del sistema. Intente más tarde.',
+  '108': 'Error del sistema. Intente nuevamente.',
 };
 
 function PaymentResultScreen() {

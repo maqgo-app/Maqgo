@@ -338,7 +338,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                 type="button"
                 onClick={onTogglePush}
                 disabled={pushBusy || pushPermission === 'unsupported'}
-                aria-label={pushEnabled ? 'Desactivar notificaciones push' : 'Activar notificaciones push'}
+                aria-label={pushEnabled ? 'Desactivar Push' : 'Activar Push'}
                 style={{
                   position: 'relative',
                   width: 52,
