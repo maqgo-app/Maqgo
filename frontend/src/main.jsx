@@ -107,6 +107,21 @@ if (import.meta.env.DEV) {
   window.location.replace(target);
 })();
 
+/** Limpieza: el parámetro `?v=` se usa solo para cache-busting en recargas tras errores de chunks. */
+(function stripCacheBusterParam() {
+  if (typeof window === "undefined") return;
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("v")) return;
+    url.searchParams.delete("v");
+    const qs = url.searchParams.toString();
+    const cleaned = `${url.pathname}${qs ? `?${qs}` : ""}${url.hash || ""}`;
+    window.history.replaceState({}, "", cleaned);
+  } catch {
+    void 0;
+  }
+})();
+
 class ErrorBoundary extends React.Component {
   state = { hasError: false, error: null };
   static getDerivedStateFromError(error) {
