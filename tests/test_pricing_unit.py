@@ -83,3 +83,10 @@ class TestCamionPorViaje:
         assert r["breakdown"]["service_cost"] == 54000
         # base sin multiplicador = 45000 (un viaje)
         assert r["breakdown"]["service_cost"] != 180000, "NO debe ser 45000*4 (regresión desglose)"
+
+
+def test_notifications_route_imports():
+    import importlib
+
+    mod = importlib.import_module("routes.notifications")
+    assert callable(getattr(mod, "get_notifications", None))
