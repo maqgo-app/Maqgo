@@ -228,6 +228,18 @@ export const playSearchExpandedSound = () => {
   );
 };
 
+export const playOfferExpiringSound = () => {
+  playSequence(
+    [
+      { freq: 988, dur: 0.08, type: 'square', vol: 0.22 },
+      { freq: 988, dur: 0.08, type: 'square', vol: 0.0 },
+      { freq: 988, dur: 0.08, type: 'square', vol: 0.22 },
+      { freq: 784, dur: 0.18, type: 'sine', vol: 0.26 },
+    ],
+    360
+  );
+};
+
 /**
  * 💬 Mensaje/notificación genérica
  * Tono suave de "pop"

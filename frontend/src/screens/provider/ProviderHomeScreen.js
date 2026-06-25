@@ -4,7 +4,7 @@ import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
 import { getArray, getObject } from '../../utils/safeStorage';
-import { playNewRequestSound, playTapSound, unlockAudio } from '../../utils/notificationSounds';
+import { playNewRequestSound, playOfferExpiringSound, playTapSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
 
 import BACKEND_URL, { hasPersistedSessionCredentials } from '../../utils/api';
@@ -41,6 +41,7 @@ function ProviderHomeScreen() {
   const errorStreakRef = useRef(0);
   const lastErrorLogAtRef = useRef(0);
   const lastIncomingRequestIdRef = useRef(null);
+  const lastExpiringRequestIdRef = useRef(null);
   const [available, setAvailable] = useState(() => readProviderAvailableDefaultOn());
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -208,6 +209,16 @@ function ProviderHomeScreen() {
           const nextId = next?.id || next?._id || next?.service_id || null;
           localStorage.setItem('incomingRequest', JSON.stringify(next));
           setHasPendingRequest(true);
+          const remaining = typeof next?.remainingSeconds === 'number' ? next.remainingSeconds : null;
+          if (nextId && remaining != null && remaining > 0 && remaining <= 120) {
+            if (lastExpiringRequestIdRef.current !== nextId) {
+              lastExpiringRequestIdRef.current = nextId;
+              unlockAudio();
+              playOfferExpiringSound();
+              vibrate('warning');
+            }
+          }
+
           if (nextId && lastIncomingRequestIdRef.current === nextId) return;
           lastIncomingRequestIdRef.current = nextId;
           unlockAudio();

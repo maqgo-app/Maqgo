@@ -1084,22 +1084,23 @@ class TimerService:
         # Candidatas: no filtrar solo por string en Mongo (Z vs +00:00 rompe $lte).
         cursor = (
             self.db.service_requests.find(
-            {
-                'status': 'offer_sent',
-                'offerExpiresAt': {'$exists': True, '$ne': None},
-            },
-            {
-                '_id': 0,
-                'id': 1,
-                'currentOfferId': 1,
-                'offerExpiresAt': 1,
-                'matchingRotationMode': 1,
-            },
-            )
-            .sort([('_id', 1)])
+                {
+                    'status': 'offer_sent',
+                    'offerExpiresAt': {'$exists': True, '$ne': None},
+                },
+                {
+                    '_id': 0,
+                    'id': 1,
+                    'currentOfferId': 1,
+                    'offerExpiresAt': 1,
+                    'matchingRotationMode': 1,
+                    'matchingAttempts': 1,
+                },
+            ).sort([('_id', 1)])
         )
 
         services = []
+        expiring = []
         async for doc in cursor:
             exp_dt = _parse_offer_expires_at_utc(doc.get('offerExpiresAt'))
             if exp_dt is None:
@@ -1109,8 +1110,74 @@ class TimerService:
                     doc.get('offerExpiresAt'),
                 )
                 continue
+            remaining = (exp_dt - now).total_seconds()
+            if 0 < remaining <= 120:
+                expiring.append(doc)
             if exp_dt <= now:
                 services.append(doc)
+
+        if expiring:
+            try:
+                from services.notification_items_service import record_delivery, upsert_notification_item
+                from services.webpush_service import notify_user
+
+                for doc in expiring:
+                    sid = str(doc.get('id') or '').strip()
+                    if not sid:
+                        continue
+                    exp_raw = str(doc.get('offerExpiresAt') or '').strip()
+                    if not exp_raw:
+                        continue
+                    pending_ids = []
+                    attempts = doc.get('matchingAttempts') if isinstance(doc.get('matchingAttempts'), list) else []
+                    for a in attempts:
+                        if not isinstance(a, dict):
+                            continue
+                        if a.get('status') != 'pending':
+                            continue
+                        pid = str(a.get('providerId') or '').strip()
+                        if pid and pid not in pending_ids:
+                            pending_ids.append(pid)
+                    if doc.get('currentOfferId'):
+                        pid = str(doc.get('currentOfferId') or '').strip()
+                        if pid and pid not in pending_ids:
+                            pending_ids.append(pid)
+
+                    for pid in pending_ids:
+                        item = await upsert_notification_item(
+                            self.db,
+                            recipient_user_id=pid,
+                            audience_role='provider',
+                            service_request_id=sid,
+                            kind='oferta_expira',
+                            occurred_at=exp_raw,
+                            pinned=True,
+                        )
+
+                        already = await self.db.notification_deliveries.find_one(
+                            {'notificationId': item['id'], 'channel': 'push_web', 'status': {'$in': ['sent', 'skipped']}},
+                            {'_id': 0, 'id': 1},
+                        )
+                        if already:
+                            continue
+
+                        push = await notify_user(
+                            db=self.db,
+                            user_id=pid,
+                            title='Oferta por expirar',
+                            body='Tu oferta está por expirar. Revisa ahora.',
+                            url='/provider/request-received',
+                            tag=f'sr:{sid}',
+                        )
+                        await record_delivery(
+                            self.db,
+                            notification_id=item['id'],
+                            channel='push_web',
+                            status='sent' if int(push.get('sent', 0) or 0) > 0 else 'skipped',
+                            meta={'sent': int(push.get('sent', 0) or 0), 'skipped': int(push.get('skipped', 0) or 0)},
+                        )
+            except Exception as e:
+                logger.warning("offer expiring notify error err=%s", e)
 
         expired_count = 0
         for service in services:

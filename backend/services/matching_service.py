@@ -26,6 +26,60 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+async def _notify_provider_offer(db: AsyncIOMotorDatabase, *, provider_id: str, service_request_id: str, kind: str, occurred_at: str) -> None:
+    pid = str(provider_id or '').strip()
+    srid = str(service_request_id or '').strip()
+    k = str(kind or '').strip().lower()
+    occ = str(occurred_at or '').strip()
+    if not pid or not srid or not k:
+        return
+    try:
+        from services.notification_items_service import record_delivery, upsert_notification_item
+        from services.webpush_service import notify_user
+
+        item = await upsert_notification_item(
+            db,
+            recipient_user_id=pid,
+            audience_role='provider',
+            service_request_id=srid,
+            kind=k,
+            occurred_at=occ,
+            pinned=True,
+        )
+
+        already = await db.notification_deliveries.find_one(
+            {'notificationId': item['id'], 'channel': 'push_web', 'status': {'$in': ['sent', 'skipped']}},
+            {'_id': 0, 'id': 1},
+        )
+        if already:
+            return
+
+        if k == 'nueva_oferta':
+            title = 'Nueva oferta'
+            body = 'Tienes una nueva solicitud disponible.'
+        else:
+            title = 'Oferta por expirar'
+            body = 'Tu oferta está por expirar. Revisa ahora.'
+
+        push = await notify_user(
+            db=db,
+            user_id=pid,
+            title=title,
+            body=body,
+            url='/provider/request-received',
+            tag=f'sr:{srid}',
+        )
+        await record_delivery(
+            db,
+            notification_id=item['id'],
+            channel='push_web',
+            status='sent' if int(push.get('sent', 0) or 0) > 0 else 'skipped',
+            meta={'sent': int(push.get('sent', 0) or 0), 'skipped': int(push.get('skipped', 0) or 0)},
+        )
+    except Exception as e:
+        logger.warning("provider offer notify error sr=%s provider=%s kind=%s err=%s", srid, pid, k, e)
+
 _DEBUG_MATCH = os.environ.get("DEBUG_MATCH", "").lower() == "true"
 
 # Ventanas de respuesta (maquinaria pesada: no estilo Uber)
@@ -582,6 +636,14 @@ async def send_offer_to_provider(
     )
     
     logger.info(f"Oferta enviada a proveedor {provider_id} para solicitud {service_request_id}")
+
+    await _notify_provider_offer(
+        db,
+        provider_id=provider_id,
+        service_request_id=service_request_id,
+        kind='nueva_oferta',
+        occurred_at=now.isoformat(),
+    )
     
     return {
         'providerId': provider_id,
@@ -634,6 +696,15 @@ async def send_offers_to_providers(
         },
     )
     logger.info(f"Ofertas enviadas a {len(provider_ids)} proveedores para solicitud {service_request_id}")
+
+    for pid in provider_ids:
+        await _notify_provider_offer(
+            db,
+            provider_id=pid,
+            service_request_id=service_request_id,
+            kind='nueva_oferta',
+            occurred_at=now.isoformat(),
+        )
     return {
         'providerIds': provider_ids,
         'sentAt': now.isoformat(),
@@ -728,6 +799,15 @@ async def send_rotation_wave_one(
         )
 
     first = providers[0]
+
+    for pid in wave1:
+        await _notify_provider_offer(
+            db,
+            provider_id=pid,
+            service_request_id=service_request_id,
+            kind='nueva_oferta',
+            occurred_at=now.isoformat(),
+        )
     return {
         "status": "offer_sent",
         "provider": {
@@ -822,6 +902,15 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
                     }
                 },
             )
+
+            for pid in new_ids:
+                await _notify_provider_offer(
+                    db,
+                    provider_id=pid,
+                    service_request_id=service_request_id,
+                    kind='nueva_oferta',
+                    occurred_at=now.isoformat(),
+                )
 
             client_id = str(sr.get("clientId") or "").strip()
             if client_id:

@@ -35,6 +35,8 @@ def _deep_link_for_kind(kind: str, service_request_id: str, audience_role: str) 
     k = str(kind or '').strip().lower()
     ar = str(audience_role or '').strip().lower() or 'client'
     if ar == 'provider':
+        if k in {'nueva_oferta', 'oferta_expira'}:
+            return '/provider/request-received'
         if k == 'confirmed':
             return '/provider/home'
         if k == 'assigned':

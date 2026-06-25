@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getObject, getJSON, getArray } from '../../utils/safeStorage';
-import { playNewRequestSound, unlockAudio } from '../../utils/notificationSounds';
+import { playNewRequestSound, playOfferExpiringSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
 import { ProviderRequestExpired } from '../../components/ErrorStates';
 
@@ -200,12 +200,23 @@ function RequestReceivedScreen() {
   const [etaMode, setEtaMode] = useState('');
   const [etaMinutes, setEtaMinutes] = useState(null);
   const expirationHandledRef = useRef(false);
+  const offerExpiringPlayedRef = useRef(false);
 
   useEffect(() => {
     unlockAudio();
     playNewRequestSound();
     vibrate('newRequest');
   }, []);
+
+  useEffect(() => {
+    if (offerExpiringPlayedRef.current) return;
+    if (countdown > 0 && countdown <= 120) {
+      offerExpiringPlayedRef.current = true;
+      unlockAudio();
+      playOfferExpiringSound();
+      vibrate('warning');
+    }
+  }, [countdown]);
 
   useEffect(() => {
     setCountdown(getOfferRemainingSeconds(request));
