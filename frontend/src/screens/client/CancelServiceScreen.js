@@ -11,11 +11,8 @@ const NON_CANCELLABLE_STATUSES = ['in_progress', 'started'];
  * Pantalla: Cancelar Servicio (CLIENTE)
  *
  * Política de cancelación (Términos y Condiciones):
- * - Antes de asignación: Sin cargo (0%)
- * - Después de asignado: 20% del servicio
- * - Operador en camino: 40% del servicio
- * - Operador en obra: 60% del servicio
- * - Servicio iniciado: no es posible cancelar
+ * - Desde la aceptación: 0–60 min = 0% · 60–120 min = 20% · +120 min = 40%
+ * - Con presencia confirmada en obra o servicio iniciado: no es posible cancelar
  */
 function CancelServiceScreen() {
   const navigate = useNavigate();

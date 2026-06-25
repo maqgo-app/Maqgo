@@ -54,7 +54,6 @@ function ProviderArrivedScreen() {
     setMachinery(savedMachinery);
     setHours(savedHours);
 
-    // Operador en obra: 60% cargo si cancela (política punto 6)
     localStorage.setItem('serviceStatus', 'arrived');
     
     // Reproducir sonido de llegada (triunfante)
