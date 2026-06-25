@@ -27,7 +27,7 @@ function SearchingProviderScreen() {
   const [status, setStatus] = useState('loading'); // loading, searching, found, not_found, no_eligible
   const statusRef = useRef(status);
   const [currentAttempt, setCurrentAttempt] = useState(1);
-  const [secondsLeft, setSecondsLeft] = useState(60);
+  const [secondsLeft, setSecondsLeft] = useState(600);
   const [totalElapsed, setTotalElapsed] = useState(0);
   const [currentProvider, setCurrentProvider] = useState(null);
   const [eligibleProviders, setEligibleProviders] = useState([]);
@@ -39,7 +39,7 @@ function SearchingProviderScreen() {
   const { dispatch: dispatchCheckout } = useCheckoutState();
   const providerAcceptedDispatched = useRef(false);
 
-  const SECONDS_PER_ATTEMPT = 60;
+  const SECONDS_PER_ATTEMPT = 600;
 
   useEffect(() => {
     statusRef.current = status;

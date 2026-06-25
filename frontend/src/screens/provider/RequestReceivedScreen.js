@@ -98,7 +98,7 @@ function getOfferRemainingSeconds(req) {
   const explicit = toNumber(req?.remainingSeconds);
   if (explicit != null) return Math.max(0, Math.floor(explicit));
   const expMs = parseIsoToMs(req?.offerExpiresAt);
-  if (!expMs) return 60;
+  if (!expMs) return 600;
   const left = Math.ceil((expMs - Date.now()) / 1000);
   return Math.max(0, left);
 }
@@ -169,7 +169,7 @@ function buildInitialIncomingRequest() {
     client_lng: workCoords?.lng,
     workCoords,
     reference: serviceReference,
-    offerExpiresAt: new Date(Date.now() + 60000).toISOString(),
+    offerExpiresAt: new Date(Date.now() + 600000).toISOString(),
   };
 }
 

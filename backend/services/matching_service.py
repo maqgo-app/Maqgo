@@ -38,7 +38,7 @@ ROTATION_GLOBAL_OFFER_TTL_SECONDS = 3600
 # Configuración del matching (pesos de score en services/matching_score.py)
 MATCHING_CONFIG = {
     'max_attempts': 5,
-    'offer_timeout_seconds': 60,
+    'offer_timeout_seconds': 600,
     'max_distance_km': 100,
     'price_weight': 0.6,
     'distance_weight': 0.4,
