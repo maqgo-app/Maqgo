@@ -6,8 +6,8 @@
 
 Evidencia de código
 - Existen rutas dedicadas con componentes React propios para estados que la Consolidada define como “estados internos”:
-  - `/client/en-route` → `ClientEnRouteScreen` ([App.jsx:L387](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/frontend/src/App.jsx#L387), import lazy [App.jsx:L125](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/frontend/src/App.jsx#L125)).
-  - `/client/provider-arrived` → `ProviderArrivedScreen` ([App.jsx:L396](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/frontend/src/App.jsx#L396), import lazy [App.jsx:L133](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/frontend/src/App.jsx#L133)).
+  - `/client/assigned` → `MachineryAssignedScreen` ([App.jsx:L382](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/frontend/src/App.jsx#L382)).
+  - `/client/provider-arrived` → `ProviderArrivedScreen` ([App.jsx:L391](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/frontend/src/App.jsx#L391), import lazy [App.jsx:L135](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/frontend/src/App.jsx#L135)).
 
 ## 2) Modelo definido por la documentación vigente
 
@@ -22,7 +22,10 @@ Evidencia documental
 
 **NO ALINEADAS**
 
+Notas
+- Este repo no contiene actualmente la ruta `/client/en-route` ni el componente `ClientEnRouteScreen` en el router principal.
+- Regla de frescura: cualquier ruta mencionada como “implementada” debe existir en `frontend/src/App.jsx`.
+
 ## 4) Si NO ALINEADAS
 
 **Código**
-
