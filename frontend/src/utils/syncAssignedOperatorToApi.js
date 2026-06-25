@@ -8,7 +8,7 @@ import BACKEND_URL from './api';
 export async function syncAssignedOperatorToApi(operatorData) {
   const sid = localStorage.getItem('currentServiceId');
   if (!sid || sid.startsWith('demo-') || sid.startsWith('req-')) return;
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('authToken') || localStorage.getItem('token');
   if (!token || !operatorData || typeof operatorData !== 'object') return;
 
   try {
@@ -19,7 +19,12 @@ export async function syncAssignedOperatorToApi(operatorData) {
         apellido: operatorData.apellido || '',
         rut: operatorData.rut || '',
       },
-      { timeout: 8000 }
+      {
+        timeout: 8000,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
     );
   } catch (e) {
     if (import.meta.env.DEV) {
