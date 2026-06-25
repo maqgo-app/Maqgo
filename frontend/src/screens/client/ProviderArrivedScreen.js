@@ -7,6 +7,7 @@ import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { MACHINERY_PER_TRIP } from '../../utils/pricing';
 import { getObjectFirst } from '../../utils/safeStorage';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
+import { useAdaptivePolling } from '../../hooks/useAdaptivePolling';
 import ServiceSecondaryActions from '../../components/serviceState/ServiceSecondaryActions';
 import { MapPin } from 'lucide-react';
 import { getOperatorRutDisplayForSite, getProviderLicensePlateDisplay } from '../../utils/providerDisplay';
@@ -71,37 +72,25 @@ function ProviderArrivedScreen() {
     navigate('/client/service-active');
   }, [navigate]);
 
-  useEffect(() => {
-    if (!serviceId) return undefined;
-    let cancelled = false;
-    const intervalMs = 3000;
-
-    const tick = async () => {
-      try {
-        const res = await fetchWithAuth(
-          `${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceId)}`,
-          { redirectOn401: false },
-          12000
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        if (cancelled) return;
-        const status = String(data?.status || '').trim();
-        if (status === 'in_progress') {
-          handleStartService();
-        }
-      } catch {
-        void 0;
+  useAdaptivePolling({
+    enabled: Boolean(serviceId),
+    baseIntervalMs: 3000,
+    maxIntervalMs: 30000,
+    run: async () => {
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceId)}`,
+        { redirectOn401: false },
+        12000
+      );
+      if (!res.ok) return false;
+      const data = await res.json();
+      const status = String(data?.status || '').trim();
+      if (status === 'in_progress') {
+        handleStartService();
       }
-    };
-
-    tick();
-    const id = setInterval(tick, intervalMs);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [serviceId, handleStartService]);
+      return true;
+    },
+  });
 
   // Timer: un solo intervalo (no recrear cada tick); minutos y recordatorios desde el valor actual de cuenta atrás.
   useEffect(() => {

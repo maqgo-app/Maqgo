@@ -154,6 +154,11 @@ function SearchingProviderScreen() {
     const runPollingLoop = async () => {
       if (cancelled) return;
 
+      if (typeof document !== 'undefined' && document.hidden) {
+        timeoutId = setTimeout(runPollingLoop, maxDelayMs);
+        return;
+      }
+
       // Detener polling cuando el usuario ya no está “searching”
       if (statusRef.current !== 'searching') {
         cancelled = true;
@@ -190,9 +195,24 @@ function SearchingProviderScreen() {
 
     void runPollingLoop();
 
+    const onVisibility = () => {
+      if (cancelled) return;
+      if (typeof document === 'undefined') return;
+      if (!document.hidden) {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(runPollingLoop, 0);
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+
     return () => {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibility);
+      }
     };
   }, [dispatchCheckout]);
 

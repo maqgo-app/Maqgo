@@ -6,6 +6,7 @@ import { playAccessGrantedAlert, playSuccessAlert, playArrivalAlert, vibrate } f
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getObjectFirst } from '../../utils/safeStorage';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
+import { useAdaptivePolling } from '../../hooks/useAdaptivePolling';
 
 /**
  * Pantalla: Llegada a Destino (PROVEEDOR)
@@ -68,44 +69,32 @@ function ArrivalScreen() {
   }, []);
 
   // Confirmación de ingreso backend-driven (cross-dispositivo)
-  useEffect(() => {
-    if (!serviceRequestId) return undefined;
-    let cancelled = false;
-    const intervalMs = 3000;
+  useAdaptivePolling({
+    enabled: Boolean(serviceRequestId) && waitingForClient,
+    baseIntervalMs: 3000,
+    maxIntervalMs: 30000,
+    run: async () => {
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceRequestId)}`,
+        { redirectOn401: false },
+        12000
+      );
+      if (!res.ok) return false;
+      const data = await res.json();
+      const confirmedAt = data?.clientEntryConfirmedAt;
+      const status = String(data?.status || '').trim();
 
-    const tick = async () => {
-      try {
-        const res = await fetchWithAuth(
-          `${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceRequestId)}`,
-          { redirectOn401: false },
-          12000
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        if (cancelled) return;
-        const confirmedAt = data?.clientEntryConfirmedAt;
-        const status = String(data?.status || '').trim();
-
-        if (confirmedAt || status === 'in_progress') {
-          setWaitingForClient(false);
-          setClientAccepted(true);
-          playAccessGrantedAlert();
-          setTimeout(() => {
-            if (!cancelled) handleStartService();
-          }, 1200);
-        }
-      } catch {
-        void 0;
+      if (confirmedAt || status === 'in_progress') {
+        setWaitingForClient(false);
+        setClientAccepted(true);
+        playAccessGrantedAlert();
+        setTimeout(() => {
+          handleStartService();
+        }, 1200);
       }
-    };
-
-    tick();
-    const id = setInterval(tick, intervalMs);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [serviceRequestId, handleStartService]);
+      return true;
+    },
+  });
 
   // Escuchar cuando el cliente presiona "Ya voy"
   useEffect(() => {

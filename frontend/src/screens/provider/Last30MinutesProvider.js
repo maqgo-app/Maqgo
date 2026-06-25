@@ -4,6 +4,7 @@ import { playTimerWarningSound, unlockAudio } from '../../utils/notificationSoun
 import { vibrate } from '../../utils/uberUX';
 import axios from 'axios';
 import BACKEND_URL from '../../utils/api';
+import { useAdaptivePolling } from '../../hooks/useAdaptivePolling';
 
 function Last30MinutesProvider() {
   const navigate = useNavigate();
@@ -32,33 +33,24 @@ function Last30MinutesProvider() {
     return () => clearInterval(timer);
   }, [endTimeMs]);
 
-  useEffect(() => {
-    if (!serviceId || String(serviceId).startsWith('demo-')) return undefined;
-    let active = true;
-    const poll = async () => {
-      try {
-        const res = await axios.get(`${BACKEND_URL}/api/service-requests/${serviceId}`);
-        if (!active) return;
-        const sr = res?.data || {};
-        const rawEnd = sr.endTime;
-        const end = rawEnd ? new Date(String(rawEnd)).getTime() : null;
-        if (Number.isFinite(end)) {
-          setEndTimeMs(end);
-        }
-        if (String(sr.status || '').toLowerCase() === 'finished') {
-          navigate('/provider/service-finished');
-        }
-      } catch {
-        void 0;
+  useAdaptivePolling({
+    enabled: Boolean(serviceId) && !String(serviceId).startsWith('demo-'),
+    baseIntervalMs: 5000,
+    maxIntervalMs: 30000,
+    run: async () => {
+      const res = await axios.get(`${BACKEND_URL}/api/service-requests/${serviceId}`);
+      const sr = res?.data || {};
+      const rawEnd = sr.endTime;
+      const end = rawEnd ? new Date(String(rawEnd)).getTime() : null;
+      if (Number.isFinite(end)) {
+        setEndTimeMs(end);
       }
-    };
-    poll();
-    const interval = setInterval(poll, 5000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, [navigate, serviceId]);
+      if (String(sr.status || '').toLowerCase() === 'finished') {
+        navigate('/provider/service-finished');
+      }
+      return true;
+    },
+  });
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);

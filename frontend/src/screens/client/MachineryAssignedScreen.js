@@ -6,6 +6,7 @@ import { playAcceptedSound, playArrivingSound, playNotificationSound, unlockAudi
 import { vibrate } from '../../utils/uberUX';
 import axios from 'axios';
 import BACKEND_URL from '../../utils/api';
+import { useAdaptivePolling } from '../../hooks/useAdaptivePolling';
 import ServiceSecondaryActions from '../../components/serviceState/ServiceSecondaryActions';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import MaqgoCard from '../../components/base/MaqgoCard';
@@ -205,32 +206,23 @@ function MachineryAssignedScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!serviceId || String(serviceId).startsWith('demo-')) return undefined;
-    let active = true;
-    const poll = async () => {
-      try {
-        const res = await axios.get(`${BACKEND_URL}/api/service-requests/${serviceId}`);
-        if (!active) return;
-        const inc = res?.data?.activeIncident || null;
-        if (inc) {
-          localStorage.setItem('activeIncident', JSON.stringify(inc));
-          setActiveIncident(inc);
-          return;
-        }
-        localStorage.removeItem('activeIncident');
-        setActiveIncident(null);
-      } catch {
-        void 0;
+  useAdaptivePolling({
+    enabled: Boolean(serviceId) && !String(serviceId).startsWith('demo-'),
+    baseIntervalMs: 10000,
+    maxIntervalMs: 60000,
+    run: async () => {
+      const res = await axios.get(`${BACKEND_URL}/api/service-requests/${serviceId}`);
+      const inc = res?.data?.activeIncident || null;
+      if (inc) {
+        localStorage.setItem('activeIncident', JSON.stringify(inc));
+        setActiveIncident(inc);
+        return true;
       }
-    };
-    poll();
-    const t = setInterval(poll, 10000);
-    return () => {
-      active = false;
-      clearInterval(t);
-    };
-  }, [serviceId]);
+      localStorage.removeItem('activeIncident');
+      setActiveIncident(null);
+      return true;
+    },
+  });
 
   const alerts = [];
   if (showNearbyBanner) {
