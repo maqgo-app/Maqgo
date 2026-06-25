@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 import base64
 import os
+from starlette.concurrency import run_in_threadpool
 
 from db_config import get_db_name, get_mongo_url
 
@@ -30,6 +31,14 @@ db = client[DB_NAME]
 services_collection = db['services']
 service_requests_collection = db['service_requests']
 users_collection = db['users']
+
+
+async def _run_sync(fn, *args, **kwargs):
+    return await run_in_threadpool(lambda: fn(*args, **kwargs))
+
+
+async def _run_sync_call(fn):
+    return await run_in_threadpool(fn)
 
 # Admin listado paginado por fecha (evita COLLSCAN en volumen alto)
 try:
@@ -87,24 +96,29 @@ STATUSES = ['pending_review', 'approved', 'invoiced', 'paid', 'disputed']
 @router.post("/create")
 async def create_service(service: ServiceCreate, current_user: dict = Depends(get_current_user)):
     """Crear servicio al finalizar trabajo - Pago Ágil (24h)"""
-    AccessPolicy.assert_provider_scope_sync(db, current_user, service.provider_id)
+    await _run_sync(AccessPolicy.assert_provider_scope_sync, db, current_user, service.provider_id)
     from pricing.business_rules import AUTO_APPROVAL_HOURS
-    result = services_collection.insert_one({
-        **service.dict(),
-        "status": "pending_review",
-        "review_deadline": datetime.utcnow() + timedelta(hours=AUTO_APPROVAL_HOURS),
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-        "invoice_number": None,
-        "invoice_image": None,
-        "paid_at": None,
-        "admin_notes": None,
-    })
+    now = datetime.utcnow()
+    result = await _run_sync(
+        services_collection.insert_one,
+        {
+            **service.dict(),
+            "status": "pending_review",
+            "review_deadline": now + timedelta(hours=AUTO_APPROVAL_HOURS),
+            "created_at": now,
+            "updated_at": now,
+            "invoice_number": None,
+            "invoice_image": None,
+            "paid_at": None,
+            "admin_notes": None,
+        },
+    )
     service_id_str = str(result.inserted_id)
     # Mantener "id" igual a _id para que invoices (upload por archivo) pueda buscar por id
-    services_collection.update_one(
+    await _run_sync(
+        services_collection.update_one,
         {"_id": result.inserted_id},
-        {"$set": {"id": service_id_str}}
+        {"$set": {"id": service_id_str}},
     )
     return {
         "success": True,
@@ -125,9 +139,9 @@ async def get_provider_services(
     - Si user_role=operator: Solo muestra datos operacionales (sin financieros)
     - Si user_role=owner o no se especifica: Muestra todo
     """
-    AccessPolicy.assert_provider_scope_sync(db, current_user, provider_id)
+    await _run_sync(AccessPolicy.assert_provider_scope_sync, db, current_user, provider_id)
     # Obtener usuario para determinar permisos
-    user = users_collection.find_one({"id": provider_id}, {"_id": 0})
+    user = await _run_sync(users_collection.find_one, {"id": provider_id}, {"_id": 0})
     
     # Determinar qué servicios mostrar
     query = {"provider_id": provider_id}
@@ -143,10 +157,14 @@ async def get_provider_services(
             ]
         }
     
-    services = list(services_collection.find(
-        query,
-        {"invoice_image": 0}  # Excluir imagen para listar
-    ).sort("created_at", -1))
+    services = await _run_sync_call(
+        lambda: list(
+            services_collection.find(
+                query,
+                {"invoice_image": 0},
+            ).sort("created_at", -1)
+        )
+    )
     
     # Formatear documentos
     now = datetime.utcnow()
@@ -176,9 +194,9 @@ async def submit_invoice(
     current_user: dict = Depends(get_current_user),
 ):
     """Proveedor sube factura"""
-    if not AccessPolicy.can_access_service_sync(db, current_user, service_id):
+    if not await _run_sync(AccessPolicy.can_access_service_sync, db, current_user, service_id):
         raise HTTPException(status_code=403, detail="No autorizado para este servicio")
-    service = services_collection.find_one({"_id": ObjectId(service_id)})
+    service = await _run_sync(services_collection.find_one, {"_id": ObjectId(service_id)})
     
     if not service:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
@@ -235,9 +253,10 @@ async def submit_invoice(
     
     update_data["invoice_image"] = invoice_image_value
     
-    services_collection.update_one(
+    await _run_sync(
+        services_collection.update_one,
         {"_id": ObjectId(service_id)},
-        {"$set": update_data}
+        {"$set": update_data},
     )
     
     return {
@@ -248,9 +267,9 @@ async def submit_invoice(
 @router.get("/{service_id}")
 async def get_service(service_id: str, current_user: dict = Depends(get_current_user)):
     """Obtener detalle de un servicio"""
-    if not AccessPolicy.can_access_service_sync(db, current_user, service_id):
+    if not await _run_sync(AccessPolicy.can_access_service_sync, db, current_user, service_id):
         raise HTTPException(status_code=403, detail="No autorizado para este servicio")
-    service = services_collection.find_one({"_id": ObjectId(service_id)})
+    service = await _run_sync(services_collection.find_one, {"_id": ObjectId(service_id)})
     
     if not service:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
@@ -477,14 +496,16 @@ async def get_investor_snapshot(_: dict = Depends(get_current_admin_strict)):
     Resumen único para pitch / data room interno: usuarios, volumen, economía unitaria y ritmo semanal.
     Misma base de datos y lógica de finanzas que el dashboard admin.
     """
-    finances = _admin_compute_finances()
-    stats = _admin_compute_stats()
-    wow = _admin_week_over_week()
-    total_clients = users_collection.count_documents(
-        {"$or": [{"role": "client"}, {"roles": "client"}]}
+    finances = await _run_sync_call(_admin_compute_finances)
+    stats = await _run_sync_call(_admin_compute_stats)
+    wow = await _run_sync_call(_admin_week_over_week)
+    total_clients = await _run_sync(
+        users_collection.count_documents,
+        {"$or": [{"role": "client"}, {"roles": "client"}]},
     )
-    total_providers = users_collection.count_documents(
-        {"$or": [{"role": "provider"}, {"roles": "provider"}]}
+    total_providers = await _run_sync(
+        users_collection.count_documents,
+        {"$or": [{"role": "provider"}, {"roles": "provider"}]},
     )
     tn = float(finances.get("totalNet") or 0)
     tc = float(finances.get("totalCommission") or 0)
@@ -517,18 +538,20 @@ async def get_all_services(
     Evita cargar toda la colección en memoria ni enviar megabytes al front.
     """
     list_filter = _admin_list_filter(status)
-    total_for_filter = services_collection.count_documents(list_filter)
+    total_for_filter = await _run_sync(services_collection.count_documents, list_filter)
 
-    stats = _admin_compute_stats()
-    finances = _admin_compute_finances()
-    sla = _admin_compute_sla_metrics()
-    week_comparison = _admin_week_over_week()
+    stats = await _run_sync_call(_admin_compute_stats)
+    finances = await _run_sync_call(_admin_compute_finances)
+    sla = await _run_sync_call(_admin_compute_sla_metrics)
+    week_comparison = await _run_sync_call(_admin_week_over_week)
 
-    services = list(
-        services_collection.find(list_filter, {"invoice_image": 0})
-        .sort("created_at", -1)
-        .skip(offset)
-        .limit(limit)
+    services = await _run_sync_call(
+        lambda: list(
+            services_collection.find(list_filter, {"invoice_image": 0})
+            .sort("created_at", -1)
+            .skip(offset)
+            .limit(limit)
+        )
     )
 
     for service in services:
@@ -556,7 +579,7 @@ async def update_service_status(service_id: str, update: ServiceUpdate, _: dict 
         raise HTTPException(status_code=400, detail=f"Estado inválido. Usar: {STATUSES}")
     
     # Obtener servicio actual para notificaciones
-    current_service = services_collection.find_one({"_id": ObjectId(service_id)})
+    current_service = await _run_sync(services_collection.find_one, {"_id": ObjectId(service_id)})
     if not current_service:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     
@@ -591,9 +614,10 @@ async def update_service_status(service_id: str, update: ServiceUpdate, _: dict 
         # MAQGO debe facturar el total al cliente dentro del mes
         update_data["maqgo_client_invoice_pending"] = True
     
-    result = services_collection.update_one(
+    result = await _run_sync(
+        services_collection.update_one,
         {"_id": ObjectId(service_id)},
-        {"$set": update_data}
+        {"$set": update_data},
     )
     
     if result.matched_count == 0:
@@ -613,10 +637,10 @@ async def update_service_status(service_id: str, update: ServiceUpdate, _: dict 
                 provider_id = current_service.get('provider_id') or current_service.get('owner_id')
                 provider_phone = None
                 if provider_id:
-                    provider = users_collection.find_one({"id": provider_id}, {"phone": 1, "owner_id": 1})
+                    provider = await _run_sync(users_collection.find_one, {"id": provider_id}, {"phone": 1, "owner_id": 1})
                     if provider:
                         if provider.get('owner_id'):
-                            owner = users_collection.find_one({"id": provider["owner_id"]}, {"phone": 1})
+                            owner = await _run_sync(users_collection.find_one, {"id": provider["owner_id"]}, {"phone": 1})
                             provider_phone = owner.get('phone') if owner else provider.get('phone')
                         else:
                             provider_phone = provider.get('phone')
@@ -637,10 +661,10 @@ async def update_service_status(service_id: str, update: ServiceUpdate, _: dict 
                 provider_id = current_service.get('provider_id') or current_service.get('owner_id')
                 provider_phone = None
                 if provider_id:
-                    provider = users_collection.find_one({"id": provider_id}, {"phone": 1, "owner_id": 1})
+                    provider = await _run_sync(users_collection.find_one, {"id": provider_id}, {"phone": 1, "owner_id": 1})
                     if provider:
                         if provider.get('owner_id'):
-                            owner = users_collection.find_one({"id": provider["owner_id"]}, {"phone": 1})
+                            owner = await _run_sync(users_collection.find_one, {"id": provider["owner_id"]}, {"phone": 1})
                             provider_phone = owner.get('phone') if owner else provider.get('phone')
                         else:
                             provider_phone = provider.get('phone')
@@ -673,7 +697,7 @@ async def pay_without_invoice(service_id: str, _: dict = Depends(get_current_adm
     allow = str(os.environ.get("MAQGO_ALLOW_PAY_WITHOUT_INVOICE", "") or "").strip().lower() in ("1", "true", "yes", "y", "on")
     if not allow:
         raise HTTPException(status_code=400, detail="Pago sin factura deshabilitado por regla de negocio MAQGO.")
-    service = services_collection.find_one({"_id": ObjectId(service_id)})
+    service = await _run_sync(services_collection.find_one, {"_id": ObjectId(service_id)})
     if not service:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     if service.get("status") != "approved":
@@ -684,19 +708,21 @@ async def pay_without_invoice(service_id: str, _: dict = Depends(get_current_adm
     net_total = service.get("net_total", 0)
     retention_amount = round(net_total * 0.19, 0)
     amount_paid_to_provider = round(net_total - retention_amount, 0)
-    result = services_collection.update_one(
+    now = datetime.utcnow()
+    result = await _run_sync(
+        services_collection.update_one,
         {"_id": ObjectId(service_id)},
         {
             "$set": {
                 "status": "paid",
-                "paid_at": datetime.utcnow(),
+                "paid_at": now,
                 "maqgo_client_invoice_pending": True,
                 "paid_without_invoice": True,
                 "retention_amount": retention_amount,
                 "amount_paid_to_provider": amount_paid_to_provider,
-                "updated_at": datetime.utcnow(),
+                "updated_at": now,
             }
-        }
+        },
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
@@ -719,15 +745,17 @@ async def mark_client_invoiced(service_id: str, _: dict = Depends(get_current_ad
     Admin: Marcar que MAQGO ya facturó el total al cliente.
     Se usa cuando el servicio está pagado y MAQGO emitió la factura al cliente dentro del mes.
     """
-    result = services_collection.update_one(
+    now = datetime.utcnow()
+    result = await _run_sync(
+        services_collection.update_one,
         {"_id": ObjectId(service_id)},
         {
             "$set": {
                 "maqgo_client_invoice_pending": False,
-                "maqgo_client_invoiced_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "maqgo_client_invoiced_at": now,
+                "updated_at": now,
             }
-        }
+        },
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
@@ -737,9 +765,10 @@ async def mark_client_invoiced(service_id: str, _: dict = Depends(get_current_ad
 @router.get("/admin/{service_id}/invoice-image")
 async def get_invoice_image(service_id: str, _: dict = Depends(get_current_admin_strict)):
     """Admin: obtener imagen de factura"""
-    service = services_collection.find_one(
+    service = await _run_sync(
+        services_collection.find_one,
         {"_id": ObjectId(service_id)},
-        {"invoice_image": 1}
+        {"invoice_image": 1},
     )
     
     if not service:
@@ -754,7 +783,7 @@ async def approve_provider_invoice(
     body: ProviderInvoiceApprovePayload,
     admin: dict = Depends(get_current_admin_strict),
 ):
-    service = services_collection.find_one({"_id": ObjectId(service_id)})
+    service = await _run_sync(services_collection.find_one, {"_id": ObjectId(service_id)})
     if not service:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
     if service.get("status") != "invoiced":
@@ -788,7 +817,11 @@ async def approve_provider_invoice(
     if body.note:
         update["provider_invoice_review_note"] = str(body.note)[:400]
 
-    services_collection.update_one({"_id": ObjectId(service_id)}, {"$set": update})
+    await _run_sync(
+        services_collection.update_one,
+        {"_id": ObjectId(service_id)},
+        {"$set": update},
+    )
     return {"success": True, "message": "Factura proveedor aprobada por MAQGO."}
 
 
@@ -817,47 +850,65 @@ async def audit_payment_rule(
         {"invoice_image": {"$exists": True, "$nin": [None, ""]}},
     ]
 
-    paid_total = services_collection.count_documents(base_paid)
-    paid_without_invoice_total = services_collection.count_documents({**base_paid, "paid_without_invoice": True})
-    paid_with_invoice_evidence_total = services_collection.count_documents({**base_paid, "paid_without_invoice": {"$ne": True}, "$or": evidence_or})
+    paid_total = await _run_sync(services_collection.count_documents, base_paid)
+    paid_without_invoice_total = await _run_sync(
+        services_collection.count_documents,
+        {**base_paid, "paid_without_invoice": True},
+    )
+    paid_with_invoice_evidence_total = await _run_sync(
+        services_collection.count_documents,
+        {**base_paid, "paid_without_invoice": {"$ne": True}, "$or": evidence_or},
+    )
     paid_missing_invoice_evidence_total = max(0, int(paid_total) - int(paid_without_invoice_total) - int(paid_with_invoice_evidence_total))
-    paid_missing_invoice_approval_total = services_collection.count_documents({**base_paid, "provider_invoice_approved": {"$ne": True}})
+    paid_missing_invoice_approval_total = await _run_sync(
+        services_collection.count_documents,
+        {**base_paid, "provider_invoice_approved": {"$ne": True}},
+    )
 
     amount_override_filter = {
         **base_paid,
         "paid_without_invoice": {"$ne": True},
         "$expr": {"$and": [{"$ne": ["$amount_paid_to_provider", None]}, {"$ne": ["$amount_paid_to_provider", "$net_total"]}]},
     }
-    amount_override_total = services_collection.count_documents(amount_override_filter)
+    amount_override_total = await _run_sync(services_collection.count_documents, amount_override_filter)
 
-    violations_missing_evidence = [
-        str(x.get("_id"))
-        for x in services_collection.find(
-            {**base_paid, "paid_without_invoice": {"$ne": True}, "$nor": evidence_or},
-            {"_id": 1},
-        ).limit(int(limit or 0))
-    ]
-    violations_paid_without_invoice = [
-        str(x.get("_id"))
-        for x in services_collection.find(
-            {**base_paid, "paid_without_invoice": True},
-            {"_id": 1},
-        ).limit(int(limit or 0))
-    ]
-    violations_amount_override = [
-        str(x.get("_id"))
-        for x in services_collection.find(
-            amount_override_filter,
-            {"_id": 1},
-        ).limit(int(limit or 0))
-    ]
-    violations_missing_approval = [
-        str(x.get("_id"))
-        for x in services_collection.find(
-            {**base_paid, "provider_invoice_approved": {"$ne": True}},
-            {"_id": 1},
-        ).limit(int(limit or 0))
-    ]
+    lim_i = int(limit or 0)
+    violations_missing_evidence = await _run_sync_call(
+        lambda: [
+            str(x.get("_id"))
+            for x in services_collection.find(
+                {**base_paid, "paid_without_invoice": {"$ne": True}, "$nor": evidence_or},
+                {"_id": 1},
+            ).limit(lim_i)
+        ]
+    )
+    violations_paid_without_invoice = await _run_sync_call(
+        lambda: [
+            str(x.get("_id"))
+            for x in services_collection.find(
+                {**base_paid, "paid_without_invoice": True},
+                {"_id": 1},
+            ).limit(lim_i)
+        ]
+    )
+    violations_amount_override = await _run_sync_call(
+        lambda: [
+            str(x.get("_id"))
+            for x in services_collection.find(
+                amount_override_filter,
+                {"_id": 1},
+            ).limit(lim_i)
+        ]
+    )
+    violations_missing_approval = await _run_sync_call(
+        lambda: [
+            str(x.get("_id"))
+            for x in services_collection.find(
+                {**base_paid, "provider_invoice_approved": {"$ne": True}},
+                {"_id": 1},
+            ).limit(lim_i)
+        ]
+    )
 
     return {
         "periodo": {"year": y, "month": m, "inicio": start.isoformat(), "fin": end.isoformat()},
@@ -885,7 +936,7 @@ async def get_provider_summary(
     Generar resumen de ganancias para el proveedor.
     Útil para el resumen semanal por WhatsApp.
     """
-    AccessPolicy.assert_provider_scope_sync(db, current_user, provider_id)
+    await _run_sync(AccessPolicy.assert_provider_scope_sync, db, current_user, provider_id)
     from datetime import datetime, timedelta
     
     now = datetime.utcnow()
@@ -893,7 +944,7 @@ async def get_provider_summary(
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
     # Todos los servicios del proveedor
-    all_services = list(services_collection.find({"provider_id": provider_id}))
+    all_services = await _run_sync_call(lambda: list(services_collection.find({"provider_id": provider_id})))
     
     def _amount_received(s):
         """Monto que efectivamente recibe el proveedor (con retención si pagado sin factura)."""
@@ -944,7 +995,7 @@ async def get_available_services_for_operator(
     que aún no tienen operador asignado.
     """
     AccessPolicy.assert_self_or_admin(current_user, operator_id)
-    operator = users_collection.find_one({"id": operator_id}, {"_id": 0})
+    operator = await _run_sync(users_collection.find_one, {"id": operator_id}, {"_id": 0})
     if not operator:
         raise HTTPException(status_code=404, detail="Operador no encontrado")
     if operator.get('provider_role') != 'operator':
@@ -954,14 +1005,18 @@ async def get_available_services_for_operator(
         raise HTTPException(status_code=400, detail="Operador sin dueño asignado")
 
     # service_requests confirmados del dueño sin operador asignado
-    pending = list(service_requests_collection.find(
-        {
-            "providerId": owner_id,
-            "status": "confirmed",
-            "$or": [{"operator_id": {"$exists": False}}, {"operator_id": None}]
-        },
-        {"_id": 0, "id": 1, "clientName": 1, "clientId": 1, "location": 1, "machineryType": 1, "status": 1, "totalAmount": 1}
-    ).sort("offerSentAt", -1))
+    pending = await _run_sync_call(
+        lambda: list(
+            service_requests_collection.find(
+                {
+                    "providerId": owner_id,
+                    "status": "confirmed",
+                    "$or": [{"operator_id": {"$exists": False}}, {"operator_id": None}],
+                },
+                {"_id": 0, "id": 1, "clientName": 1, "clientId": 1, "location": 1, "machineryType": 1, "status": 1, "totalAmount": 1},
+            ).sort("offerSentAt", -1)
+        )
+    )
     for s in pending:
         if isinstance(s.get("location"), dict):
             s["location"] = s["location"].get("address") or str(s["location"])
@@ -979,7 +1034,7 @@ async def operator_accept_service(
     Asigna operator_id y registra evento en_route.
     """
     AccessPolicy.assert_self_or_admin(current_user, operator_id)
-    operator = users_collection.find_one({"id": operator_id}, {"_id": 0})
+    operator = await _run_sync(users_collection.find_one, {"id": operator_id}, {"_id": 0})
     if not operator or operator.get('provider_role') != 'operator':
         raise HTTPException(status_code=403, detail="No tienes permiso para aceptar servicios")
     owner_id = operator.get('owner_id')
@@ -987,7 +1042,9 @@ async def operator_accept_service(
         raise HTTPException(status_code=403, detail="Operador sin dueño asignado")
 
     # Asignar operador en service_request (id es string uuid)
-    result = service_requests_collection.update_one(
+    now_iso = datetime.utcnow().isoformat()
+    result = await _run_sync(
+        service_requests_collection.update_one,
         {
             "id": service_id,
             "providerId": owner_id,
@@ -998,12 +1055,12 @@ async def operator_accept_service(
             "$set": {
                 "operator_id": operator_id,
                 "operator_name": operator.get("name") or operator.get("providerData", {}).get("name") or "Operador",
-                "operator_assigned_at": datetime.utcnow().isoformat(),
+                "operator_assigned_at": now_iso,
             },
             "$push": {
                 "events": {
                     "type": "en_route",
-                    "at": datetime.utcnow().isoformat(),
+                    "at": now_iso,
                     "operator_id": operator_id,
                     "providerId": owner_id,
                     "source": "operator_accept_service",
@@ -1034,28 +1091,31 @@ async def get_team_services(
     """
     AccessPolicy.assert_owner_scope(current_user, owner_id)
     # Verificar que es owner
-    owner = users_collection.find_one({"id": owner_id}, {"_id": 0})
+    owner = await _run_sync(users_collection.find_one, {"id": owner_id}, {"_id": 0})
     
     if not owner or owner.get('provider_role') not in ['owner', None]:
         raise HTTPException(status_code=403, detail="Solo el dueño puede ver servicios del equipo")
     
     # Obtener IDs de todos los operadores
-    operators = list(users_collection.find(
-        {"owner_id": owner_id, "provider_role": "operator"},
-        {"id": 1, "_id": 0}
-    ))
+    operators = await _run_sync_call(
+        lambda: list(
+            users_collection.find(
+                {"owner_id": owner_id, "provider_role": "operator"},
+                {"id": 1, "_id": 0},
+            )
+        )
+    )
     operator_ids = [op['id'] for op in operators]
     
     # Buscar servicios del dueño y sus operadores
-    services = list(services_collection.find(
-        {
-            "$or": [
-                {"provider_id": owner_id},
-                {"operator_id": {"$in": operator_ids}}
-            ]
-        },
-        {"invoice_image": 0}
-    ).sort("created_at", -1))
+    services = await _run_sync_call(
+        lambda: list(
+            services_collection.find(
+                {"$or": [{"provider_id": owner_id}, {"operator_id": {"$in": operator_ids}}]},
+                {"invoice_image": 0},
+            ).sort("created_at", -1)
+        )
+    )
     
     # Formatear
     for service in services:
@@ -1083,7 +1143,7 @@ async def get_dashboard_data(
     - Operator: solo métricas operacionales
     """
     AccessPolicy.assert_self_or_admin(current_user, user_id)
-    user = users_collection.find_one({"id": user_id}, {"_id": 0})
+    user = await _run_sync(users_collection.find_one, {"id": user_id}, {"_id": 0})
     
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -1094,10 +1154,14 @@ async def get_dashboard_data(
     if is_owner_role:
         # Dueño/Master ve todos los servicios de la empresa y los de sus operadores
         company_owner_id = get_company_owner_id(user)
-        operators = list(users_collection.find(
-            {"owner_id": company_owner_id, "provider_role": "operator"},
-            {"id": 1, "_id": 0}
-        ))
+        operators = await _run_sync_call(
+            lambda: list(
+                users_collection.find(
+                    {"owner_id": company_owner_id, "provider_role": "operator"},
+                    {"id": 1, "_id": 0},
+                )
+            )
+        )
         operator_ids = [op['id'] for op in operators]
         
         query = {
@@ -1110,7 +1174,7 @@ async def get_dashboard_data(
         # Operador solo ve servicios donde participó
         query = {"operator_id": user_id}
     
-    services = list(services_collection.find(query, {"invoice_image": 0}))
+    services = await _run_sync_call(lambda: list(services_collection.find(query, {"invoice_image": 0})))
     
     # Calcular métricas
     total_services = len(services)
