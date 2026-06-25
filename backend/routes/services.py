@@ -976,7 +976,7 @@ async def operator_accept_service(
 ):
     """
     Operador acepta un servicio disponible (service_request confirmado del dueño).
-    Asigna operator_id y pasa estado a en_route.
+    Asigna operator_id y registra evento en_route.
     """
     AccessPolicy.assert_self_or_admin(current_user, operator_id)
     operator = users_collection.find_one({"id": operator_id}, {"_id": 0})
@@ -999,7 +999,6 @@ async def operator_accept_service(
                 "operator_id": operator_id,
                 "operator_name": operator.get("name") or operator.get("providerData", {}).get("name") or "Operador",
                 "operator_assigned_at": datetime.utcnow().isoformat(),
-                "status": "en_route"
             },
             "$push": {
                 "events": {
