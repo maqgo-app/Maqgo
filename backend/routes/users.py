@@ -11,8 +11,8 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from auth_dependency import verify_user_access, get_current_user
 from security.policy import AccessPolicy
+from security.provider_permissions_builder import build_provider_permissions
 from models.user import User, UserCreate, ProviderAvailabilityUpdate
-from utils.rbac import has_permission
 from services.provider_activation_service import is_provider_activation_complete
 from motor.motor_asyncio import AsyncIOMotorClient
 import bcrypt
@@ -934,61 +934,21 @@ async def get_user_role(
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    # Obtener el rol del proveedor
-    provider_role = user.get('provider_role')
-    
-    # Normalizar roles: owner -> super_master, None -> super_master (para usuarios antiguos)
-    if provider_role in ['owner', None]:
+    is_provider = user.get('role') == 'provider' or ('provider' in (user.get('roles') or []))
+
+    provider_role = user.get('provider_role') if is_provider else None
+    if provider_role in ['owner', None] and is_provider:
         provider_role = 'super_master'
-    
+
     is_super_master = provider_role == 'super_master'
-    is_master = provider_role == 'master'
-    is_operator = provider_role == 'operator'
-
-    master_permissions = user.get('master_permissions', {}) if is_master else {}
-    if not isinstance(master_permissions, dict):
-        master_permissions = {}
-
-    def _mperm(key: str) -> bool:
-        return bool(master_permissions.get(key) is True)
-
-    can_manage_machines = bool(is_super_master or (is_master and _mperm('can_manage_machines')))
-    can_delete_machines = bool(is_super_master or (is_master and _mperm('can_delete_machines')))
-    can_assign_operator = bool(is_super_master or (is_master and _mperm('can_assign_operator')))
-    can_edit_master_profile = bool(is_super_master or (is_master and _mperm('can_edit_master_profile')))
-    can_view_finance = bool(is_super_master or (is_master and _mperm('can_view_finance')))
-    can_manage_operators = bool(is_super_master or (is_master and _mperm('can_manage_operators')))
-    can_delete_master = bool(is_super_master or (is_master and _mperm('can_delete_master')))
-    can_view_work_details = bool(is_super_master or (is_master and _mperm('can_view_work_details')))
-    can_create_work = bool(is_super_master or (is_master and _mperm('can_create_work')))
-
-    can_accept_requests = bool(has_permission(user, 'accept_requests'))
-    if is_master:
-        can_accept_requests = bool(can_create_work)
+    permissions = build_provider_permissions(user, provider_role) if provider_role else {}
     
     response = {
         'user_id': user_id,
         'role': user.get('role'),  # 'client' o 'provider'
         'provider_role': provider_role,
-        'owner_id': user.get('owner_id') if not is_super_master else None,
-        'permissions': {
-            'can_view_finances': can_view_finance,
-            'can_view_invoices': can_view_finance,
-            'can_upload_invoice': can_view_finance,
-            'can_manage_operators': can_manage_operators,
-            'can_manage_masters': is_super_master,  # Solo Titular puede invitar Masters
-            'can_view_bank_data': bool(is_super_master),
-            'can_accept_requests': can_accept_requests,
-            'can_view_services': bool(is_super_master or is_master or is_operator or can_view_work_details or can_create_work),
-            'can_manage_machines': can_manage_machines,
-            'can_delete_machines': can_delete_machines,
-            'can_assign_operator': can_assign_operator,
-            'can_edit_master_profile': can_edit_master_profile,
-            'can_view_finance': can_view_finance,
-            'can_delete_master': can_delete_master,
-            'can_view_work_details': can_view_work_details,
-            'can_create_work': can_create_work,
-        }
+        'owner_id': user.get('owner_id') if provider_role and not is_super_master else None,
+        'permissions': permissions,
     }
     
     # Si es operador o master, obtener datos del dueño
