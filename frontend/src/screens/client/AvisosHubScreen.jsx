@@ -317,56 +317,38 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
               </div>
             </div>
 
-            {pushBackendUnavailable ? (
-              <div
+            <button
+              type="button"
+              onClick={pushBackendUnavailable ? undefined : onTogglePush}
+              disabled={pushBackendUnavailable || pushBusy || pushPermission === 'unsupported'}
+              aria-label={pushBackendUnavailable ? 'Push no disponible' : pushEnabled ? 'Desactivar Push' : 'Activar Push'}
+              style={{
+                position: 'relative',
+                width: 52,
+                height: 30,
+                borderRadius: 999,
+                border: pushEnabled ? '1px solid rgba(236,104,25,0.55)' : '1px solid rgba(255,255,255,0.14)',
+                background: pushEnabled ? 'rgba(236,104,25,0.22)' : 'rgba(255,255,255,0.06)',
+                cursor: pushBackendUnavailable || pushBusy || pushPermission === 'unsupported' ? 'not-allowed' : 'pointer',
+                padding: 0,
+                flexShrink: 0,
+                opacity: pushBackendUnavailable ? 0.65 : 1,
+              }}
+            >
+              <span
                 style={{
-                  color: 'rgba(255,255,255,0.70)',
-                  fontSize: 12,
-                  fontWeight: 800,
-                  padding: '8px 10px',
+                  position: 'absolute',
+                  top: 3,
+                  left: pushEnabled ? 24 : 3,
+                  width: 24,
+                  height: 24,
                   borderRadius: 999,
-                  border: '1px solid rgba(255,255,255,0.14)',
-                  background: 'rgba(255,255,255,0.06)',
-                  flexShrink: 0,
-                  whiteSpace: 'nowrap',
+                  background: '#fff',
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
+                  transition: 'left 180ms ease',
                 }}
-              >
-                No disponible
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={onTogglePush}
-                disabled={pushBusy || pushPermission === 'unsupported'}
-                aria-label={pushEnabled ? 'Desactivar Push' : 'Activar Push'}
-                style={{
-                  position: 'relative',
-                  width: 52,
-                  height: 30,
-                  borderRadius: 999,
-                  border: pushEnabled ? '1px solid rgba(236,104,25,0.55)' : '1px solid rgba(255,255,255,0.14)',
-                  background: pushEnabled ? 'rgba(236,104,25,0.22)' : 'rgba(255,255,255,0.06)',
-                  cursor:
-                    pushBusy || pushPermission === 'unsupported' ? 'not-allowed' : 'pointer',
-                  padding: 0,
-                  flexShrink: 0,
-                }}
-              >
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: 3,
-                    left: pushEnabled ? 24 : 3,
-                    width: 24,
-                    height: 24,
-                    borderRadius: 999,
-                    background: '#fff',
-                    boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
-                    transition: 'left 180ms ease',
-                  }}
-                />
-              </button>
-            )}
+              />
+            </button>
           </div>
 
           {loading ? (
