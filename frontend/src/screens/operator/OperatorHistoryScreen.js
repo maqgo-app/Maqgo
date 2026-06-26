@@ -24,8 +24,8 @@ const STATUS_CONFIG = {
   en_route: { label: 'En camino', color: '#2196F3', icon: '🚛' },
   arrived: { label: 'En sitio', color: '#9C27B0', icon: '📍' },
   in_progress: { label: 'Trabajando', color: '#4CAF50', icon: '⚙️' },
-  completed: { label: 'Completado', color: '#4CAF50', icon: '✅' },
-  paid: { label: 'Completado', color: '#4CAF50', icon: '✅' },
+  completed: { label: 'Completado', color: '#4CAF50', icon: '✓' },
+  paid: { label: 'Completado', color: '#4CAF50', icon: '✓' },
   cancelled: { label: 'Cancelado', color: '#F44336', icon: '✗' }
 };
 

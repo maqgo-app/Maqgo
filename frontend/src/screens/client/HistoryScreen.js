@@ -428,7 +428,7 @@ function HistoryScreen() {
             textAlign: 'center',
             lineHeight: 1.4
           }}>
-            📱 ¿Necesitas ayuda? Entra a Soporte desde la app.
+            ¿Necesitas ayuda? Entra a Soporte desde la app.
           </p>
         </div>
 

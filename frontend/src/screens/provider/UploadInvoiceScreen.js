@@ -257,7 +257,7 @@ function UploadInvoiceScreen() {
               <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 700, fontFamily: 'monospace' }}>{service.transactionId}</span>
             </div>
             <p style={{ color: '#EC6819', fontSize: 13, margin: '8px 0 0', fontWeight: 600 }}>
-              ⚠️ Debes indicar este ID en tu factura para identificar el cobro
+              Importante: Debes indicar este ID en tu factura para identificar el cobro
             </p>
           </div>
         )}

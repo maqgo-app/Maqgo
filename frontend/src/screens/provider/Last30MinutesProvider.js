@@ -83,7 +83,7 @@ function Last30MinutesProvider() {
       <div className="content" style={{ justifyContent: 'flex-start', paddingTop: '10px', flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Alerta de tiempo */}
         <div className="warning-alert">
-          <div className="warning-icon">⚠️</div>
+          <div className="warning-icon">!</div>
           <div className="warning-content">
             <span className="warning-title">¡Últimos 30 minutos!</span>
             <span className="warning-subtitle">El servicio está por finalizar</span>

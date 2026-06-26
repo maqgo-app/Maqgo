@@ -117,7 +117,7 @@ function RateService() {
             alignItems: 'center',
             gap: 8
           }}>
-            <span style={{ color: '#EF5350', fontSize: 18 }}>⚠️</span>
+            <span style={{ color: '#EF5350', fontSize: 18, fontWeight: 900 }}>!</span>
             <span style={{ color: '#C62828', fontSize: 14 }}>{error}</span>
           </div>
         )}

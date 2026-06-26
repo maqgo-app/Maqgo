@@ -54,7 +54,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿MAQGO es dueño de las máquinas?',
-        a: 'No. MAQGO es un marketplace que conecta tu empresa con proveedores. Las máquinas y operadores pertenecen a las empresas proveedoras registradas en la plataforma.'
+        a: 'No. MAQGO es una plataforma que conecta tu empresa con proveedores. Las máquinas y los operadores pertenecen a empresas proveedoras registradas.'
       },
       {
         q: '¿Cómo contacto a soporte?',

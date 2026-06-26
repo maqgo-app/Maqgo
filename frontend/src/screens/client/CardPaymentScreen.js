@@ -534,7 +534,7 @@ function CardPaymentScreen() {
               alignItems: 'center',
               gap: 6
             }}>
-              <span>⚠️</span>
+              <span style={{ fontWeight: 900 }}>!</span>
               {emailError}
             </p>
           ) : (

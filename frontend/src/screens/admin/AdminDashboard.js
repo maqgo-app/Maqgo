@@ -2074,7 +2074,7 @@ function AdminDashboard() {
                 }}
               >
                 <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: 800 }}>
-                  ✅ No hay acciones pendientes
+                  No hay acciones pendientes
                 </div>
                 <div style={{ fontSize: 12, color: ADMIN_THEME.textMuted }}>
                   {services?.length ? `${services.length} reservas cargadas` : 'Sin reservas en la vista actual'}
@@ -2334,12 +2334,12 @@ function AdminDashboard() {
         }}>
           {[
             { key: 'pending_review', label: 'En Revisión', icon: '⏳' },
-            { key: 'approved', label: 'Aprobados', icon: '✅' },
+            { key: 'approved', label: 'Aprobados', icon: '✓' },
             { key: 'invoiced', label: 'Por Pagar', icon: '📄' },
             { key: 'paid', label: 'Pagados', icon: '💰' },
             { key: 'maqgo_to_invoice', label: 'MAQGO → Facturar Cliente', icon: '📤' },
             { key: 'maqgo_to_invoice_overdue', label: 'MAQGO Facturación Vencida', icon: '🚨' },
-            { key: 'disputed', label: 'En Disputa', icon: '⚠️' }
+            { key: 'disputed', label: 'En Disputa', icon: '!' }
           ].map(item => {
             const config =
               STATUS_CONFIG[item.key] ||
@@ -3720,7 +3720,7 @@ function AdminDashboard() {
             {/* Alertas */}
             <div style={{ background: '#1a1a1a', borderRadius: 12, padding: 16, marginBottom: 20 }}>
               <h3 style={{ color: '#fff', fontSize: 14, margin: '0 0 12px', fontWeight: 600 }}>
-                ⚠️ ALERTAS
+                ALERTAS
               </h3>
               {weeklyReport.alertas?.map((alerta, idx) => (
                 <div key={idx} style={{ 
