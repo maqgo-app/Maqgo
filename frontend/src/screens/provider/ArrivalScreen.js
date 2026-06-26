@@ -297,7 +297,7 @@ function ArrivalScreen() {
                   Llegada registrada
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '4px 0 0' }}>
-                  El cliente ya recibió el aviso de llegada. Si el acceso está habilitado, puedes ingresar.
+                  Enviamos un aviso al cliente informando de tu llegada.
                 </p>
               </div>
             </div>
