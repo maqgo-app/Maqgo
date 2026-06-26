@@ -294,10 +294,10 @@ function ArrivalScreen() {
               </div>
               <div style={{ textAlign: 'left' }}>
                 <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0 }}>
-                  ¡El cliente viene en camino!
+                  Llegada registrada
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '4px 0 0' }}>
-                  Te avisó que está llegando
+                  El cliente ya recibió el aviso de llegada. Si el acceso está habilitado, puedes ingresar.
                 </p>
               </div>
             </div>
