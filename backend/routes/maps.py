@@ -8,7 +8,18 @@ from typing import Optional
 
 router = APIRouter(prefix="/api/maps", tags=["maps"])
 
-GOOGLE_MAPS_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+
+def _get_google_maps_key() -> str:
+    candidates = (
+        os.environ.get("GOOGLE_MAPS_API_KEY")
+        or os.environ.get("WEB_GOOGLE_MAPS_API_KEY")
+        or os.environ.get("VITE_GOOGLE_MAPS_API_KEY")
+        or ""
+    )
+    k = str(candidates or "").strip()
+    if k in ("undefined", "null"):
+        return ""
+    return k
 
 # =============================================================================
 # PLACES AUTOCOMPLETE - Para sugerir direcciones mientras el usuario escribe
@@ -26,7 +37,8 @@ async def autocomplete_address(
     - Retorna hasta 5 sugerencias
     - Usa session_token para agrupar llamadas y reducir costos
     """
-    if not GOOGLE_MAPS_KEY:
+    google_maps_key = _get_google_maps_key()
+    if not google_maps_key:
         # Fallback cuando no hay API key - retorna sugerencias mock
         return {
             "predictions": [
@@ -41,7 +53,7 @@ async def autocomplete_address(
         async with httpx.AsyncClient() as client:
             params = {
                 "input": input,
-                "key": GOOGLE_MAPS_KEY,
+                "key": google_maps_key,
                 "types": "address",
                 "components": "country:cl",  # Solo Chile
                 "language": "es"
@@ -88,7 +100,8 @@ async def get_place_details(
     """
     Obtiene detalles de un lugar, incluyendo coordenadas.
     """
-    if not GOOGLE_MAPS_KEY:
+    google_maps_key = _get_google_maps_key()
+    if not google_maps_key:
         # Mock response
         return {
             "location": {"lat": -33.4489, "lng": -70.6693},  # Santiago centro
@@ -100,7 +113,7 @@ async def get_place_details(
         async with httpx.AsyncClient() as client:
             params = {
                 "place_id": place_id,
-                "key": GOOGLE_MAPS_KEY,
+                "key": google_maps_key,
                 "fields": "geometry,formatted_address",
                 "language": "es"
             }
@@ -150,7 +163,8 @@ async def calculate_eta(
     - Considera tráfico en tiempo real
     - Retorna duración en minutos y distancia en km
     """
-    if not GOOGLE_MAPS_KEY:
+    google_maps_key = _get_google_maps_key()
+    if not google_maps_key:
         # Cálculo mock: 40 min mínimo (preparación + ruta); 20 min sería máquina al lado (irreal)
         import math
         distance_deg = math.sqrt((dest_lat - origin_lat)**2 + (dest_lng - origin_lng)**2)
@@ -173,7 +187,7 @@ async def calculate_eta(
                 params={
                     "origins": f"{origin_lat},{origin_lng}",
                     "destinations": f"{dest_lat},{dest_lng}",
-                    "key": GOOGLE_MAPS_KEY,
+                    "key": google_maps_key,
                     "mode": "driving",
                     "departure_time": "now",  # Considera tráfico actual
                     "traffic_model": "best_guess",
@@ -216,8 +230,9 @@ async def maps_status():
     """
     Verifica el estado de la configuración de Google Maps.
     """
+    google_maps_key = _get_google_maps_key()
     return {
-        "configured": bool(GOOGLE_MAPS_KEY),
-        "mode": "PRODUCTION" if GOOGLE_MAPS_KEY else "MOCK",
-        "message": "Google Maps API configurada" if GOOGLE_MAPS_KEY else "Usando modo MOCK - Agrega GOOGLE_MAPS_API_KEY al .env"
+        "configured": bool(google_maps_key),
+        "mode": "PRODUCTION" if google_maps_key else "MOCK",
+        "message": "Google Maps API configurada" if google_maps_key else "Usando modo MOCK - Agrega GOOGLE_MAPS_API_KEY al .env"
     }
