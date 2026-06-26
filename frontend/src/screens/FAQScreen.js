@@ -238,6 +238,8 @@ function FAQScreen() {
       .filter((g) => g.items.length > 0);
   })();
 
+  const isAuthLoading = Boolean(auth.loading);
+
   return (
     <div className="maqgo-app maqgo-client-funnel" style={{ minHeight: '100vh', background: 'var(--maqgo-bg)' }}>
       <div className="maqgo-screen maqgo-screen--scroll" style={{ padding: 24, paddingBottom: 100, background: 'var(--maqgo-bg)' }}>
@@ -266,7 +268,13 @@ function FAQScreen() {
           </div>
         </div>
 
-        {!session.isAuthenticated && (
+        {isAuthLoading ? (
+          <div style={{ padding: 18, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}>
+            <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, fontWeight: 800 }}>Cargando…</div>
+          </div>
+        ) : null}
+
+        {!isAuthLoading && !session.isAuthenticated && (
           <div
             style={{
               display: 'flex',
@@ -301,7 +309,7 @@ function FAQScreen() {
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, opacity: isAuthLoading ? 0.45 : 1 }}>
           {grouped
             ? (() => {
                 let globalIndex = 0;

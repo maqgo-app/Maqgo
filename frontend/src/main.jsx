@@ -45,23 +45,12 @@ try {
 
 try {
   if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-    const hadController = Boolean(navigator.serviceWorker.controller);
-    let refreshing = false;
-
     registerSW({
       immediate: true,
       onRegisteredSW(_swUrl, registration) {
         registration?.update?.().catch(() => void 0);
       },
     });
-
-    if (hadController) {
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (refreshing) return;
-        refreshing = true;
-        window.location.reload();
-      });
-    }
   }
 } catch (e) {
   void e;
