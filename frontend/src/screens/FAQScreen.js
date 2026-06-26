@@ -10,11 +10,11 @@ const FAQ_DATA = [
     questions: [
       {
         q: '¿Qué es MAQGO?',
-        a: 'MAQGO es el marketplace que conecta empresas que necesitan maquinaria pesada con proveedores que la ofrecen. Encuentras disponibilidad y precios en minutos, arriendas por horas, días o semanas. MAQGO no es dueño de las máquinas: conectamos tu empresa directamente con proveedores verificados.'
+        a: 'MAQGO es una plataforma que conecta empresas que necesitan maquinaria pesada con proveedores que la ofrecen. Puedes solicitar servicios por horas, días o semanas, con disponibilidad visible y condiciones claras antes de confirmar. MAQGO no es dueño de las máquinas: coordinamos tu solicitud con proveedores registrados en la plataforma.'
       },
       {
         q: '¿Cómo solicito una maquinaria?',
-        a: 'Selecciona el tipo de maquinaria que necesitas, elige cuándo la requieres (hoy, mañana o fecha específica), indica la cantidad de horas, marca la ubicación de tu obra en el mapa y elige entre los proveedores disponibles. Tu tarjeta solo se carga cuando un operador confirma tu solicitud.'
+        a: 'Selecciona el tipo de maquinaria, define cuándo la necesitas (hoy, mañana o una fecha específica), indica la duración y confirma la ubicación de tu obra. Luego revisa las opciones disponibles y confirma tu solicitud.'
       },
       {
         q: '¿Cuál es la tarifa por servicio?',
@@ -34,7 +34,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Puedo cancelar una reserva?',
-        a: 'Sí. Cancelación cliente (desde la aceptación): 0–60 min = 0% · 60–120 min = 20% · +120 min = 40%. Presencia confirmada en obra: a partir de este punto ya no puedes cancelar. Se considera presencia confirmada cuando existe evidencia suficiente, por ejemplo: llegada verificada, cliente autoriza ingreso, auto-start con llegada verificada o servicio iniciado. El sistema nunca cancela automáticamente un servicio; si no hay llegada registrada, se generan avisos críticos a 120, 180 y 240 minutos.'
+        a: 'Sí. Desde la aceptación: 0–60 min = 0% · 60–120 min = 20% · +120 min = 40%. Con presencia confirmada en obra ya no es posible cancelar. Se considera presencia confirmada cuando existe evidencia suficiente (por ejemplo: llegada verificada, autorización de ingreso, auto‑inicio con llegada verificada o servicio iniciado). El sistema no cancela automáticamente por tiempo: si no hay llegada registrada, se generan avisos críticos a 120, 180 y 240 minutos.'
       },
       {
         q: '¿Cómo me comunico con el operador?',
@@ -50,7 +50,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Qué pasa si el operador no llega (no-show)?',
-        a: 'No hay cancelación automática por tiempo. Si no se registra llegada, se generan avisos críticos a 120, 180 y 240 minutos. Opciones: seguir esperando, contactar MAQGO o cancelar.'
+        a: 'No hay cancelación automática por tiempo. Si no se registra llegada, se generan avisos críticos a 120, 180 y 240 minutos. Puedes seguir esperando, solicitar apoyo a MAQGO o cancelar según corresponda.'
       },
       {
         q: '¿MAQGO es dueño de las máquinas?',
@@ -67,7 +67,7 @@ const FAQ_DATA = [
     questions: [
       {
         q: '¿Cómo registro mi empresa?',
-        a: 'Selecciona "Soy Proveedor", verifica tu número, completa los datos de tu empresa (razón social, RUT, giro), agrega tus maquinarias (fotos opcionales) y tarifas, configura tus datos bancarios y registra a tus operadores. Una vez completado, comenzarás a recibir solicitudes.'
+        a: 'Selecciona "Soy Proveedor", verifica tu número y completa los datos de tu empresa (razón social, RUT y giro). Luego registra tus maquinarias (fotos opcionales) y tarifas, configura los datos bancarios y agrega operadores. Al finalizar, podrás recibir solicitudes.'
       },
       {
         q: '¿Qué roles existen en mi cuenta?',
@@ -75,7 +75,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Cómo invito operadores?',
-        a: 'Desde la sección Máquinas, selecciona una maquinaria y usa "Agregar operador". Ingresa su nombre y teléfono. El operador recibirá un código de 6 dígitos por SMS y tú recibirás una confirmación. Cuando el operador ingrese el código, ambos recibirán un mensaje confirmando que está activo y asociado a la maquinaria.'
+        a: 'Desde Máquinas, selecciona una maquinaria y usa "Agregar operador". Ingresa nombre y teléfono. El operador recibe un código de 6 dígitos por SMS. Cuando ingresa el código, queda activo y asociado a la maquinaria.'
       },
       {
         q: '¿Qué ve cada rol en la app?',
@@ -95,11 +95,11 @@ const FAQ_DATA = [
       },
       {
         q: '¿Cuándo recibo mi pago?',
-        a: 'Puedes subir la factura 24 horas después de terminado el servicio. El pago se deposita en tu cuenta en 2 días hábiles tras subir la factura.'
+        a: 'Puedes subir la factura 24 horas después de finalizado el servicio. El pago se deposita en tu cuenta en 2 días hábiles desde la carga de la factura.'
       },
       {
         q: '¿Cómo emito la factura a MAQGO?',
-        a: 'La factura debe ser emitida a MAQGO y cargada en el sistema (Mis Cobros → subir factura). Incluye en la factura el ID de transacción de la reserva. El pago se realiza en 2 días hábiles tras subirla.'
+        a: 'La factura debe ser emitida a MAQGO y cargada en el sistema (Mis Cobros → Subir factura). Incluye el ID de transacción de la reserva. El pago se realiza en 2 días hábiles desde la carga.'
       },
       {
         q: '¿A qué datos debe ir emitida la factura?',
@@ -112,15 +112,15 @@ const FAQ_DATA = [
     questions: [
       {
         q: '¿Qué es "Soy operador (tengo código)"?',
-        a: 'Cuando una empresa te asocia como operador de una maquinaria, recibes un código de 6 dígitos por SMS. Usa esta opción para ingresar ese código y quedar activo en MAQGO.'
+        a: 'Cuando una empresa te asocia como operador de una maquinaria, recibes un código de 6 dígitos por SMS. Usa esta opción para ingresar el código y activar tu cuenta.'
       },
       {
         q: '¿Cómo me uno con mi código?',
-        a: 'En la pantalla de inicio, toca "Soy operador (tengo código)", ingresa el código de 6 dígitos que recibiste por SMS, y quedarás activo y asociado a la maquinaria. Tanto tú como la empresa recibirán confirmación.'
+        a: 'En la pantalla de inicio, selecciona "Soy operador (tengo código)", ingresa el código de 6 dígitos y quedarás activo y asociado a la maquinaria. La empresa recibirá confirmación.'
       },
       {
         q: '¿Qué puedo hacer como operador?',
-        a: 'Puedes ver tu disponibilidad, recibir solicitudes de reserva, aceptar o rechazar trabajos, marcar llegada, reportar incidentes y ver tu historial de servicios realizados. El término del servicio ocurre automáticamente al cumplirse el endTime.'
+        a: 'Puedes ver tu disponibilidad, recibir solicitudes, aceptar o rechazar trabajos, marcar llegada, reportar incidentes y revisar tu historial. El término del servicio ocurre automáticamente al cumplirse la hora de término programada.'
       },
       {
         q: '¿Qué NO puedo ver como operador?',
@@ -263,7 +263,7 @@ function FAQScreen() {
               Preguntas frecuentes
             </h1>
             <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, lineHeight: 1.25 }}>
-              Respuestas claras para clientes, proveedores y operadores
+              Información para clientes, proveedores y operadores
             </div>
           </div>
         </div>
@@ -296,7 +296,7 @@ function FAQScreen() {
                       padding: '10px 18px',
                       borderRadius: 20,
                       border: 'none',
-                      background: activeCategory === cat.category ? '#EC6819' : '#2A2A2A',
+                      background: activeCategory === cat.category ? '#EC6819' : 'rgba(255,255,255,0.06)',
                       color: '#fff',
                       fontSize: 14,
                       fontWeight: 500,
@@ -346,8 +346,9 @@ function FAQScreen() {
                           <div
                             key={`${g.title}-${item.q}`}
                             style={{
-                              background: '#2A2A2A',
-                              borderRadius: 12,
+                              background: 'rgba(255,255,255,0.04)',
+                              border: '1px solid rgba(255,255,255,0.10)',
+                              borderRadius: 14,
                               overflow: 'hidden',
                             }}
                           >
@@ -407,11 +408,12 @@ function FAQScreen() {
                 : (currentFAQ?.questions ?? []).map((item, idx) => (
                     <div
                       key={idx}
-                      style={{
-                        background: '#2A2A2A',
-                        borderRadius: 12,
-                        overflow: 'hidden',
-                      }}
+                    style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.10)',
+                      borderRadius: 14,
+                      overflow: 'hidden',
+                    }}
                     >
                       <button
                         onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
