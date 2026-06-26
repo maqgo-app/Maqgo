@@ -548,7 +548,7 @@ function RequestReceivedScreen() {
             </div>
           </div>
           <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
-            {countdown <= 10 ? '¡Responde rápido!' : 'Tiempo para responder'}
+            {countdown <= 10 ? 'Responde pronto' : 'Tiempo para responder'}
           </p>
         </div>
 
@@ -580,7 +580,7 @@ function RequestReceivedScreen() {
               +{formatMoney(urgencyBonus)}
             </p>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
-              Inicio HOY
+              Inicio hoy
             </p>
           </div>
         )}

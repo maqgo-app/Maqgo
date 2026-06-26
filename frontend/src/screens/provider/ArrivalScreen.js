@@ -334,7 +334,7 @@ function ArrivalScreen() {
             )}
           </div>
           <h2 style={{ color: waitingForClient ? '#FFC107' : '#90BDD3', fontSize: 20, fontWeight: 700, margin: '0 0 4px' }}>
-            {waitingForClient ? 'Esperando confirmación' : '¡Llegaste al destino!'}
+            {waitingForClient ? 'Esperando autorización de ingreso' : 'Llegaste al destino'}
           </h2>
           <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
             {waitingForClient 

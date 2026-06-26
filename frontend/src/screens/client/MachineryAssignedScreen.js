@@ -280,7 +280,7 @@ function MachineryAssignedScreen() {
               {serviceStatus === 'assigned' ? <UserCheck size={22} color="#90BDD3" /> : <Truck size={22} color="#90BDD3" />}
             </div>
             <div style={{ color: '#fff', fontSize: 20, fontWeight: 900, lineHeight: 1.2 }}>
-              {serviceStatus === 'assigned' ? '¡Operador asignado!' : 'Operador en camino'}
+              {serviceStatus === 'assigned' ? 'Operador asignado' : 'Operador en camino'}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, marginTop: 6 }}>
               {serviceStatus === 'assigned' ? 'Tu reserva está confirmada.' : 'Seguimiento de tu servicio.'}

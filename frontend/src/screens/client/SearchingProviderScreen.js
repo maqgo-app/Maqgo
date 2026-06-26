@@ -734,7 +734,7 @@ function SearchingProviderScreen() {
               textAlign: 'center',
               marginTop: 20
             }}>
-              ¡Proveedor confirmado!
+              Proveedor confirmado
             </h1>
 
             <p style={{
@@ -755,7 +755,7 @@ function SearchingProviderScreen() {
                 marginTop: 20
               }}>
                 <p style={{ color: '#90BDD3', fontSize: 13, margin: 0, textAlign: 'center' }}>
-                  🎉 ¡Encontramos un proveedor a mejor precio!
+                  Encontramos un proveedor a mejor precio.
                 </p>
               </div>
             )}

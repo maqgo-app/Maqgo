@@ -62,7 +62,7 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
     await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-confirmed.png', fullPage: true });
 
     await page.goto(`${BASE_URL}/client/assigned`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await expect(page.getByText(/¡operador asignado!/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/operador asignado/i).first()).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForTimeout(600);
     await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-assigned.png', fullPage: true });
