@@ -1,25 +1,17 @@
 # Google Maps Integration for MAQGO
 # Autocomplete (Places API) + ETA (Distance Matrix API)
 
-import os
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 
+from services.google_maps_key_service import get_google_maps_api_key
+
 router = APIRouter(prefix="/api/maps", tags=["maps"])
 
 
-def _get_google_maps_key() -> str:
-    candidates = (
-        os.environ.get("GOOGLE_MAPS_API_KEY")
-        or os.environ.get("WEB_GOOGLE_MAPS_API_KEY")
-        or os.environ.get("VITE_GOOGLE_MAPS_API_KEY")
-        or ""
-    )
-    k = str(candidates or "").strip()
-    if k in ("undefined", "null"):
-        return ""
-    return k
+async def _get_google_maps_key() -> str:
+    return await get_google_maps_api_key()
 
 # =============================================================================
 # PLACES AUTOCOMPLETE - Para sugerir direcciones mientras el usuario escribe
@@ -37,7 +29,7 @@ async def autocomplete_address(
     - Retorna hasta 5 sugerencias
     - Usa session_token para agrupar llamadas y reducir costos
     """
-    google_maps_key = _get_google_maps_key()
+    google_maps_key = await _get_google_maps_key()
     if not google_maps_key:
         # Fallback cuando no hay API key - retorna sugerencias mock
         return {
@@ -100,7 +92,7 @@ async def get_place_details(
     """
     Obtiene detalles de un lugar, incluyendo coordenadas.
     """
-    google_maps_key = _get_google_maps_key()
+    google_maps_key = await _get_google_maps_key()
     if not google_maps_key:
         # Mock response
         return {
@@ -163,7 +155,7 @@ async def calculate_eta(
     - Considera tráfico en tiempo real
     - Retorna duración en minutos y distancia en km
     """
-    google_maps_key = _get_google_maps_key()
+    google_maps_key = await _get_google_maps_key()
     if not google_maps_key:
         # Cálculo mock: 40 min mínimo (preparación + ruta); 20 min sería máquina al lado (irreal)
         import math
@@ -230,7 +222,7 @@ async def maps_status():
     """
     Verifica el estado de la configuración de Google Maps.
     """
-    google_maps_key = _get_google_maps_key()
+    google_maps_key = await _get_google_maps_key()
     return {
         "configured": bool(google_maps_key),
         "mode": "PRODUCTION" if google_maps_key else "MOCK",

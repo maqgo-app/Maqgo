@@ -28,6 +28,7 @@ from services.payment_saga_recovery import recover_saga
 from services.reconciliation_service import reconcile_payment_intents
 from services.komatsu_sync import sync_komatsu_machine_locations
 from services.testdata_purge_service import purge_user_testdata
+from services.google_maps_key_service import get_google_maps_api_key, set_google_maps_api_key
 
 router = APIRouter(prefix="/admin", tags=["admin-config"])
 
@@ -36,6 +37,37 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[get_db_name()]
 
 CONFIG_KEY = "reference_prices"
+
+
+class GoogleMapsKeyPayload(BaseModel):
+    apiKey: str = Field(..., min_length=0, max_length=300)
+
+
+def _mask_key(raw: Optional[str]) -> str:
+    v = str(raw or "")
+    if not v:
+        return ""
+    if len(v) <= 8:
+        return "****"
+    return f"{v[:4]}…{v[-4:]}"
+
+
+@router.get("/google-maps", response_model=dict)
+async def admin_get_google_maps_config(current_admin: dict = Depends(get_current_admin_strict)):
+    void = current_admin
+    key = await get_google_maps_api_key()
+    return {"configured": bool(key), "maskedKey": _mask_key(key)}
+
+
+@router.put("/google-maps", response_model=dict)
+async def admin_set_google_maps_config(
+    payload: GoogleMapsKeyPayload,
+    current_admin: dict = Depends(get_current_admin_strict),
+):
+    void = current_admin
+    await set_google_maps_api_key(payload.apiKey)
+    key = await get_google_maps_api_key()
+    return {"success": True, "configured": bool(key), "maskedKey": _mask_key(key)}
 
 CAPACITY_REFERENCE_CONFIG = {
     "retroexcavadora": {"options": [0.4, 0.5, 0.6], "anchor": 0.5},
