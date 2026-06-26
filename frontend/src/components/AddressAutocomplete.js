@@ -17,7 +17,11 @@ export function getGoogleMapsApiKey() {
     return `${v.slice(0, 6)}…${v.slice(-4)}`;
   };
 
-  const fromRuntimeRaw = window.__MAQGO_RUNTIME_CONFIG__?.googleMapsApiKey || '';
+  const fromRuntimeRaw =
+    window.__MAQGO_RUNTIME_CONFIG__?.googleMapsApiKey ||
+    window.__MAQGO_RUNTIME_CONFIG__?.google_maps_api_key ||
+    window.__MAQGO_RUNTIME_CONFIG__?.VITE_GOOGLE_MAPS_API_KEY ||
+    '';
   const fromRuntime = sanitize(fromRuntimeRaw);
 
   // Build-time env (Vercel)

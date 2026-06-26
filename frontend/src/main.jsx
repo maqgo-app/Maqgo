@@ -17,6 +17,33 @@ import { registerSW } from "virtual:pwa-register";
 validateMaqgoEnvAtStartup();
 
 try {
+  if (typeof window !== "undefined") {
+    window.__MAQGO_RUNTIME_CONFIG__ = window.__MAQGO_RUNTIME_CONFIG__ || {};
+    const hasMapsKey = Boolean(window.__MAQGO_RUNTIME_CONFIG__?.googleMapsApiKey);
+    const attempted = window.sessionStorage?.getItem("maqgo_public_config_loaded") === "1";
+    if (!hasMapsKey && !attempted) {
+      window.sessionStorage?.setItem("maqgo_public_config_loaded", "1");
+      const controller = new AbortController();
+      window.setTimeout(() => controller.abort(), 4500);
+      fetch("/api/public-config", { signal: controller.signal })
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((cfg) => {
+          const key = String(cfg?.googleMapsApiKey || "").trim();
+          if (key) {
+            window.__MAQGO_RUNTIME_CONFIG__ = {
+              ...(window.__MAQGO_RUNTIME_CONFIG__ || {}),
+              googleMapsApiKey: key,
+            };
+          }
+        })
+        .catch(() => void 0);
+    }
+  }
+} catch {
+  void 0;
+}
+
+try {
   if (typeof window !== "undefined" && "serviceWorker" in navigator) {
     const hadController = Boolean(navigator.serviceWorker.controller);
     let refreshing = false;

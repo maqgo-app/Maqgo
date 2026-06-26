@@ -364,6 +364,7 @@ marketing_kpi_router = None
 marketing_cron_router = None
 support_router = None
 public_stats_router = None
+public_config_router = None
 bookings_router = None
 machines_router = None
 
@@ -478,6 +479,12 @@ try:
     logger.info("ROUTER LOADED: public_stats")
 except Exception as e:
     logger.error(f"ROUTER FAILED: public_stats - {e}")
+
+try:
+    from routes.public_config import router as public_config_router  # type: ignore
+    logger.info("ROUTER LOADED: public_config")
+except Exception as e:
+    logger.error(f"ROUTER FAILED: public_config - {e}")
 try:
     from routes.bookings import router as bookings_router  # type: ignore
     logger.info("ROUTER LOADED: bookings")
@@ -579,6 +586,7 @@ _include_if_present(marketing_kpi_router, "marketing_kpi")
 _include_if_present(marketing_cron_router, "marketing_cron")
 _include_if_present(support_router, "support")
 _include_if_present(public_stats_router, "public_stats")
+_include_if_present(public_config_router, "public_config")
 _include_if_present(bookings_router, "bookings")
 
 # Register main router
