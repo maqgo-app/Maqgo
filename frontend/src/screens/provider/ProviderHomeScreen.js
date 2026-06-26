@@ -49,7 +49,13 @@ function ProviderHomeScreen() {
   const [isToggling, setIsToggling] = useState(false);
   const [showBankWarningModal, setShowBankWarningModal] = useState(false);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
-  const [machineSyncFailed, setMachineSyncFailed] = useState(false);
+  const [machineSyncFailed, setMachineSyncFailed] = useState(() => {
+    try {
+      return localStorage.getItem('providerMachineSyncFailed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const providerData = getObject('providerData', {});
   const machineData = getObject('machineData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
@@ -136,7 +142,7 @@ function ProviderHomeScreen() {
   const activationAllComplete = activationItems.length === 0 ? true : activationCompletedCount === activationItems.length;
   const activationPending = onboardingCompleted && !activationAllComplete;
   const canReceiveRequests = onboardingCompleted && activationAllComplete;
-  const showMachineSyncFailedBanner = machineSyncFailed && !machineComplete;
+  const showMachineSyncFailedBanner = machineSyncFailed;
   /** Solo falta banco: un único CTA principal (FASE 3). */
   const bankOnlyMissing =
     onboardingCompleted &&

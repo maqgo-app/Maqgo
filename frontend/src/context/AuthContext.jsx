@@ -170,7 +170,24 @@ export function AuthProvider({ children }) {
             if (role === 'owner') role = 'super_master';
             setProviderRole(role);
             const basePerms = DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.super_master;
-            setPermissions(mergeProviderPermissionsFromApi(basePerms, roleData?.permissions, role, userId));
+            const permsFromApi = roleData?.permissions;
+            const hasApiPerms = permsFromApi && typeof permsFromApi === 'object' && Object.keys(permsFromApi).length > 0;
+            if (role === 'master' && !hasApiPerms) {
+              try {
+                const raw = localStorage.getItem('masterPermissionsByUserId') || '{}';
+                const map = safeJsonParse(raw, {});
+                const overrides = map && typeof map === 'object' ? map[String(userId)] : null;
+                if (overrides && typeof overrides === 'object') {
+                  setPermissions(mergeProviderPermissionsFromApi(basePerms, overrides, role, userId));
+                } else {
+                  setPermissions(mergeProviderPermissionsFromApi(basePerms, permsFromApi, role, userId));
+                }
+              } catch {
+                setPermissions(mergeProviderPermissionsFromApi(basePerms, permsFromApi, role, userId));
+              }
+            } else {
+              setPermissions(mergeProviderPermissionsFromApi(basePerms, permsFromApi, role, userId));
+            }
             setOwnerId(roleData.owner_id || null);
             setOwnerName(roleData.owner_name);
             localStorage.setItem('providerRole', role);
@@ -181,7 +198,23 @@ export function AuthProvider({ children }) {
           let role = savedProviderRole || 'super_master';
           if (role === 'owner') role = 'super_master';
           setProviderRole(role);
-          setPermissions(DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.super_master);
+          const basePerms = DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.super_master;
+          if (role === 'master') {
+            try {
+              const raw = localStorage.getItem('masterPermissionsByUserId') || '{}';
+              const map = safeJsonParse(raw, {});
+              const overrides = map && typeof map === 'object' ? map[String(userId)] : null;
+              if (overrides && typeof overrides === 'object') {
+                setPermissions(mergeProviderPermissionsFromApi(basePerms, overrides, role, userId));
+              } else {
+                setPermissions(basePerms);
+              }
+            } catch {
+              setPermissions(basePerms);
+            }
+          } else {
+            setPermissions(basePerms);
+          }
         }
       }
 

@@ -42,35 +42,17 @@ function MasterJoinScreen() {
       return;
     }
     const phoneE164 = normalizeChileanMobileE164(phone);
-    if (!firstName.trim()) {
-      setError('Ingresa tu nombre');
-      return;
-    }
-    if (!lastName.trim()) {
-      setError('Ingresa tu apellido');
-      return;
-    }
-    if (!rut.trim()) {
-      setError('Ingresa tu RUT');
-      return;
-    }
-    if (!validatePersonRut(rut)) {
-      setError('Ingresa un RUT de persona válido. No se acepta RUT empresa.');
-      return;
-    }
-    if (!phoneE164) {
-      setError('Ingresa un celular válido');
-      return;
-    }
     setLoading(true);
     setError('');
     try {
       const payload = {
         code: c,
-        master_name: firstName.trim(),
-        master_last_name: lastName.trim(),
-        master_rut: formatRut(rut.trim()),
-        master_phone: phoneE164,
+        ...(String(firstName || '').trim() ? { master_name: String(firstName).trim() } : {}),
+        ...(String(lastName || '').trim() ? { master_last_name: String(lastName).trim() } : {}),
+        ...(String(rut || '').trim() && validatePersonRut(rut)
+          ? { master_rut: formatRut(String(rut).trim()) }
+          : {}),
+        ...(phoneE164 ? { master_phone: phoneE164 } : {}),
         ...(String(email || '').trim() ? { master_email: String(email).trim() } : {}),
       };
       const res = await axios.post(`${BACKEND_URL}/api/operators/masters/join`, payload, {
@@ -78,7 +60,7 @@ function MasterJoinScreen() {
         headers: { 'Content-Type': 'application/json' },
       });
       const data = res.data || {};
-      persistRegisterDataPhoneDigits(phoneE164);
+      persistRegisterDataPhoneDigits(phoneE164 || data?.master_phone || '');
       try {
         localStorage.setItem('desiredRole', 'provider');
         localStorage.setItem('maqgo_device_id', getDeviceId());

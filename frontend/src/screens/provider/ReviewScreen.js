@@ -58,10 +58,7 @@ function ReviewScreen() {
       const userId = localStorage.getItem('userId');
       if (!userId) {
         if (isDev) {
-          navigate('/provider/profile/banco', {
-            replace: true,
-            state: { finalizeOnboarding: true, returnTo: '/provider/home' },
-          });
+          navigate('/provider/home', { replace: true });
           return;
         }
         toast.error('Tu sesión expiró. Inicia sesión nuevamente para finalizar el registro.');
@@ -145,17 +142,23 @@ function ReviewScreen() {
             void 0;
           }
           const msg = String(e?.message || '').trim();
-          toast.warning(msg ? `Tu perfil quedó guardado, pero faltó registrar la máquina: ${msg}` : 'Tu perfil quedó guardado, pero faltó registrar la máquina. Intenta de nuevo desde “Mis Máquinas”.');
+          toast.warning(
+            msg
+              ? `Tu perfil quedó guardado, pero falta registrar la máquina: ${msg}`
+              : 'Tu perfil quedó guardado, pero falta registrar la máquina. Intenta de nuevo desde “Mis Máquinas”.'
+          );
         }
       }
 
       // Sincronizar onboarding -> Mis Máquinas (fuente de UI local del proveedor)
       upsertOnboardingMachine(machineData, pricing, operatorsPayload);
+      try {
+        localStorage.removeItem('machineData');
+      } catch {
+        void 0;
+      }
       localStorage.setItem('providerOnboardingStep', '7');
-      navigate('/provider/profile/banco', {
-        replace: true,
-        state: { finalizeOnboarding: true, returnTo: '/provider/home' },
-      });
+      navigate('/provider/home', { replace: true, state: { finalizeOnboarding: true } });
     } catch (e) {
       if (import.meta.env.PROD) {
         const status = e?.response?.status;
@@ -172,10 +175,7 @@ function ReviewScreen() {
         return;
       }
       localStorage.setItem('providerOnboardingStep', '7');
-      navigate('/provider/profile/banco', {
-        replace: true,
-        state: { finalizeOnboarding: true, returnTo: '/provider/home' },
-      });
+      navigate('/provider/home', { replace: true, state: { finalizeOnboarding: true } });
     } finally {
       setLoading(false);
     }

@@ -60,9 +60,9 @@ test.describe('QA: onboarding proveedor “Yo mismo” (activación)', () => {
     await page.waitForLoadState('load');
 
     await page.getByTestId('price-input').fill('110000');
-    const transportInput = page.getByTestId('transport-input');
-    if (await transportInput.count()) {
-      await transportInput.fill('30000');
+    const transportSameComuna = page.getByTestId('transport-input-same-comuna');
+    if (await transportSameComuna.count()) {
+      await transportSameComuna.fill('30000');
     }
     const frontalPickerGroup = page.getByRole('button', { name: /^Subir frontal$/i }).locator('..');
     await frontalPickerGroup.locator('input[type="file"]').setInputFiles({

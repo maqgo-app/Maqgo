@@ -462,7 +462,7 @@ function PaymentResultScreen() {
         <div className="maqgo-screen">
           <div style={{ padding: 24, textAlign: 'center' }}>
             <h2 style={{ color: '#FAFAFA', fontSize: 20, fontWeight: 600, margin: '20px 0 12px', lineHeight: 1.3, letterSpacing: '-0.02em' }}>
-              Reserva confirmada
+              ¡Reserva confirmada!
             </h2>
             <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: '0 0 16px', lineHeight: 1.5, maxWidth: 320 }}>
               No pudimos cargar el detalle completo de la transacción. Puedes volver al inicio o reintentar para ver la información.
@@ -579,9 +579,9 @@ function PaymentResultScreen() {
             >
               <CheckCircle2 size={22} color="#90BDD3" />
             </div>
-            <div style={{ color: '#fff', fontSize: 21, fontWeight: 900, lineHeight: 1.15 }}>
-              Reserva confirmada
-            </div>
+            <h2 style={{ color: '#fff', fontSize: 21, fontWeight: 900, lineHeight: 1.15, margin: 0 }}>
+              ¡Reserva confirmada!
+            </h2>
             <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12.5, marginTop: 6 }}>
               Tu reserva está confirmada.
             </div>

@@ -40,7 +40,7 @@ const MIN_PRICE_SERVICE = 100000;
 const MIN_TRANSPORT = 15000;
 const PHOTO_SLOT_LABELS = ['Frontal', 'Lateral', 'Trasera'];
 const PHOTO_SLOT_OPTIONALITY = {
-  Frontal: 'Obligatoria',
+  Frontal: 'Opcional',
   Lateral: 'Opcional',
   Trasera: 'Opcional',
 };
@@ -213,7 +213,7 @@ function MachinePhotosPricingScreen() {
       otherRegionNum >= MIN_TRANSPORT &&
       transportOrderValid
     : priceBaseNum >= minPrice;
-  const ctaReady = Boolean(hasFrontalPhoto && canContinue);
+  const ctaReady = Boolean(canContinue);
 
   const priceImpact = getPriceImpactLabel(priceBaseNum, refPrice);
 
@@ -221,7 +221,6 @@ function MachinePhotosPricingScreen() {
     new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(price);
 
   const ctaHint = (() => {
-    if (hasFrontalPhoto === false) return 'Sube la foto frontal para continuar.';
     if (!priceBaseNum || priceBaseNum < minPrice) {
       return `Completa una tarifa base desde ${formatPrice(minPrice)}${isPerHour ? '/hora' : ''}.`;
     }
@@ -386,24 +385,22 @@ function MachinePhotosPricingScreen() {
       setError(`El precio máximo es ${formatPrice(maxPrice)}${isPerHour ? '/hora' : ''}. ${PRICE_CAP_RULE_LABEL}`);
       return;
     }
+    const normalizedSameRegion = sameRegionNum || sameComunaNum;
+    const normalizedOtherRegion = otherRegionNum || normalizedSameRegion;
+    const normalizedTransportOrderValid =
+      !needsTransport ||
+      (normalizedSameRegion >= sameComunaNum && normalizedOtherRegion >= normalizedSameRegion);
+
     if (needsTransport) {
       if (!sameComunaNum || sameComunaNum < MIN_TRANSPORT) {
         setError(`El traslado mínimo para misma comuna es ${formatPrice(MIN_TRANSPORT)}.`);
         return;
       }
-      if (!sameRegionNum || sameRegionNum < MIN_TRANSPORT) {
-        setError(`Completa el traslado para comuna distinta, misma región.`);
-        return;
-      }
-      if (!otherRegionNum || otherRegionNum < MIN_TRANSPORT) {
-        setError(`Completa el traslado para región colindante (máx. 150 km).`);
-        return;
-      }
-      if (sameComunaNum > maxTransport || sameRegionNum > maxTransport || otherRegionNum > maxTransport) {
+      if (sameComunaNum > maxTransport || normalizedSameRegion > maxTransport || normalizedOtherRegion > maxTransport) {
         setError(`El traslado máximo es ${formatPrice(maxTransport)}. ${PRICE_CAP_RULE_LABEL}`);
         return;
       }
-      if (!transportOrderValid) {
+      if (!normalizedTransportOrderValid) {
         setError('El traslado entre comunas de la misma región no puede ser menor que misma comuna, y región colindante (máx. 150 km) no puede ser menor que misma región.');
         return;
       }
@@ -413,8 +410,8 @@ function MachinePhotosPricingScreen() {
       priceBase: priceBaseNum,
       transportCost: needsTransport ? sameComunaNum : 0,
       transportSameComuna: needsTransport ? sameComunaNum : 0,
-      transportSameRegion: needsTransport ? sameRegionNum : 0,
-      transportOtherRegion: needsTransport ? otherRegionNum : 0,
+      transportSameRegion: needsTransport ? normalizedSameRegion : 0,
+      transportOtherRegion: needsTransport ? normalizedOtherRegion : 0,
       needsTransport,
       isPerHour,
       machineType,

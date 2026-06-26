@@ -70,7 +70,7 @@ export function resolveBackendBaseUrl(rawFromEnv) {
     if (!isLocalHostname(host)) {
       return 'https://api2.maqgo.cl';
     }
-    return normalizeBackendBase('http://localhost:8000');
+    return '';
   }
 
   throw new Error('BACKEND URL NOT CONFIGURED');

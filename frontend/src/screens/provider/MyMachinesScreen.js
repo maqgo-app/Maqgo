@@ -112,12 +112,12 @@ function buildOperatorCodesRoute() {
 function MyMachinesScreen() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasPermission } = useAuth();
+  const { hasPermission, loading: authLoading } = useAuth();
   const toast = useToast();
-  const canManageMachines = hasPermission('canManageMachines');
-  const canDeleteMachines = hasPermission('canDeleteMachines');
-  const canAssignOperator = hasPermission('canAssignOperator');
-  const canManageOperators = hasPermission('canManageOperators');
+  const canManageMachines = hasPermission('canManageMachines') || hasPermission('can_manage_machines');
+  const canDeleteMachines = hasPermission('canDeleteMachines') || hasPermission('can_delete_machines');
+  const canAssignOperator = hasPermission('canAssignOperator') || hasPermission('can_assign_operator');
+  const canManageOperators = hasPermission('canManageOperators') || hasPermission('can_manage_operators');
   const canAssignOperators = canAssignOperator || canManageOperators;
   const blocked = !canManageMachines;
   const activationEdit = Boolean(location.state?.activationEdit);
@@ -162,8 +162,12 @@ function MyMachinesScreen() {
     }
   }, [activationEdit, blocked, canAssignOperators, machines, navigate, openOperatorForMachineId, location.pathname, returnTo]);
 
+  if (authLoading) {
+    return null;
+  }
+
   if (blocked) {
-    return <Navigate to="/provider/home" replace />;
+    return <Navigate to="/provider/data" replace />;
   }
 
   const setDefaultOperator = (machineryId, operatorId) => {
