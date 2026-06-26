@@ -272,230 +272,232 @@ function FAQScreen() {
           <div style={{ padding: 18, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}>
             <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, fontWeight: 800 }}>Cargando…</div>
           </div>
-        ) : null}
+        ) : (
+          <>
 
-        {!isAuthLoading && !session.isAuthenticated && (
-          <div
-            style={{
-              display: 'flex',
-              gap: 8,
-              marginBottom: 24,
-              overflowX: 'auto',
-              paddingBottom: 4,
-            }}
-          >
-            {FAQ_DATA.map((cat) => (
-              <button
-                key={cat.category}
-                onClick={() => {
-                  setActiveCategory(cat.category);
-                  setOpenIndex(null);
-                }}
+            {!session.isAuthenticated && (
+              <div
                 style={{
-                  padding: '10px 18px',
-                  borderRadius: 20,
-                  border: 'none',
-                  background: activeCategory === cat.category ? '#EC6819' : '#2A2A2A',
-                  color: '#fff',
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  gap: 8,
+                  marginBottom: 24,
+                  overflowX: 'auto',
+                  paddingBottom: 4,
                 }}
               >
-                {cat.category}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, opacity: isAuthLoading ? 0.45 : 1 }}>
-          {grouped
-            ? (() => {
-                let globalIndex = 0;
-                return grouped.flatMap((g, gi) => {
-                  const header = (
-                    <div
-                      key={`h-${gi}`}
-                      style={{
-                        marginTop: gi === 0 ? 0 : 10,
-                        padding: '10px 12px',
-                        borderRadius: 12,
-                        background: 'rgba(236, 104, 25, 0.10)',
-                        border: '1px solid rgba(236, 104, 25, 0.22)',
-                      }}
-                    >
-                      <div
-                        style={{
-                          color: '#EC6819',
-                          fontSize: 13,
-                          fontWeight: 900,
-                          letterSpacing: 0.2,
-                        }}
-                      >
-                        {g.title}
-                      </div>
-                    </div>
-                  );
-
-                  const items = g.items.map((item) => {
-                    const idx = globalIndex;
-                    globalIndex += 1;
-                    return (
-                      <div
-                        key={`${g.title}-${item.q}`}
-                        style={{
-                          background: '#2A2A2A',
-                          borderRadius: 12,
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <button
-                          onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
-                          style={{
-                            width: '100%',
-                            padding: 16,
-                            background: 'none',
-                            border: 'none',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-start',
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                            gap: 12,
-                          }}
-                        >
-                          <span style={{ color: '#fff', fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>
-                            {item.q}
-                          </span>
-                          <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            style={{
-                              transform: openIndex === idx ? 'rotate(180deg)' : 'rotate(0)',
-                              transition: 'transform 0.2s',
-                              flexShrink: 0,
-                              marginTop: 2,
-                            }}
-                          >
-                            <path d="M6 9L12 15L18 9" stroke="#888" strokeWidth="2" strokeLinecap="round" />
-                          </svg>
-                        </button>
-
-                        {openIndex === idx && (
-                          <div
-                            style={{
-                              padding: '0 16px 16px',
-                              color: 'rgba(255,255,255,0.8)',
-                              fontSize: 14,
-                              lineHeight: 1.6,
-                            }}
-                          >
-                            {item.a}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  });
-
-                  return [header, ...items];
-                });
-              })()
-            : (currentFAQ?.questions ?? []).map((item, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: '#2A2A2A',
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                  }}
-                >
+                {FAQ_DATA.map((cat) => (
                   <button
-                    onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
+                    key={cat.category}
+                    onClick={() => {
+                      setActiveCategory(cat.category);
+                      setOpenIndex(null);
+                    }}
                     style={{
-                      width: '100%',
-                      padding: 16,
-                      background: 'none',
+                      padding: '10px 18px',
+                      borderRadius: 20,
                       border: 'none',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
+                      background: activeCategory === cat.category ? '#EC6819' : '#2A2A2A',
+                      color: '#fff',
+                      fontSize: 14,
+                      fontWeight: 500,
                       cursor: 'pointer',
-                      textAlign: 'left',
-                      gap: 12,
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    <span style={{ color: '#fff', fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>
-                      {item.q}
-                    </span>
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      style={{
-                        transform: openIndex === idx ? 'rotate(180deg)' : 'rotate(0)',
-                        transition: 'transform 0.2s',
-                        flexShrink: 0,
-                        marginTop: 2,
-                      }}
-                    >
-                      <path d="M6 9L12 15L18 9" stroke="#888" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
+                    {cat.category}
                   </button>
+                ))}
+              </div>
+            )}
 
-                  {openIndex === idx && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {grouped
+                ? (() => {
+                    let globalIndex = 0;
+                    return grouped.flatMap((g, gi) => {
+                      const header = (
+                        <div
+                          key={`h-${gi}`}
+                          style={{
+                            marginTop: gi === 0 ? 0 : 10,
+                            padding: '10px 12px',
+                            borderRadius: 12,
+                            background: 'rgba(236, 104, 25, 0.10)',
+                            border: '1px solid rgba(236, 104, 25, 0.22)',
+                          }}
+                        >
+                          <div
+                            style={{
+                              color: '#EC6819',
+                              fontSize: 13,
+                              fontWeight: 900,
+                              letterSpacing: 0.2,
+                            }}
+                          >
+                            {g.title}
+                          </div>
+                        </div>
+                      );
+
+                      const items = g.items.map((item) => {
+                        const idx = globalIndex;
+                        globalIndex += 1;
+                        return (
+                          <div
+                            key={`${g.title}-${item.q}`}
+                            style={{
+                              background: '#2A2A2A',
+                              borderRadius: 12,
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <button
+                              onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
+                              style={{
+                                width: '100%',
+                                padding: 16,
+                                background: 'none',
+                                border: 'none',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'flex-start',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                gap: 12,
+                              }}
+                            >
+                              <span style={{ color: '#fff', fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>
+                                {item.q}
+                              </span>
+                              <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                style={{
+                                  transform: openIndex === idx ? 'rotate(180deg)' : 'rotate(0)',
+                                  transition: 'transform 0.2s',
+                                  flexShrink: 0,
+                                  marginTop: 2,
+                                }}
+                              >
+                                <path d="M6 9L12 15L18 9" stroke="#888" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                            </button>
+
+                            {openIndex === idx && (
+                              <div
+                                style={{
+                                  padding: '0 16px 16px',
+                                  color: 'rgba(255,255,255,0.8)',
+                                  fontSize: 14,
+                                  lineHeight: 1.6,
+                                }}
+                              >
+                                {item.a}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      });
+
+                      return [header, ...items];
+                    });
+                  })()
+                : (currentFAQ?.questions ?? []).map((item, idx) => (
                     <div
+                      key={idx}
                       style={{
-                        padding: '0 16px 16px',
-                        color: 'rgba(255,255,255,0.8)',
-                        fontSize: 14,
-                        lineHeight: 1.6,
+                        background: '#2A2A2A',
+                        borderRadius: 12,
+                        overflow: 'hidden',
                       }}
                     >
-                      {item.a}
-                    </div>
-                  )}
-                </div>
-              ))}
-        </div>
+                      <button
+                        onClick={() => setOpenIndex(openIndex === idx ? null : idx)}
+                        style={{
+                          width: '100%',
+                          padding: 16,
+                          background: 'none',
+                          border: 'none',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          gap: 12,
+                        }}
+                      >
+                        <span style={{ color: '#fff', fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>
+                          {item.q}
+                        </span>
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          style={{
+                            transform: openIndex === idx ? 'rotate(180deg)' : 'rotate(0)',
+                            transition: 'transform 0.2s',
+                            flexShrink: 0,
+                            marginTop: 2,
+                          }}
+                        >
+                          <path d="M6 9L12 15L18 9" stroke="#888" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      </button>
 
-        {/* Links */}
-        <div style={{ marginTop: 32, textAlign: 'center' }}>
-          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, marginBottom: 16 }}>
-            ¿Aún tienes dudas? Escríbenos a <span style={{ fontWeight: 600 }}>soporte@maqgo.cl</span>. Atendemos en horario hábil de lunes a viernes.
-          </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
-            <button
-              onClick={() => navigate('/terms')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#90BDD3',
-                fontSize: 13,
-                cursor: 'pointer',
-                textDecoration: 'underline'
-              }}
-            >
-              Términos y Condiciones
-            </button>
-            <button
-              onClick={() => navigate('/privacy')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#90BDD3',
-                fontSize: 13,
-                cursor: 'pointer',
-                textDecoration: 'underline'
-              }}
-            >
-              Política de Privacidad
-            </button>
-          </div>
-        </div>
+                      {openIndex === idx && (
+                        <div
+                          style={{
+                            padding: '0 16px 16px',
+                            color: 'rgba(255,255,255,0.8)',
+                            fontSize: 14,
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          {item.a}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+            </div>
+
+            <div style={{ marginTop: 32, textAlign: 'center' }}>
+              <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, marginBottom: 16 }}>
+                ¿Aún tienes dudas? Escríbenos a <span style={{ fontWeight: 600 }}>soporte@maqgo.cl</span>. Atendemos en horario hábil de lunes a viernes.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
+                <button
+                  onClick={() => navigate('/terms')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#90BDD3',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Términos y Condiciones
+                </button>
+                <button
+                  onClick={() => navigate('/privacy')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#90BDD3',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Política de Privacidad
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
