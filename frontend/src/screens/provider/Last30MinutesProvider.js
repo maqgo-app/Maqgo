@@ -85,7 +85,7 @@ function Last30MinutesProvider() {
         <div className="warning-alert">
           <div className="warning-icon">!</div>
           <div className="warning-content">
-            <span className="warning-title">¡Últimos 30 minutos!</span>
+            <span className="warning-title">Últimos 30 minutos</span>
             <span className="warning-subtitle">El servicio está por finalizar</span>
           </div>
         </div>
