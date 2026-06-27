@@ -746,19 +746,7 @@ function SearchingProviderScreen() {
               Tu servicio está en camino
             </p>
 
-            {/* Mostrar si el precio fue menor */}
-            {currentProvider && selectedProvider && currentProvider.id !== selectedProvider.id && (
-              <div style={{
-                background: 'rgba(144, 189, 211, 0.2)',
-                borderRadius: 10,
-                padding: 12,
-                marginTop: 20
-              }}>
-                <p style={{ color: '#90BDD3', fontSize: 13, margin: 0, textAlign: 'center' }}>
-                  Encontramos un proveedor a mejor precio.
-                </p>
-              </div>
-            )}
+
           </>
         )}
 
