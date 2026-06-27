@@ -158,14 +158,23 @@ function EnRouteScreen() {
 
         if (distance <= ARRIVAL_RADIUS_METERS) {
           const nowIso = new Date().toISOString();
+          let arrivalRegisteredInBackend = false;
           try {
             await axios.post(
               `${BACKEND_URL}/api/service-requests/${serviceId}/mark-arrival`,
               { lat: operatorLat, lng: operatorLng, source: 'gps' },
               { headers: { 'Content-Type': 'application/json' } }
             );
+            arrivalRegisteredInBackend = true;
           } catch {
-            toast.error('No se pudo registrar la llegada en MAQGO. Intentaremos continuar con respaldo local.');
+            toast.error('No se pudo registrar la llegada en MAQGO. Intenta nuevamente.');
+            setCheckingLocation(false);
+            return;
+          }
+
+          if (!arrivalRegisteredInBackend) {
+            setCheckingLocation(false);
+            return;
           }
 
           localStorage.setItem('providerArrived', 'true');
