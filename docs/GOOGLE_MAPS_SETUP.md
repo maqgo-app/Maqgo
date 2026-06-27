@@ -69,6 +69,19 @@ Google requiere una cuenta de facturación activa para usar Maps, pero da **US$ 
 
 ---
 
+## Alternativa recomendada: Configurar en Railway (backend)
+
+Si tu frontend usa `GET /api/public-config` (MAQGO lo hace al iniciar), es mejor configurar la key en el **backend**:
+
+1. Railway → servicio API → **Variables**
+2. Agrega:
+   - `GOOGLE_MAPS_API_KEY` = tu API key
+3. Redeploy/Restart del servicio
+
+Ventaja: activa Maps/Places sin rebuild del frontend.
+
+---
+
 ## Paso 7: Redeploy
 
 1. En Vercel → **Deployments**

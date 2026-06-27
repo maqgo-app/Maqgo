@@ -35,6 +35,7 @@ Objetivo: que **cualquiera del equipo** despliegue sin romper CORS, URLs ni el a
 | `CORS_ORIGINS` | Producción: Sí | Lista separada por comas. Incluye **`https://maqgo.vercel.app`** y tu dominio custom si existe. **No** uses `*` en prod si puedes evitarlo. |
 | `FRONTEND_URL` | Muy recomendado | URL del front en prod (`https://maqgo.vercel.app`) para redirects/emails. |
 | `MAQGO_ENV` | Recomendado | `production` cuando sea prod real (evita demos peligrosas). |
+| `GOOGLE_MAPS_API_KEY` | Opcional | Activa autocompletado de direcciones (Places) vía `/api/public-config` sin rebuild del front. |
 
 El resto (LabsMobile, Transbank, Redis, etc.) según `backend/.env.example`. **No** subas `.env` a Git.
 
@@ -58,7 +59,7 @@ Debe devolver JSON con estado OK (no 404). Si 502/503: revisa logs de Railway (b
 
 1. **Environment Variables** (Production):
    - `REACT_APP_BACKEND_URL` = `https://TU-API.up.railway.app` (sin `/` al final).
-2. Opcional: `VITE_GOOGLE_MAPS_API_KEY` si usas mapas en prod.
+2. Opcional: `VITE_GOOGLE_MAPS_API_KEY` si quieres hornear la key en el build del front (no recomendado si ya usas `/api/public-config`).
 3. Tras cambiar variables: **Redeploy** (ideal **Clear build cache** si el bundle parece viejo).
 
 ### Error típico en consola del navegador
