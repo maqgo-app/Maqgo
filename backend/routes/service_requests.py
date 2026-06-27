@@ -1557,12 +1557,12 @@ async def mark_arrival(
         arrival_location = {
             "capturedAt": now.isoformat(),
             "source": "manual",
-            "verified": False,
+            "verified": True,
         }
         arrival_event = {
             "type": "arrival",
             "at": now.isoformat(),
-            "verified": False,
+            "verified": True,
             "source": "manual",
             "byUserId": current_user.get("id"),
             "byRole": role,
@@ -1588,7 +1588,7 @@ async def mark_arrival(
             client_id=request.get("clientId"),
             kind="arrival",
         )
-        return {"success": True, "arrivalDetectedAt": now.isoformat(), "verified": False, "source": "manual"}
+        return {"success": True, "arrivalDetectedAt": now.isoformat(), "verified": True, "source": "manual"}
 
     lat = float(lat)
     lng = float(lng)

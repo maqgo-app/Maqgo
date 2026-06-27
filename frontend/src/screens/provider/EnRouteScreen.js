@@ -4,12 +4,6 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
 import axios from 'axios';
 
-// Radio máximo para validar llegada (en metros)
-const ARRIVAL_RADIUS_METERS = 300;
-
-// Radio para notificar al cliente
-const ARRIVING_NOTIFY_RADIUS_METERS = 500;
-
 // Coordenadas de demo para la obra (Santiago Centro)
 const DEMO_WORK_LOCATION = { lat: -33.4489, lng: -70.6693 };
 
@@ -24,7 +18,7 @@ import { isPerTripMachineryType } from '../../utils/machineryNames';
  * - Dirección de destino con botón para abrir navegación
  * - ETA estimado
  * - Datos del cliente
- * - Botón para confirmar llegada (requiere GPS ≤300m)
+ * - Botón para confirmar llegada
  * - Botón para reportar incidente
  */
 function EnRouteScreen() {
@@ -36,9 +30,7 @@ function EnRouteScreen() {
   const [canChangeAssignedOperator, setCanChangeAssignedOperator] = useState(false);
   const [showIncidentModal, setShowIncidentModal] = useState(false);
   const [incidentReason, setIncidentReason] = useState('');
-  const [gpsError, setGpsError] = useState('');
   const [checkingLocation, setCheckingLocation] = useState(false);
-  const [showLocationError, setShowLocationError] = useState(false);
   const [, setOperatorLocation] = useState({ lat: -33.4372, lng: -70.6506 });
   const [workLocation, setWorkLocation] = useState(DEMO_WORK_LOCATION);
   const serviceId = localStorage.getItem('currentServiceId') || `service-${Date.now()}`;
@@ -72,24 +64,6 @@ function EnRouteScreen() {
     setCanChangeAssignedOperator(getArray('assignableServiceOperators', []).length > 1);
   }, []);
 
-  // Obtener ubicación real del operador (GPS)
-  useEffect(() => {
-    if (navigator.geolocation) {
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          setOperatorLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        () => {
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-      return () => navigator.geolocation.clearWatch(watchId);
-    }
-  }, []);
-
   // Simular movimiento del operador hacia la obra (solo demo)
   useEffect(() => {
     const interval = setInterval(() => {
@@ -108,117 +82,6 @@ function EnRouteScreen() {
     }, 60000); // Cada minuto
     return () => clearInterval(timer);
   }, []);
-
-  // Calcular distancia entre dos puntos GPS (fórmula Haversine)
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371e3; // Radio de la Tierra en metros
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c; // Distancia en metros
-  };
-
-  // Canal externo deshabilitado.
-  // Información del servicio basada en estados.
-
-  const handleConfirmArrival = () => {
-    setCheckingLocation(true);
-    setGpsError('');
-    setShowLocationError(false);
-
-    // Verificar si el navegador soporta geolocalización
-    if (!navigator.geolocation) {
-      setGpsError('Tu dispositivo no soporta geolocalización');
-      setShowLocationError(true);
-      setCheckingLocation(false);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const operatorLat = position.coords.latitude;
-        const operatorLng = position.coords.longitude;
-        
-        // Obtener ubicación de la obra (en producción vendría del backend)
-        const workLocation = serviceData.workCoords || DEMO_WORK_LOCATION;
-        
-        // Calcular distancia
-        const distance = calculateDistance(
-          operatorLat, operatorLng,
-          workLocation.lat, workLocation.lng
-        );
-
-
-        if (distance <= ARRIVAL_RADIUS_METERS) {
-          const nowIso = new Date().toISOString();
-          let arrivalRegisteredInBackend = false;
-          try {
-            await axios.post(
-              `${BACKEND_URL}/api/service-requests/${serviceId}/mark-arrival`,
-              { lat: operatorLat, lng: operatorLng, source: 'gps' },
-              { headers: { 'Content-Type': 'application/json' } }
-            );
-            arrivalRegisteredInBackend = true;
-          } catch {
-            toast.error('No se pudo registrar la llegada en MAQGO. Intenta nuevamente.');
-            setCheckingLocation(false);
-            return;
-          }
-
-          if (!arrivalRegisteredInBackend) {
-            setCheckingLocation(false);
-            return;
-          }
-
-          localStorage.setItem('providerArrived', 'true');
-          localStorage.setItem('arrivalConfirmedTime', nowIso);
-          localStorage.setItem('operatorArrivalCoords', JSON.stringify({
-            lat: operatorLat,
-            lng: operatorLng,
-            distance: Math.round(distance)
-          }));
-          navigate('/provider/arrival');
-        } else {
-          // Está fuera del radio permitido
-          setGpsError(`Estás a ${Math.round(distance)} metros de la obra. Debes estar a menos de ${ARRIVAL_RADIUS_METERS}m para confirmar llegada.`);
-          setShowLocationError(true);
-        }
-        setCheckingLocation(false);
-      },
-      (error) => {
-        // Error de geolocalización
-        let errorMsg = 'No se pudo obtener tu ubicación';
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMsg = 'Debes permitir acceso a tu ubicación para confirmar llegada';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMsg = 'Ubicación no disponible. Verifica tu GPS';
-            break;
-          case error.TIMEOUT:
-            errorMsg = 'Tiempo de espera agotado. Intenta de nuevo';
-            break;
-          default:
-            errorMsg = 'Error al obtener ubicación';
-        }
-        setGpsError(errorMsg);
-        setShowLocationError(true);
-        setCheckingLocation(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    );
-  };
 
   const handleReportIncident = async () => {
     // Registrar incidente + activar ventana protegida
@@ -264,16 +127,21 @@ function EnRouteScreen() {
         { headers: { 'Content-Type': 'application/json' } }
       );
     } catch {
-      void 0;
+      toast.error('No se pudo registrar la llegada en MAQGO. Intenta nuevamente.');
+      setCheckingLocation(false);
+      return;
     } finally {
       const nowIso = new Date().toISOString();
       localStorage.setItem('providerArrived', 'true');
       localStorage.setItem('arrivalConfirmedTime', nowIso);
       localStorage.setItem('operatorArrivalCoords', JSON.stringify({ source: 'manual' }));
       setCheckingLocation(false);
-      setShowLocationError(false);
       navigate('/provider/arrival');
     }
+  };
+
+  const handleConfirmArrival = () => {
+    void handleManualArrival();
   };
 
   // Navegación: Waze o Google Maps - priorizar coordenadas (exactas) cuando el cliente eligió dirección con mapa
@@ -575,7 +443,7 @@ function EnRouteScreen() {
           onClick={handleConfirmArrival}
           disabled={checkingLocation}
           aria-busy={checkingLocation}
-          aria-label={checkingLocation ? 'Verificando ubicación' : 'Confirmar llegada a la obra'}
+          aria-label={checkingLocation ? 'Registrando llegada' : 'Confirmar llegada a la obra'}
           style={{ 
             marginBottom: 12,
             opacity: checkingLocation ? 0.7 : 1
@@ -585,7 +453,7 @@ function EnRouteScreen() {
           {checkingLocation ? (
             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
               <span style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
-              Verificando ubicación...
+              Registrando llegada...
             </span>
           ) : (
             <>
@@ -597,93 +465,6 @@ function EnRouteScreen() {
             </>
           )}
         </button>
-
-        {/* Nota sobre GPS */}
-        <div style={{
-          background: 'rgba(144, 189, 211, 0.1)',
-          borderRadius: 8,
-          padding: '10px 12px',
-          marginBottom: 12,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8
-        }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="#90BDD3" strokeWidth="2"/>
-            <path d="M12 8V12" stroke="#90BDD3" strokeWidth="2" strokeLinecap="round"/>
-            <circle cx="12" cy="16" r="1" fill="#90BDD3"/>
-          </svg>
-          <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>
-            Mantén siempre el GPS activo para confirmar que has llegado a la obra
-          </span>
-        </div>
-
-        {/* Modal de error de ubicación */}
-        {showLocationError && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: 20
-          }}>
-            <div style={{
-              background: '#2A2A2A',
-              borderRadius: 16,
-              padding: 24,
-              maxWidth: 320,
-              width: '100%',
-              textAlign: 'center'
-            }}>
-              <div style={{
-                width: 60,
-                height: 60,
-                borderRadius: '50%',
-                background: 'rgba(255, 107, 107, 0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px'
-              }}>
-                <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22S19 14.25 19 9C19 5.13 15.87 2 12 2Z" stroke="#ff6b6b" strokeWidth="2" fill="none"/>
-                  <path d="M12 6V10M12 14H12.01" stroke="#ff6b6b" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: '0 0 12px' }}>
-                No estás en la obra
-              </h3>
-              <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, margin: '0 0 20px', lineHeight: 1.5 }}>
-                {gpsError}
-              </p>
-              <button
-                onClick={() => setShowLocationError(false)}
-                className="maqgo-btn-primary"
-                style={{ marginBottom: 10 }}
-              >
-                OK
-              </button>
-              {String(gpsError || '').toLowerCase().includes('metros de la obra') ? null : (
-                <button
-                  onClick={handleManualArrival}
-                  className="maqgo-btn-secondary"
-                  style={{ marginBottom: 10 }}
-                >
-                  Marcar llegada sin GPS
-                </button>
-              )}
-              <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0 }}>
-                Acércate a la dirección indicada y vuelve a intentar
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Botón reportar incidente */}
         <button
