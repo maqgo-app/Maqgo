@@ -1,6 +1,6 @@
-"""
-Sistema de recordatorios por abandono de reserva
-Envía recordatorios por WhatsApp y Email cuando un usuario abandona el flujo
+"""Sistema de recordatorios por abandono de reserva.
+
+Envía recordatorios por email cuando un usuario abandona el flujo.
 """
 
 from fastapi import APIRouter, BackgroundTasks
@@ -77,20 +77,6 @@ try:
     import resend
 except Exception:
     resend = None
-
-
-async def send_whatsapp_reminder(phone: str, name: str, machinery: str, is_first: bool = True):
-    """Recordatorio de abandono: solo log (WhatsApp transaccional deshabilitado en MVP)."""
-    machinery_name = get_machinery_name(machinery)
-    formatted_phone = phone if phone.startswith("+") else f"+56{phone}"
-    tail = formatted_phone[-4:] if len(formatted_phone) >= 4 else "?"
-    logger.info(
-        "Abandonment reminder skipped (WhatsApp disabled) phone_tail=%s machinery=%s first=%s",
-        tail,
-        machinery_name,
-        is_first,
-    )
-    return True
 
 
 def _is_critical_step(step: str) -> bool:
@@ -334,9 +320,6 @@ async def schedule_reminders(user_id: str, data: AbandonmentData):
             
             logger.info("Sending first abandonment reminder user_id=%s", user_id)
             
-            if data.user_phone:
-                await send_whatsapp_reminder(data.user_phone, data.user_name or 'Cliente', data.machinery, is_first=True)
-            
             if data.user_email:
                 await send_email_reminder(data, is_first=True)
             
@@ -353,9 +336,6 @@ async def schedule_reminders(user_id: str, data: AbandonmentData):
                 return
             
             logger.info("Sending second abandonment reminder user_id=%s", user_id)
-            
-            if data.user_phone:
-                await send_whatsapp_reminder(data.user_phone, data.user_name or 'Cliente', data.machinery, is_first=False)
             
             if data.user_email:
                 await send_email_reminder(data, is_first=False)

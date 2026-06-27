@@ -220,16 +220,8 @@ def send_otp(phone_number: str, channel: str = "sms") -> dict:
             "error": "Formato de teléfono inválido. Usa +569XXXXXXXX.",
         }
         
-    if channel not in ("sms", "whatsapp"):
+    if channel != "sms":
         channel = "sms"
-
-    # Solo SMS por ahora
-    if channel == "whatsapp":
-        logger.info("WHATSAPP_NOT_SUPPORTED; falling back would be SMS only")
-        return {
-            "success": False,
-            "error": "WhatsApp no disponible. Usa SMS.",
-        }
 
     r = _get_redis()
 

@@ -934,7 +934,7 @@ async def get_provider_summary(
 ):
     """
     Generar resumen de ganancias para el proveedor.
-    Útil para el resumen semanal por WhatsApp.
+    Útil para el resumen semanal.
     """
     await _run_sync(AccessPolicy.assert_provider_scope_sync, db, current_user, provider_id)
     from datetime import datetime, timedelta

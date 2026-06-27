@@ -213,93 +213,6 @@ async def _attach_approx_provider_location(viewer: dict, req: dict) -> None:
         "distanceToServiceKm": dist_km,
     }
 
-async def _notify_whatsapp_client_status(
-    request_id: str,
-    client_id: Optional[str],
-    template: str,
-    params: dict,
-) -> None:
-    if not client_id:
-        return
-    try:
-        client_doc = await db.users.find_one({"id": client_id}, {"_id": 0, "phone": 1})
-        phone = _format_cl_phone_e164(client_doc.get("phone") if isinstance(client_doc, dict) else None)
-        if not phone:
-            return
-        from communications import send_whatsapp
-
-        res = send_whatsapp(phone_number=phone, template=template, params=params or {})
-        status_val = "sent" if res.get("success") and not res.get("disabled") else "skipped"
-        err = None if res.get("success") else (res.get("error") or "send_failed")
-        now_iso = datetime.now(timezone.utc).isoformat()
-        await db.service_requests.update_one(
-            {"id": request_id},
-            {
-                "$push": {
-                    "events": {
-                        "type": "client_whatsapp_status",
-                        "createdAt": now_iso,
-                        "template": template,
-                        "to": phone,
-                        "status": status_val,
-                        "error": err,
-                    }
-                }
-            },
-        )
-
-        try:
-            from services.notification_items_service import record_delivery, upsert_notification_item
-
-            template_to_kind = {
-                'confirmation_client': 'confirmed',
-                'client_provider_arrived': 'arrival',
-                'service_started': 'started',
-                'service_finished': 'finished',
-                'client_incident_reported': 'incident',
-                'client_incident_cleared': 'incident_cleared',
-            }
-            kind = template_to_kind.get(str(template or '').strip())
-            if kind:
-                item = await upsert_notification_item(
-                    db,
-                    recipient_user_id=str(client_id),
-                    audience_role='client',
-                    service_request_id=str(request_id),
-                    kind=kind,
-                    extra=params or {},
-                    pinned=kind in {'arrival', 'incident'},
-                )
-                await record_delivery(
-                    db,
-                    notification_id=item['id'],
-                    channel='whatsapp',
-                    status=status_val,
-                    meta={'template': template},
-                )
-        except Exception:
-            pass
-    except Exception as e:
-        try:
-            now_iso = datetime.now(timezone.utc).isoformat()
-            await db.service_requests.update_one(
-                {"id": request_id},
-                {
-                    "$push": {
-                        "events": {
-                            "type": "client_whatsapp_status",
-                            "createdAt": now_iso,
-                            "template": template,
-                            "to": "",
-                            "status": "failed",
-                            "error": str(e),
-                        }
-                    }
-                },
-            )
-        except Exception:
-            pass
-
 async def _notify_push_client_event(
     request_id: str,
     client_id: Optional[str],
@@ -1136,85 +1049,11 @@ async def accept_service_request(
 
             result["payment"] = payment_result
 
-            await _notify_whatsapp_client_status(
-                request_id=request_id,
-                client_id=req.get("clientId"),
-                template="confirmation_client",
-                params={},
-            )
             await _notify_push_client_event(
                 request_id=request_id,
                 client_id=req.get("clientId"),
                 kind="confirmed",
             )
-
-            if provider_role == "operator" and current_user.get("owner_id"):
-                owner = await db.users.find_one(
-                    {"id": current_user.get("owner_id")},
-                    {"_id": 0, "phone": 1, "name": 1},
-                )
-                owner_phone = _format_cl_phone_e164(owner.get("phone") if isinstance(owner, dict) else None)
-                operator_name = str(current_user.get("name") or "").strip() or "Operador"
-                eta_minutes = int(req.get("etaCommitMinutes") or 0)
-                location_text = _best_location_string(req)
-                amount_text = _format_clp(req.get("providerEarnings"))
-
-                mirror_status = "skipped"
-                mirror_error = None
-                mirror_channel = "whatsapp"
-                mirror_to = owner_phone or ""
-
-                if owner_phone:
-                    try:
-                        from communications import notify_owner_operator_accepted
-
-                        r_notify = notify_owner_operator_accepted(
-                            owner_phone=owner_phone,
-                            operator_name=operator_name,
-                            location=location_text,
-                            eta_minutes=eta_minutes,
-                            amount=amount_text,
-                            request_id=str(request_id),
-                        )
-                        if r_notify.get("success"):
-                            mirror_status = "sent"
-                        else:
-                            mirror_status = "failed"
-                            mirror_error = r_notify.get("error")
-                    except Exception as e:
-                        mirror_status = "failed"
-                        mirror_error = str(e)
-                else:
-                    mirror_status = "failed"
-                    mirror_error = "owner_phone_missing"
-
-                now_iso = datetime.now(timezone.utc).isoformat()
-                await db.service_requests.update_one(
-                    {"id": request_id, "$or": [{"events": {"$exists": False}}, {"events": None}]},
-                    {"$set": {"events": []}},
-                )
-                await db.service_requests.update_one(
-                    {"id": request_id},
-                    {
-                        "$set": {
-                            "ownerMirrorNotifiedAt": now_iso,
-                            "ownerMirrorNotifiedChannel": mirror_channel,
-                            "ownerMirrorNotifiedTo": mirror_to,
-                            "ownerMirrorNotifiedStatus": mirror_status,
-                            "ownerMirrorNotifiedError": mirror_error,
-                        },
-                        "$push": {
-                            "events": {
-                                "type": "owner_mirror_operator_accept",
-                                "createdAt": now_iso,
-                                "channel": mirror_channel,
-                                "to": mirror_to,
-                                "status": mirror_status,
-                                "error": mirror_error,
-                            }
-                        },
-                    },
-                )
             booking_id = req.get("bookingId")
             if booking_id:
                 try:
@@ -1577,12 +1416,6 @@ async def mark_arrival(
                 "$push": {"events": arrival_event},
             },
         )
-        await _notify_whatsapp_client_status(
-            request_id=request_id,
-            client_id=request.get("clientId"),
-            template="client_provider_arrived",
-            params={},
-        )
         await _notify_push_client_event(
             request_id=request_id,
             client_id=request.get("clientId"),
@@ -1629,12 +1462,6 @@ async def mark_arrival(
         }
     )
 
-    await _notify_whatsapp_client_status(
-        request_id=request_id,
-        client_id=request.get("clientId"),
-        template="client_provider_arrived",
-        params={},
-    )
     await _notify_push_client_event(
         request_id=request_id,
         client_id=request.get("clientId"),
@@ -1687,12 +1514,6 @@ async def start_service(
     hours = int(request.get("workdayHours") or request.get("totalDurationHours") or 0)
     if hours <= 0:
         hours = 8
-    await _notify_whatsapp_client_status(
-        request_id=request_id,
-        client_id=request.get("clientId"),
-        template="service_started",
-        params={"hours": hours},
-    )
     await _notify_push_client_event(
         request_id=request_id,
         client_id=request.get("clientId"),
@@ -1916,12 +1737,6 @@ async def report_incident(
             "$push": {"events": event},
         },
     )
-    await _notify_whatsapp_client_status(
-        request_id=request_id,
-        client_id=request.get("clientId"),
-        template="client_incident_reported",
-        params={"reason": reason},
-    )
     await _notify_push_client_event(
         request_id=request_id,
         client_id=request.get("clientId"),
@@ -1992,12 +1807,6 @@ async def clear_incident(
             "$push": {"events": event, "incidentHistory": history_item},
         },
     )
-    await _notify_whatsapp_client_status(
-        request_id=request_id,
-        client_id=request.get("clientId"),
-        template="client_incident_cleared",
-        params={},
-    )
     await _notify_push_client_event(
         request_id=request_id,
         client_id=request.get("clientId"),
@@ -2065,12 +1874,6 @@ async def finish_service(
             {'$set': {'isAvailable': True}}
         )
 
-    await _notify_whatsapp_client_status(
-        request_id=request_id,
-        client_id=request.get("clientId") if request else None,
-        template="service_finished",
-        params={"amount": _format_clp(request.get("totalAmount", 0) if request else 0)},
-    )
     await _notify_push_client_event(
         request_id=request_id,
         client_id=request.get("clientId") if request else None,

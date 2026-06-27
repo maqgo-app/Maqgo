@@ -3,15 +3,14 @@ MAQGO – Communications Module
 
 Canales:
 - OTP SMS → LabsMobile (via services.otp_service)
-- SMS/WhatsApp notificaciones transaccionales → deshabilitado (MVP; solo OTP activo)
+- SMS notificaciones transaccionales → deshabilitado (MVP; solo OTP activo)
 """
 
 import os
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Literal
+from typing import Optional
 
-import requests
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +25,6 @@ DEMO_MODE = os.environ.get('MAQGO_DEMO_MODE', 'false').lower() == 'true'
 IS_PRODUCTION = os.environ.get('MAQGO_ENV', 'development').lower() == 'production'
 DEMO_OTP_CODE = '123456'
 
-WHATSAPP_NOTIFICATIONS_ENABLED = os.environ.get("WHATSAPP_NOTIFICATIONS_ENABLED", "false").lower() == "true"
-WHATSAPP_STATUS_UPDATES_ENABLED = os.environ.get("WHATSAPP_STATUS_UPDATES_ENABLED", "false").lower() == "true"
-WHATSAPP_PROVIDER = os.environ.get("WHATSAPP_PROVIDER", "cloud_api").strip().lower()
-WHATSAPP_CLOUD_API_VERSION = os.environ.get("WHATSAPP_CLOUD_API_VERSION", "v20.0").strip()
-WHATSAPP_CLOUD_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_CLOUD_PHONE_NUMBER_ID", "").strip()
-WHATSAPP_CLOUD_ACCESS_TOKEN = os.environ.get("WHATSAPP_CLOUD_ACCESS_TOKEN", "").strip()
-WHATSAPP_CLOUD_LANGUAGE_CODE = os.environ.get("WHATSAPP_CLOUD_LANGUAGE_CODE", "es").strip()
 
 def _is_demo_allowed() -> bool:
     """
@@ -84,167 +76,14 @@ Al aceptar, se ejecuta el cobro automático al cliente.""",
 El cliente fue notificado y el cobro se ejecutó correctamente.""",
 
     'provider_request_expired': """La solicitud expiró por falta de respuesta.""",
-}
 
-WHATSAPP_TEMPLATES = {
-    # === CLIENTE - WhatsApp ===
-    'client_request_sent': """Recibimos tu solicitud de maquinaria.
-Está pendiente de aceptación del proveedor.
-No se ha realizado ningún cobro.
-Revisa el estado del servicio en la app.""",
+    'provider_service_approved_for_invoice': """Servicio aprobado.
+Ya puedes emitir la factura a MAQGO.
+Monto neto: {invoice_amount}""",
 
-    'client_provider_accepted': """¡Servicio confirmado!
-El proveedor aceptó tu solicitud y se ejecutó el cobro automáticamente.
-Revisa los detalles en la app.""",
-
-    'client_provider_arrived': """El operador llegó a la ubicación.
-Ya puedes autorizar el inicio del servicio en la app.""",
-
-    'client_provider_arriving': """El operador está llegando al lugar de acceso.
-Prepárate para recibir al operador.""",
-
-    'client_incident_reported': """El operador reportó una demora/incidente.
-Motivo: {reason}
-Revisa el estado del servicio en la app.""",
-
-    'client_incident_cleared': """Incidente resuelto.
-El servicio continúa. Revisa el estado en la app.""",
-
-    'client_service_reminder': """Recordatorio de tu servicio hoy.
-Maquinaria: {machine}
-Inicio estimado: {start_time}
-""",
-
-    # === PROVEEDOR - WhatsApp ===
-    'new_request_provider': """Nueva solicitud disponible.
-
-Maquinaria: {machine}
-Ubicación: {area}
-Duración: {hours} h
-Ingreso estimado: {amount}
-
-Tienes {minutes} minutos para aceptar.
-Al aceptar, se ejecuta el cobro automático al cliente.""",
-
-    'provider_request_accepted': """Aceptaste el servicio.
-El cliente fue notificado y el cobro se ejecutó correctamente.""",
-
-    # === OPERADOR - WhatsApp ===
-    'operator_assigned': """Fuiste asignado a un servicio.
-Maquinaria: {machine}
-Dirección: {address}
-Inicio estimado: {start_time}""",
-
-    # === TEMPLATES EXISTENTES (actualizados) ===
-    'service_completed_invoice': """¡Servicio completado!
-
-Tu servicio fue entregado exitosamente.
-
-📄 Factura a MAQGO (no al cliente):
-• Razón Social: MAQGO SpA
-• RUT: 76.248.124-3
-• Monto a facturar: {invoice_amount} (neto, menos tarifa plataforma)
-
-Emite la factura dirigida a MAQGO y súbela en "Mis Cobros" para recibir tu pago.
-
-Puedes subir tu factura 24 h después del servicio. Pago en 2 días hábiles tras subirla.""",
-    
-    'confirmation_client': """¡Servicio confirmado!
-El proveedor aceptó tu solicitud y se ejecutó el cobro automáticamente.
-Tu maquinaria ya fue asignada.
-Revisa el estado del servicio en la app.""",
-    
-    'provider_en_route': """Operador en camino.
-
-Tu maquinaria está en camino a tu ubicación.
-Llegada estimada: {eta} minutos.
-Patente: {license_plate}""",
-    
-    'service_started': """Servicio iniciado.
-
-El servicio ha comenzado.
-Duración contratada: {hours} horas.""",
-    
-    'service_finished': """Servicio finalizado.
-
-Gracias por usar MAQGO.
-Total: {amount}
-
-Por favor, califica tu experiencia.""",
-
-    # Templates para Dueño/Secretaria (notificaciones reducidas)
-    'owner_new_assignment': """Nueva asignación.
-
-Tu {machine} ({license_plate}) fue asignada.
-Operador: {operator_name}
-Destino: {location}
-Pago estimado: {amount}
-
-El operador ya está en camino.""",
-
-    'owner_operator_accepted': """Aceptación registrada.
-
-El operador {operator_name} aceptó una solicitud con GPS activo.
-Ubicación: {location}
-ETA comprometido: {eta_minutes} min
-Ingreso estimado: {amount}
-
-Solicitud: {request_id}""",
-    
-    'owner_service_finished': """Servicio completado.
-
-Tu {machine} ({license_plate}) finalizó el servicio.
-Operador: {operator_name}
-Ganancia neta: {net_amount}
-
-Pago en 2 días hábiles tras subir la factura.""",
-    
-    'owner_critical_alert': """Alerta importante.
-
-Problema reportado con tu {machine} ({license_plate}).
-Motivo: {reason}
-Operador: {operator_name}
-
-Contacta al soporte si necesitas ayuda.""",
-
-    'owner_weekly_summary': """Resumen semanal.
-
-Hola {owner_name}, aquí va tu resumen:
-
-Ganado esta semana: {weekly_earned}
-Total del mes: {monthly_earned}
-Servicios completados: {services_count}
-
-Pendientes:
-• Para facturar: {to_invoice}
-• Por cobrar: {to_collect}""",
-
-    'service_approved_invoice': """Servicio aprobado.
-
-¡Tu servicio fue aprobado! Ya puedes facturar a MAQGO.
-
-Datos para facturar (a MAQGO, no al cliente):
-• Razón Social: MAQGO SpA
-• RUT: 76.248.124-3
-• Monto: {invoice_amount} (neto, menos tarifa plataforma)
-
-Sube tu factura en la app para recibir el pago.""",
-
-    'invoice_uploaded': """Factura recibida.
-
-Hemos recibido tu factura N° {invoice_number}.
-
-Tu pago de {net_amount} estará en tu cuenta en 2 días hábiles.
-Revisa el estado del pago en la app.""",
-
-    'payment_sent': """Pago realizado.
-
-¡Listo! Hemos transferido {net_amount} a tu cuenta.
-
-Factura: {invoice_number}
-Revisa tu cuenta bancaria.
-
-¡Gracias por confiar en MAQGO!""",
+    'provider_payment_sent': """Pago realizado.
+Hemos transferido {net_amount} a tu cuenta.
+Factura: {invoice_number}""",
 }
 
 
@@ -280,7 +119,7 @@ def send_sms_otp(phone_number: str, channel: str = 'sms') -> dict:
     """
     logger.info("OTP_SERVICE_START channel=%s phone=%s", channel, _phone_tail(phone_number))
 
-    if channel not in ['sms', 'whatsapp']:
+    if channel != 'sms':
         channel = 'sms'
 
     # OTP interno vía services.otp_service (Redis + LabsMobile)
@@ -413,343 +252,6 @@ def send_sms(
     }
 
 
-# ==================== WHATSAPP FUNCTIONS ====================
-
-def send_whatsapp(
-    phone_number: str,
-    template: str,
-    params: dict
-) -> dict:
-    """Send WhatsApp message using templates."""
-    if template not in WHATSAPP_TEMPLATES:
-        return {
-            'success': False,
-            'error': f'Unknown template: {template}',
-            'log': log_message('whatsapp', phone_number, template, 'error', 'Unknown template')
-        }
-
-    CONTACT_WHATSAPP_TEMPLATES = {
-        # Cliente - estado del servicio
-        'client_request_sent',
-        'client_provider_accepted',
-        'client_provider_arrived',
-        'client_provider_arriving',
-        'client_service_reminder',
-        'confirmation_client',
-        'provider_en_route',
-        'provider_request_accepted',
-        # Proveedor - estado del servicio
-        'new_request_provider',
-        # Ciclo de servicio
-        'service_started',
-        'service_finished',
-        # Operador (asignación a través de eventos externos)
-        'operator_assigned',
-    }
-    if template in CONTACT_WHATSAPP_TEMPLATES and not WHATSAPP_STATUS_UPDATES_ENABLED:
-        logger.info(f"[WHATSAPP DISABLED] template={template} to={phone_number}")
-        return {
-            'success': True,
-            'demo_mode': DEMO_MODE,
-            'disabled': True,
-            'log': log_message('whatsapp', phone_number, template, 'disabled_chat_only')
-        }
-    
-    message_body = WHATSAPP_TEMPLATES[template].format(**params)
-    
-    if DEMO_MODE:
-        logger.info(f"[DEMO] WhatsApp to {phone_number}: {message_body[:100]}...")
-        return {
-            'success': True,
-            'demo_mode': True,
-            'message_preview': message_body[:100],
-            'log': log_message('whatsapp', phone_number, template, 'demo')
-        }
-
-    if not WHATSAPP_NOTIFICATIONS_ENABLED:
-        return {
-            'success': True,
-            'disabled': True,
-            'log': log_message('whatsapp', phone_number, template, 'disabled')
-        }
-
-    if WHATSAPP_PROVIDER != "cloud_api":
-        return {
-            'success': False,
-            'error': f'WhatsApp provider no soportado: {WHATSAPP_PROVIDER}',
-            'log': log_message('whatsapp', phone_number, template, 'error', 'Unsupported provider')
-        }
-
-    if not WHATSAPP_CLOUD_PHONE_NUMBER_ID or not WHATSAPP_CLOUD_ACCESS_TOKEN:
-        return {
-            'success': True,
-            'disabled': True,
-            'log': log_message('whatsapp', phone_number, template, 'disabled_not_configured')
-        }
-
-    to_digits = "".join(c for c in str(phone_number or "") if c.isdigit())
-    if to_digits.startswith("00"):
-        to_digits = to_digits[2:]
-    if to_digits.startswith("56") and len(to_digits) >= 11:
-        pass
-    elif to_digits.startswith("9") and len(to_digits) == 9:
-        to_digits = f"56{to_digits}"
-    if not to_digits or len(to_digits) < 8:
-        return {
-            'success': False,
-            'error': 'Número WhatsApp inválido',
-            'log': log_message('whatsapp', phone_number, template, 'error', 'Invalid phone')
-        }
-
-    url = f"https://graph.facebook.com/{WHATSAPP_CLOUD_API_VERSION}/{WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages"
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to_digits,
-        "type": "text",
-        "text": {"body": message_body},
-    }
-    headers = {
-        "Authorization": f"Bearer {WHATSAPP_CLOUD_ACCESS_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    try:
-        res = requests.post(url, json=payload, headers=headers, timeout=12)
-        if res.status_code not in (200, 201):
-            return {
-                'success': False,
-                'error': f'WhatsApp HTTP {res.status_code}',
-                'log': log_message('whatsapp', phone_number, template, 'failed', f'HTTP {res.status_code}')
-            }
-        try:
-            data = res.json()
-        except ValueError:
-            data = {}
-        msg_id = None
-        msgs = data.get("messages")
-        if isinstance(msgs, list) and msgs:
-            first = msgs[0]
-            if isinstance(first, dict):
-                msg_id = first.get("id")
-        return {
-            'success': True,
-            'provider': 'cloud_api',
-            'message_id': msg_id,
-            'log': log_message('whatsapp', phone_number, template, 'sent')
-        }
-    except requests.exceptions.Timeout:
-        return {
-            'success': False,
-            'error': 'Timeout enviando WhatsApp',
-            'log': log_message('whatsapp', phone_number, template, 'failed', 'timeout')
-        }
-    except Exception as e:
-        return {
-            'success': False,
-            'error': 'Error enviando WhatsApp',
-            'log': log_message('whatsapp', phone_number, template, 'failed', str(e))
-        }
-
-
-# ==================== EVENT-DRIVEN NOTIFICATIONS ====================
-
-def notify_provider_new_request(
-    provider_phone: str,
-    machine: str,
-    area: str,
-    hours: int,
-    amount: str,
-    response_minutes: int = 10
-) -> dict:
-    """
-    B) Solicitud inmediata (WhatsApp – PROVEEDOR)
-    EVENT: Immediate reservation created
-    """
-    return send_whatsapp(
-        phone_number=provider_phone,
-        template='new_request_provider',
-        params={
-            'machine': machine,
-            'area': area,
-            'hours': hours,
-            'amount': amount,
-            'minutes': response_minutes
-        }
-    )
-
-
-def notify_client_provider_confirmed(client_phone: str) -> dict:
-    """
-    D) Confirmación al cliente (WhatsApp)
-    EVENT: Provider accepts
-    """
-    return send_whatsapp(
-        phone_number=client_phone,
-        template='confirmation_client',
-        params={}
-    )
-
-
-def notify_client_provider_en_route(
-    client_phone: str,
-    eta: int,
-    license_plate: str
-) -> dict:
-    """
-    E) Llegada - Operador en camino
-    """
-    return send_whatsapp(
-        phone_number=client_phone,
-        template='provider_en_route',
-        params={
-            'eta': eta,
-            'license_plate': license_plate
-        }
-    )
-
-
-def notify_service_started(client_phone: str, hours: int) -> dict:
-    """
-    E) Inicio de servicio
-    """
-    return send_whatsapp(
-        phone_number=client_phone,
-        template='service_started',
-        params={'hours': hours}
-    )
-
-
-def notify_service_finished(client_phone: str, amount: str) -> dict:
-    """
-    E) Fin de servicio
-    """
-    return send_whatsapp(
-        phone_number=client_phone,
-        template='service_finished',
-        params={'amount': amount}
-    )
-
-
-# ==================== OWNER/SECRETARY NOTIFICATIONS ====================
-
-def notify_owner_new_assignment(
-    owner_phone: str,
-    machine: str,
-    license_plate: str,
-    operator_name: str,
-    location: str,
-    amount: str
-) -> dict:
-    """
-    Notificar al dueño/secretaria cuando se asigna un operador a un trabajo.
-    Solo envía esta notificación (no satura con todas las del operador).
-    """
-    return send_whatsapp(
-        phone_number=owner_phone,
-        template='owner_new_assignment',
-        params={
-            'machine': machine,
-            'license_plate': license_plate,
-            'operator_name': operator_name,
-            'location': location,
-            'amount': amount
-        }
-    )
-
-
-def notify_owner_operator_accepted(
-    owner_phone: str,
-    operator_name: str,
-    location: str,
-    eta_minutes: int,
-    amount: str,
-    request_id: str,
-) -> dict:
-    return send_whatsapp(
-        phone_number=owner_phone,
-        template='owner_operator_accepted',
-        params={
-            'operator_name': operator_name,
-            'location': location,
-            'eta_minutes': eta_minutes,
-            'amount': amount,
-            'request_id': request_id,
-        },
-    )
-
-
-def notify_owner_service_finished(
-    owner_phone: str,
-    machine: str,
-    license_plate: str,
-    operator_name: str,
-    net_amount: str
-) -> dict:
-    """
-    Notificar al dueño/secretaria cuando el servicio finaliza.
-    Incluye la ganancia neta (después de comisión MAQGO).
-    """
-    return send_whatsapp(
-        phone_number=owner_phone,
-        template='owner_service_finished',
-        params={
-            'machine': machine,
-            'license_plate': license_plate,
-            'operator_name': operator_name,
-            'net_amount': net_amount
-        }
-    )
-
-
-def notify_owner_critical_alert(
-    owner_phone: str,
-    machine: str,
-    license_plate: str,
-    operator_name: str,
-    reason: str
-) -> dict:
-    """
-    Notificar al dueño/secretaria de problemas críticos.
-    Ej: No-show, cancelación, incidente grave.
-    """
-    return send_whatsapp(
-        phone_number=owner_phone,
-        template='owner_critical_alert',
-        params={
-            'machine': machine,
-            'license_plate': license_plate,
-            'operator_name': operator_name,
-            'reason': reason
-        }
-    )
-
-
-def notify_owner_weekly_summary(
-    owner_phone: str,
-    owner_name: str,
-    weekly_earned: str,
-    monthly_earned: str,
-    services_count: int,
-    to_invoice: int,
-    to_collect: int
-) -> dict:
-    """
-    Resumen semanal para el dueño.
-    Se envía automáticamente cada lunes o manualmente.
-    """
-    return send_whatsapp(
-        phone_number=owner_phone,
-        template='owner_weekly_summary',
-        params={
-            'owner_name': owner_name,
-            'weekly_earned': weekly_earned,
-            'monthly_earned': monthly_earned,
-            'services_count': services_count,
-            'to_invoice': to_invoice,
-            'to_collect': to_collect
-        }
-    )
-
-
 def notify_service_approved_for_invoice(
     provider_phone: str,
     invoice_amount: str
@@ -761,13 +263,7 @@ def notify_service_approved_for_invoice(
     GATILLO: Se dispara automáticamente cuando un servicio pasa de
     'pending_review' a 'approved' después de 24 horas.
     """
-    return send_whatsapp(
-        phone_number=provider_phone,
-        template='service_approved_invoice',
-        params={
-            'invoice_amount': invoice_amount
-        }
-    )
+    return send_sms(provider_phone, 'provider_service_approved_for_invoice', {'invoice_amount': invoice_amount})
 
 
 def notify_invoice_uploaded(
@@ -780,14 +276,7 @@ def notify_invoice_uploaded(
     
     GATILLO: Se dispara cuando el proveedor sube su factura al sistema.
     """
-    return send_whatsapp(
-        phone_number=provider_phone,
-        template='invoice_uploaded',
-        params={
-            'invoice_number': invoice_number,
-            'net_amount': net_amount
-        }
-    )
+    return send_sms(provider_phone, 'provider_service_approved_for_invoice', {'invoice_amount': net_amount})
 
 
 def notify_payment_sent(
@@ -800,14 +289,7 @@ def notify_payment_sent(
     
     GATILLO: Se dispara cuando MAQGO marca el servicio como 'paid'.
     """
-    return send_whatsapp(
-        phone_number=provider_phone,
-        template='payment_sent',
-        params={
-            'invoice_number': invoice_number,
-            'net_amount': net_amount
-        }
-    )
+    return send_sms(provider_phone, 'provider_payment_sent', {'invoice_number': invoice_number, 'net_amount': net_amount})
 
 
 # ==================== NEW NOTIFICATION FUNCTIONS (Enero 2025) ====================
@@ -815,7 +297,7 @@ def notify_payment_sent(
 def notify_client_request_sent(client_phone: str, use_whatsapp: bool = True) -> dict:
     """
     1️⃣ Solicitud enviada (sin cobro) - CLIENTE
-    Canal: SMS + WhatsApp
+    Canal: SMS
     
     GATILLO: Cliente confirma solicitud (antes de que proveedor acepte)
     """
@@ -824,9 +306,7 @@ def notify_client_request_sent(client_phone: str, use_whatsapp: bool = True) -> 
     # Siempre enviar SMS
     results.append(send_sms(client_phone, 'client_request_sent'))
     
-    # También WhatsApp si está habilitado
-    if use_whatsapp:
-        results.append(send_whatsapp(client_phone, 'client_request_sent', {}))
+    use_whatsapp = False
     
     return {
         'success': all(r.get('success') for r in results),
@@ -838,7 +318,7 @@ def notify_client_request_sent(client_phone: str, use_whatsapp: bool = True) -> 
 def notify_client_provider_accepted(client_phone: str, use_whatsapp: bool = True) -> dict:
     """
     2️⃣ Proveedor aceptó (se ejecuta cobro) - CLIENTE
-    Canal: SMS + WhatsApp
+    Canal: SMS
     
     GATILLO: Proveedor acepta la solicitud
     """
@@ -847,9 +327,7 @@ def notify_client_provider_accepted(client_phone: str, use_whatsapp: bool = True
     # Siempre enviar SMS
     results.append(send_sms(client_phone, 'client_provider_accepted'))
     
-    # También WhatsApp
-    if use_whatsapp:
-        results.append(send_whatsapp(client_phone, 'client_provider_accepted', {}))
+    use_whatsapp = False
     
     return {
         'success': all(r.get('success') for r in results),
@@ -886,19 +364,11 @@ def notify_client_service_reminder(
 ) -> dict:
     """
     5️⃣ Recordatorio previo al servicio - CLIENTE
-    Canal: WhatsApp
+    Canal: SMS (deshabilitado salvo demo)
     
     GATILLO: X horas antes del servicio programado
     """
-    return send_whatsapp(
-        client_phone,
-        'client_service_reminder',
-        {
-            'machine': machine,
-            'start_time': start_time,
-            'provider_name': provider_name
-        }
-    )
+    return send_sms(client_phone, 'client_request_sent')
 
 
 def notify_client_cancellation_no_charge(client_phone: str) -> dict:
@@ -924,10 +394,10 @@ def notify_client_cancellation_with_charge(client_phone: str) -> dict:
 def notify_client_provider_arriving(client_phone: str) -> dict:
     """
     Proveedor llegando (~500m del lugar) - CLIENTE
-    Canal: WhatsApp
+    Canal: SMS
     GATILLO: Proveedor detecta que está a 500m de la obra
     """
-    return send_whatsapp(client_phone, 'client_provider_arriving', {})
+    return send_sms(client_phone, 'client_request_sent')
 
 
 def notify_client_provider_arrived(client_phone: str) -> dict:
@@ -943,7 +413,7 @@ def notify_client_provider_arrived(client_phone: str) -> dict:
 def notify_provider_new_request_sms(provider_phone: str, minutes: int = 10, use_whatsapp: bool = True) -> dict:
     """
     8️⃣ Nueva solicitud entrante - PROVEEDOR
-    Canal: SMS + WhatsApp
+    Canal: SMS
     
     GATILLO: Nueva solicitud disponible para el proveedor
     """
@@ -979,140 +449,3 @@ def notify_provider_request_expired(provider_phone: str) -> dict:
     return send_sms(provider_phone, 'provider_request_expired')
 
 
-def notify_operator_assigned(
-    operator_phone: str,
-    machine: str,
-    address: str,
-    start_time: str
-) -> dict:
-    """
-    1️⃣1️⃣ Asignación a servicio - OPERADOR
-    Canal: WhatsApp
-    
-    GATILLO: Operador es asignado a un servicio
-    """
-    return send_whatsapp(
-        operator_phone,
-        'operator_assigned',
-        {
-            'machine': machine,
-            'address': address,
-            'start_time': start_time
-        }
-    )
-
-
-# ==================== PARALLEL NOTIFICATIONS ====================
-
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
-
-# Thread pool for parallel SMS/WhatsApp sending
-_executor = ThreadPoolExecutor(max_workers=10)
-
-
-def notify_team_new_request_parallel(
-    team_phones: list,
-    machine: str,
-    area: str,
-    hours: int,
-    amount: str,
-    response_minutes: int = 10
-) -> dict:
-    """
-    Notificación PARALELA a todo el equipo cuando llega una nueva solicitud.
-    
-    Notifica simultáneamente a:
-    - Owner/Masters (SMS + WhatsApp con detalles financieros)
-    - Operadores disponibles (SMS + WhatsApp con detalles operacionales)
-    
-    El PRIMERO en aceptar gana el trabajo.
-    
-    Args:
-        team_phones: Lista de diccionarios con {phone, role, name}
-        machine, area, hours, amount: Detalles del servicio
-        response_minutes: Tiempo límite para responder
-    
-    Returns:
-        dict con resultados de todas las notificaciones
-    """
-    results = {
-        'total_notified': 0,
-        'successful': [],
-        'failed': [],
-        'demo_mode': DEMO_MODE
-    }
-    
-    for member in team_phones:
-        phone = member.get('phone')
-        role = member.get('role', 'operator')
-        name = member.get('name', 'Usuario')
-        
-        if not phone:
-            continue
-        
-        try:
-            # Enviar SMS a todos
-            sms_result = send_sms(phone, 'provider_new_request', {'minutes': response_minutes})
-            
-            # Enviar WhatsApp con detalles
-            whatsapp_result = send_whatsapp(
-                phone,
-                'new_request_provider',
-                {
-                    'machine': machine,
-                    'area': area,
-                    'hours': hours,
-                    'amount': amount,
-                    'minutes': response_minutes
-                }
-            )
-            
-            if sms_result.get('success') or whatsapp_result.get('success'):
-                results['successful'].append({
-                    'phone': phone[-4:],  # Solo últimos 4 dígitos por privacidad
-                    'name': name,
-                    'role': role
-                })
-                results['total_notified'] += 1
-            else:
-                results['failed'].append({
-                    'phone': phone[-4:],
-                    'name': name,
-                    'error': sms_result.get('error') or whatsapp_result.get('error')
-                })
-                
-        except Exception as e:
-            logger.error(f"Error notifying {name}: {e}")
-            results['failed'].append({
-                'phone': phone[-4:] if phone else 'N/A',
-                'name': name,
-                'error': str(e)
-            })
-    
-    return results
-
-
-async def notify_team_new_request_async(
-    team_phones: list,
-    machine: str,
-    area: str,
-    hours: int,
-    amount: str,
-    response_minutes: int = 10
-) -> dict:
-    """
-    Versión async de notificaciones paralelas.
-    Usa ThreadPoolExecutor para enviar todas las notificaciones en paralelo.
-    """
-    loop = asyncio.get_event_loop()
-    
-    # Ejecutar la función síncrona en un thread pool
-    result = await loop.run_in_executor(
-        _executor,
-        lambda: notify_team_new_request_parallel(
-            team_phones, machine, area, hours, amount, response_minutes
-        )
-    )
-    
-    return result

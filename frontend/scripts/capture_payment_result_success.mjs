@@ -48,10 +48,6 @@ async function routeApi(context) {
       });
     }
 
-    if (url.includes('/api/communications/whatsapp/confirm-client') && method === 'POST') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
-    }
-
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
   });
 }
@@ -132,4 +128,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

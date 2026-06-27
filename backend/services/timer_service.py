@@ -778,47 +778,6 @@ class TimerService:
                 total = float(sr.get('totalAmount', 0) if isinstance(sr, dict) else 0)
 
                 try:
-                    from communications import send_whatsapp
-
-                    client = await self.db.users.find_one({'id': client_id}, {'_id': 0, 'phone': 1}) if client_id else None
-                    raw_phone = client.get('phone') if isinstance(client, dict) else None
-                    phone = str(raw_phone).strip() if raw_phone else ""
-                    if phone and not phone.startswith("+"):
-                        digits = "".join(c for c in phone if c.isdigit())
-                        if len(digits) == 9 and digits.startswith("9"):
-                            phone = f"+56{digits}"
-                        elif digits.startswith("56"):
-                            phone = f"+{digits}"
-                        else:
-                            phone = f"+{digits}"
-                    if phone:
-                        amount_text = f"${int(round(total)):,}".replace(",", ".")
-                        res_notify = send_whatsapp(
-                            phone_number=phone,
-                            template='service_finished',
-                            params={'amount': amount_text},
-                        )
-                        status_val = "sent" if res_notify.get("success") and not res_notify.get("disabled") else "skipped"
-                        err = None if res_notify.get("success") else (res_notify.get("error") or "send_failed")
-                        await self.db.service_requests.update_one(
-                            {'id': sid},
-                            {
-                                '$push': {
-                                    'events': {
-                                        'type': 'client_whatsapp_status',
-                                        'createdAt': now.isoformat(),
-                                        'template': 'service_finished',
-                                        'to': phone,
-                                        'status': status_val,
-                                        'error': err,
-                                    }
-                                }
-                            },
-                        )
-                except Exception as e:
-                    logger.warning("auto-finish WhatsApp notify error id=%s err=%s", sid, e)
-
-                try:
                     from services.webpush_service import notify_service_event
 
                     if client_id:
@@ -954,7 +913,7 @@ class TimerService:
         4. Proveedor sube factura → invoiced
         5. MAQGO paga → paid
         
-        Nota: Disputas se manejan en paralelo vía WhatsApp soporte,
+        Nota: Disputas se manejan en paralelo vía soporte,
         NO bloquean el flujo de pago estándar.
         
         Returns:
@@ -998,8 +957,7 @@ class TimerService:
                     approved_count += 1
                     logger.info(f"Servicio {service['_id']} auto-aprobado ({AUTO_APPROVAL_HOURS}h - Pago Ágil)")
                     
-                    # Notificar al proveedor por WhatsApp
-                    await self._notify_provider_invoice_ready(service)
+                    pass
             
             return approved_count
             
@@ -1008,54 +966,7 @@ class TimerService:
             return 0
     
     async def _notify_provider_invoice_ready(self, service: dict):
-        """
-        Notifica al proveedor que puede emitir la factura a MAQGO.
-        Incluye los datos de MAQGO y el monto neto a facturar (menos tarifa plataforma).
-        """
-        try:
-            from communications import send_whatsapp
-            
-            # Obtener datos del proveedor
-            provider = await self.db.users.find_one(
-                {'id': service.get('provider_id')},
-                {'_id': 0, 'phone': 1, 'businessName': 1, 'ownerPhone': 1}
-            )
-            
-            if not provider:
-                logger.warning(f"Proveedor no encontrado para servicio {service['_id']}")
-                return
-            
-            # Preparar mensaje
-            phone = provider.get('ownerPhone') or provider.get('phone')
-            if not phone:
-                logger.warning(f"Proveedor sin teléfono para servicio {service['_id']}")
-                return
-            
-            invoice_amount = service.get('net_total', 0)
-            formatted_amount = f"${float(invoice_amount or 0):,.0f}".replace(',', '.')
-            formatted_phone = str(phone).strip()
-            if not formatted_phone.startswith("+"):
-                digits = "".join(c for c in formatted_phone if c.isdigit())
-                if len(digits) == 9 and digits.startswith("9"):
-                    formatted_phone = f"+56{digits}"
-                elif digits.startswith("56"):
-                    formatted_phone = f"+{digits}"
-                else:
-                    formatted_phone = f"+{digits}"
-
-            result = send_whatsapp(
-                phone_number=formatted_phone,
-                template='service_approved_invoice',
-                params={'invoice_amount': formatted_amount}
-            )
-            
-            if result.get('success'):
-                logger.info(f"Notificación enviada al proveedor para servicio {service['_id']}")
-            else:
-                logger.warning(f"Error enviando notificación: {result.get('error')}")
-                
-        except Exception as e:
-            logger.error(f"Error notificando proveedor: {e}")
+        return
     
     async def check_expired_offers(self) -> int:
         """

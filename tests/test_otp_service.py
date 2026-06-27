@@ -87,15 +87,23 @@ class TestOTPServiceSend:
     }, clear=False)
     @patch('services.otp_service._get_redis')
     @patch('services.otp_service.send_sms')
-    def test_send_otp_whatsapp_not_supported(self, mock_send_sms, mock_redis):
-        """WhatsApp no soportado: retorna error"""
+    def test_send_otp_channel_forced_to_sms(self, mock_send_sms, mock_redis):
+        """Canal no-SMS: se fuerza a SMS"""
+        mock_r = MagicMock()
+        mock_r.get.side_effect = lambda k: None if str(k).startswith('otp:') else '0'
+        mock_r.ttl.side_effect = lambda k: 0 if str(k).startswith('otp:') else 600
+        mock_pipe = MagicMock()
+        mock_r.pipeline.return_value = mock_pipe
+        mock_redis.return_value = mock_r
+        mock_send_sms.return_value = (True, None)
+
         from services.otp_service import send_otp
 
-        result = send_otp('+56912345678', 'whatsapp')
+        result = send_otp('+56912345678', 'invalid')
 
-        assert result['success'] is False
-        assert 'WhatsApp' in result.get('error', '')
-        mock_send_sms.assert_not_called()
+        assert result['success'] is True
+        assert result.get('channel') == 'sms'
+        mock_send_sms.assert_called_once()
 
 
 class TestOTPServiceVerify:

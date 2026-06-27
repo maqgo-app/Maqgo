@@ -138,7 +138,6 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
     def _install_fake_modules(self):
         self._patched_module_names = [
             "pricing.business_rules",
-            "communications",
             "services.webpush_service",
             "services.notification_items_service",
         ]
@@ -149,15 +148,6 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
         pricing_rules.NO_ARRIVAL_ALERT_MINUTES_2 = 180
         pricing_rules.NO_ARRIVAL_ALERT_MINUTES_3 = 240
         sys.modules["pricing.business_rules"] = pricing_rules
-
-        comm_mod = types.ModuleType("communications")
-
-        def send_whatsapp(**kwargs):
-            return {"success": True, "disabled": True}
-
-        comm_mod.send_whatsapp = send_whatsapp
-        sys.modules["communications"] = comm_mod
-
 
         push_mod = types.ModuleType("services.webpush_service")
 

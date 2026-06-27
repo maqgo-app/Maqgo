@@ -161,7 +161,6 @@ function MachineryAssignedScreen() {
       playArrivingSound();
       vibrate('arriving');
       setTimeout(() => setShowNearbyBanner(false), 10000);
-      // WhatsApp ya cubre este evento (desde EnRouteScreen); in-app solo para feedback visual
     }
   }, [serviceStatus, operatorLocationSim.lat, operatorLocationSim.lng, workLocation.lat, workLocation.lng, nearbyAlertShown]);
 
