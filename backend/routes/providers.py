@@ -456,29 +456,6 @@ async def match_providers(
             if len(scoped) >= limit:
                 break
 
-        if 0 < len(eligible_providers) < 3:
-            duration_ms = int((time.perf_counter() - t0) * 1000)
-            log_ops_event(
-                logger,
-                event="provider_match",
-                machinery_type=machinery_type,
-                count=0,
-                returned=0,
-                is_demo=False,
-                tomorrow_available=True,
-                radius_km=selected_radius,
-                duration_ms=duration_ms,
-                success=True,
-            )
-            return {
-                "providers": [],
-                "total": 0,
-                "is_demo": False,
-                "tomorrow_available": True,
-                "tomorrow_count": len(eligible_providers),
-                "radius_km": selected_radius,
-            }
-
         if not eligible_providers:
             tomorrow_count = len([p for p in candidate_rows if float(p["distance"]) <= selected_radius])
             duration_ms = int((time.perf_counter() - t0) * 1000)
