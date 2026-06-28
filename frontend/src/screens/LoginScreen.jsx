@@ -157,6 +157,16 @@ function LoginScreen({ setUserRole, setUserId }) {
   const [hasPersistedSession, setHasPersistedSession] = useState(false);
 
   useEffect(() => {
+    if (loading) return;
+    if (loginMode !== 'sms') return;
+    if (step !== 'phone') return;
+    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+    const userId = localStorage.getItem('userId');
+    if (!token || !userId) return;
+    handleStartLogin();
+  }, [loading, loginMode, step]);
+
+  useEffect(() => {
     if (!showEmailPasswordToggle && loginMode === 'email') {
       setLoginMode('sms');
       setEmail('');
