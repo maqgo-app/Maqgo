@@ -965,7 +965,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
               Por ahora no tenemos proveedores de {machineryLabel} activos en tu zona
               {selectedCapacityLabel && (capacityConstraintLabelShort || capacityConstraintLabel)
                 ? ` (${(capacityConstraintLabelShort || capacityConstraintLabel)}: ${selectedCapacityLabel})`
-                : (machinerySpec ? ` (${machinerySpec})` : '')}
+                : ''}
             </h2>
             <p style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, textAlign: 'center', margin: '0 0 14px', lineHeight: 1.45 }}>
               Estamos activando proveedores en tu zona. La disponibilidad se actualizará cuando existan opciones.
