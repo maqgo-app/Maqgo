@@ -413,7 +413,20 @@ html, body, #root {
   padding-right: max(24px, env(safe-area-inset-right, 0px));
   background: var(--maqgo-bg);
   border-top: 0;
-  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: none;
+  position: relative;
+}
+
+.maqgo-funnel-split-layout > .maqgo-funnel-split-footer::before,
+.maqgo-p4-provider-layout > .maqgo-p4-provider-footer::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -24px;
+  height: 24px;
+  background: linear-gradient(180deg, rgba(26, 26, 31, 0) 0%, var(--maqgo-bg) 100%);
+  pointer-events: none;
 }
 
 /* Funnel cliente con CTA al pie: padding compacto (sustituye --maqgo-screen-padding-top en el área scroll; listas largas siguen usando overflow-y). */
