@@ -105,6 +105,44 @@ class TestOTPServiceSend:
         assert result.get('channel') == 'sms'
         mock_send_sms.assert_called_once()
 
+    @patch.dict(os.environ, {
+        'REDIS_URL': 'redis://localhost:6379',
+        'LABSMOBILE_USERNAME': 'test@example.com',
+        'LABSMOBILE_API_TOKEN': 'token',
+        'LABSMOBILE_SENDER': 'MAQGO',
+    }, clear=False)
+    @patch('services.otp_service._get_redis')
+    @patch('services.otp_service.send_sms')
+    def test_send_otp_reused_can_resend_with_cooldown(self, mock_send_sms, mock_redis):
+        mock_r = MagicMock()
+
+        def _get(k):
+            s = str(k)
+            if s.startswith('otp:+56912345678'):
+                return '123456'
+            if s.startswith('otp_sms_last:+56912345678'):
+                return None
+            if s.startswith('otp_rate:+56912345678'):
+                return '0'
+            return None
+
+        mock_r.get.side_effect = _get
+        mock_r.ttl.side_effect = lambda k: 200 if str(k).startswith('otp:+56912345678') else 0
+        mock_pipe = MagicMock()
+        mock_r.pipeline.return_value = mock_pipe
+        mock_redis.return_value = mock_r
+        mock_send_sms.return_value = (True, None)
+
+        from services.otp_service import send_otp
+
+        result = send_otp('+56912345678', 'sms')
+
+        assert result['success'] is True
+        assert result.get('reused') is True
+        assert result.get('resent') in (True, False)
+        assert result.get('ttl_seconds') == 200
+        mock_send_sms.assert_called_once()
+
 
 class TestOTPServiceVerify:
     """Tests para verify_otp"""

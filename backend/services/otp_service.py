@@ -26,6 +26,7 @@ OTP_EXPIRY_SECONDS = 300  # 5 minutos
 OTP_MAX_ATTEMPTS = 3
 RATE_LIMIT_WINDOW = 600  # 10 minutos
 RATE_LIMIT_MAX = 3  # máx 3 OTP por número cada 10 min
+RESEND_COOLDOWN_SECONDS = 30
 
 def _extract_host(url_or_host: str) -> str:
     raw = (url_or_host or '').strip()
@@ -235,21 +236,57 @@ def send_otp(phone_number: str, channel: str = "sms") -> dict:
     
     otp_key = f"otp:{phone}"
     attempts_key = f"otp_attempts:{phone}"
+    resend_key = f"otp_sms_last:{phone}"
 
     try:
         existing = r.get(otp_key)
         ttl_existing = int(r.ttl(otp_key) or -1)
         if existing and ttl_existing > 0:
+            resent = False
+            try:
+                recent = r.get(resend_key)
+            except Exception:
+                recent = None
+
+            rate_key = f"otp_rate:{phone}"
+            count = 0
+            ttl_rate = 0
+            try:
+                current = r.get(rate_key) or "0"
+                count = int(current)
+                ttl_rate = int(r.ttl(rate_key) or 0)
+            except Exception as e:
+                logger.warning("REDIS_RATE_CHECK_ERROR %s", e)
+
+            if not recent and count < RATE_LIMIT_MAX:
+                ok, err = send_sms(phone, SMS_MESSAGE.format(otp=existing))
+                logger.info("SMS_RESEND_RESULT ok=%s phone=%s err=%s", ok, _phone_tail(phone), err)
+                if ok:
+                    resent = True
+                    try:
+                        pipe = r.pipeline()
+                        pipe.setex(resend_key, RESEND_COOLDOWN_SECONDS, "1")
+                        if count == 0 and ttl_rate <= 0:
+                            pipe.setex(rate_key, RATE_LIMIT_WINDOW, "1")
+                        else:
+                            pipe.incr(rate_key)
+                            pipe.expire(rate_key, RATE_LIMIT_WINDOW)
+                        pipe.execute()
+                    except Exception:
+                        pass
+
             logger.info(
-                "OTP_REUSED phone=%s ttl=%s",
+                "OTP_REUSED phone=%s ttl=%s resent=%s",
                 _phone_tail(phone),
                 ttl_existing,
+                resent,
             )
             return {
                 "success": True,
                 "channel": "sms",
                 "demo_mode": False,
                 "reused": True,
+                "resent": resent,
                 "ttl_seconds": ttl_existing,
             }
     except Exception as e:
@@ -309,6 +346,11 @@ def send_otp(phone_number: str, channel: str = "sms") -> dict:
         }
 
     logger.info("SEND_OTP_SUCCESS phone=%s", _phone_tail(phone))
+
+    try:
+        r.setex(resend_key, RESEND_COOLDOWN_SECONDS, "1")
+    except Exception:
+        pass
     return {
         "success": True,
         "channel": "sms",
