@@ -39,6 +39,10 @@ function ProviderArrivedScreen() {
   const lastReminderRef = useRef(0);
   const startedRef = useRef(false);
   const serviceId = String(localStorage.getItem('currentServiceId') || '').trim();
+  const allowServicePolling =
+    Boolean(serviceId) &&
+    !String(serviceId).startsWith('demo-') &&
+    localStorage.getItem('maqgo_simulation_enabled') !== 'true';
   const operatorRut = getOperatorRutDisplayForSite(provider);
   const licensePlate = getProviderLicensePlateDisplay(provider);
 
@@ -73,7 +77,7 @@ function ProviderArrivedScreen() {
   }, [navigate]);
 
   useAdaptivePolling({
-    enabled: Boolean(serviceId),
+    enabled: allowServicePolling,
     baseIntervalMs: 3000,
     maxIntervalMs: 30000,
     run: async () => {

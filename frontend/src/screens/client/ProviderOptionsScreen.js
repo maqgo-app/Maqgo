@@ -22,7 +22,7 @@ import BACKEND_URL from '../../utils/api';
 // MACHINERY_NO_TRANSPORT y REFERENCE_PRICES desde pricing.js; por-viaje: isPerTripMachineryType (machineryNames)
 import { MACHINERY_NO_TRANSPORT, REFERENCE_PRICES, getDemoProviders } from '../../utils/pricing';
 import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions, isPerTripMachineryType } from '../../utils/machineryNames';
-import { requestPushPermissionAndSubscribe } from '../../utils/pushNotifications';
+import { ensurePushSubscribedIfGranted, requestPushPermissionAndSubscribe } from '../../utils/pushNotifications';
 import {
   isTruckUrgencyBooking,
   getTruckPricingHoursFromUrgency,
@@ -320,24 +320,71 @@ function ProviderOptionsScreen({ previewPublic = false }) {
     }
   }, []);
 
-  const availabilityWatchEnabled = useMemo(() => {
+  const [availabilityWatchEnabled, setAvailabilityWatchEnabled] = useState(() => {
     try {
       return localStorage.getItem('maqgo_availability_watch_enabled') === '1';
     } catch {
       return false;
     }
-  }, [pathname, emptyState, providers.length]);
+  });
+
+  useEffect(() => {
+    if (availabilityWatchEnabled) return;
+    try {
+      if (localStorage.getItem('maqgo_availability_watch_enabled') === '1') {
+        setAvailabilityWatchEnabled(true);
+      }
+    } catch {
+      void 0;
+    }
+  }, [availabilityWatchEnabled, pathname]);
 
   const enableAvailabilityWatch = useCallback(async () => {
+    setAvailabilityWatchEnabled(true);
     try {
       localStorage.setItem('maqgo_availability_watch_enabled', '1');
     } catch {
       void 0;
     }
+    setAvailabilityToast({
+      kind: 'enabled',
+      message: 'Listo. Verás aquí las opciones cuando aparezcan.',
+    });
+
     if (!canUseNotifications) return;
     try {
+      if (Notification.permission === 'denied') {
+        setAvailabilityToast({
+          kind: 'enabled',
+          message: 'Aviso activado. Para notificaciones, habilítalas en tu navegador.',
+        });
+        return;
+      }
+
       if (Notification.permission === 'default') {
-        await requestPushPermissionAndSubscribe();
+        const r = await requestPushPermissionAndSubscribe();
+        if (r?.denied) {
+          setAvailabilityToast({
+            kind: 'enabled',
+            message: 'Aviso activado. Si quieres notificaciones, permite notificaciones en el navegador.',
+          });
+        } else if (r?.success) {
+          setAvailabilityToast({
+            kind: 'enabled',
+            message: 'Aviso activado. Te enviaremos una notificación si aparecen opciones.',
+          });
+        }
+        return;
+      }
+
+      if (Notification.permission === 'granted') {
+        const r = await ensurePushSubscribedIfGranted();
+        if (r?.success) {
+          setAvailabilityToast({
+            kind: 'enabled',
+            message: 'Aviso activado. Te enviaremos una notificación si aparecen opciones.',
+          });
+        }
       }
     } catch {
       void 0;
@@ -349,8 +396,8 @@ function ProviderOptionsScreen({ previewPublic = false }) {
     const prev = prevAvailableCountRef.current || 0;
     prevAvailableCountRef.current = count;
     if (!availabilityWatchEnabled) return;
-    if (count < 3) return;
-    if (prev >= 3) return;
+    if (count < 1) return;
+    if (prev >= 1) return;
     let lastAt = 0;
     try {
       lastAt = Number(localStorage.getItem('maqgo_availability_watch_last_at') || '0') || 0;
@@ -364,7 +411,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
     } catch {
       void 0;
     }
-    setAvailabilityToast({ count });
+    setAvailabilityToast({ kind: 'available', count });
     try {
       if (canUseNotifications && Notification.permission === 'granted') {
         new Notification('MAQGO', {
@@ -521,6 +568,37 @@ function ProviderOptionsScreen({ previewPublic = false }) {
       setLoading(false);
     }
   }, [selectedMachinery, needsTransport, calculateTotalPrice, getDemoProvidersFallback, sanitizeProviders]);
+
+  useEffect(() => {
+    if (!availabilityWatchEnabled) return;
+    if (!emptyState) return;
+    if (emptyKind !== 'no_offer') return;
+
+    let stopped = false;
+    let timer = null;
+    let intervalMs = 30000;
+
+    const tick = async () => {
+      if (stopped) return;
+      if (typeof document !== 'undefined' && document.hidden) {
+        timer = window.setTimeout(tick, intervalMs);
+        return;
+      }
+      try {
+        await fetchProviders();
+      } catch {
+        void 0;
+      }
+      intervalMs = Math.min(120000, intervalMs + 15000);
+      timer = window.setTimeout(tick, intervalMs);
+    };
+
+    timer = window.setTimeout(tick, 5000);
+    return () => {
+      stopped = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [availabilityWatchEnabled, emptyState, emptyKind, fetchProviders]);
 
   useEffect(() => {
     if (previewPublic) return;
@@ -847,16 +925,29 @@ function ProviderOptionsScreen({ previewPublic = false }) {
             }}
           >
             <div style={{ color: '#fff', fontSize: 13, lineHeight: 1.35, fontWeight: 700 }}>
-              Ya hay {availabilityToast.count} opciones disponibles.
+              {availabilityToast.message
+                ? availabilityToast.message
+                : `Ya hay ${availabilityToast.count} opciones disponibles.`}
             </div>
-            <button
-              type="button"
-              onClick={() => setAvailabilityToast(null)}
-              className="maqgo-btn-secondary"
-              style={{ width: 'auto', padding: '8px 12px', borderRadius: 12, fontSize: 13 }}
-            >
-              Ver
-            </button>
+            {typeof availabilityToast.count === 'number' ? (
+              <button
+                type="button"
+                onClick={() => setAvailabilityToast(null)}
+                className="maqgo-btn-secondary"
+                style={{ width: 'auto', padding: '8px 12px', borderRadius: 12, fontSize: 13 }}
+              >
+                Ver
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAvailabilityToast(null)}
+                className="maqgo-btn-secondary"
+                style={{ width: 'auto', padding: '8px 12px', borderRadius: 12, fontSize: 13 }}
+              >
+                OK
+              </button>
+            )}
           </div>
         ) : null}
 
