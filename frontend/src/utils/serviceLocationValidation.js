@@ -60,19 +60,10 @@ export function validateServiceLocationContinue(p) {
     return { ok: false, code: 'MANUAL_NO_STREET_NUMBER' };
   }
 
-  if (!hasApiKey) {
-    if (refLen < REF_MIN_NO_KEY) return { ok: false, code: 'REF_NO_KEY' };
-  }
-
-  if (hasApiKey && placesPhase === 'failed') {
-    if (refLen < REF_MIN_MAP_FAILED) return { ok: false, code: 'REF_MAP_FAILED' };
-  }
-
-  if (hasApiKey && placesPhase === 'ready') {
-    if (manualAddressNotFound && refLen < REF_MIN_MANUAL_NOT_IN_LIST) {
-      return { ok: false, code: 'REF_MANUAL_SHORT' };
-    }
-  }
+  void refLen;
+  void hasApiKey;
+  void placesPhase;
+  void manualAddressNotFound;
 
   return { ok: true };
 }

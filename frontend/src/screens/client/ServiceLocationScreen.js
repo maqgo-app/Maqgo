@@ -725,6 +725,11 @@ function ServiceLocationScreen() {
           >
             <strong style={{ color: '#e74c3c' }}>{placesFailureUi.title}</strong>
             <div style={{ marginTop: 6 }}>{placesFailureUi.body}</div>
+            {!!diagnosticReason && (
+              <div style={{ marginTop: 10, color: 'rgba(255,255,255,0.78)' }}>
+                {diagnosticReason}
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setScriptRetryKey((k) => k + 1)}
@@ -733,12 +738,9 @@ function ServiceLocationScreen() {
             >
               {placesFailureUi.retryLabel}
             </button>
-            {import.meta.env.DEV && (!!placesReason || !!diagnosticReason) && (
+            {import.meta.env.DEV && !!placesReason && (
               <div style={{ marginTop: 10, fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.45 }}>
-                {!!placesReason && (
-                  <div style={{ fontFamily: 'monospace', marginBottom: 4 }}>Código: {placesReason}</div>
-                )}
-                {!!diagnosticReason && <div>{diagnosticReason}</div>}
+                <div style={{ fontFamily: 'monospace', marginBottom: 4 }}>Código: {placesReason}</div>
               </div>
             )}
           </div>
@@ -1016,17 +1018,7 @@ function ServiceLocationScreen() {
             fontWeight: 500
           }}>
             Referencia del lugar{' '}
-            {(!hasApiKey ||
-              placesPhase === 'failed' ||
-              (placesPhase === 'ready' && manualAddressNotFound)) && (
-              <span style={{ color: '#EC6819' }}>*</span>
-            )}
-            {(hasApiKey && placesPhase === 'ready' && !manualAddressNotFound) && (
-              <span style={{ color: 'rgba(255,255,255,0.45)', fontWeight: 400 }}>
-                {' '}
-                (opcional)
-              </span>
-            )}
+            <span style={{ color: 'rgba(255,255,255,0.45)', fontWeight: 400 }}> (opcional)</span>
           </label>
           <input
             id="service-reference-input"
@@ -1041,23 +1033,13 @@ function ServiceLocationScreen() {
                 /* ignore */
               }
             }}
-            placeholder={
-              !hasApiKey || placesPhase === 'failed'
-                ? 'Obligatoria: accesos, color de portón, empresa cercana, etc.'
-                : manualAddressNotFound
-                  ? 'Obligatoria: cómo llegar, esquinas, color de reja, referencias'
-                  : 'Ej: Frente al edificio azul, portón verde'
-            }
+            placeholder="Ej: Frente al edificio azul, portón verde"
             className="maqgo-input"
             style={{ 
               fontSize: 16
             }}
             data-testid="service-reference-input"
-            aria-label={
-              !hasApiKey || placesPhase === 'failed' || manualAddressNotFound
-                ? 'Referencia de ubicación obligatoria'
-                : 'Referencia de ubicación opcional'
-            }
+            aria-label="Referencia de ubicación (opcional)"
           />
         </div>
 

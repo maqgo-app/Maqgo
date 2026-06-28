@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   validateServiceLocationContinue,
-  REF_MIN_NO_KEY,
-  REF_MIN_MAP_FAILED,
-  REF_MIN_MANUAL_NOT_IN_LIST
 } from './serviceLocationValidation';
 
 const base = {
@@ -52,45 +49,7 @@ describe('validateServiceLocationContinue', () => {
     ).toBe('WAITING_PLACES');
   });
 
-  it('sin API key exige referencia mínima', () => {
-    expect(
-      validateServiceLocationContinue({
-        ...base,
-        hasApiKey: false,
-        placesPhase: 'no_key',
-        refLen: REF_MIN_NO_KEY - 1
-      }).code
-    ).toBe('REF_NO_KEY');
-    expect(
-      validateServiceLocationContinue({
-        ...base,
-        hasApiKey: false,
-        placesPhase: 'no_key',
-        refLen: REF_MIN_NO_KEY
-      }).ok
-    ).toBe(true);
-  });
 
-  it('si el mapa falló exige referencia larga', () => {
-    expect(
-      validateServiceLocationContinue({
-        ...base,
-        placesPhase: 'failed',
-        serviceLat: null,
-        serviceLng: null,
-        refLen: REF_MIN_MAP_FAILED - 1
-      }).code
-    ).toBe('REF_MAP_FAILED');
-    expect(
-      validateServiceLocationContinue({
-        ...base,
-        placesPhase: 'failed',
-        serviceLat: null,
-        serviceLng: null,
-        refLen: REF_MIN_MAP_FAILED
-      }).ok
-    ).toBe(true);
-  });
 
   it('con Places listo exige lat/lng o modo manual', () => {
     expect(
@@ -104,7 +63,7 @@ describe('validateServiceLocationContinue', () => {
     ).toBe('NEED_PLACE_OR_MANUAL');
   });
 
-  it('modo manual exige referencia suficiente', () => {
+  it('modo manual no exige referencia para continuar', () => {
     expect(
       validateServiceLocationContinue({
         ...base,
@@ -112,17 +71,7 @@ describe('validateServiceLocationContinue', () => {
         serviceLat: null,
         serviceLng: null,
         manualAddressNotFound: true,
-        refLen: REF_MIN_MANUAL_NOT_IN_LIST - 1
-      }).code
-    ).toBe('REF_MANUAL_SHORT');
-    expect(
-      validateServiceLocationContinue({
-        ...base,
-        placesPhase: 'ready',
-        serviceLat: null,
-        serviceLng: null,
-        manualAddressNotFound: true,
-        refLen: REF_MIN_MANUAL_NOT_IN_LIST
+        refLen: 0,
       }).ok
     ).toBe(true);
   });
@@ -149,7 +98,7 @@ describe('validateServiceLocationContinue', () => {
         placesPhase: 'no_key',
         locationTrimmed: 'Pasaje sin número',
         requiresManualStreetNumber: true,
-        refLen: REF_MIN_NO_KEY
+        refLen: 0
       }).code
     ).toBe('MANUAL_NO_STREET_NUMBER');
   });
