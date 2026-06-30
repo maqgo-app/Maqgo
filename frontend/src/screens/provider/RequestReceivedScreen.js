@@ -108,7 +108,10 @@ function redactServiceLocation(raw) {
 
   const sectorRules = [
     { test: /escuela militar/, label: 'Sector Metro Escuela Militar' },
-    { test: /(la dehesa|los trapenses|camino real)/, label: 'Sector Los Trapenses' },
+    { test: /(avenida la dehesa|av\.\s*la dehesa|av\s+la dehesa)/, label: 'Sector Portal La Dehesa' },
+    { test: /(avenida las condes\s*15000|av\.\s*las condes\s*15000|av\s+las condes\s*15000|las condes\s*15000)/, label: 'Sector Canta Gallo' },
+    { test: /(los trapenses|camino real)/, label: 'Sector Los Trapenses' },
+    { test: /la dehesa/, label: 'Sector La Dehesa' },
   ];
 
   for (const rule of sectorRules) {
