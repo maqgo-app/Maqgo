@@ -37,7 +37,7 @@ Se verificaron versiones de dependencias críticas en el filesystem (`frontend/n
 
 ### 3) Verificación de paquetes reportados que no están instalados
 
-Se verificó que varios paquetes reportados por `npm audit` no existen en `frontend/node_modules` (por lo tanto no pueden ser empaquetados):
+Se verificó que varios paquetes reportados por `npm audit` no forman parte del árbol de dependencias instalado (`frontend/node_modules`) utilizado para generar el bundle de producción y, durante la inspección del artefacto generado, no se encontraron evidencias de que esas versiones fueran empaquetadas:
 
 - `minimist`: NOT_INSTALLED
 - `request`: NOT_INSTALLED
@@ -109,4 +109,3 @@ Clasificaciones:
   - remover entradas duplicadas `extraneous`;
   - alinear `npm audit` con el árbol real instalado;
   - reducir el ruido en alertas.
-
