@@ -1151,26 +1151,8 @@ function ProviderOptionsScreen({ previewPublic = false }) {
                     </button>
                   ))}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
-                  <button
-                    type="button"
-                    onClick={clearCapacityFilter}
-                    className="maqgo-btn-secondary"
-                    style={{
-                      width: '100%',
-                      maxWidth: 280,
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                    }}
-                  >
-                    Ver opciones sin filtro
-                  </button>
-                </div>
               </div>
             ) : null}
-            <p style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, textAlign: 'center', margin: '0 0 14px', lineHeight: 1.45 }}>
-              No hay proveedores disponibles que calcen con esa selección.
-            </p>
             <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
               <button
                 type="button"
