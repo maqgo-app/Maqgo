@@ -88,6 +88,13 @@ function parseIsoToMs(value) {
   return Number.isFinite(ms) ? ms : null;
 }
 
+function formatSecondsToMinSec(totalSeconds) {
+  const s = Math.max(0, Math.floor(toNumber(totalSeconds) ?? 0));
+  const mm = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${mm}:${String(ss).padStart(2, '0')}`;
+}
+
 function toNumber(value) {
   if (value == null) return null;
   const n = typeof value === 'number' ? value : Number(String(value).replace(/[^\d.-]/g, ''));
@@ -543,7 +550,7 @@ function RequestReceivedScreen() {
                 fontWeight: 700,
                 fontFamily: 'monospace'
               }}>
-                {countdown}s
+                {formatSecondsToMinSec(countdown)}
               </span>
             </div>
           </div>
