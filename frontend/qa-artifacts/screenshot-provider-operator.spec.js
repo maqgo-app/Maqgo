@@ -84,5 +84,13 @@ test.describe('Capturas: proveedor + operador', () => {
     await page.goto(`${baseURL}/provider/request-received`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('accept-request-btn')).toBeVisible();
     await page.screenshot({ path: 'qa-artifacts/out/operator-02-request-received.png', fullPage: true });
+
+    await expect(page.getByText(/\d+:\d{2}/)).toBeVisible();
+    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/operator-request-received-timer.png', fullPage: true });
+
+    const confirmBtn = page.getByTestId('accept-request-btn');
+    await confirmBtn.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/operator-confirmar-ubicacion-y-llegada.png', fullPage: true });
   });
 });
