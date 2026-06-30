@@ -95,6 +95,16 @@ function formatSecondsToMinSec(totalSeconds) {
   return `${mm}:${String(ss).padStart(2, '0')}`;
 }
 
+function redactServiceLocation(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+
+  const parts = s.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 2) return parts[parts.length - 1];
+  if (/\d/.test(s)) return 'Ubicación reservada';
+  return s;
+}
+
 function toNumber(value) {
   if (value == null) return null;
   const n = typeof value === 'number' ? value : Number(String(value).replace(/[^\d.-]/g, ''));
@@ -668,7 +678,7 @@ function RequestReceivedScreen() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Ubicación</span>
             <span style={{ color: '#fff', fontSize: 13, fontWeight: 600, textAlign: 'right', maxWidth: '55%' }}>
-              {request?.location}
+              {redactServiceLocation(request?.location)}
             </span>
           </div>
 
