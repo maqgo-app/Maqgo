@@ -168,37 +168,96 @@ export async function installApiMocks(context, options = {}) {
 
     // --- notifications (Centro de Avisos cliente) ---
     if (url.includes('/api/notifications/unread-count') && method === 'GET') {
-      return route.fulfill(json(200, { unread: 2 }));
+      const role = options?.notificationsRole || 'client';
+      const unread = role === 'client' ? 2 : 1;
+      return route.fulfill(json(200, { unread }));
     }
     if (url.includes('/api/notifications/') && (method === 'POST' || method === 'PUT')) {
       return route.fulfill(json(200, { success: true }));
     }
     if (url.includes('/api/notifications') && method === 'GET') {
       const now = new Date();
-      const items = [
-        {
-          id: 'client:user-1:sr:svc-123:arrival',
-          title: 'Operador llegó',
-          body: 'El operador marcó llegada. Autoriza el ingreso para iniciar.',
-          severity: 'critical',
-          createdAt: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
-          readAt: null,
-          ackRequired: true,
-          pinned: true,
-          deepLink: '/client/provider-arrived',
-        },
-        {
-          id: 'client:user-1:sr:svc-123:confirmed',
-          title: 'Reserva confirmada',
-          body: 'Tu reserva quedó confirmada. Revisa el estado del servicio.',
-          severity: 'important',
-          createdAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
-          readAt: null,
-          ackRequired: false,
-          pinned: false,
-          deepLink: '/client/assigned',
-        },
-      ];
+      const role = options?.notificationsRole || 'client';
+      const items = (() => {
+        if (role === 'provider') {
+          return [
+            {
+              id: 'provider:provider-qa-001:sr:svc-123:entry_confirmed',
+              title: 'Ingreso autorizado',
+              body: 'El cliente autorizó el ingreso. Puedes iniciar el servicio cuando corresponda.',
+              severity: 'important',
+              createdAt: new Date(now.getTime() - 7 * 60 * 1000).toISOString(),
+              readAt: null,
+              ackRequired: false,
+              pinned: true,
+              deepLink: '/provider/arrival',
+            },
+            {
+              id: 'provider:provider-qa-001:sr:svc-123:confirmed',
+              title: 'Servicio confirmado',
+              body: 'Servicio confirmado. Revisa destino y registra tu avance en MAQGO.',
+              severity: 'important',
+              createdAt: new Date(now.getTime() - 35 * 60 * 1000).toISOString(),
+              readAt: new Date(now.getTime() - 10 * 60 * 1000).toISOString(),
+              ackRequired: false,
+              pinned: false,
+              deepLink: '/provider/accepted',
+            },
+          ];
+        }
+
+        if (role === 'operator') {
+          return [
+            {
+              id: 'operator:operator-qa-001:sr:svc-123:assigned',
+              title: 'Servicio asignado',
+              body: 'Tienes un servicio asignado. Confirma la salida en MAQGO.',
+              severity: 'important',
+              createdAt: new Date(now.getTime() - 12 * 60 * 1000).toISOString(),
+              readAt: null,
+              ackRequired: false,
+              pinned: true,
+              deepLink: '/provider/request-received',
+            },
+            {
+              id: 'operator:operator-qa-001:sr:svc-123:incident',
+              title: 'Incidente registrado',
+              body: 'El incidente quedó registrado en MAQGO.',
+              severity: 'neutral',
+              createdAt: new Date(now.getTime() - 45 * 60 * 1000).toISOString(),
+              readAt: new Date(now.getTime() - 40 * 60 * 1000).toISOString(),
+              ackRequired: false,
+              pinned: false,
+              deepLink: '/operator/home',
+            },
+          ];
+        }
+
+        return [
+          {
+            id: 'client:user-1:sr:svc-123:arrival',
+            title: 'Operador llegó',
+            body: 'El operador marcó llegada. Autoriza el ingreso para iniciar.',
+            severity: 'critical',
+            createdAt: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
+            readAt: null,
+            ackRequired: true,
+            pinned: true,
+            deepLink: '/client/provider-arrived',
+          },
+          {
+            id: 'client:user-1:sr:svc-123:confirmed',
+            title: 'Reserva confirmada',
+            body: 'Tu reserva quedó confirmada. Revisa el estado del servicio.',
+            severity: 'important',
+            createdAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
+            readAt: null,
+            ackRequired: false,
+            pinned: false,
+            deepLink: '/client/assigned',
+          },
+        ];
+      })();
       return route.fulfill(json(200, { items, nextCursor: null }));
     }
 
