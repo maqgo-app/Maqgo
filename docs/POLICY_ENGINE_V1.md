@@ -88,7 +88,7 @@ Auto-start solo puede ejecutarse cuando existe llegada verificada (`arrivalLocat
 8) auto_start
 
 ## Notas contractuales operacionales
-- arrival verification se determina por GPS dentro de `arrival.verification_radius_meters`.
+- arrival verification se determina por coordenadas disponibles (GPS o telemetría) dentro de `arrival.verification_radius_meters`; si no hay coordenadas, la llegada puede registrarse como `source=manual` (y queda registrada como `arrivalLocation.verified=true`).
 - waiting cobrable nace solo desde arrival verified (no desde canales externos).
 - access_denied cobra mínimo + waiting solo con evidencia mínima válida; abre ventana corta de resolución (10–15 min).
 - Pagos: ticket/disputa económico se abre dentro de 24h desde finishedAt (server-side).

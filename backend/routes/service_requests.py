@@ -1367,8 +1367,8 @@ async def mark_arrival(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Proveedor marca llegada validada por GPS.
-    Distancia máxima 300m desde jobLocation.
+    Proveedor marca llegada (GPS o manual).
+    Distancia máxima 300m desde jobLocation cuando hay coordenadas.
     """
     request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
     if not request:
