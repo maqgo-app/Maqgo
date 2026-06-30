@@ -78,6 +78,8 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
     await page.waitForTimeout(200);
     await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-assigned.png', fullPage: true });
     await mapContainer.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-assigned-map.png' });
+    await mapContainer.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-assigned-map-smallpins.png' });
+    await mapContainer.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-assigned-map-roundpins.png' });
 
     await context.addInitScript(() => {
       localStorage.setItem('serviceStatus', 'en_route');
@@ -94,6 +96,8 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
     await page.waitForTimeout(200);
     await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-en-route.png', fullPage: true });
     await mapContainerEnRoute.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-en-route-map.png' });
+    await mapContainerEnRoute.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-en-route-map-smallpins.png' });
+    await mapContainerEnRoute.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-en-route-map-roundpins.png' });
 
     await context.addInitScript(() => {
       localStorage.setItem('operatorArrived', 'true');

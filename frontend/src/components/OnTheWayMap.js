@@ -14,29 +14,29 @@ L.Icon.Default.mergeOptions({
 // Ícono para punto de salida (naranja MAQGO)
 const originIcon = new L.Icon({
   iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
-      <path fill="#EC6819" d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24c0-6.6-5.4-12-12-12z"/>
-      <circle fill="white" cx="12" cy="12" r="6"/>
-      <circle fill="#EC6819" cx="12" cy="12" r="3"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+      <circle cx="12" cy="12" r="10" fill="#EC6819"/>
+      <circle cx="12" cy="12" r="6" fill="white"/>
+      <circle cx="12" cy="12" r="3" fill="#EC6819"/>
     </svg>
   `),
-  iconSize: [24, 36],
-  iconAnchor: [12, 36],
-  popupAnchor: [0, -36],
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+  popupAnchor: [0, -9],
 });
 
 // Ícono para la obra/destino (cyan)
 const destinationIcon = new L.Icon({
   iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
-      <path fill="#90BDD3" d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24c0-6.6-5.4-12-12-12z"/>
-      <circle fill="white" cx="12" cy="12" r="6"/>
-      <path fill="#90BDD3" d="M9 10h6v6H9z"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+      <circle cx="12" cy="12" r="10" fill="#90BDD3"/>
+      <circle cx="12" cy="12" r="6" fill="white"/>
+      <path fill="#90BDD3" d="M9 9h6v6H9z"/>
     </svg>
   `),
-  iconSize: [24, 36],
-  iconAnchor: [12, 36],
-  popupAnchor: [0, -36],
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+  popupAnchor: [0, -9],
 });
 
 function makeCurvedLine(start, end) {
