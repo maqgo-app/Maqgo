@@ -709,7 +709,7 @@ function RequestReceivedScreen() {
           ) : null}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Referencia del sector</span>
+            <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>Referencia</span>
             <span style={{ color: '#fff', fontSize: 13, fontWeight: 600, textAlign: 'right', maxWidth: '55%' }}>
               {redactServiceLocation(request?.location)}
             </span>
