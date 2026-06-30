@@ -726,7 +726,7 @@ function RequestReceivedScreen() {
               ) : null}
               {displayedEtaMinutes != null ? (
                 <div style={{ flex: 1, background: '#2D2D2D', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
-                  <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>Llegar en</div>
+                  <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>Tiempo estimado de llegada</div>
                   <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{displayedEtaMinutes} min</div>
                 </div>
               ) : null}
