@@ -409,7 +409,8 @@ function RequestReceivedScreen() {
   const isImmediate = reservationType === 'immediate';
   const isScheduled = reservationType === 'scheduled';
   const scheduledDate = request?.scheduledDate || null;
-  const showEtaDistance = toNumber(request?.distance) != null || toNumber(request?.eta) != null;
+  const displayedEtaMinutes = toNumber(request?.eta) ?? toNumber(request?.etaCommitMinutes);
+  const showEtaDistance = toNumber(request?.distance) != null || displayedEtaMinutes != null;
   const urgencyWindowMinutes = toNumber(request?.urgencyWindowMinutes);
   const hasDepartureConfirmed =
     request?.confirmedDepartureLocation &&
@@ -723,10 +724,10 @@ function RequestReceivedScreen() {
                   <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{toNumber(request?.distance)} km</div>
                 </div>
               ) : null}
-              {toNumber(request?.eta) != null ? (
+              {displayedEtaMinutes != null ? (
                 <div style={{ flex: 1, background: '#2D2D2D', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
                   <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>Llegar en</div>
-                  <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{toNumber(request?.eta)} min</div>
+                  <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{displayedEtaMinutes} min</div>
                 </div>
               ) : null}
             </div>
