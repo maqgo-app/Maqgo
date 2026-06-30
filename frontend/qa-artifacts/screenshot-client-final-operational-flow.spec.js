@@ -35,6 +35,7 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
         rating: 4.8,
         transport_fee: 25000,
         price_per_hour: 45000,
+        providerData: { addressLat: -33.4372, addressLng: -70.6506 },
         machineData: { primaryPhoto: null },
       }));
       localStorage.setItem('acceptedProvider', JSON.stringify({
@@ -43,8 +44,12 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
         licensePlate: 'ABCD12',
         rating: 4.8,
         eta_minutes: 25,
+        providerData: { addressLat: -33.4372, addressLng: -70.6506 },
         machineData: { primaryPhoto: null },
       }));
+
+      localStorage.setItem('serviceLat', String(-33.4489));
+      localStorage.setItem('serviceLng', String(-70.6693));
     });
 
     const page = await context.newPage();
@@ -64,8 +69,31 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
     await page.goto(`${BASE_URL}/client/assigned`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await expect(page.getByText(/operador asignado/i).first()).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
-    await page.waitForTimeout(600);
+    await page.waitForSelector('.leaflet-container', { timeout: 5_000 });
+    await page.waitForFunction(() => document.querySelectorAll('img.leaflet-tile-loaded').length > 0, null, { timeout: 5_000 }).catch(() => {});
+    await page.waitForTimeout(300);
+
+    const mapContainer = page.locator('.leaflet-container').first();
+    await mapContainer.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
     await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-assigned.png', fullPage: true });
+    await mapContainer.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-assigned-map.png' });
+
+    await context.addInitScript(() => {
+      localStorage.setItem('serviceStatus', 'en_route');
+    });
+    await page.goto(`${BASE_URL}/client/assigned`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await expect(page.getByText(/operador en camino/i).first()).toBeVisible({ timeout: 15_000 });
+    await assertNoPushBanner();
+    await page.waitForSelector('.leaflet-container', { timeout: 5_000 });
+    await page.waitForFunction(() => document.querySelectorAll('img.leaflet-tile-loaded').length > 0, null, { timeout: 5_000 }).catch(() => {});
+    await page.waitForTimeout(300);
+
+    const mapContainerEnRoute = page.locator('.leaflet-container').first();
+    await mapContainerEnRoute.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-en-route.png', fullPage: true });
+    await mapContainerEnRoute.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/final73-client-en-route-map.png' });
 
     await context.addInitScript(() => {
       localStorage.setItem('operatorArrived', 'true');

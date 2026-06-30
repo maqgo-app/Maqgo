@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -39,7 +39,36 @@ const destinationIcon = new L.Icon({
   popupAnchor: [0, -36],
 });
 
-function OnTheWayMap({ originLocation, operatorLocation, serviceLocation }) {
+function makeCurvedLine(start, end) {
+  const [lat1, lng1] = start;
+  const [lat2, lng2] = end;
+  const midLat = (lat1 + lat2) / 2;
+  const midLng = (lng1 + lng2) / 2;
+
+  const dx = lng2 - lng1;
+  const dy = lat2 - lat1;
+
+  const norm = Math.max(1e-9, Math.sqrt(dx * dx + dy * dy));
+  const nx = -dy / norm;
+  const ny = dx / norm;
+  const curvature = Math.min(0.12, Math.max(0.03, norm * 0.06));
+
+  const controlLat = midLat + ny * curvature;
+  const controlLng = midLng + nx * curvature;
+
+  const points = [];
+  const steps = 18;
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const oneMinusT = 1 - t;
+    const lat = oneMinusT * oneMinusT * lat1 + 2 * oneMinusT * t * controlLat + t * t * lat2;
+    const lng = oneMinusT * oneMinusT * lng1 + 2 * oneMinusT * t * controlLng + t * t * lng2;
+    points.push([lat, lng]);
+  }
+  return points;
+}
+
+function OnTheWayMap({ originLocation, serviceLocation, variant = 'static' }) {
   const defaultService = { lat: -33.4489, lng: -70.6693, address: 'Obra' };
   const service = serviceLocation || defaultService;
 
@@ -50,53 +79,42 @@ function OnTheWayMap({ originLocation, operatorLocation, serviceLocation }) {
   );
   const origin = hasOrigin ? originLocation : null;
 
-  const hasOperator = Boolean(
-    operatorLocation &&
-      operatorLocation.lat != null &&
-      operatorLocation.lng != null
-  );
-  const operator = hasOperator ? operatorLocation : null;
+  const [dashOffset, setDashOffset] = useState(0);
+  useEffect(() => {
+    if (variant !== 'moving') return undefined;
+    const id = setInterval(() => {
+      setDashOffset((prev) => (prev <= -60 ? 0 : prev - 2));
+    }, 80);
+    return () => clearInterval(id);
+  }, [variant]);
 
   const routeLine = useMemo(() => {
     if (!hasOrigin) return null;
-    return [
-      [origin.lat, origin.lng],
-      [service.lat, service.lng],
-    ];
+    return makeCurvedLine([origin.lat, origin.lng], [service.lat, service.lng]);
   }, [hasOrigin, origin?.lat, origin?.lng, service.lat, service.lng]);
 
   const centerLat = hasOrigin
     ? (origin.lat + service.lat) / 2
-    : hasOperator
-      ? (operator.lat + service.lat) / 2
-      : service.lat;
+    : service.lat;
   const centerLng = hasOrigin
     ? (origin.lng + service.lng) / 2
-    : hasOperator
-      ? (operator.lng + service.lng) / 2
-      : service.lng;
+    : service.lng;
   
   return (
-    <div style={{ 
-      width: '100%', 
-      height: 200, 
-      borderRadius: 12, 
-      overflow: 'hidden',
-      marginBottom: 16,
-      border: '2px solid #363636'
-    }}>
-      <MapContainer
-        center={[centerLat, centerLng]}
-        zoom={hasOrigin ? 12 : hasOperator ? 13 : 14}
-        minZoom={11}
-        maxZoom={15}
-        style={{ width: '100%', height: '100%' }}
-        zoomControl={false}
-        attributionControl={false}
-        scrollWheelZoom={false}
-        doubleClickZoom={false}
-        touchZoom={false}
-      >
+    <div style={{ width: '100%', borderRadius: 12, overflow: 'hidden', border: '2px solid #363636' }}>
+      <div style={{ height: 200, background: '#171717' }}>
+        <MapContainer
+          center={[centerLat, centerLng]}
+          zoom={hasOrigin ? 12 : 14}
+          minZoom={11}
+          maxZoom={15}
+          style={{ width: '100%', height: '100%' }}
+          zoomControl={false}
+          attributionControl={false}
+          scrollWheelZoom={false}
+          doubleClickZoom={false}
+          touchZoom={false}
+        >
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
@@ -105,14 +123,6 @@ function OnTheWayMap({ originLocation, operatorLocation, serviceLocation }) {
           <Marker position={[origin.lat, origin.lng]} icon={originIcon}>
             <Popup>
               <strong style={{ color: '#EC6819' }}>Origen</strong>
-            </Popup>
-          </Marker>
-        ) : hasOperator ? (
-          <Marker position={[operator.lat, operator.lng]} icon={originIcon}>
-            <Popup>
-              <strong style={{ color: '#EC6819' }}>{operator.name || 'Operador'}</strong>
-              <br />
-              Ubicación operativa
             </Popup>
           </Marker>
         ) : null}
@@ -129,29 +139,31 @@ function OnTheWayMap({ originLocation, operatorLocation, serviceLocation }) {
         {routeLine ? (
           <Polyline
             positions={routeLine}
-            pathOptions={{ color: '#90BDD3', weight: 3, opacity: 0.8, dashArray: '6 8' }}
+            pathOptions={{
+              color: '#90BDD3',
+              weight: 3,
+              opacity: 0.85,
+              dashArray: '8 10',
+              dashOffset: variant === 'moving' ? `${dashOffset}` : undefined,
+              lineCap: 'round',
+              lineJoin: 'round',
+            }}
           />
         ) : null}
-      </MapContainer>
-      
-      {/* Leyenda */}
+        </MapContainer>
+      </div>
+
       <div style={{
         display: 'flex',
         justifyContent: 'center',
         gap: 20,
         padding: '8px 0',
         background: '#2A2A2A',
-        marginTop: -4
       }}>
         {hasOrigin ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#EC6819' }}></div>
             <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>Origen</span>
-          </div>
-        ) : hasOperator ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#EC6819' }}></div>
-            <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>Operador</span>
           </div>
         ) : null}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

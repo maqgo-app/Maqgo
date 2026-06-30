@@ -236,6 +236,20 @@ function MachineryAssignedScreen() {
             </div>
           </MaqgoCard>
 
+          {serviceStatus === 'en_route' && Number.isFinite(Number(etaMinutes)) ? (
+            <>
+              <div style={{ height: 10 }} />
+              <MaqgoCard style={{ background: 'rgba(255,255,255,0.04)' }}>
+                <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.9 }}>
+                  Llegada estimada
+                </div>
+                <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, marginTop: 6 }}>
+                  ~{Math.max(1, Math.round(Number(etaMinutes)))} min
+                </div>
+              </MaqgoCard>
+            </>
+          ) : null}
+
           <div style={{ height: 10 }} />
 
           <MaqgoCard>
@@ -303,12 +317,12 @@ function MachineryAssignedScreen() {
                 if (!Number.isFinite(nLat) || !Number.isFinite(nLng)) return null;
                 return { lat: nLat, lng: nLng };
               })()}
-              operatorLocation={null}
               serviceLocation={{
                 lat: workLocation.lat,
                 lng: workLocation.lng,
                 address: location || 'Tu obra'
               }}
+              variant={serviceStatus === 'en_route' ? 'moving' : 'static'}
             />
           </MaqgoCard>
 
