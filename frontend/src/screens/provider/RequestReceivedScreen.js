@@ -99,6 +99,22 @@ function redactServiceLocation(raw) {
   const s = String(raw ?? '').trim();
   if (!s) return '';
 
+  const normalized = s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const sectorRules = [
+    { test: /escuela militar/, label: 'Sector Metro Escuela Militar' },
+    { test: /(la dehesa|los trapenses|camino real)/, label: 'Sector Los Trapenses' },
+  ];
+
+  for (const rule of sectorRules) {
+    if (rule.test.test(normalized)) return rule.label;
+  }
+
   const parts = s.split(',').map((p) => p.trim()).filter(Boolean);
   if (parts.length >= 2) {
     let candidate = '';
