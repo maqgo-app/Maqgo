@@ -110,12 +110,12 @@ function redactServiceLocation(raw) {
         break;
       }
     }
-    if (candidate) return 'Sector ' + candidate;
-    return 'Sector ' + parts[parts.length - 1];
+    if (candidate) return candidate;
+    return parts[parts.length - 1];
   }
   
-  if (/\d/.test(s)) return 'Sector a confirmar';
-  return 'Sector ' + s;
+  if (/\d/.test(s)) return 'Ubicación reservada';
+  return s;
 }
 
 function toNumber(value) {
