@@ -100,9 +100,22 @@ function redactServiceLocation(raw) {
   if (!s) return '';
 
   const parts = s.split(',').map((p) => p.trim()).filter(Boolean);
-  if (parts.length >= 2) return parts[parts.length - 1];
-  if (/\d/.test(s)) return 'Ubicación reservada';
-  return s;
+  if (parts.length >= 2) {
+    let candidate = '';
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      const pLower = p.toLowerCase();
+      if (!/\d/.test(p) && pLower !== 'chile' && !pLower.includes('región') && !pLower.includes('region')) {
+        candidate = p;
+        break;
+      }
+    }
+    if (candidate) return 'Sector ' + candidate;
+    return 'Sector ' + parts[parts.length - 1];
+  }
+  
+  if (/\d/.test(s)) return 'Sector a confirmar';
+  return 'Sector ' + s;
 }
 
 function toNumber(value) {
