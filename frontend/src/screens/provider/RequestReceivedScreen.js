@@ -433,7 +433,7 @@ function RequestReceivedScreen() {
       }
       const loc = departureLocation;
       if (!loc || loc.lat == null || loc.lng == null) {
-        setIntentError('Debes confirmar desde dónde sale la máquina.');
+        setIntentError('Debes confirmar tu ubicación para coordinar la salida de este servicio.');
         setIntentLoading(false);
         return;
       }

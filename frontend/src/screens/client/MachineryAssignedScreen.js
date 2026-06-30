@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getObject, getJSON } from '../../utils/safeStorage';
 import { useNavigate } from 'react-router-dom';
 import OnTheWayMap from '../../components/OnTheWayMap';
-import { playAcceptedSound, playArrivingSound, playNotificationSound, unlockAudio } from '../../utils/notificationSounds';
+import { playAcceptedSound, playNotificationSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
 import axios from 'axios';
 import BACKEND_URL from '../../utils/api';
@@ -27,21 +27,6 @@ const INCIDENT_MESSAGES = {
   'Incidente menor': 'un incidente menor'
 };
 
-// Radio para alertar al cliente: "El proveedor está llegando"
-const ARRIVING_ALERT_RADIUS_METERS = 500;
-
-// Calcular distancia Haversine (metros)
-const calcDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371e3;
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(Δφ/2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
 function MachineryAssignedScreen() {
   const navigate = useNavigate();
   const [provider] = useState(() => {
@@ -56,7 +41,7 @@ function MachineryAssignedScreen() {
   const [machinery] = useState(localStorage.getItem('selectedMachinery') || 'retroexcavadora');
   const [location] = useState(() => getBookingLocationLineOrEmpty());
 
-  // assigned = operador asignado, preparándose (mapa estático); en_route = ya salió (mapa se mueve, ETA)
+  // assigned = operador asignado, preparándose; en_route = ya salió
   const [serviceStatus, setServiceStatus] = useState(() => localStorage.getItem('serviceStatus') || 'assigned');
   const serviceStatusRef = useRef(serviceStatus);
   useEffect(() => {
@@ -108,21 +93,11 @@ function MachineryAssignedScreen() {
   const [protectedMinutesLeft, setProtectedMinutesLeft] = useState(0);
   const serviceId = localStorage.getItem('currentServiceId') || '';
   
-  // Estado de alerta de proximidad
-  const [nearbyAlertShown, setNearbyAlertShown] = useState(false);
-  const [showNearbyBanner, setShowNearbyBanner] = useState(false);
-
   // Ubicación de la obra
   const workLocation = {
     lat: parseFloat(localStorage.getItem('serviceLat')) || -33.4489,
     lng: parseFloat(localStorage.getItem('serviceLng')) || -70.6693
   };
-
-  // Simular posición del operador moviéndose hacia la obra (para demo)
-  const [operatorLocationSim, setOperatorLocationSim] = useState(() => ({
-    lat: provider.lat ?? -33.4372,
-    lng: provider.lng ?? -70.6506
-  }));
 
   // Simular cuenta regresiva del ETA (demo) — solo cuando ya está en camino
   useEffect(() => {
@@ -135,34 +110,6 @@ function MachineryAssignedScreen() {
     }, 10000);
     return () => clearInterval(etaInterval);
   }, [serviceStatus]);
-
-  // Simular movimiento del operador hacia la obra — solo cuando en_route (en assigned el mapa no se mueve)
-  useEffect(() => {
-    if (serviceStatus !== 'en_route') return;
-    const interval = setInterval(() => {
-      setOperatorLocationSim(prev => ({
-        lat: prev.lat + (workLocation.lat - prev.lat) * 0.03,
-        lng: prev.lng + (workLocation.lng - prev.lng) * 0.03
-      }));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [serviceStatus, workLocation.lat, workLocation.lng]);
-
-  // Una sola alerta: cuando el operador está a 500m de la obra — solo si ya está en camino
-  useEffect(() => {
-    if (serviceStatus !== 'en_route') return;
-    const dist = calcDistance(
-      operatorLocationSim.lat, operatorLocationSim.lng,
-      workLocation.lat, workLocation.lng
-    );
-    if (dist <= ARRIVING_ALERT_RADIUS_METERS && !nearbyAlertShown) {
-      setNearbyAlertShown(true);
-      setShowNearbyBanner(true);
-      playArrivingSound();
-      vibrate('arriving');
-      setTimeout(() => setShowNearbyBanner(false), 10000);
-    }
-  }, [serviceStatus, operatorLocationSim.lat, operatorLocationSim.lng, workLocation.lat, workLocation.lng, nearbyAlertShown]);
 
   // Detectar llegada del operador (operatorArrived desde ArrivalScreen) y redirigir
   // ProviderArrivedScreen reproducirá sonido y vibración al cargar
@@ -224,13 +171,6 @@ function MachineryAssignedScreen() {
   });
 
   const alerts = [];
-  if (showNearbyBanner) {
-    alerts.push({
-      tone: 'info',
-      title: 'Proximidad',
-      description: 'El proveedor está llegando al lugar de acceso.'
-    });
-  }
   if (activeIncident) {
     alerts.push({
       tone: 'warn',
@@ -292,7 +232,7 @@ function MachineryAssignedScreen() {
             <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, lineHeight: 1.45 }}>
               {serviceStatus === 'assigned'
                 ? 'Tu operador se está preparando.'
-                : 'Tu operador está en camino. Revisa el mapa y la llegada estimada.'}
+                : 'Tu operador está en camino. Revisa el estado del servicio en Avisos.'}
             </div>
           </MaqgoCard>
 
@@ -352,22 +292,25 @@ function MachineryAssignedScreen() {
 
           <div style={{ height: 10 }} />
 
-          {serviceStatus !== 'assigned' ? (
-            <MaqgoCard style={{ padding: 0, overflow: 'hidden' }}>
-              <OnTheWayMap
-                operatorLocation={{
-                  lat: operatorLocationSim.lat,
-                  lng: operatorLocationSim.lng,
-                  name: 'Operador'
-                }}
-                serviceLocation={{
-                  lat: workLocation.lat,
-                  lng: workLocation.lng,
-                  address: location || 'Tu obra'
-                }}
-              />
-            </MaqgoCard>
-          ) : null}
+          <MaqgoCard style={{ padding: 0, overflow: 'hidden' }}>
+            <OnTheWayMap
+              originLocation={(() => {
+                const pd = provider?.providerData;
+                const lat = pd?.addressLat;
+                const lng = pd?.addressLng;
+                const nLat = lat != null ? Number(lat) : NaN;
+                const nLng = lng != null ? Number(lng) : NaN;
+                if (!Number.isFinite(nLat) || !Number.isFinite(nLng)) return null;
+                return { lat: nLat, lng: nLng };
+              })()}
+              operatorLocation={null}
+              serviceLocation={{
+                lat: workLocation.lat,
+                lng: workLocation.lng,
+                address: location || 'Tu obra'
+              }}
+            />
+          </MaqgoCard>
 
           <div style={{ height: 14 }} />
 

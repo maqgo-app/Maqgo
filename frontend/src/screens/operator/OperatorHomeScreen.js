@@ -60,7 +60,7 @@ function OperatorHomeScreen() {
     }
     const code = err?.code;
     if (code === 1) {
-      return 'Permiso de ubicación denegado. Activa Ubicación y permite el acceso en los ajustes del navegador para poder recibir servicios.';
+      return 'Permiso de ubicación denegado. Activa Ubicación y permite el acceso en los ajustes del navegador para mejorar asignación y seguimiento.';
     }
     if (code === 2) {
       return 'Ubicación no disponible. Verifica que el GPS esté encendido y que tengas señal/datos.';

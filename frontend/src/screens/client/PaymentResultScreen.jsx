@@ -706,7 +706,7 @@ function PaymentResultScreen() {
 
           <ServiceSecondaryActions
             actions={[
-              { key: 'continue', label: 'Ver seguimiento en tiempo real', variant: 'primary', onClick: handleContinue, testId: 'continue-to-tracking-btn' },
+              { key: 'continue', label: 'Ver estado del servicio', variant: 'primary', onClick: handleContinue, testId: 'continue-to-tracking-btn' },
             ]}
           />
         </div>
