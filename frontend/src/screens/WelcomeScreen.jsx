@@ -4,9 +4,7 @@ import MaqgoLogo from '../components/MaqgoLogo';
 import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 import { useWelcomeLayout } from '../hooks/useWelcomeLayout';
 import { shouldShowResumeBooking } from '../utils/abandonmentTracker';
-import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
 import { useAuth } from '../context/authHooks';
-import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
 
 const ICON_SIZE = 24;
 
@@ -96,7 +94,6 @@ function WelcomeScreen() {
   // Solo sesión real (JWT): evita “Mi cuenta” con userId demo sin token → 401 en API.
   // token puede ser `token` (legacy) o `authToken` (actual).
   const hasSession = !!((localStorage.getItem('authToken') || localStorage.getItem('token')) && localStorage.getItem('userId'));
-  const hasKnownLoginContext = hasSession;
   /** Admin con sesión: la portada es para mercado; sin ?preview=1 se redirige al panel (login ya manda a /admin). */
   const allowPublicPreview =
     searchParams.get('preview') === '1' || location.state?.previewPublic === true;
@@ -106,29 +103,6 @@ function WelcomeScreen() {
   if (isAdminSession && !allowPublicPreview) {
     return <Navigate to="/admin" replace />;
   }
-
-  const handleAccount = () => {
-    if (auth.loading) return;
-    if (hasSession) {
-      if (auth.user?.role === 'admin') {
-        navigate('/admin');
-        return;
-      }
-      if (auth.user?.role === 'provider') {
-        navigate(auth.providerRole === 'operator' ? '/operator/home' : getProviderLandingPath());
-        return;
-      }
-      navigate('/client/home');
-      return;
-    }
-    try {
-      localStorage.removeItem('providerCameFromWelcome');
-    } catch {
-      /* ignore */
-    }
-    traceRedirectToLogin('src/screens/WelcomeScreen.jsx (handleAccount → login)');
-    navigate('/login');
-  };
 
   // Logo escala progresivamente según altura del viewport (p2→p6): más grande en pantallas altas
   const logoSize = isDesktop
@@ -404,25 +378,7 @@ function WelcomeScreen() {
 
         <div style={{ textAlign: 'center', marginTop: 20, width: '100%', flexShrink: 0 }}>
 
-  {hasKnownLoginContext && (
-    <div style={{ marginBottom: "18px" }}>
-      <button
-        onClick={handleAccount}
-        style={{
-          background: 'none',
-          border: 'none',
-          padding: 0,
-          fontFamily: 'inherit',
-          color: "#FF6B00",
-          fontSize: "14px",
-          textDecoration: "none",
-          cursor: 'pointer'
-        }}
-      >
-        {hasSession ? 'Mi cuenta' : 'Iniciar sesión'}
-      </button>
-    </div>
-  )}
+  {null}
 
   <div className="welcome-legal-footer">
     <div className="welcome-legal-links" aria-label="Enlaces legales">
@@ -442,13 +398,13 @@ function WelcomeScreen() {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 40px 0 22px;
+      padding: 40px 0 calc(22px + env(safe-area-inset-bottom, 0px));
     }
 
 
     @media (min-width: 768px) {
       .welcome-legal-footer {
-        padding: 22px 0 14px;
+        padding: 22px 0 calc(14px + env(safe-area-inset-bottom, 0px));
       }
       .welcome-legal-copy {
         margin-top: 8px;
@@ -504,7 +460,7 @@ function WelcomeScreen() {
 
     @media (max-width: 520px) {
       .welcome-legal-footer {
-        padding: 30px 0 18px;
+        padding: 30px 0 calc(18px + env(safe-area-inset-bottom, 0px));
       }
       .welcome-legal-links {
         flex-wrap: nowrap;

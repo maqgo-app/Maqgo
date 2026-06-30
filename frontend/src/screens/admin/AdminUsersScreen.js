@@ -4,6 +4,7 @@ import { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
+import maqgoLogo from '../../assets/maqgo-logo.png';
 
 import BACKEND_URL from '../../utils/api';
 
@@ -56,6 +57,7 @@ function AdminUsersScreen() {
   const [purgeTarget, setPurgeTarget] = useState(null);
   const [deleteMachineTarget, setDeleteMachineTarget] = useState(null);
   const [photoModalUrl, setPhotoModalUrl] = useState('');
+  const [expandedProviderIds, setExpandedProviderIds] = useState(() => new Set());
 
   const goDashboardArea = (area) => {
     try {
@@ -144,7 +146,7 @@ function AdminUsersScreen() {
   const filteredUsers = useMemo(() => {
     if (tab === 'machines') return normalizedUsers;
     const list = Array.isArray(normalizedUsers) ? normalizedUsers : [];
-    return list.filter((u) => {
+    const filtered = list.filter((u) => {
       const st = String(u?.status || 'active');
       const isDeleted = Boolean(u?.deleted) || st === 'deleted';
       if (statusFilter === 'deleted') return isDeleted;
@@ -152,6 +154,14 @@ function AdminUsersScreen() {
       if (statusFilter === 'test') return st === 'test';
       if (statusFilter === 'inactive') return st === 'inactive' || st === 'suspended';
       return st === 'active' || !u?.status;
+    });
+    if (tab !== 'providers') return filtered;
+    return filtered.filter((u) => {
+      const providerRole = String(u?.provider_role || '').trim();
+      const ownerId = String(u?.owner_id || '').trim();
+      if (providerRole === 'operator') return false;
+      if (providerRole === 'super_master') return true;
+      return !ownerId;
     });
   }, [normalizedUsers, statusFilter, tab]);
 
@@ -256,6 +266,73 @@ function AdminUsersScreen() {
     });
     return map;
   }, [machineRows]);
+
+  const toggleProviderExpanded = (providerId) => {
+    const id = String(providerId || '').trim();
+    if (!id) return;
+    setExpandedProviderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const providerGroups = useMemo(() => {
+    const list = Array.isArray(data.providers) ? data.providers : [];
+    const groups = new Map();
+
+    list.forEach((u) => {
+      const id = String(u?.id || '').trim();
+      if (!id) return;
+      const providerRole = String(u?.provider_role || '').trim();
+      const ownerId = String(u?.owner_id || '').trim();
+      const rootId = providerRole === 'super_master' || !ownerId ? id : ownerId;
+
+      if (!groups.has(rootId)) {
+        groups.set(rootId, { providerId: rootId, rootUser: null, members: [] });
+      }
+
+      const g = groups.get(rootId);
+      g.members.push(u);
+
+      const isRootCandidate = providerRole === 'super_master' || (!ownerId && providerRole !== 'operator');
+      if (isRootCandidate) {
+        if (!g.rootUser) g.rootUser = u;
+        else if (String(g.rootUser?.provider_role || '') !== 'super_master' && providerRole === 'super_master') g.rootUser = u;
+      }
+    });
+
+    return Array.from(groups.values()).map((g) => {
+      const rootUser = g.rootUser || g.members[0] || null;
+      const providerId = String(g.providerId || '').trim();
+      const machines = machineRows.filter((m) => String(m?.providerId || '').trim() === providerId);
+      const operators = g.members.filter((m) => String(m?.provider_role || '') === 'operator');
+      const masters = g.members.filter((m) => String(m?.provider_role || '') === 'master');
+      return { ...g, rootUser, machines, operators, masters };
+    });
+  }, [data.providers, machineRows]);
+
+  const filteredProviderGroups = useMemo(() => {
+    const want = String(statusFilter || 'active');
+    return providerGroups.filter((g) => {
+      const meta = getStatusMeta(g.rootUser || {});
+      if (want === 'deleted') return meta.isDel;
+      if (meta.isDel) return false;
+      if (want === 'test') return meta.st === 'test';
+      if (want === 'inactive') return meta.st === 'inactive' || meta.st === 'suspended';
+      return meta.st === 'active' || !g.rootUser?.status;
+    });
+  }, [providerGroups, statusFilter]);
+
+  const providerGroupById = useMemo(() => {
+    const m = new Map();
+    providerGroups.forEach((g) => {
+      const id = String(g?.providerId || '').trim();
+      if (id) m.set(id, g);
+    });
+    return m;
+  }, [providerGroups]);
 
   const openEdit = (u, kindOverride = null) => {
     const md = kindOverride === 'machine' ? u : (u?.machineData && typeof u.machineData === 'object' ? u.machineData : {});
@@ -498,9 +575,10 @@ function AdminUsersScreen() {
             >
               <BackArrowIcon size={18} style={{ display: 'block' }} />
             </button>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "'Space Grotesk', sans-serif", color: '#EC6819' }}>
-              MAQGO Admin
-            </h1>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, lineHeight: 1 }}>
+              <img src={maqgoLogo} alt="MAQGO" style={{ height: 22, width: 'auto', display: 'block' }} />
+              <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.4, color: 'rgba(255,255,255,0.78)' }}>Administrador</div>
+            </div>
           </div>
           <div style={{ flex: 1, minWidth: 260 }} />
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -732,7 +810,7 @@ function AdminUsersScreen() {
               fontWeight: 600
             }}
           >
-            Proveedores ({data.total_providers})
+            Proveedores ({providerGroups.length})
           </button>
           <button
             onClick={() => setTab('machines')}
@@ -989,6 +1067,7 @@ function AdminUsersScreen() {
                       {tab === 'providers' && (
                         <>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinarias</th>
+                          <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Operadores</th>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Onboarding</th>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Disponible</th>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Rol</th>
@@ -1000,7 +1079,8 @@ function AdminUsersScreen() {
                   </thead>
                   <tbody>
                     {filteredUsers.map((u, i) => (
-                      <tr key={u.id || i} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
+                      <React.Fragment key={u.id || i}>
+                        <tr style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
                           {maqgoPublicId(u.id, tab === 'clients' ? 'client' : 'provider')}
                         </td>
@@ -1040,6 +1120,9 @@ function AdminUsersScreen() {
                             <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
                               {providerMachineCountById.get(String(u?.id || '').trim()) || 0}
                             </td>
+                            <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
+                              {providerGroupById.get(String(u?.id || '').trim())?.operators?.length || 0}
+                            </td>
                             <td style={{ padding: 14 }}>
                               <span
                                 style={{
@@ -1076,6 +1159,24 @@ function AdminUsersScreen() {
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{formatDate(u.createdAt)}</td>
                         <td style={{ padding: 14, textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            {tab === 'providers' ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleProviderExpanded(u?.id)}
+                                style={{
+                                  padding: '8px 12px',
+                                  borderRadius: 8,
+                                  background: expandedProviderIds.has(String(u?.id || '').trim()) ? 'rgba(236, 104, 25, 0.18)' : 'rgba(255,255,255,0.06)',
+                                  border: `1px solid ${expandedProviderIds.has(String(u?.id || '').trim()) ? 'rgba(236, 104, 25, 0.55)' : ADMIN_THEME.borderStrong}`,
+                                  color: '#fff',
+                                  cursor: 'pointer',
+                                  fontSize: 13,
+                                  fontWeight: 800,
+                                }}
+                              >
+                                {expandedProviderIds.has(String(u?.id || '').trim()) ? 'Ocultar' : 'Ver'}
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               onClick={() => openEdit(u)}
@@ -1240,6 +1341,204 @@ function AdminUsersScreen() {
                           </div>
                         </td>
                       </tr>
+                      {tab === 'providers' && expandedProviderIds.has(String(u?.id || '').trim()) ? (
+                        <tr style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
+                          <td colSpan={14} style={{ padding: 16, background: 'rgba(255,255,255,0.02)' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minWidth: 920 }}>
+                              <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, background: 'rgba(255,255,255,0.03)' }}>
+                                <div style={{ padding: 12, borderBottom: `1px solid ${ADMIN_THEME.border}`, fontWeight: 900 }}>Maquinarias</div>
+                                <div style={{ padding: 12 }}>
+                                  {(() => {
+                                    const providerId = String(u?.id || '').trim();
+                                    const g = providerGroupById.get(providerId);
+                                    const machines = Array.isArray(g?.machines) ? g.machines : [];
+                                    if (machines.length === 0) {
+                                      return <div style={{ color: ADMIN_THEME.textMuted, fontSize: 13 }}>Sin maquinarias registradas.</div>;
+                                    }
+                                    return (
+                                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                        <thead>
+                                          <tr>
+                                            <th style={{ padding: '10px 8px', textAlign: 'left', color: ADMIN_THEME.textMuted, fontSize: 12, textTransform: 'uppercase' }}>ID</th>
+                                            <th style={{ padding: '10px 8px', textAlign: 'left', color: ADMIN_THEME.textMuted, fontSize: 12, textTransform: 'uppercase' }}>Foto</th>
+                                            <th style={{ padding: '10px 8px', textAlign: 'left', color: ADMIN_THEME.textMuted, fontSize: 12, textTransform: 'uppercase' }}>Maquinaria</th>
+                                            <th style={{ padding: '10px 8px', textAlign: 'left', color: ADMIN_THEME.textMuted, fontSize: 12, textTransform: 'uppercase' }}>Patente</th>
+                                            <th style={{ padding: '10px 8px', textAlign: 'left', color: ADMIN_THEME.textMuted, fontSize: 12, textTransform: 'uppercase' }}>Comuna</th>
+                                            <th style={{ padding: '10px 8px', textAlign: 'left', color: ADMIN_THEME.textMuted, fontSize: 12, textTransform: 'uppercase' }}>Disponible</th>
+                                            <th style={{ padding: '10px 8px', textAlign: 'right', color: ADMIN_THEME.textMuted, fontSize: 12, textTransform: 'uppercase' }}>Acciones</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {machines.map((m, idx) => (
+                                            <tr key={m.id || idx} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
+                                              <td style={{ padding: '10px 8px', color: 'rgba(255,255,255,0.86)', fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
+                                                {maqgoPublicId(m.machineKey, 'machine')}
+                                              </td>
+                                              <td style={{ padding: '10px 8px' }}>
+                                                {m.primaryPhoto ? (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setPhotoModalUrl(m.primaryPhoto)}
+                                                    style={{
+                                                      width: 44,
+                                                      height: 44,
+                                                      borderRadius: 10,
+                                                      border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                                                      padding: 0,
+                                                      background: 'rgba(255,255,255,0.04)',
+                                                      cursor: 'pointer',
+                                                      overflow: 'hidden',
+                                                    }}
+                                                    title="Tocar para agrandar"
+                                                  >
+                                                    <img
+                                                      src={m.primaryPhoto}
+                                                      alt=""
+                                                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                                    />
+                                                  </button>
+                                                ) : (
+                                                  <span style={{ color: ADMIN_THEME.textMuted, fontSize: 12 }}>—</span>
+                                                )}
+                                              </td>
+                                              <td style={{ padding: '10px 8px', color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.machineryType}</td>
+                                              <td style={{ padding: '10px 8px', color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.licensePlate}</td>
+                                              <td style={{ padding: '10px 8px', color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{m.comuna || '-'}</td>
+                                              <td style={{ padding: '10px 8px' }}>
+                                                <span
+                                                  style={{
+                                                    padding: '4px 8px',
+                                                    borderRadius: 6,
+                                                    fontSize: 12,
+                                                    fontWeight: 700,
+                                                    background: m.isAvailable ? 'rgba(102, 187, 106, 0.16)' : 'rgba(255,255,255,0.08)',
+                                                    color: m.isAvailable ? ADMIN_PALETTE.success : ADMIN_THEME.textMuted,
+                                                  }}
+                                                >
+                                                  {m.isAvailable ? 'Sí' : 'No'}
+                                                </span>
+                                              </td>
+                                              <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => openEdit(m, 'machine')}
+                                                    style={{
+                                                      padding: '6px 10px',
+                                                      borderRadius: 8,
+                                                      background: 'rgba(255,255,255,0.06)',
+                                                      border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                                                      color: '#fff',
+                                                      cursor: 'pointer',
+                                                      fontSize: 12,
+                                                      fontWeight: 700,
+                                                    }}
+                                                  >
+                                                    Editar
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setDeleteMachineTarget(m)}
+                                                    style={{
+                                                      padding: '6px 10px',
+                                                      borderRadius: 8,
+                                                      background: 'rgba(220, 53, 69, 0.18)',
+                                                      border: '1px solid rgba(220, 53, 69, 0.55)',
+                                                      color: '#fff',
+                                                      cursor: 'pointer',
+                                                      fontSize: 12,
+                                                      fontWeight: 900,
+                                                    }}
+                                                  >
+                                                    Eliminar
+                                                  </button>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                              <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, background: 'rgba(255,255,255,0.03)' }}>
+                                <div style={{ padding: 12, borderBottom: `1px solid ${ADMIN_THEME.border}`, fontWeight: 900 }}>Equipo</div>
+                                <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                  {(() => {
+                                    const providerId = String(u?.id || '').trim();
+                                    const g = providerGroupById.get(providerId);
+                                    const masters = Array.isArray(g?.masters) ? g.masters : [];
+                                    const operators = Array.isArray(g?.operators) ? g.operators : [];
+                                    if (masters.length === 0 && operators.length === 0) {
+                                      return <div style={{ color: ADMIN_THEME.textMuted, fontSize: 13 }}>Sin operadores/gerentes asociados.</div>;
+                                    }
+                                    return (
+                                      <>
+                                        {masters.map((m, idx) => (
+                                          <div key={m.id || idx} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 10, padding: 10 }}>
+                                            <div style={{ minWidth: 0 }}>
+                                              <div style={{ fontWeight: 900, fontSize: 13 }}>
+                                                {m.name || '-'} <span style={{ color: ADMIN_THEME.textMuted, fontWeight: 700 }}>(Gerente)</span>
+                                              </div>
+                                              <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12 }}>{m.email || '-'} · {m.phone || '-'}</div>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => openEdit(m)}
+                                              style={{
+                                                padding: '6px 10px',
+                                                borderRadius: 8,
+                                                background: 'rgba(255,255,255,0.06)',
+                                                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                                                color: '#fff',
+                                                cursor: 'pointer',
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                                whiteSpace: 'nowrap',
+                                              }}
+                                            >
+                                              Editar
+                                            </button>
+                                          </div>
+                                        ))}
+                                        {operators.map((op, idx) => (
+                                          <div key={op.id || idx} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 10, padding: 10 }}>
+                                            <div style={{ minWidth: 0 }}>
+                                              <div style={{ fontWeight: 900, fontSize: 13 }}>
+                                                {op.name || '-'} <span style={{ color: ADMIN_THEME.textMuted, fontWeight: 700 }}>(Operador)</span>
+                                              </div>
+                                              <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12 }}>{op.email || '-'} · {op.phone || '-'}</div>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => openEdit(op)}
+                                              style={{
+                                                padding: '6px 10px',
+                                                borderRadius: 8,
+                                                background: 'rgba(255,255,255,0.06)',
+                                                border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                                                color: '#fff',
+                                                cursor: 'pointer',
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                                whiteSpace: 'nowrap',
+                                              }}
+                                            >
+                                              Editar
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
