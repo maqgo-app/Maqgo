@@ -184,7 +184,7 @@ export async function installApiMocks(context, options = {}) {
             {
               id: 'provider:provider-qa-001:sr:svc-123:entry_confirmed',
               title: 'Ingreso autorizado',
-              body: 'El cliente autorizó el ingreso. Puedes iniciar el servicio cuando corresponda.',
+              body: 'El cliente autorizó el ingreso. El operador puede iniciar el servicio.',
               severity: 'important',
               createdAt: new Date(now.getTime() - 7 * 60 * 1000).toISOString(),
               readAt: null,
@@ -195,7 +195,7 @@ export async function installApiMocks(context, options = {}) {
             {
               id: 'provider:provider-qa-001:sr:svc-123:confirmed',
               title: 'Servicio confirmado',
-              body: 'Servicio confirmado. Revisa destino y registra tu avance en MAQGO.',
+              body: 'El servicio fue confirmado. Revisa el estado y próximos pasos.',
               severity: 'important',
               createdAt: new Date(now.getTime() - 35 * 60 * 1000).toISOString(),
               readAt: new Date(now.getTime() - 10 * 60 * 1000).toISOString(),
@@ -222,7 +222,7 @@ export async function installApiMocks(context, options = {}) {
             {
               id: 'operator:operator-qa-001:sr:svc-123:incident',
               title: 'Incidente registrado',
-              body: 'El incidente quedó registrado en MAQGO.',
+              body: 'Incidente registrado: bloqueo de ruta.',
               severity: 'neutral',
               createdAt: new Date(now.getTime() - 45 * 60 * 1000).toISOString(),
               readAt: new Date(now.getTime() - 40 * 60 * 1000).toISOString(),

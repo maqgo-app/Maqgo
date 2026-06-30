@@ -319,7 +319,7 @@ function EnRouteScreen() {
           marginBottom: 12
         }}>
           <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 8 }}>
-            Cliente
+            Cliente MAQGO
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>

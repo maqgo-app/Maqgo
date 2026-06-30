@@ -118,7 +118,7 @@ def _title_body_for_kind(kind: str, extra: Optional[dict] = None, audience_role:
         return 'Esperando autorización de ingreso', 'Autoriza el ingreso para que el servicio pueda comenzar.'
     if k == 'entry_authorized':
         if ar == 'provider':
-            return 'Ingreso autorizado', 'El cliente autorizó el ingreso. El servicio puede comenzar.'
+            return 'Ingreso autorizado', 'El cliente autorizó el ingreso. El operador puede iniciar el servicio.'
         if ar == 'operator':
             return 'Ingreso autorizado', 'El cliente autorizó el ingreso.'
         return 'Ingreso autorizado', 'Autorizaste el ingreso. El servicio puede comenzar.'
