@@ -4,6 +4,7 @@ import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { playAcceptedSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
+import { getActivationErrorMessage } from '../../utils/activationErrors';
 
 import BACKEND_URL from '../../utils/api';
 
@@ -92,31 +93,7 @@ function OperatorJoinScreen() {
         setStatusMessage('');
       }
     } catch (err) {
-      console.error('Error joining:', err);
-      let msg = 'No pudimos validar el código. Verifica y vuelve a intentar.';
-      if (err.response?.data?.detail) {
-        const d = String(Array.isArray(err.response.data.detail) ? (err.response.data.detail[0]?.msg || '') : err.response.data.detail || '').toLowerCase();
-        const hasInvalid = d.includes('inválido') || d.includes('invalido');
-        const hasUsed = d.includes('ya utilizado');
-        const hasMaster = d.includes('gerentes') || d.includes('master');
-        if (hasInvalid && hasUsed) {
-          // Mensaje combinado del backend: no sabemos la causa exacta.
-          msg = 'Código inválido o no disponible. Pide a tu empresa un código vigente de operador.';
-        } else if (hasInvalid) {
-          msg = 'Código inválido. Revisa el código y vuelve a intentar.';
-        } else if (hasUsed) {
-          msg = 'Este código ya fue usado. Pide uno nuevo a tu empresa.';
-        } else if (d.includes('expirado')) {
-          msg = 'Este código venció. Pide uno nuevo a tu empresa.';
-        } else if (hasMaster) {
-          msg = 'Este código es para gerente. Pide a tu empresa un código de operador.';
-        } else {
-          msg = 'No pudimos validar el código. Pide a tu empresa un código nuevo.';
-        }
-      } else if (err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
-        msg = 'No pudimos conectarnos. Revisa tu internet e inténtalo de nuevo.';
-      }
-      setError(msg);
+      setError(getActivationErrorMessage(err));
       setStatusMessage('');
     }
     

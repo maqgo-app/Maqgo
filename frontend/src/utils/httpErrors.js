@@ -10,7 +10,7 @@ function isLikelyHtmlString(s) {
   return t.startsWith('<') || /<!DOCTYPE/i.test(t) || /<html/i.test(t);
 }
 
-function normalizeDetail(data) {
+export function normalizeDetail(data) {
   if (!data) return null;
   // Proxy/CDN a veces devuelve HTML en 502/504; no mostrar trozos de página al usuario.
   if (typeof data === 'string') {

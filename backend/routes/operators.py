@@ -13,12 +13,18 @@ from datetime import datetime, timezone, timedelta
 import random
 import string
 
+from pymongo.errors import DuplicateKeyError, PyMongoError
+
 from motor.motor_asyncio import AsyncIOMotorClient
 from db_config import get_db_name, get_mongo_url
 from auth_dependency import get_current_user
 from security.policy import AccessPolicy
 
 router = APIRouter(prefix="/operators", tags=["operators"])
+
+ACTIVATION_INDETERMINATE_MESSAGE = (
+    "No fue posible determinar la causa del error. Inténtalo nuevamente o contacta a soporte."
+)
 
 MONGO_URL = get_mongo_url()
 DB_NAME = get_db_name()
@@ -272,98 +278,138 @@ async def use_invitation(data: InvitationUse):
     Operador usa código de invitación para vincularse al dueño.
     Solo acepta códigos de tipo 'operator' (no 'master').
     """
-    code_upper = data.code.upper()
-    
-    # Buscar invitación - solo para operadores (no masters)
-    invitation = await db.invitations.find_one({
-        "code": code_upper,
-        "status": "pending",
-        "invite_type": {"$ne": "master"}  # Excluir invitaciones de tipo master
-    })
-    
-    if not invitation:
-        raise HTTPException(status_code=404, detail="Código inválido, ya utilizado, o es para Gerentes")
-    
-    # Verificar expiración (manejando timezone aware/naive)
-    expires_at = invitation["expires_at"]
-    now = datetime.now(timezone.utc)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if now > expires_at:
+    try:
+        code_upper = data.code.upper()
+
+        invitation = await db.invitations.find_one(
+            {
+                "code": code_upper,
+                "status": "pending",
+                "invite_type": {"$ne": "master"},
+            }
+        )
+
+        if not invitation:
+            any_invitation = await db.invitations.find_one(
+                {"code": code_upper},
+                {"_id": 0, "code": 1, "status": 1, "invite_type": 1, "expires_at": 1},
+            )
+            if not any_invitation:
+                raise HTTPException(status_code=404, detail="Código inexistente")
+            if any_invitation.get("invite_type") == "master":
+                raise HTTPException(status_code=404, detail="Este código es para Gerentes")
+            st = str(any_invitation.get("status") or "").strip().lower()
+            if st == "used":
+                raise HTTPException(status_code=404, detail="Código ya utilizado")
+            if st == "expired":
+                raise HTTPException(status_code=400, detail="Código expirado")
+            expires_at_any = _to_utc(any_invitation.get("expires_at"))
+            if expires_at_any and datetime.now(timezone.utc) > expires_at_any:
+                await db.invitations.update_one(
+                    {"code": code_upper},
+                    {"$set": {"status": "expired"}},
+                )
+                raise HTTPException(status_code=400, detail="Código expirado")
+            raise HTTPException(status_code=404, detail="Código no disponible")
+
+        expires_at = _to_utc(invitation.get("expires_at"))
+        now = datetime.now(timezone.utc)
+        if not expires_at:
+            raise HTTPException(
+                status_code=500,
+                detail="Error interno: invitación con expiración inválida",
+            )
+        if now > expires_at:
+            await db.invitations.update_one(
+                {"code": code_upper},
+                {"$set": {"status": "expired"}},
+            )
+            raise HTTPException(status_code=400, detail="Código expirado")
+
+        if not invitation.get("operator_name") or not invitation.get("operator_rut"):
+            raise HTTPException(
+                status_code=400,
+                detail="Esta invitación no tiene nombre o RUT del operador. Pide a tu empresa un código nuevo.",
+            )
+
+        operator_rut = _ensure_person_rut(
+            data.operator_rut or invitation.get("operator_rut"),
+            label="RUT del operador",
+        )
+
+        import uuid
+
+        operator_id = str(uuid.uuid4())
+
+        operator_data = {
+            "id": operator_id,
+            "role": "provider",
+            "provider_role": "operator",
+            "owner_id": invitation["owner_id"],
+            "name": data.operator_name or invitation.get("operator_name") or "Operador",
+            "phone": data.operator_phone or invitation.get("operator_phone") or "",
+            "rut": operator_rut,
+            "email": "",
+            "isAvailable": False,
+            "rating": 5.0,
+            "totalRatings": 0,
+            "totalServices": 0,
+            "hoursWorked": 0,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "joinedVia": "invitation",
+            "invitationCode": data.code.upper(),
+        }
+
+        try:
+            await db.users.insert_one(operator_data)
+        except DuplicateKeyError:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "No se pudo completar la activación porque ya existe un registro duplicado "
+                    "(por ejemplo, teléfono o RUT)."
+                ),
+            )
+
         await db.invitations.update_one(
             {"code": code_upper},
-            {"$set": {"status": "expired"}}
-        )
-        raise HTTPException(status_code=400, detail="Código expirado")
-    
-    # Validar que la invitación tiene datos mínimos del operador
-    if not invitation.get("operator_name") or not invitation.get("operator_rut"):
-        raise HTTPException(
-            status_code=400,
-            detail="Esta invitación no tiene nombre o RUT del operador. Pide a tu empresa un código nuevo."
+            {
+                "$set": {
+                    "status": "used",
+                    "used_at": datetime.now(timezone.utc),
+                    "used_by": operator_id,
+                }
+            },
         )
 
-    operator_rut = _ensure_person_rut(data.operator_rut or invitation.get("operator_rut"), label="RUT del operador")
+        owner = await db.users.find_one({"id": invitation["owner_id"]}, {"_id": 0, "name": 1})
 
-    # Crear cuenta de operador
-    import uuid
-    operator_id = str(uuid.uuid4())
-    
-    operator_data = {
-        "id": operator_id,
-        "role": "provider",
-        "provider_role": "operator",
-        "owner_id": invitation["owner_id"],
-        "name": data.operator_name or invitation.get("operator_name") or "Operador",
-        "phone": data.operator_phone or invitation.get("operator_phone") or "",
-        "rut": operator_rut,
-        "email": "",
-        "isAvailable": False,
-        "rating": 5.0,
-        "totalRatings": 0,
-        "totalServices": 0,
-        "hoursWorked": 0,
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-        "joinedVia": "invitation",
-        "invitationCode": data.code.upper()
-    }
-    
-    await db.users.insert_one(operator_data)
-    
-    # Marcar invitación como usada
-    await db.invitations.update_one(
-        {"code": code_upper},
-        {
-            "$set": {
-                "status": "used",
-                "used_at": datetime.now(timezone.utc),
-                "used_by": operator_id
-            }
+        token = None
+        try:
+            from auth_dependency import create_session_for_user
+
+            token = await create_session_for_user(operator_id)
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "No se pudo crear sesión para operador %s: %s", operator_id, e
+            )
+
+        response = {
+            "success": True,
+            "operator_id": operator_id,
+            "owner_id": invitation["owner_id"],
+            "owner_name": owner.get("name", "Tu empresa") if owner else "Tu empresa",
+            "message": f"¡Bienvenido! Ya estás vinculado a {owner.get('name', 'tu empresa') if owner else 'tu empresa'}",
         }
-    )
-    
-    # Obtener datos del dueño
-    owner = await db.users.find_one({"id": invitation["owner_id"]}, {"_id": 0, "name": 1})
-
-    # Crear sesión para el operador
-    token = None
-    try:
-        from auth_dependency import create_session_for_user
-        token = await create_session_for_user(operator_id)
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning("No se pudo crear sesión para operador %s: %s", operator_id, e)
-
-    response = {
-        "success": True,
-        "operator_id": operator_id,
-        "owner_id": invitation["owner_id"],
-        "owner_name": owner.get("name", "Tu empresa") if owner else "Tu empresa",
-        "message": f"¡Bienvenido! Ya estás vinculado a {owner.get('name', 'tu empresa') if owner else 'tu empresa'}"
-    }
-    if token:
-        response["token"] = token
-    return response
+        if token:
+            response["token"] = token
+        return response
+    except HTTPException:
+        raise
+    except (PyMongoError, Exception):
+        raise HTTPException(status_code=500, detail=ACTIVATION_INDETERMINATE_MESSAGE)
 
 
 @router.get("/invitations/{owner_id}")
@@ -572,90 +618,127 @@ async def use_master_invitation(data: MasterInvitationUse):
     """
     Master usa código de invitación para vincularse a la empresa.
     """
-    # Buscar invitación de tipo Master
-    invitation = await db.invitations.find_one({
-        "code": data.code.upper(),
-        "status": "pending",
-        "invite_type": "master"
-    })
-    
-    if not invitation:
-        raise HTTPException(status_code=404, detail="Código inválido, ya utilizado, o no es para Masters")
-    
-    # Verificar expiración (manejando timezone aware/naive)
-    expires_at = invitation["expires_at"]
-    now = datetime.now(timezone.utc)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    
-    if now > expires_at:
+    try:
+        invitation = await db.invitations.find_one(
+            {
+                "code": data.code.upper(),
+                "status": "pending",
+                "invite_type": "master",
+            }
+        )
+
+        if not invitation:
+            any_invitation = await db.invitations.find_one(
+                {"code": data.code.upper()},
+                {"_id": 0, "code": 1, "status": 1, "invite_type": 1, "expires_at": 1},
+            )
+            if not any_invitation:
+                raise HTTPException(status_code=404, detail="Código inexistente")
+            if any_invitation.get("invite_type") and any_invitation.get("invite_type") != "master":
+                raise HTTPException(status_code=404, detail="Este código no es para Masters")
+            st = str(any_invitation.get("status") or "").strip().lower()
+            if st == "used":
+                raise HTTPException(status_code=404, detail="Código ya utilizado")
+            if st == "expired":
+                raise HTTPException(status_code=400, detail="Código expirado")
+            expires_at_any = _to_utc(any_invitation.get("expires_at"))
+            if expires_at_any and datetime.now(timezone.utc) > expires_at_any:
+                await db.invitations.update_one(
+                    {"code": data.code.upper()},
+                    {"$set": {"status": "expired"}},
+                )
+                raise HTTPException(status_code=400, detail="Código expirado")
+            raise HTTPException(status_code=404, detail="Código no disponible")
+
+        expires_at = _to_utc(invitation.get("expires_at"))
+        now = datetime.now(timezone.utc)
+        if not expires_at:
+            raise HTTPException(
+                status_code=500,
+                detail="Error interno: invitación con expiración inválida",
+            )
+
+        if now > expires_at:
+            await db.invitations.update_one(
+                {"code": data.code.upper()},
+                {"$set": {"status": "expired"}},
+            )
+            raise HTTPException(status_code=400, detail="Código expirado")
+
+        first_name = str(data.master_name or invitation.get("master_name") or "").strip()
+        last_name = str(data.master_last_name or invitation.get("master_last_name") or "").strip()
+        full_name = " ".join(part for part in [first_name, last_name] if part).strip() or first_name
+        phone = str(data.master_phone or invitation.get("master_phone") or "").strip()
+        rut = str(data.master_rut or invitation.get("master_rut") or "").strip()
+        if not rut:
+            raise HTTPException(status_code=400, detail="Falta el RUT del usuario master")
+        rut = _ensure_person_rut(rut, label="RUT del usuario master")
+
+        if not full_name:
+            raise HTTPException(status_code=400, detail="Falta el nombre del usuario master")
+        if not phone:
+            raise HTTPException(status_code=400, detail="Falta el celular del usuario master")
+
+        import uuid
+
+        master_id = str(uuid.uuid4())
+
+        master_data = {
+            "id": master_id,
+            "role": "provider",
+            "provider_role": "master",
+            "owner_id": invitation["owner_id"],
+            "name": full_name,
+            "rut": rut,
+            "phone": phone,
+            "email": data.master_email or "",
+            "isAvailable": False,
+            "rating": 5.0,
+            "totalRatings": 0,
+            "totalServices": 0,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "joinedVia": "invitation",
+            "invitationCode": data.code.upper(),
+            "master_permissions": invitation.get("permissions")
+            if isinstance(invitation.get("permissions"), dict)
+            else {},
+        }
+
+        try:
+            await db.users.insert_one(master_data)
+        except DuplicateKeyError:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "No se pudo completar la activación porque ya existe un registro duplicado "
+                    "(por ejemplo, teléfono o RUT)."
+                ),
+            )
+
         await db.invitations.update_one(
             {"code": data.code.upper()},
-            {"$set": {"status": "expired"}}
+            {
+                "$set": {
+                    "status": "used",
+                    "used_at": datetime.now(timezone.utc),
+                    "used_by": master_id,
+                }
+            },
         )
-        raise HTTPException(status_code=400, detail="Código expirado")
-    
-    first_name = str(data.master_name or invitation.get("master_name") or "").strip()
-    last_name = str(data.master_last_name or invitation.get("master_last_name") or "").strip()
-    full_name = " ".join(part for part in [first_name, last_name] if part).strip() or first_name
-    phone = str(data.master_phone or invitation.get("master_phone") or "").strip()
-    rut = str(data.master_rut or invitation.get("master_rut") or "").strip()
-    if not rut:
-        raise HTTPException(status_code=400, detail="Falta el RUT del usuario master")
-    rut = _ensure_person_rut(rut, label="RUT del usuario master")
 
-    if not full_name:
-        raise HTTPException(status_code=400, detail="Falta el nombre del usuario master")
-    if not phone:
-        raise HTTPException(status_code=400, detail="Falta el celular del usuario master")
+        owner = await db.users.find_one({"id": invitation["owner_id"]}, {"_id": 0, "name": 1})
 
-    # Crear cuenta de Master
-    import uuid
-    master_id = str(uuid.uuid4())
-    
-    master_data = {
-        "id": master_id,
-        "role": "provider",
-        "provider_role": "master",  # ROL MASTER
-        "owner_id": invitation["owner_id"],
-        "name": full_name,
-        "rut": rut,
-        "phone": phone,
-        "email": data.master_email or "",
-        "isAvailable": False,
-        "rating": 5.0,
-        "totalRatings": 0,
-        "totalServices": 0,
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-        "joinedVia": "invitation",
-        "invitationCode": data.code.upper(),
-        "master_permissions": invitation.get("permissions") if isinstance(invitation.get("permissions"), dict) else {},
-    }
-    
-    await db.users.insert_one(master_data)
-    
-    # Marcar invitación como usada
-    await db.invitations.update_one(
-        {"code": data.code.upper()},
-        {
-            "$set": {
-                "status": "used",
-                "used_at": datetime.now(timezone.utc),
-                "used_by": master_id
-            }
+        return {
+            "success": True,
+            "master_id": master_id,
+            "owner_id": invitation["owner_id"],
+            "owner_name": owner.get("name", "Tu empresa") if owner else "Tu empresa",
+            "message": f"¡Bienvenido Master! Ya estás vinculado a {owner.get('name', 'tu empresa') if owner else 'tu empresa'}",
         }
-    )
-    
-    # Obtener datos del dueño
-    owner = await db.users.find_one({"id": invitation["owner_id"]}, {"_id": 0, "name": 1})
-    
-    return {
-        "success": True,
-        "master_id": master_id,
-        "owner_id": invitation["owner_id"],
-        "owner_name": owner.get("name", "Tu empresa") if owner else "Tu empresa",
-        "message": f"¡Bienvenido Master! Ya estás vinculado a {owner.get('name', 'tu empresa') if owner else 'tu empresa'}"
-    }
+    except HTTPException:
+        raise
+    except (PyMongoError, Exception):
+        raise HTTPException(status_code=500, detail=ACTIVATION_INDETERMINATE_MESSAGE)
 
 
 @router.get("/team/{owner_id}")

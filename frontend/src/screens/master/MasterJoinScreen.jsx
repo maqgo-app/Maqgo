@@ -5,7 +5,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import BackToPortadaButton from '../../components/BackToPortadaButton';
 import BACKEND_URL from '../../utils/api';
 import { getDeviceId } from '../../utils/deviceId';
-import { getHttpErrorMessage } from '../../utils/httpErrors';
+import { getActivationErrorMessage } from '../../utils/activationErrors';
 import { formatRut, normalizeChileanMobileDraft, normalizeChileanMobileE164, sanitizeRutInput, validatePersonRut } from '../../utils/chileanValidation';
 
 function persistRegisterDataPhoneDigits(phoneE164) {
@@ -72,16 +72,7 @@ function MasterJoinScreen() {
         state: { entry: 'provider', redirect: '/provider/home' },
       });
     } catch (e) {
-      setError(
-        getHttpErrorMessage(e, {
-          fallback: 'No pudimos validar el código. Verifica y vuelve a intentar.',
-          statusMessages: {
-            400: 'Código expirado o inválido.',
-            404: 'Código inválido o ya utilizado.',
-            429: 'Demasiados intentos. Espera un momento.',
-          },
-        })
-      );
+      setError(getActivationErrorMessage(e));
     } finally {
       setLoading(false);
     }
