@@ -73,8 +73,6 @@ function isPublicAuthRequestUrl(url) {
     u.includes('/api/auth/resend-code') ||
     u.includes('/api/auth/password-reset/request') ||
     u.includes('/api/auth/password-reset/confirm') ||
-    u.includes('/api/operators/join') ||
-    u.includes('/api/operators/masters/join') ||
     u.includes('/api/auth/check-device') ||
     u.includes('/api/communications/sms/send-otp') ||
     u.includes('/api/communications/sms/verify-otp')
