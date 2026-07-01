@@ -25,7 +25,8 @@ async function postJoinWithTransportRetry(payload) {
     const isMaqgoWww = import.meta.env.PROD && (host === 'www.maqgo.cl' || host === 'maqgo.cl');
     if (!isMaqgoWww) throw firstErr;
     const current = String(BACKEND_URL || '').replace(/\/+$/, '');
-    const alternate = current === MAQGO_API_ORIGIN ? '' : MAQGO_API_ORIGIN;
+    const alternate = current && current !== MAQGO_API_ORIGIN ? MAQGO_API_ORIGIN : '';
+    if (!alternate) throw firstErr;
     try {
       return await axios.post(joinEndpointUrl(alternate), payload);
     } catch (secondErr) {
