@@ -59,22 +59,13 @@ function ProviderAddMachineRedirect() {
 function ProviderSensitiveGate({ children }) {
   const location = useLocation();
   let isProvider = false;
-  let hasPassword = true;
-  let prefillPhoneDigits = '';
   const hasSession = hasPersistedSessionCredentials();
   try {
     const userRole = String(globalThis.localStorage?.getItem('userRole') || '').trim();
     const providerRole = String(globalThis.localStorage?.getItem('providerRole') || '').trim();
     isProvider = userRole === 'provider' || Boolean(providerRole);
-    const stored = String(globalThis.localStorage?.getItem('hasPassword') || '').trim();
-    hasPassword = stored !== '0';
-    const rawPhone = String(globalThis.localStorage?.getItem('userPhone') || '');
-    const digits = rawPhone.replace(/\D/g, '').slice(-9);
-    if (digits.length === 9 && digits.startsWith('9')) prefillPhoneDigits = digits;
   } catch {
     isProvider = false;
-    hasPassword = true;
-    prefillPhoneDigits = '';
   }
   if (isProvider && !hasSession) {
     const fullPath = `${location.pathname}${location.search || ''}`;
@@ -85,20 +76,6 @@ function ProviderSensitiveGate({ children }) {
         state={{
           entry: 'provider',
           redirect: fullPath,
-        }}
-      />
-    );
-  }
-  if (isProvider && !hasPassword) {
-    const fullPath = `${location.pathname}${location.search || ''}`;
-    return (
-      <Navigate
-        to="/forgot-password"
-        replace
-        state={{
-          entry: 'provider',
-          redirect: fullPath,
-          ...(prefillPhoneDigits ? { prefillPhoneDigits } : {}),
         }}
       />
     );

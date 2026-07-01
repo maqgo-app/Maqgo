@@ -78,7 +78,7 @@ function seedForProvider() {
   localStorage.setItem('userRole', 'provider');
   localStorage.setItem('providerOnboardingCompleted', 'true');
   localStorage.setItem('legalAcceptedAt', new Date().toISOString());
-  localStorage.setItem('hasPassword', '1');
+  localStorage.setItem('hasPassword', '0');
   localStorage.setItem(
     'providerData',
     JSON.stringify({
