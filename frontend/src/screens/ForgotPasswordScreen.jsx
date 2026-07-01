@@ -237,7 +237,23 @@ function ForgotPasswordScreen() {
       const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/confirm`, payload);
       setMessage(res.data?.message || 'Contraseña actualizada correctamente');
       setTimeout(() => {
-        traceRedirectToLogin('src/screens/ForgotPasswordScreen.jsx (post password reset)');
+        const redirect = String(location.state?.redirect || '').trim();
+        const hasSession = Boolean(
+          (localStorage.getItem('userId') || '').trim() &&
+            ((localStorage.getItem('token') || localStorage.getItem('authToken') || '').trim())
+        );
+        if (hasSession) {
+          try {
+            localStorage.setItem('hasPassword', '1');
+          } catch {
+            /* ignore */
+          }
+          if (redirect) {
+            navigate(redirect, { replace: true });
+            return;
+          }
+        }
+        traceRedirectToLogin('src/screens/ForgotPasswordScreen.jsx (post password reset → login)');
         backToLogin();
       }, 1200);
     } catch (e) {

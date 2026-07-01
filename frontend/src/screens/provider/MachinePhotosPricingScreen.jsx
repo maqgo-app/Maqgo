@@ -40,7 +40,7 @@ const MIN_PRICE_SERVICE = 100000;
 const MIN_TRANSPORT = 15000;
 const PHOTO_SLOT_LABELS = ['Frontal', 'Lateral', 'Trasera'];
 const PHOTO_SLOT_OPTIONALITY = {
-  Frontal: 'Opcional',
+  Frontal: 'Obligatoria',
   Lateral: 'Opcional',
   Trasera: 'Opcional',
 };
