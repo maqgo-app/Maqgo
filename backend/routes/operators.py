@@ -274,15 +274,25 @@ async def use_invitation(data: InvitationUse):
     """
     code_upper = data.code.upper()
     
-    # Buscar invitación - solo para operadores (no masters)
-    invitation = await db.invitations.find_one({
-        "code": code_upper,
-        "status": "pending",
-        "invite_type": {"$ne": "master"}  # Excluir invitaciones de tipo master
-    })
-    
-    if not invitation:
-        raise HTTPException(status_code=404, detail="Código inválido, ya utilizado, o es para Gerentes")
+    invitation_any = await db.invitations.find_one({"code": code_upper})
+    if not invitation_any:
+        raise HTTPException(status_code=404, detail="Código inválido")
+
+    if invitation_any.get("invite_type") == "master":
+        raise HTTPException(
+            status_code=400,
+            detail="Este código es para Gerentes. Pide a tu empresa un código de Operador.",
+        )
+
+    status = invitation_any.get("status")
+    if status and status != "pending":
+        if status == "used":
+            raise HTTPException(status_code=400, detail="Este código ya fue utilizado")
+        if status == "expired":
+            raise HTTPException(status_code=400, detail="Código expirado")
+        raise HTTPException(status_code=400, detail="Código no disponible")
+
+    invitation = invitation_any
     
     # Verificar expiración (manejando timezone aware/naive)
     expires_at = invitation["expires_at"]
