@@ -115,19 +115,6 @@ async def _generate_unique_code() -> str:
 def _to_utc(dt):
     if not dt:
         return None
-    if isinstance(dt, str):
-        s = dt.strip()
-        if not s:
-            return None
-        try:
-            if s.endswith("Z"):
-                s = s[:-1] + "+00:00"
-            parsed = datetime.fromisoformat(s)
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            return parsed
-        except Exception:
-            return None
     if hasattr(dt, "tzinfo") and dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt
@@ -307,14 +294,11 @@ async def use_invitation(data: InvitationUse):
 
     invitation = invitation_any
     
-    expires_at = _to_utc(invitation.get("expires_at"))
+    # Verificar expiración (manejando timezone aware/naive)
+    expires_at = invitation["expires_at"]
     now = datetime.now(timezone.utc)
-    if not expires_at:
-        await db.invitations.update_one(
-            {"code": code_upper},
-            {"$set": {"status": "expired"}},
-        )
-        raise HTTPException(status_code=400, detail="Código no disponible")
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
     if now > expires_at:
         await db.invitations.update_one(
             {"code": code_upper},
