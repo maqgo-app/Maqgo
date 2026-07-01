@@ -5,6 +5,7 @@ import BACKEND_URL, { fetchWithAuth } from '../utils/api';
 import { useWelcomeLayout } from '../hooks/useWelcomeLayout';
 import { shouldShowResumeBooking } from '../utils/abandonmentTracker';
 import { useAuth } from '../context/authHooks';
+import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
 
 const ICON_SIZE = 24;
 

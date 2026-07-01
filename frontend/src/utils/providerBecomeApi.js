@@ -97,8 +97,9 @@ export async function submitBecomeProviderMinimal(payload) {
     provider_data.nombre = nombre;
     provider_data.apellido = apellido;
   }
+  const email = String(payload.email ?? '').trim();
   const body = {
-    email: String(payload.email || '').trim(),
+    ...(email ? { email } : {}),
     ...(Object.keys(provider_data).length ? { provider_data } : {}),
   };
   const celRaw = payload.celular != null ? String(payload.celular).trim() : '';
