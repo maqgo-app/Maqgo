@@ -41,6 +41,7 @@ from services.payment_rollout import (
     resolve_idempotency_key,
 )
 from utils.rbac import has_permission
+from security.provider_permissions_builder import build_provider_permissions
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ServerSelectionTimeoutError
 from datetime import datetime, timezone, timedelta
@@ -686,7 +687,14 @@ async def get_pending_requests_for_provider(
                     "$elemMatch": {"providerId": providerId, "status": "pending"}
                 }
         else:
+            provider_role = str(current_user.get("provider_role") or "").strip()
             effective_provider_id = _effective_provider_account_id(current_user)
+            if provider_role == "master":
+                perms = build_provider_permissions(current_user, "master")
+                if not perms.get("can_accept_requests"):
+                    return []
+            if provider_role and provider_role != "operator" and current_user.get("owner_id"):
+                effective_provider_id = str(current_user.get("owner_id") or "").strip() or effective_provider_id
             if not effective_provider_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,

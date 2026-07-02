@@ -37,23 +37,54 @@ async def _notify_provider_offer(db: AsyncIOMotorDatabase, *, provider_id: str, 
     try:
         from services.notification_items_service import record_delivery, upsert_notification_item
         from services.webpush_service import notify_user
+        from security.provider_permissions_builder import build_provider_permissions
 
-        item = await upsert_notification_item(
-            db,
-            recipient_user_id=pid,
-            audience_role='provider',
-            service_request_id=srid,
-            kind=k,
-            occurred_at=occ,
-            pinned=True,
-        )
+        recipient_ids: List[str] = [pid]
+        try:
+            masters = await db.users.find(
+                {
+                    "owner_id": pid,
+                    "provider_role": "master",
+                    "$and": [
+                        {"$or": [{"status": {"$exists": False}}, {"status": "active"}]},
+                        {"$or": [{"deleted": {"$exists": False}}, {"deleted": False}]},
+                    ],
+                },
+                {"_id": 0},
+            ).to_list(50)
+            for m in masters:
+                perms = build_provider_permissions(m, "master")
+                if perms.get("can_accept_requests"):
+                    mid = str(m.get("id") or "").strip()
+                    if mid:
+                        recipient_ids.append(mid)
+        except Exception:
+            pass
 
-        already = await db.notification_deliveries.find_one(
-            {'notificationId': item['id'], 'channel': 'push_web', 'status': {'$in': ['sent', 'skipped']}},
-            {'_id': 0, 'id': 1},
-        )
-        if already:
-            return
+        deduped: List[str] = []
+        seen = set()
+        for rid in recipient_ids:
+            if rid not in seen:
+                seen.add(rid)
+                deduped.append(rid)
+
+        for rid in deduped:
+            item = await upsert_notification_item(
+                db,
+                recipient_user_id=rid,
+                audience_role='provider',
+                service_request_id=srid,
+                kind=k,
+                occurred_at=occ,
+                pinned=True,
+            )
+
+            already = await db.notification_deliveries.find_one(
+                {'notificationId': item['id'], 'channel': 'push_web', 'status': {'$in': ['sent', 'skipped']}},
+                {'_id': 0, 'id': 1},
+            )
+            if already:
+                continue
 
         if k == 'nueva_oferta':
             title = 'Nueva oferta'
@@ -62,21 +93,21 @@ async def _notify_provider_offer(db: AsyncIOMotorDatabase, *, provider_id: str, 
             title = 'Oferta por expirar'
             body = 'Tu oferta está por expirar. Revisa ahora.'
 
-        push = await notify_user(
-            db=db,
-            user_id=pid,
-            title=title,
-            body=body,
-            url='/provider/request-received',
-            tag=f'sr:{srid}',
-        )
-        await record_delivery(
-            db,
-            notification_id=item['id'],
-            channel='push_web',
-            status='sent' if int(push.get('sent', 0) or 0) > 0 else 'skipped',
-            meta={'sent': int(push.get('sent', 0) or 0), 'skipped': int(push.get('skipped', 0) or 0)},
-        )
+            push = await notify_user(
+                db=db,
+                user_id=rid,
+                title=title,
+                body=body,
+                url='/provider/request-received',
+                tag=f'sr:{srid}',
+            )
+            await record_delivery(
+                db,
+                notification_id=item['id'],
+                channel='push_web',
+                status='sent' if int(push.get('sent', 0) or 0) > 0 else 'skipped',
+                meta={'sent': int(push.get('sent', 0) or 0), 'skipped': int(push.get('skipped', 0) or 0)},
+            )
     except Exception as e:
         logger.warning("provider offer notify error sr=%s provider=%s kind=%s err=%s", srid, pid, k, e)
 
