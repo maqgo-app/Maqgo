@@ -89,7 +89,7 @@ export function normalizeProviderPostLoginRedirect(redirectTo) {
  * @param {string|null} [p.redirectTo]
  * @returns {{ kind: 'navigate', path: string } | { kind: 'error_not_admin' }}
  */
-export function getPostLoginNavigation({ isAdmin, effectiveRole, redirectTo }) {
+export function getPostLoginNavigation({ isAdmin, effectiveRole, providerRole, redirectTo }) {
   if (isAdmin) {
     return { kind: 'navigate', path: '/admin' };
   }
@@ -101,6 +101,13 @@ export function getPostLoginNavigation({ isAdmin, effectiveRole, redirectTo }) {
       redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
     return { kind: 'navigate', path: target };
   }
+
+  if (effectiveRole === 'provider' && providerRole === 'operator') {
+    const normalized = typeof redirectTo === 'string' ? redirectTo.replace(/\/$/, '') || '/' : null;
+    const target = normalized && normalized.startsWith('/operator') ? normalized : '/operator/home';
+    return { kind: 'navigate', path: target };
+  }
+
   const raw =
     redirectTo && redirectTo.startsWith('/provider')
       ? redirectTo

@@ -2,23 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
-import BackToPortadaButton from '../../components/BackToPortadaButton';
 import BACKEND_URL from '../../utils/api';
-import { getDeviceId } from '../../utils/deviceId';
 import { getActivationErrorMessage } from '../../utils/activationErrors';
-import { formatRut, normalizeChileanMobileDraft, normalizeChileanMobileE164, sanitizeRutInput, validatePersonRut } from '../../utils/chileanValidation';
-
-function persistRegisterDataPhoneDigits(phoneE164) {
-  const d = String(phoneE164 || '').replace(/\D/g, '');
-  const last9 = d.length >= 9 ? d.slice(-9) : '';
-  if (!/^9\d{8}$/.test(last9)) return;
-  try {
-    const next = { celular: last9 };
-    localStorage.setItem('registerData', JSON.stringify(next));
-  } catch {
-    /* ignore */
-  }
-}
 
 function MasterJoinScreen() {
   const navigate = useNavigate();
@@ -26,188 +11,148 @@ function MasterJoinScreen() {
   const fromUrlCode = String(searchParams.get('code') || '').trim().toUpperCase();
 
   const [code, setCode] = useState(fromUrlCode);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [rut, setRut] = useState('');
-  const [phone, setPhone] = useState('+569');
-  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
 
-  const handleJoin = async () => {
+  const handleJoinWithCode = async () => {
     if (loading) return;
-    const c = String(code || '').trim().toUpperCase();
-    if (c.length < 4) {
+    if (code.length < 4) {
       setError('Ingresa el código completo');
+      setStatusMessage('');
       return;
     }
-    const phoneE164 = normalizeChileanMobileE164(phone);
+
     setLoading(true);
     setError('');
+    setStatusMessage('Verificando código...');
+
     try {
-      const payload = {
-        code: c,
-        ...(String(firstName || '').trim() ? { master_name: String(firstName).trim() } : {}),
-        ...(String(lastName || '').trim() ? { master_last_name: String(lastName).trim() } : {}),
-        ...(String(rut || '').trim() && validatePersonRut(rut)
-          ? { master_rut: formatRut(String(rut).trim()) }
-          : {}),
-        ...(phoneE164 ? { master_phone: phoneE164 } : {}),
-        ...(String(email || '').trim() ? { master_email: String(email).trim() } : {}),
-      };
-      const res = await axios.post(`${BACKEND_URL}/api/operators/masters/join`, payload, {
-        timeout: 15000,
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = res.data || {};
-      persistRegisterDataPhoneDigits(phoneE164 || data?.master_phone || '');
+      await axios.post(
+        `${BACKEND_URL}/api/operators/masters/join`,
+        { code: code.toUpperCase() },
+        { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
+      );
       try {
         localStorage.setItem('desiredRole', 'provider');
-        localStorage.setItem('maqgo_device_id', getDeviceId());
       } catch {
         /* ignore */
       }
       navigate('/login', {
         replace: true,
-        state: { entry: 'provider', redirect: '/provider/home' },
+        state: { entry: 'provider', redirect: '/provider/home', activationCode: code.toUpperCase() },
       });
-    } catch (e) {
-      setError(getActivationErrorMessage(e));
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      setError(getActivationErrorMessage(err));
+      setStatusMessage('');
     }
+
+    setLoading(false);
   };
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
-      <div className="maqgo-screen maqgo-screen--scroll maqgo-funnel-scroll-compact">
-        <div className="maqgo-back-portada-wrap">
-          <BackToPortadaButton onClick={() => navigate('/welcome')} />
-        </div>
-        <MaqgoLogo size="medium" style={{ marginBottom: 24 }} />
-        <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 700, textAlign: 'center', margin: '0 0 10px' }}>
-          Creación de usuario Master
-        </h2>
-        <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, textAlign: 'center', margin: '0 0 22px', lineHeight: 1.45 }}>
-          Ingresa el código y completa tu identidad para crear tu usuario master. Luego iniciarás sesión con tu celular usando un código SMS (MAQGO).
+      <div
+        className="maqgo-screen"
+        style={{ justifyContent: 'flex-start', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}
+      >
+        <MaqgoLogo size="small" style={{ marginBottom: 30 }} />
+
+        <h1
+          style={{
+            color: '#fff',
+            fontSize: 24,
+            fontWeight: 700,
+            textAlign: 'center',
+            margin: '0 0 10px',
+            fontFamily: "'Space Grotesk', sans-serif",
+          }}
+        >
+          Activación de Usuario Master
+        </h1>
+        <p
+          style={{
+            color: 'rgba(255,255,255,0.9)',
+            fontSize: 14,
+            textAlign: 'center',
+            margin: '0 0 30px',
+            lineHeight: 1.5,
+          }}
+        >
+          Ingresa el código que te compartió tu empresa (no es el código SMS). Luego iniciarás sesión con un código SMS (MAQGO).
         </p>
 
-        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-          Código
-        </label>
-        <input
-          value={code}
-          onChange={(e) => {
-            setError('');
-            setCode(String(e.target.value || '').toUpperCase().slice(0, 6));
-          }}
-          placeholder="CÓDIGO"
-          className="maqgo-input"
-          style={{ width: '100%', marginBottom: 12, letterSpacing: 6, textAlign: 'center', fontWeight: 700 }}
-        />
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-          <div>
-            <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-              Nombre
-            </label>
-            <input
-              value={firstName}
-              onChange={(e) => {
-                setError('');
-                setFirstName(e.target.value);
-              }}
-              placeholder="Tu nombre"
-              className="maqgo-input"
-              style={{
-                width: '100%',
-                marginBottom: 0,
-              }}
-            />
-          </div>
-          <div>
-            <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-              Apellido
-            </label>
-            <input
-              value={lastName}
-              onChange={(e) => {
-                setError('');
-                setLastName(e.target.value);
-              }}
-              placeholder="Tu apellido"
-              className="maqgo-input"
-              style={{ width: '100%', marginBottom: 0 }}
-            />
-          </div>
+        <div style={{ marginBottom: 20 }}>
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => {
+              setCode(String(e.target.value || '').toUpperCase().slice(0, 6));
+              if (error) setError('');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && code.length >= 4 && !loading) {
+                handleJoinWithCode();
+              }
+            }}
+            placeholder="CÓDIGO"
+            maxLength={6}
+            style={{
+              width: '100%',
+              padding: '18px 20px',
+              fontSize: 24,
+              fontWeight: 700,
+              fontFamily: "'JetBrains Mono', monospace",
+              textAlign: 'center',
+              letterSpacing: 8,
+              background: '#2A2A2A',
+              border: error ? '2px solid #ff6b6b' : '2px solid #444',
+              borderRadius: 12,
+              color: '#fff',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+            data-testid="invite-code-input"
+          />
         </div>
 
-        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-          RUT
-        </label>
-        <input
-          value={formatRut(rut)}
-          onChange={(e) => {
-            setError('');
-            setRut(sanitizeRutInput(e.target.value));
-          }}
-          placeholder="12.345.678-9"
-          className="maqgo-input"
-          style={{
-            width: '100%',
-            marginBottom: 12,
-            borderColor: rut && !validatePersonRut(rut) ? 'var(--maqgo-orange)' : undefined,
-          }}
-        />
-
-        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-          Celular
-        </label>
-        <input
-          value={phone}
-          onChange={(e) => {
-            setError('');
-            setPhone(normalizeChileanMobileDraft(e.target.value));
-          }}
-          placeholder="+56 9 1234 5678"
-          className="maqgo-input"
-          style={{
-            width: '100%',
-            marginBottom: 12,
-            borderColor: phone !== '+569' && !normalizeChileanMobileE164(phone) ? 'var(--maqgo-orange)' : undefined,
-          }}
-          inputMode="tel"
-        />
-        <label style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6, display: 'block' }}>
-          Correo (opcional)
-        </label>
-        <input
-          value={email}
-          onChange={(e) => {
-            setError('');
-            setEmail(e.target.value);
-          }}
-          placeholder="tu@correo.cl"
-          className="maqgo-input"
-          style={{ width: '100%', marginBottom: 14 }}
-          inputMode="email"
-        />
-
-        {error && (
-          <p style={{ color: '#ff6b6b', fontSize: 13, textAlign: 'center', margin: '0 0 12px' }}>
-            {error}
+        {statusMessage ? (
+          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center', margin: '0 0 12px' }}>
+            {statusMessage}
           </p>
-        )}
+        ) : null}
+
+        {error ? (
+          <div
+            style={{
+              background: 'rgba(244,67,54,0.15)',
+              border: '1px solid rgba(244,67,54,0.35)',
+              borderRadius: 12,
+              padding: '14px 16px',
+              color: '#ffb4b4',
+              fontSize: 14,
+              lineHeight: 1.4,
+              marginBottom: 16,
+              textAlign: 'center',
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
 
         <button
-          type="button"
           className="maqgo-btn-primary"
-          onClick={handleJoin}
-          disabled={loading}
-          aria-busy={loading}
+          onClick={handleJoinWithCode}
+          disabled={loading || code.length < 4}
+          style={{ opacity: code.length < 4 ? 0.5 : 1 }}
+          data-testid="validate-code-btn"
         >
-          {loading ? 'Verificando…' : 'Continuar'}
+          {loading ? 'Verificando...' : 'Activar'}
         </button>
+
+        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, textAlign: 'center', margin: '16px 0 0' }}>
+          Válido por 7 días. Uso único (1 persona).
+        </p>
       </div>
     </div>
   );

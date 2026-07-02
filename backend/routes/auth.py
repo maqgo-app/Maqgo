@@ -230,6 +230,10 @@ class LoginSmsStartRequest(BaseModel):
         None,
         description="Rol con el que se inició el flujo (client/provider). Solo contexto, no cambia el enrolamiento del dispositivo.",
     )
+    activation_code: Optional[str] = Field(
+        None,
+        description="Opcional: código de activación para amarrar el login al usuario activado (sin crear identidad nueva).",
+    )
 
 
 class LoginSmsVerifyRequest(BaseModel):
@@ -242,6 +246,10 @@ class LoginSmsVerifyRequest(BaseModel):
     requested_role: Optional[str] = Field(
         None,
         description="Rol con el que se inició el flujo (client/provider)",
+    )
+    activation_code: Optional[str] = Field(
+        None,
+        description="Opcional: código de activación para resolver el usuario (evita lookup ambiguo por celular).",
     )
 
 
@@ -750,8 +758,33 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
             },
         )
 
-    # Identidad base: teléfono único (últimos 9 dígitos) — evita duplicados por email.
-    existing = await _find_best_user_by_phone9(phone9, raw_phone=raw_phone, projection={"_id": 0})
+    activation_code = str(body.activation_code or '').strip().upper()
+    skip_trusted_session = False
+    if activation_code:
+        skip_trusted_session = True
+        inv = await db.invitations.find_one(
+            {"code": activation_code},
+            {"_id": 0, "status": 1, "used_by": 1, "invite_type": 1},
+        )
+        if not inv or not inv.get("used_by"):
+            raise HTTPException(
+                status_code=400,
+                detail="No encontramos una activación válida. Vuelve a activar tu código.",
+            )
+        st = str(inv.get("status") or "").strip().lower()
+        if st != "used":
+            raise HTTPException(
+                status_code=400,
+                detail="Primero activa tu código antes de iniciar sesión.",
+            )
+        existing = await db.users.find_one({"id": inv.get("used_by")}, {"_id": 0})
+        if not existing:
+            raise HTTPException(
+                status_code=404,
+                detail="No encontramos tu cuenta. Vuelve a activar tu código.",
+            )
+    else:
+        existing = await _find_best_user_by_phone9(phone9, raw_phone=raw_phone, projection={"_id": 0})
     now = datetime.now(timezone.utc).isoformat()
 
     if existing:
@@ -807,7 +840,7 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
         else:
             risky = True
 
-        if not risky:
+        if not risky and not skip_trusted_session:
             token = generate_token()
             await db.sessions.insert_one(
                 {
@@ -984,7 +1017,20 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 },
             )
 
-        user = await _find_best_user_by_phone9(phone9, raw_phone=raw_phone, projection={"_id": 0})
+        activation_code = str(body.activation_code or '').strip().upper()
+        if activation_code:
+            inv = await db.invitations.find_one(
+                {"code": activation_code},
+                {"_id": 0, "status": 1, "used_by": 1, "invite_type": 1},
+            )
+            if not inv or not inv.get("used_by"):
+                raise HTTPException(status_code=404, detail="No encontramos tu cuenta. Vuelve a intentar.")
+            st = str(inv.get("status") or "").strip().lower()
+            if st != "used":
+                raise HTTPException(status_code=400, detail="Primero activa tu código antes de iniciar sesión.")
+            user = await db.users.find_one({"id": inv.get("used_by")}, {"_id": 0})
+        else:
+            user = await _find_best_user_by_phone9(phone9, raw_phone=raw_phone, projection={"_id": 0})
         if not user:
             logger.warning("LOGIN_SMS_VERIFY user_not_found phone9=%s", phone9)
             log_ops_event(
@@ -1053,6 +1099,31 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 record_login_verify_failure(user["id"], device_norm)
             record_hard_lockout_failure(raw_phone)
             raise HTTPException(status_code=400, detail="El código no es correcto. Intenta nuevamente.")
+
+        if activation_code:
+            stored_phone = str(user.get("phone") or "").strip()
+            if stored_phone:
+                try:
+                    stored_phone_norm = _normalize_login_celular_e164(stored_phone)
+                except ValueError:
+                    stored_phone_norm = stored_phone
+                if _normalize_phone_last9(stored_phone_norm) != phone9:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Este celular no coincide con el asociado a tu cuenta. Solicita ayuda a tu empresa.",
+                    )
+            try:
+                await db.users.update_one(
+                    {"id": user["id"]},
+                    {"$set": {"phone": raw_phone, "phoneVerified": True}},
+                )
+                user["phone"] = raw_phone
+                user["phoneVerified"] = True
+            except DuplicateKeyError:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Este celular ya está asociado a otra cuenta. Solicita ayuda a tu empresa.",
+                )
 
         # --- RESOLUCIÓN DE FLUJO POSTERIOR A OTP ---
         # Si el usuario inició el login desde flujo CLIENTE y el OTP fue válido,

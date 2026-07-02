@@ -89,8 +89,10 @@ export default defineConfig(({ mode }) => {
           theme_color: '#EC6819',
           orientation: 'portrait-primary',
           icons: [
-            { src: '/maqgo_logo_130.svg', sizes: '130x130', type: 'image/svg+xml', purpose: 'any' },
-            { src: '/maqgo_logo_clean.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+            { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: '/icons/icon-192-maskable.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+            { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
         },
       }),
