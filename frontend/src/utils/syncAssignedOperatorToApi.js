@@ -15,6 +15,7 @@ export async function syncAssignedOperatorToApi(operatorData) {
     await axios.patch(
       `${BACKEND_URL}/api/service-requests/${encodeURIComponent(sid)}/assigned-operator`,
       {
+        operatorId: operatorData.id || '',
         nombre: operatorData.nombre || '',
         apellido: operatorData.apellido || '',
         rut: operatorData.rut || '',

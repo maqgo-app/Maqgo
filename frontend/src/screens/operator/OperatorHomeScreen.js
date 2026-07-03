@@ -185,22 +185,39 @@ function OperatorHomeScreen() {
   }, []);
 
   useEffect(() => {
-    // Polling para verificar solicitudes entrantes
-    const checkRequests = async () => {
-      const userId = localStorage.getItem('userId');
-      if (userId && available) {
-        const res = await axios.get(`${BACKEND_URL}/api/service-requests/pending`);
-        if (res.data && res.data.length > 0) {
-          localStorage.setItem('incomingRequest', JSON.stringify(res.data[0]));
-          unlockAudio();
-          playNewRequestSound();
-          vibrate('newRequest');
-          navigate('/provider/request-received');
-        }
-      }
+    const getRouteForJob = (job) => {
+      const status = String(job?.status || '').toLowerCase();
+      if (status === 'last_30') return '/provider/last-30';
+      if (status === 'in_progress') return '/provider/in-progress';
+      if (status === 'finished' || status === 'rated') return '/operator/completed';
+      return '/provider/en-route';
     };
 
-    if (!available) return undefined;
+    const checkAssigned = async () => {
+      const userId = localStorage.getItem('userId');
+      if (!userId) return;
+      const res = await axios.get(`${BACKEND_URL}/api/service-requests/operator/assigned?activeOnly=true`);
+      const list = Array.isArray(res?.data) ? res.data : [];
+      if (list.length === 0) return;
+
+      const assigned = list[0];
+      const assignedId = String(assigned?.id || '').trim();
+      const currentId = String(nextJob?.id || localStorage.getItem('currentServiceId') || '').trim();
+      if (assignedId && assignedId !== currentId) {
+        unlockAudio();
+        playNewRequestSound();
+        vibrate('newRequest');
+      }
+
+      if (assignedId) {
+        localStorage.setItem('currentServiceId', assignedId);
+      }
+      localStorage.setItem('activeServiceRequest', JSON.stringify(assigned));
+      localStorage.setItem('acceptedRequest', JSON.stringify(assigned));
+      setNextJob(assigned);
+
+      // no-op
+    };
 
     let cancelled = false;
     let timeoutId = null;
@@ -218,7 +235,7 @@ function OperatorHomeScreen() {
 
       inFlightRef.current = true;
       try {
-        await checkRequests();
+        await checkAssigned();
         errorStreakRef.current = 0;
       } catch (e) {
         const now = Date.now();
@@ -245,7 +262,7 @@ function OperatorHomeScreen() {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [available, navigate]);
+  }, [navigate, nextJob]);
 
   useEffect(() => {
     loadOperatorData();
@@ -632,7 +649,7 @@ function OperatorHomeScreen() {
             border: '1px solid rgba(236, 104, 25, 0.3)'
           }}>
             <p style={{ color: '#EC6819', fontSize: 14, fontWeight: 600, margin: 0 }}>
-              Las solicitudes llegan automáticamente
+              Los servicios asignados llegan automáticamente
             </p>
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '6px 0 0' }}>
               Mantente cerca de tu máquina y listo para partir
@@ -642,12 +659,42 @@ function OperatorHomeScreen() {
 
         {/* Próximo trabajo si existe */}
         {nextJob && (
-          <div style={{
+          <div
+            onClick={() => {
+              const status = String(nextJob?.status || '').toLowerCase();
+              const route =
+                status === 'last_30'
+                  ? '/provider/last-30'
+                  : status === 'in_progress'
+                    ? '/provider/in-progress'
+                    : status === 'finished' || status === 'rated'
+                      ? '/operator/completed'
+                      : '/provider/en-route';
+              navigate(route);
+            }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                const status = String(nextJob?.status || '').toLowerCase();
+                const route =
+                  status === 'last_30'
+                    ? '/provider/last-30'
+                    : status === 'in_progress'
+                      ? '/provider/in-progress'
+                      : status === 'finished' || status === 'rated'
+                        ? '/operator/completed'
+                        : '/provider/en-route';
+                navigate(route);
+              }
+            }}
+            style={{
             background: '#2A2A2A',
             borderRadius: 14,
             padding: 16,
             marginBottom: 16,
-            borderLeft: '4px solid #90BDD3'
+            borderLeft: '4px solid #90BDD3',
+            cursor: 'pointer'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span style={{ fontSize: 16 }}>📍</span>
@@ -703,31 +750,32 @@ function OperatorHomeScreen() {
           Ver mis trabajos
         </button>
 
-        {/* Botón para volver a vista de Dueño (Demo) - más sutil */}
-        <button 
-          onClick={() => {
-            localStorage.setItem('providerRole', 'owner');
-            navigate(getProviderLandingPath());
-          }}
-          style={{
-            width: '100%',
-            padding: 12,
-            background: 'transparent',
-            border: 'none',
-            borderRadius: 30,
-            color: 'rgba(255,255,255,0.9)',
-            fontSize: 12,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6
-          }}
-          data-testid="back-to-owner-btn"
-        >
-          <BackArrowIcon size={14} />
-          Cambiar a vista Dueño
-        </button>
+        {import.meta.env.VITE_IS_PRODUCTION !== 'true' && (
+          <button 
+            onClick={() => {
+              localStorage.setItem('providerRole', 'owner');
+              navigate(getProviderLandingPath());
+            }}
+            style={{
+              width: '100%',
+              padding: 12,
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 30,
+              color: 'rgba(255,255,255,0.9)',
+              fontSize: 12,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6
+            }}
+            data-testid="back-to-owner-btn"
+          >
+            <BackArrowIcon size={14} />
+            Cambiar a vista Dueño
+          </button>
+        )}
       </div>
     </div>
   );

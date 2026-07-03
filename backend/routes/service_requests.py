@@ -428,6 +428,7 @@ def _assert_can_read_service(user: dict, req: dict) -> None:
 
 class AssignedOperatorUpdate(BaseModel):
     """Payload desde app proveedor tras elegir operador (SelectOperator)."""
+    operatorId: Optional[str] = None
     nombre: Optional[str] = None
     apellido: Optional[str] = None
     rut: Optional[str] = None
@@ -440,6 +441,14 @@ def _assert_assigned_provider(user: dict, req: dict) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el proveedor asignado puede realizar esta acción",
         )
+
+    if str(user.get("provider_role") or "").strip().lower() == "operator":
+        operator_id = str(req.get("operator_id") or req.get("operatorId") or "").strip()
+        if operator_id and operator_id != str(user.get("id") or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo el operador asignado puede realizar esta acción",
+            )
 
 
 @router.post("", response_model=dict)
@@ -686,6 +695,8 @@ async def get_pending_requests_for_provider(
                     "$elemMatch": {"providerId": providerId, "status": "pending"}
                 }
         else:
+            if str(current_user.get("provider_role") or "").strip().lower() == "operator":
+                return []
             effective_provider_id = _effective_provider_account_id(current_user)
             if not effective_provider_id:
                 raise HTTPException(
@@ -727,6 +738,28 @@ async def get_pending_requests_for_provider(
                 pass
     
     return active_requests
+
+
+@router.get("/operator/assigned", response_model=List[dict])
+@limiter.limit("60/minute")
+async def get_assigned_requests_for_operator(
+    activeOnly: bool = True,
+    current_user: dict = Depends(get_current_user),
+):
+    if str(current_user.get("role") or "").strip().lower() == "admin":
+        raise HTTPException(status_code=403, detail="Ruta no disponible para admin")
+    if str(current_user.get("provider_role") or "").strip().lower() != "operator":
+        raise HTTPException(status_code=403, detail="Ruta solo para operador")
+    operator_id = str(current_user.get("id") or "").strip()
+    if not operator_id:
+        raise HTTPException(status_code=401, detail="Sesión inválida")
+
+    statuses = ["confirmed", "en_route", "in_progress", "last_30"] if activeOnly else None
+    q: dict = {"operator_id": operator_id}
+    if statuses:
+        q["status"] = {"$in": statuses}
+    reqs = await db.service_requests.find(q, {"_id": 0}).sort("createdAt", -1).to_list(50)
+    return reqs
 
 
 @router.get("/admin/active", response_model=List[dict])
@@ -829,6 +862,8 @@ async def provider_intent(
         raise HTTPException(status_code=400, detail="Esta solicitud ya no está disponible")
 
     if current_user.get("role") != "admin":
+        if str(current_user.get("provider_role") or "").strip().lower() == "operator":
+            raise HTTPException(status_code=403, detail="Como operador no puedes confirmar ofertas")
         ep = _effective_provider_account_id(current_user)
         if not ep or req.get("currentOfferId") != ep:
             raise HTTPException(status_code=403, detail="Sin permiso para confirmar esta oferta")
@@ -976,12 +1011,11 @@ async def accept_service_request(
         )
         if current_user.get("role") != "admin":
             if provider_role == "operator":
-                if not _operator_gps_confirmed_for_accept(current_user, req):
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Como operador, para aceptar debes tener GPS activo y confirmar ubicación/tiempo de llegada.",
-                    )
-            elif not has_permission(current_user, "accept_requests"):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Como operador no puedes aceptar solicitudes",
+                )
+            if not has_permission(current_user, "accept_requests"):
                 raise HTTPException(
                     status_code=403,
                     detail="Tu rol no tiene permisos para aceptar esta solicitud",
@@ -1270,6 +1304,8 @@ async def reject_service_request(
 
     provider_id = body.get('providerId')
     if current_user.get("role") != "admin":
+        if str(current_user.get("provider_role") or "").strip().lower() == "operator":
+            raise HTTPException(status_code=403, detail="Como operador no puedes rechazar solicitudes")
         effective = _effective_provider_account_id(current_user)
         if effective:
             provider_id = effective
@@ -1319,6 +1355,11 @@ async def patch_assigned_operator(
     if not req:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
     _assert_assigned_provider(current_user, req)
+    if str(current_user.get("provider_role") or "").strip().lower() == "operator":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Como operador no puedes asignar operador",
+        )
     st = (req.get("status") or "").lower()
     if st not in ("confirmed", "en_route", "in_progress", "last_30"):
         raise HTTPException(
@@ -1332,6 +1373,14 @@ async def patch_assigned_operator(
     rut = rut_raw.strip() if rut_raw else ""
 
     update: dict = {}
+    operator_id = str(body.operatorId or '').strip()
+    if operator_id:
+        operator = await db.users.find_one({"id": operator_id}, {"_id": 0, "id": 1, "provider_role": 1, "owner_id": 1, "name": 1, "rut": 1})
+        if not operator or str(operator.get("provider_role") or '').strip().lower() != 'operator':
+            raise HTTPException(status_code=400, detail="Operador inválido")
+        if str(operator.get("owner_id") or '').strip() != str(req.get("providerId") or '').strip():
+            raise HTTPException(status_code=403, detail="El operador no pertenece a esta empresa")
+        update["operator_id"] = operator_id
     if nombre:
         update["operatorFirstName"] = nombre
     if apellido:
@@ -1341,10 +1390,27 @@ async def patch_assigned_operator(
     if nombre or apellido:
         update["providerOperatorName"] = f"{nombre} {apellido}".strip()
 
+    if operator_id:
+        if not rut:
+            op_rut = str(operator.get("rut") or '').strip()
+            if op_rut:
+                update.setdefault("operatorRut", op_rut)
+        if not (nombre or apellido):
+            op_name = str(operator.get("name") or '').strip()
+            if op_name:
+                parts = [p for p in op_name.split(' ') if p]
+                if parts:
+                    update.setdefault("operatorFirstName", parts[0])
+                    if len(parts) > 1:
+                        update.setdefault("operatorLastName", ' '.join(parts[1:]))
+                update.setdefault("providerOperatorName", op_name)
+
     if not update:
         return {"success": True, "message": "Sin cambios"}
 
     now = datetime.now(timezone.utc)
+    if operator_id:
+        update["operator_assigned_at"] = now.isoformat()
     role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
     event = {
         "type": "assigned_operator_updated",

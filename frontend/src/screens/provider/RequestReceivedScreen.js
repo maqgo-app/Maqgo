@@ -252,6 +252,12 @@ function RequestReceivedScreen() {
   const offerExpiringPlayedRef = useRef(false);
 
   useEffect(() => {
+    if (auth.providerRole === 'operator') {
+      navigate('/operator/home', { replace: true });
+    }
+  }, [auth.providerRole, navigate]);
+
+  useEffect(() => {
     unlockAudio();
     playNewRequestSound();
     vibrate('newRequest');
@@ -312,19 +318,10 @@ function RequestReceivedScreen() {
     setAcceptError(null);
     setLoading(true);
     try {
-      const userId = auth.user?.id;
-      const providerIdForOffer = String(
-        request?.currentOfferId ||
-          request?.providerId ||
-          request?.provider_id ||
-          auth.ownerId ||
-          userId ||
-          ''
-      );
       if (request?.id && !request.id.startsWith('req-')) {
         await axios.put(
           `${BACKEND_URL}/api/service-requests/${request.id}/accept`,
-          { providerId: providerIdForOffer },
+          { providerId: String(request?.providerId || '').trim() },
           {
             timeout: 12000,
             headers: { 'Idempotency-Key': idempotencyKey(`accept-${request.id}`) },
@@ -370,19 +367,10 @@ function RequestReceivedScreen() {
 
   const handleReject = async () => {
     try {
-      const userId = auth.user?.id;
-      const providerIdForOffer = String(
-        request?.currentOfferId ||
-          request?.providerId ||
-          request?.provider_id ||
-          auth.ownerId ||
-          userId ||
-          ''
-      );
       if (request?.id && !request.id.startsWith('req-')) {
         await axios.put(
           `${BACKEND_URL}/api/service-requests/${request.id}/reject`,
-          { providerId: providerIdForOffer },
+          { providerId: String(request?.providerId || '').trim() },
           { timeout: 12000 }
         );
       }

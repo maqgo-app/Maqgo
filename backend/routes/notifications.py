@@ -71,37 +71,13 @@ async def get_notifications(
             await backfill_service_notifications_for_provider(db, str(uid), sr)
 
     else:
-        ep = _effective_provider_account_id(current_user)
-        offer_srs: List[dict] = []
-        if ep:
-            base = {
-                '$and': [
-                    {'status': 'offer_sent'},
-                    {
-                        '$or': [
-                            {'currentOfferId': str(ep)},
-                            {'matchingAttempts': {'$elemMatch': {'providerId': str(ep), 'status': 'pending'}}},
-                        ]
-                    },
-                ]
-            }
-            offer_srs = await db.service_requests.find(base, {'_id': 0}).sort('offerSentAt', -1).limit(20).to_list(20)
-
         assigned_srs = await db.service_requests.find(
             {'operator_id': str(uid)},
             {'_id': 0},
         ).sort('createdAt', -1).limit(40).to_list(40)
 
-        seen = set()
-        merged: List[dict] = []
-        for sr in offer_srs + assigned_srs:
-            sid = str(sr.get('id') or '')
-            if not sid or sid in seen:
-                continue
-            seen.add(sid)
-            merged.append(sr)
-        for sr in merged:
-            await backfill_service_notifications_for_operator(db, str(uid), sr, effective_provider_account_id=ep)
+        for sr in assigned_srs:
+            await backfill_service_notifications_for_operator(db, str(uid), sr)
 
     return await list_notifications(db, str(uid), limit=limit, cursor=cursor)
 

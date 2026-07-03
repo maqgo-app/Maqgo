@@ -656,47 +656,6 @@ async def backfill_service_notifications_for_operator(
         return
     status = str(sr.get('status') or '').strip().lower()
 
-    if status == 'offer_sent' and effective_provider_account_id:
-        oid = str(sr.get('currentOfferId') or '')
-        attempts = sr.get('matchingAttempts') if isinstance(sr.get('matchingAttempts'), list) else []
-        has_pending = False
-        for a in attempts:
-            if not isinstance(a, dict):
-                continue
-            if a.get('status') != 'pending':
-                continue
-            if str(a.get('providerId') or '') == str(effective_provider_account_id):
-                has_pending = True
-                break
-        if oid == str(effective_provider_account_id) or has_pending:
-            await upsert_notification_item(
-                db,
-                recipient_user_id=operator_user_id,
-                audience_role='operator',
-                service_request_id=srid,
-                kind='nueva_oferta',
-                occurred_at=str(sr.get('offerSentAt') or sr.get('createdAt') or _now_iso()),
-                pinned=True,
-            )
-            expires_at = str(sr.get('offerExpiresAt') or '').strip()
-            if expires_at:
-                try:
-                    exp_dt = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
-                    now_dt = datetime.now(timezone.utc)
-                    remaining = (exp_dt - now_dt).total_seconds()
-                    if remaining <= 120:
-                        await upsert_notification_item(
-                            db,
-                            recipient_user_id=operator_user_id,
-                            audience_role='operator',
-                            service_request_id=srid,
-                            kind='oferta_expira',
-                            occurred_at=expires_at,
-                            pinned=True,
-                        )
-                except Exception:
-                    pass
-
     operator_id = sr.get('operator_id') or sr.get('operatorId')
     if operator_id and str(operator_id) == str(operator_user_id):
         if status in {'confirmed', 'en_route', 'in_progress', 'last_30', 'finished'}:
