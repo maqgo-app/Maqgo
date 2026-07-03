@@ -1553,6 +1553,9 @@ async def start_service(
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
     _assert_assigned_provider(current_user, request)
 
+    if str(current_user.get("provider_role") or "").strip().lower() == "operator":
+        raise HTTPException(status_code=403, detail="Como operador no puedes iniciar el servicio")
+
     now = datetime.now(timezone.utc)
     role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
     started_event = {
@@ -1597,6 +1600,9 @@ async def auto_start_service(
     if not request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
     _assert_assigned_provider(current_user, request)
+
+    if str(current_user.get("provider_role") or "").strip().lower() == "operator":
+        raise HTTPException(status_code=403, detail="Como operador no puedes iniciar el servicio")
 
     status_now = str(request.get("status") or "").strip()
     if status_now == "in_progress":

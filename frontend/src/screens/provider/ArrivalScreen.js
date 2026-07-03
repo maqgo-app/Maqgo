@@ -33,6 +33,11 @@ function resolveServiceRequestId() {
 function ArrivalScreen() {
   const navigate = useNavigate();
   const startedRef = useRef(false);
+  const [isOperator] = useState(() => {
+    const pr = String(localStorage.getItem('providerRole') || '').toLowerCase();
+    const ur = String(localStorage.getItem('userRole') || '').toLowerCase();
+    return pr === 'operator' || ur === 'operator';
+  });
   const [serviceData] = useState(buildArrivalServiceData);
   const [arrivalTime] = useState(() =>
     new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
@@ -117,6 +122,7 @@ function ArrivalScreen() {
 
   // Timer de 30 minutos - inicio automático si cliente no responde
   useEffect(() => {
+    if (isOperator) return;
     if (!waitingForClient || clientAccepted) return;
 
     const isDemo = import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
@@ -138,6 +144,7 @@ function ArrivalScreen() {
   }, [waitingForClient, clientAccepted, handleStartService]);
 
   useEffect(() => {
+    if (isOperator) return undefined;
     if (!serviceRequestId) return undefined;
     if (!waitingForClient || clientAccepted) return undefined;
     if (waitingMinutes < MAX_WAITING_MINUTES) return undefined;
@@ -176,7 +183,7 @@ function ArrivalScreen() {
         </div>
 
         {/* Banner de auto-inicio (30 min sin respuesta) */}
-        {autoStarting && (
+        {!isOperator && autoStarting && (
           <div style={{
             background: 'linear-gradient(135deg, #FFC107 0%, #FF9800 100%)',
             borderRadius: 12,
@@ -474,20 +481,38 @@ function ArrivalScreen() {
           </div>
         </div>
 
-        {/* Botón iniciar servicio */}
-        <button
-          className="maqgo-btn-primary"
-          onClick={handleStartService}
-          disabled={waitingForClient}
-          style={{ 
-            marginBottom: 12,
-            opacity: waitingForClient ? 0.5 : 1,
-            cursor: waitingForClient ? 'not-allowed' : 'pointer'
-          }}
-          data-testid="start-service-btn"
-        >
-          {waitingForClient ? 'Esperando al cliente...' : 'Iniciar servicio'}
-        </button>
+        {!isOperator ? (
+          <button
+            className="maqgo-btn-primary"
+            onClick={handleStartService}
+            disabled={waitingForClient}
+            style={{
+              marginBottom: 12,
+              opacity: waitingForClient ? 0.5 : 1,
+              cursor: waitingForClient ? 'not-allowed' : 'pointer',
+            }}
+            data-testid="start-service-btn"
+          >
+            {waitingForClient ? 'Esperando al cliente...' : 'Iniciar servicio'}
+          </button>
+        ) : (
+          <div
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 12,
+            }}
+          >
+            <div style={{ color: '#fff', fontSize: 14, fontWeight: 900, marginBottom: 6 }}>
+              Esperando inicio
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, lineHeight: 1.45 }}>
+              La empresa o el cliente iniciarán el servicio cuando corresponda.
+            </div>
+          </div>
+        )}
 
         {/* Info de pago */}
         <div style={{
