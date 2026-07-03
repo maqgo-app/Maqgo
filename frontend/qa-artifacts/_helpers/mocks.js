@@ -153,6 +153,20 @@ export async function installApiMocks(context, options = {}) {
     if (url.includes('/api/service-requests/pending')) {
       return route.fulfill(json(200, []));
     }
+    if (url.includes('/api/service-requests/operator/assigned') && method === 'GET') {
+      return route.fulfill(
+        json(200, [
+          {
+            id: 'svc-123',
+            status: 'en_route',
+            machineryType: 'retroexcavadora',
+            providerOperatorName: 'Juan Pérez',
+            operatorRut: '12.345.678-9',
+            location: { address: 'Av. Providencia 1234, Santiago' },
+          },
+        ])
+      );
+    }
     if (url.includes('/api/service-requests/') && method === 'GET') {
       return route.fulfill(
         json(200, {
@@ -182,6 +196,19 @@ export async function installApiMocks(context, options = {}) {
         if (role === 'provider') {
           return [
             {
+              id: 'provider:provider-qa-001:sr:svc-123:assigned',
+              subjectId: 'svc-123',
+              eventType: 'assigned',
+              title: 'Operador asignado',
+              body: 'Se asignó un operador al servicio. Revisa los detalles.',
+              severity: 'important',
+              createdAt: new Date(now.getTime() - 6 * 60 * 1000).toISOString(),
+              readAt: null,
+              ackRequired: false,
+              pinned: true,
+              deepLink: '/provider/accepted',
+            },
+            {
               id: 'provider:provider-qa-001:sr:svc-123:entry_confirmed',
               title: 'Ingreso autorizado',
               body: 'El cliente autorizó el ingreso. El operador puede iniciar el servicio.',
@@ -210,14 +237,16 @@ export async function installApiMocks(context, options = {}) {
           return [
             {
               id: 'operator:operator-qa-001:sr:svc-123:assigned',
+              subjectId: 'svc-123',
+              eventType: 'assigned',
               title: 'Servicio asignado',
-              body: 'Tienes un servicio asignado. Confirma la salida en MAQGO.',
+              body: 'Tienes un servicio asignado. Revisa detalles y prepara la salida.',
               severity: 'important',
               createdAt: new Date(now.getTime() - 12 * 60 * 1000).toISOString(),
               readAt: null,
               ackRequired: false,
               pinned: true,
-              deepLink: '/provider/request-received',
+              deepLink: '/operator/home',
             },
             {
               id: 'operator:operator-qa-001:sr:svc-123:incident',
@@ -236,6 +265,8 @@ export async function installApiMocks(context, options = {}) {
         return [
           {
             id: 'client:user-1:sr:svc-123:arrival',
+            subjectId: 'svc-123',
+            eventType: 'arrival',
             title: 'Operador llegó',
             body: 'El operador marcó llegada. Autoriza el ingreso para iniciar.',
             severity: 'critical',
@@ -247,11 +278,26 @@ export async function installApiMocks(context, options = {}) {
           },
           {
             id: 'client:user-1:sr:svc-123:confirmed',
+            subjectId: 'svc-123',
+            eventType: 'confirmed',
             title: 'Reserva confirmada',
             body: 'Tu reserva quedó confirmada. Revisa el estado del servicio.',
             severity: 'important',
             createdAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
             readAt: null,
+            ackRequired: false,
+            pinned: false,
+            deepLink: '/client/assigned',
+          },
+          {
+            id: 'client:user-1:sr:svc-123:assigned',
+            subjectId: 'svc-123',
+            eventType: 'assigned',
+            title: 'Operador asignado',
+            body: 'Se asignó un operador a tu servicio. Revisa los detalles.',
+            severity: 'important',
+            createdAt: new Date(now.getTime() - 40 * 60 * 1000).toISOString(),
+            readAt: new Date(now.getTime() - 35 * 60 * 1000).toISOString(),
             ackRequired: false,
             pinned: false,
             deepLink: '/client/assigned',

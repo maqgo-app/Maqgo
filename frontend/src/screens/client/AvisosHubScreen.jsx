@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { requestPushPermissionAndSubscribe, unsubscribePushNotifications } from '../../utils/pushNotifications';
 import BACKEND_URL from '../../utils/api';
+import { fetchWithAuth } from '../../utils/api';
 import {
   ackNotification,
   fetchNotifications,
@@ -120,6 +121,40 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
     return items;
   }, [filter, items]);
 
+  const resolveServiceRequestId = (item) => {
+    const explicit = String(item?.subjectId || '').trim();
+    if (explicit) return explicit;
+    const raw = String(item?.id || '');
+    const m = raw.match(/:sr:([^:]+):/);
+    return m?.[1] ? String(m[1]).trim() : '';
+  };
+
+  const operatorRouteForStatus = (statusRaw) => {
+    const status = String(statusRaw || '').toLowerCase();
+    if (status === 'last_30') return '/provider/last-30';
+    if (status === 'in_progress') return '/provider/in-progress';
+    if (status === 'finished' || status === 'rated') return '/operator/completed';
+    return '/provider/en-route';
+  };
+
+  const openOperatorAssigned = async (item) => {
+    const sid = resolveServiceRequestId(item);
+    if (!sid) {
+      navigate('/operator/home');
+      return;
+    }
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/service-requests/${encodeURIComponent(sid)}`);
+      const sr = await res.json();
+      localStorage.setItem('currentServiceId', String(sr?.id || sid));
+      localStorage.setItem('activeServiceRequest', JSON.stringify(sr));
+      localStorage.setItem('acceptedRequest', JSON.stringify(sr));
+      navigate(operatorRouteForStatus(sr?.status));
+    } catch {
+      navigate('/operator/home');
+    }
+  };
+
   const pushBackendAvailable = pushBackend?.checked && pushBackend?.enabled === true && Boolean(pushBackend?.publicKey);
   const pushBackendUnavailable = pushBackend?.checked && (pushBackend?.enabled === false || pushBackend?.publicKey === null);
   const pushEnabled = pushBackendAvailable ? pushPermission === 'granted' : pushPermission === 'granted';
@@ -183,6 +218,20 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
   }, [filtered]);
 
   const openItem = async (a) => {
+    if (audienceRole === 'operator' && String(a?.eventType || '').toLowerCase() === 'assigned' && !a?.ackRequired) {
+      if (!a?.readAt && a?.id) {
+        try {
+          await markNotificationRead(a.id);
+        } catch {
+          void 0;
+        }
+        setUnread((v) => Math.max(0, Number(v || 0) - 1));
+        setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
+      }
+      await openOperatorAssigned(a);
+      return;
+    }
+
     setSelected(a);
     if (!a?.readAt && a?.id) {
       try {
@@ -551,6 +600,10 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                     type="button"
                     onClick={() => {
                       closeModal();
+                      if (audienceRole === 'operator' && String(selected?.eventType || '').toLowerCase() === 'assigned') {
+                        void openOperatorAssigned(selected);
+                        return;
+                      }
                       navigate(selected.deepLink);
                     }}
                     style={{
