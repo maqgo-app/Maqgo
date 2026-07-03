@@ -218,6 +218,11 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
   }, [filtered]);
 
   const openItem = async (a) => {
+    const hasDeepLink = Boolean(String(a?.deepLink || '').trim());
+    const ackRequired = Boolean(a?.ackRequired);
+    const actionRequired = Boolean(a?.actionRequired);
+    const shouldDirectNavigate = hasDeepLink && !ackRequired && !actionRequired;
+
     if (audienceRole === 'operator' && String(a?.eventType || '').toLowerCase() === 'assigned' && !a?.ackRequired) {
       if (!a?.readAt && a?.id) {
         try {
@@ -229,6 +234,20 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
         setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
       }
       await openOperatorAssigned(a);
+      return;
+    }
+
+    if (shouldDirectNavigate) {
+      if (!a?.readAt && a?.id) {
+        try {
+          await markNotificationRead(a.id);
+        } catch {
+          void 0;
+        }
+        setUnread((v) => Math.max(0, Number(v || 0) - 1));
+        setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
+      }
+      navigate(String(a.deepLink));
       return;
     }
 
