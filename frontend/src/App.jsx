@@ -135,7 +135,6 @@ const EnRouteScreen = lazy(() => import('./screens/provider/EnRouteScreen'));
 const ArrivalScreen = lazy(() => import('./screens/provider/ArrivalScreen'));
 const ProviderServiceActiveScreen = lazy(() => import('./screens/provider/ProviderServiceActiveScreen'));
 const Last30MinutesProvider = lazy(() => import('./screens/provider/Last30MinutesProvider'));
-const ServiceInProgressProvider = lazy(() => import('./screens/provider/ServiceInProgressProvider'));
 const ProviderServiceFinishedScreen = lazy(() => import('./screens/provider/ProviderServiceFinishedScreen'));
 const RateClient = lazy(() => import('./screens/provider/RateClient'));
 const MyMachinesScreen = lazy(() => import('./screens/provider/MyMachinesScreen'));
@@ -468,7 +467,7 @@ function AppContent() {
         <Route path="/provider/en-route" element={<EnRouteScreen />} />
         <Route path="/provider/arrival" element={<ArrivalScreen />} />
         <Route path="/provider/service-active" element={<ProviderServiceActiveScreen />} />
-        <Route path="/provider/in-progress" element={<ServiceInProgressProvider />} />
+        <Route path="/provider/in-progress" element={<ProviderServiceActiveScreen />} />
         <Route path="/provider/last-30" element={<Last30MinutesProvider />} />
         <Route path="/provider/service-finished" element={<ProviderServiceFinishedScreen />} />
         <Route path="/provider/finished" element={<ProviderServiceFinishedScreen />} />

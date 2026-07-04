@@ -67,11 +67,11 @@ function ServiceAccepted() {
           </div>
           <div style={styles.stepItem}>
             <span style={styles.stepNumber}>2</span>
-            <span style={styles.stepText}>Confirma tu llegada con el cliente</span>
+            <span style={styles.stepText}>Al llegar, confirma llegada</span>
           </div>
           <div style={styles.stepItem}>
             <span style={styles.stepNumber}>3</span>
-            <span style={styles.stepText}>Inicia el servicio</span>
+            <span style={styles.stepText}>El servicio inicia según autorización del cliente</span>
           </div>
         </div>
 
@@ -85,7 +85,7 @@ function ServiceAccepted() {
           style={styles.button}
           onClick={() => navigate('/provider/in-progress')}
         >
-          IR AL SERVICIO
+          IR AHORA
         </button>
       </div>
       </div>
