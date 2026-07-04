@@ -30,7 +30,7 @@ test.describe('Screenshots: Operador abre aviso de servicio asignado', () => {
     await expect(assigned).toBeVisible({ timeout: 15_000 });
     await assigned.click();
 
-    await page.waitForURL(/\/provider\/(en-route|in-progress|last-30)|\/operator\/completed/, { timeout: 15_000 });
+    await page.waitForURL(/\/operator\/(en-route|arrival|service-active|last-30|completed)/, { timeout: 15_000 });
     await page.waitForTimeout(800);
     await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/avisos-operator-click-assigned.png', fullPage: true });
 

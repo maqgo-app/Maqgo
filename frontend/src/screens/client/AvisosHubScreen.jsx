@@ -131,10 +131,11 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
 
   const operatorRouteForStatus = (statusRaw) => {
     const status = String(statusRaw || '').toLowerCase();
-    if (status === 'last_30') return '/provider/last-30';
-    if (status === 'in_progress') return '/provider/in-progress';
+    if (status === 'last_30') return '/operator/last-30';
+    if (status === 'in_progress') return '/operator/service-active';
     if (status === 'finished' || status === 'rated') return '/operator/completed';
-    return '/provider/en-route';
+    if (status === 'confirmed' || status === 'en_route') return '/operator/en-route';
+    return '/operator/home';
   };
 
   const openOperatorAssigned = async (item) => {

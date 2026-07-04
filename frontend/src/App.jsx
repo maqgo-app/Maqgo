@@ -157,6 +157,7 @@ const OperatorJoinScreen = lazy(() => import('./screens/operator/OperatorJoinScr
 const OperatorHomeScreen = lazy(() => import('./screens/operator/OperatorHomeScreen'));
 const OperatorHistoryScreen = lazy(() => import('./screens/operator/OperatorHistoryScreen'));
 const OperatorServiceCompletedScreen = lazy(() => import('./screens/operator/OperatorServiceCompletedScreen'));
+const OperatorLast30Screen = lazy(() => import('./screens/operator/OperatorLast30Screen'));
 
 // Master (Gerente)
 const MasterJoinScreen = lazy(() => import('./screens/master/MasterJoinScreen.jsx'));
@@ -223,7 +224,7 @@ function AppContent() {
     '/provider/home', '/provider/machines', '/provider/edit-machine',
     '/provider/avisos', '/provider/profile', '/provider/history', '/provider/cobros', '/provider/dashboard', '/provider/my-services',
     '/provider/operator', '/provider/team', '/provider/tariffs',
-    '/operator/home', '/operator/avisos', '/operator/history', '/operator/completed',
+    '/operator/home', '/operator/en-route', '/operator/arrival', '/operator/service-active', '/operator/last-30', '/operator/avisos', '/operator/history', '/operator/completed',
     '/profile', '/faq', '/terms', '/privacy'
   ];
   const showBottomNav = !hideNav && mainPathsWithNav.some(p => path === p || path.startsWith(p + '/'));
@@ -542,6 +543,10 @@ function AppContent() {
 
         {/* Operador */}
         <Route path="/operator/home" element={<OperatorHomeScreen />} />
+        <Route path="/operator/en-route" element={<EnRouteScreen />} />
+        <Route path="/operator/arrival" element={<ArrivalScreen />} />
+        <Route path="/operator/service-active" element={<ProviderServiceActiveScreen />} />
+        <Route path="/operator/last-30" element={<OperatorLast30Screen />} />
         <Route path="/operator/avisos" element={<AvisosHubScreen audienceRole="operator" />} />
         <Route path="/operator/history" element={<OperatorHistoryScreen />} />
         <Route path="/operator/completed" element={<OperatorServiceCompletedScreen />} />

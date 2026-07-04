@@ -24,6 +24,11 @@ import { isPerTripMachineryType } from '../../utils/machineryNames';
 function EnRouteScreen() {
   const navigate = useNavigate();
   const toast = useToast();
+  const [isOperator] = useState(() => {
+    const pr = String(localStorage.getItem('providerRole') || '').toLowerCase();
+    const ur = String(localStorage.getItem('userRole') || '').toLowerCase();
+    return pr === 'operator' || ur === 'operator';
+  });
   const [eta, setEta] = useState(15);
   const [serviceData, setServiceData] = useState({});
   const [assignedOperator, setAssignedOperator] = useState(null);
@@ -61,7 +66,7 @@ function EnRouteScreen() {
     // Cargar operador asignado
     const operator = getObject('assignedOperator', {});
     setAssignedOperator(operator);
-    setCanChangeAssignedOperator(getArray('assignableServiceOperators', []).length > 1);
+    setCanChangeAssignedOperator(!isOperator && getArray('assignableServiceOperators', []).length > 1);
   }, []);
 
   // Simular movimiento del operador hacia la obra (solo demo)
@@ -136,7 +141,7 @@ function EnRouteScreen() {
       localStorage.setItem('arrivalConfirmedTime', nowIso);
       localStorage.setItem('operatorArrivalCoords', JSON.stringify({ source: 'manual' }));
       setCheckingLocation(false);
-      navigate('/provider/arrival');
+      navigate(isOperator ? '/operator/arrival' : '/provider/arrival');
     }
   };
 
@@ -196,7 +201,7 @@ function EnRouteScreen() {
             animation: 'pulse 1.5s infinite'
           }} />
           <span style={{ color: '#90BDD3', fontSize: 14, fontWeight: 600 }}>
-            EN CAMINO A LA OBRA
+            {isOperator ? 'EN CAMINO AL SITIO' : 'EN CAMINO A LA OBRA'}
           </span>
           <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
         </div>
@@ -367,8 +372,7 @@ function EnRouteScreen() {
           </div>
         </div>
 
-        {/* Operador asignado */}
-        {assignedOperator && assignedOperator.nombre && (
+        {!isOperator && assignedOperator && assignedOperator.nombre && (
           <div style={{
             background: '#2A2A2A',
             borderRadius: 12,

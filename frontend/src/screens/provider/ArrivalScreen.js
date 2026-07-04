@@ -58,7 +58,7 @@ function ArrivalScreen() {
     startedRef.current = true;
     localStorage.setItem('serviceStarted', 'true');
     localStorage.setItem('serviceStartTime', new Date().toISOString());
-    navigate('/provider/service-active');
+    navigate(isOperator ? '/operator/service-active' : '/provider/service-active');
   }, [navigate]);
 
   useEffect(() => {

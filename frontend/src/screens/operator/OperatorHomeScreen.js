@@ -187,10 +187,11 @@ function OperatorHomeScreen() {
   useEffect(() => {
     const getRouteForJob = (job) => {
       const status = String(job?.status || '').toLowerCase();
-      if (status === 'last_30') return '/provider/last-30';
-      if (status === 'in_progress') return '/provider/in-progress';
+      if (status === 'last_30') return '/operator/last-30';
+      if (status === 'in_progress') return '/operator/service-active';
       if (status === 'finished' || status === 'rated') return '/operator/completed';
-      return '/provider/en-route';
+      if (status === 'confirmed' || status === 'en_route') return '/operator/en-route';
+      return '/operator/home';
     };
 
     const checkAssigned = async () => {
@@ -387,7 +388,22 @@ function OperatorHomeScreen() {
       client_lng: workCoords?.lng,
       workCoords
     }));
-    navigate('/provider/request-received');
+    const sid = `svc-${Date.now()}`;
+    const assigned = {
+      id: sid,
+      status: 'en_route',
+      machineryType: MACHINERY_NAMES[machineryType] || machineryType,
+      machineryId: machineryType,
+      location: serviceLocation,
+      clientName: 'Carlos González',
+      client_lat: workCoords?.lat,
+      client_lng: workCoords?.lng,
+    };
+    localStorage.setItem('currentServiceId', sid);
+    localStorage.setItem('activeServiceRequest', JSON.stringify(assigned));
+    localStorage.setItem('acceptedRequest', JSON.stringify(assigned));
+    setNextJob(assigned);
+    navigate('/operator/en-route');
   };
 
   // Renderizar estrellas de rating
@@ -664,12 +680,12 @@ function OperatorHomeScreen() {
               const status = String(nextJob?.status || '').toLowerCase();
               const route =
                 status === 'last_30'
-                  ? '/provider/last-30'
+                  ? '/operator/last-30'
                   : status === 'in_progress'
-                    ? '/provider/in-progress'
+                    ? '/operator/service-active'
                     : status === 'finished' || status === 'rated'
                       ? '/operator/completed'
-                      : '/provider/en-route';
+                      : '/operator/en-route';
               navigate(route);
             }}
             role="button"
@@ -679,12 +695,12 @@ function OperatorHomeScreen() {
                 const status = String(nextJob?.status || '').toLowerCase();
                 const route =
                   status === 'last_30'
-                    ? '/provider/last-30'
+                    ? '/operator/last-30'
                     : status === 'in_progress'
-                      ? '/provider/in-progress'
+                      ? '/operator/service-active'
                       : status === 'finished' || status === 'rated'
                         ? '/operator/completed'
-                        : '/provider/en-route';
+                        : '/operator/en-route';
                 navigate(route);
               }
             }}

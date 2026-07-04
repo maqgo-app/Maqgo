@@ -29,6 +29,11 @@ function buildProviderActiveRequest() {
  */
 function ProviderServiceActiveScreen() {
   const navigate = useNavigate();
+  const isOperator = useState(() => {
+    const pr = String(localStorage.getItem('providerRole') || '').toLowerCase();
+    const ur = String(localStorage.getItem('userRole') || '').toLowerCase();
+    return pr === 'operator' || ur === 'operator';
+  })[0];
   const [request] = useState(buildProviderActiveRequest);
 
   return (
@@ -122,7 +127,7 @@ padding: 24,
           <button
             type="button"
             className="maqgo-btn-secondary"
-            onClick={() => navigate('/provider/home')}
+            onClick={() => navigate(isOperator ? '/operator/home' : '/provider/home')}
             style={{ marginTop: 12 }}
           >
             Volver al inicio
