@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import MaqgoLogo from '../../components/MaqgoLogo';
+import { AlertTriangle } from 'lucide-react';
+import ServiceStateLayout from '../../components/serviceState/ServiceStateLayout';
 
 function buildLast30Request() {
   try {
@@ -31,64 +32,41 @@ function OperatorLast30Screen() {
   const secs = remaining % 60;
 
   return (
-    <div className="maqgo-app maqgo-provider-funnel">
-      <div className="maqgo-screen">
-        <div style={{ marginBottom: 20 }}>
-          <MaqgoLogo size="small" />
-        </div>
-
-        <div style={{ textAlign: 'center', marginBottom: 18 }}>
-          <div
-            style={{
-              background: '#E53935',
-              color: '#fff',
-              padding: '8px 14px',
-              borderRadius: 22,
-              fontSize: 13,
-              fontWeight: 900,
-              display: 'inline-block',
-              marginBottom: 10,
-            }}
-          >
-            ÚLTIMOS 30 MIN
-          </div>
-          <div style={{ color: '#fff', fontSize: 36, fontWeight: 900, letterSpacing: 1 }}>
+    <ServiceStateLayout
+      topBar={{ showBack: false, showHome: true, onHome: () => navigate('/operator/home') }}
+      header={{
+        icon: <AlertTriangle size={22} />,
+        title: 'Últimos 30 minutos',
+        subtitle: 'Prepárate para el cierre. El sistema gestiona el término.',
+        badgeLabel: 'Last 30',
+        badgeTone: 'danger',
+        meta: request?.id ? [{ label: 'ID servicio', value: String(request.id).slice(0, 8) }] : [],
+      }}
+      primaryTitle="Tiempo"
+      primary={
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px 0' }}>
+          <div style={{ color: '#fff', fontSize: 40, fontWeight: 900, letterSpacing: 1 }}>
             {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
           </div>
-          <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 6 }}>
-            Prepárate para finalizar. La empresa gestiona extensiones.
-          </div>
         </div>
-
-        <div
-          style={{
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 14,
-          }}
-        >
-          <div style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, fontWeight: 900, marginBottom: 8 }}>
-            Servicio
-          </div>
-          <div style={{ color: 'rgba(255,255,255,0.80)', fontSize: 12, lineHeight: 1.5 }}>
-            ID: {String(request?.id || '').slice(0, 12)}
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className="maqgo-btn-secondary"
-          onClick={() => navigate('/operator/home')}
-          style={{ width: '100%' }}
-        >
-          Volver al inicio
-        </button>
-      </div>
-    </div>
+      }
+      summary={null}
+      secondaryActions={[
+        {
+          key: 'to-avisos',
+          label: 'Ir a avisos',
+          variant: 'secondary',
+          onClick: () => navigate('/operator/avisos'),
+        },
+        {
+          key: 'to-home',
+          label: 'Volver al inicio',
+          variant: 'primary',
+          onClick: () => navigate('/operator/home'),
+        },
+      ]}
+    />
   );
 }
 
 export default OperatorLast30Screen;
-

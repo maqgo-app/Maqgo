@@ -158,6 +158,7 @@ const OperatorHomeScreen = lazy(() => import('./screens/operator/OperatorHomeScr
 const OperatorHistoryScreen = lazy(() => import('./screens/operator/OperatorHistoryScreen'));
 const OperatorServiceCompletedScreen = lazy(() => import('./screens/operator/OperatorServiceCompletedScreen'));
 const OperatorLast30Screen = lazy(() => import('./screens/operator/OperatorLast30Screen'));
+const OperatorServiceActiveScreen = lazy(() => import('./screens/operator/OperatorServiceActiveScreen'));
 
 // Master (Gerente)
 const MasterJoinScreen = lazy(() => import('./screens/master/MasterJoinScreen.jsx'));
@@ -545,7 +546,7 @@ function AppContent() {
         <Route path="/operator/home" element={<OperatorHomeScreen />} />
         <Route path="/operator/en-route" element={<EnRouteScreen />} />
         <Route path="/operator/arrival" element={<ArrivalScreen />} />
-        <Route path="/operator/service-active" element={<ProviderServiceActiveScreen />} />
+        <Route path="/operator/service-active" element={<OperatorServiceActiveScreen />} />
         <Route path="/operator/last-30" element={<OperatorLast30Screen />} />
         <Route path="/operator/avisos" element={<AvisosHubScreen audienceRole="operator" />} />
         <Route path="/operator/history" element={<OperatorHistoryScreen />} />
