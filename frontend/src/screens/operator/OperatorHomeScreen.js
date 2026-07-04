@@ -522,35 +522,43 @@ function OperatorHomeScreen() {
             fontSize: 13, 
             margin: 0 
           }}>
-            {available ? 'Recibirás solicitudes de trabajo' : 'Toca para activarte'}
+            {available ? 'Recibirás trabajos asignados' : 'Toca para conectarte'}
           </p>
-          {(() => {
-            const badge = getGpsBadge();
-            return (
-              <div
-                style={{
-                  marginTop: 10,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
+          {available ? (
+            (() => {
+              const badge = getGpsBadge();
+              return (
                 <div
                   style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: '50%',
-                    background: badge.color,
-                    boxShadow: `0 0 0 3px ${badge.color}22`,
+                    marginTop: 10,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 8,
                   }}
-                />
-                <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, fontWeight: 600 }}>
-                  {badge.label}
-                </span>
-              </div>
-            );
-          })()}
+                >
+                  <div
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      background: badge.color,
+                      boxShadow: `0 0 0 3px ${badge.color}22`,
+                    }}
+                  />
+                  <span style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, fontWeight: 600 }}>
+                    {badge.label}
+                  </span>
+                </div>
+              );
+            })()
+          ) : (
+            <div style={{ marginTop: 10, display: 'flex', justifyContent: 'center' }}>
+              <span style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 600 }}>
+                Ubicación: opcional
+              </span>
+            </div>
+          )}
           {available && gpsHelp ? (
             <div
               style={{
@@ -715,7 +723,7 @@ function OperatorHomeScreen() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span style={{ fontSize: 16 }}>📍</span>
               <p style={{ color: '#90BDD3', fontSize: 12, fontWeight: 600, margin: 0, textTransform: 'uppercase' }}>
-                Próximo trabajo
+                Trabajo asignado
               </p>
             </div>
             <p style={{ color: '#fff', fontSize: 15, fontWeight: 600, margin: '0 0 6px' }}>
