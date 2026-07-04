@@ -30,11 +30,10 @@ test.describe('Screenshots: Avisos navega directo (sin modal)', () => {
     await expect(assigned).toBeVisible({ timeout: 15_000 });
     await assigned.click();
 
-    await page.waitForURL(/\/provider\/accepted/, { timeout: 15_000 });
+    await page.waitForURL(/\/provider\/(en-route|arrival|service-active|last-30|service-finished|home)/, { timeout: 15_000 });
     await page.waitForTimeout(800);
-    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/avisos-provider-click-assigned.png', fullPage: true });
+    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/avisos-provider-click-assigned.png', fullPage: false });
 
     await context.close();
   });
 });
-

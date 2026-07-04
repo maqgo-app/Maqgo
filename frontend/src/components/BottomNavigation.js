@@ -330,8 +330,8 @@ export function ProviderNavigation() {
           badgeCount={unreadAvisos}
         />
         <NavItem
-          active={isActive('/provider/history')}
-          onClick={() => navigate('/provider/history')}
+          active={isActive('/operator/history')}
+          onClick={() => navigate('/operator/history')}
           label="Historial"
           icon={Icons.history}
         />

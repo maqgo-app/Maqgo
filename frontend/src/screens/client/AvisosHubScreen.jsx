@@ -138,6 +138,34 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
     return '/operator/home';
   };
 
+  const providerRouteForStatus = (statusRaw) => {
+    const status = String(statusRaw || '').toLowerCase();
+    if (status === 'last_30') return '/provider/last-30';
+    if (status === 'in_progress') return '/provider/service-active';
+    if (status === 'finished' || status === 'rated') return '/provider/service-finished';
+    if (status === 'arrival') return '/provider/arrival';
+    if (status === 'confirmed' || status === 'en_route') return '/provider/en-route';
+    return '/provider/home';
+  };
+
+  const openProviderService = async (item) => {
+    const sid = resolveServiceRequestId(item);
+    if (!sid) {
+      navigate('/provider/home');
+      return;
+    }
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/service-requests/${encodeURIComponent(sid)}`);
+      const sr = await res.json();
+      localStorage.setItem('currentServiceId', String(sr?.id || sid));
+      localStorage.setItem('activeServiceRequest', JSON.stringify(sr));
+      localStorage.setItem('acceptedRequest', JSON.stringify(sr));
+      navigate(providerRouteForStatus(sr?.status));
+    } catch {
+      navigate('/provider/home');
+    }
+  };
+
   const openOperatorAssigned = async (item) => {
     const sid = resolveServiceRequestId(item);
     if (!sid) {
@@ -235,6 +263,20 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
         setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
       }
       await openOperatorAssigned(a);
+      return;
+    }
+
+    if (audienceRole === 'provider' && String(a?.eventType || '').toLowerCase() === 'assigned' && !a?.ackRequired) {
+      if (!a?.readAt && a?.id) {
+        try {
+          await markNotificationRead(a.id);
+        } catch {
+          void 0;
+        }
+        setUnread((v) => Math.max(0, Number(v || 0) - 1));
+        setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
+      }
+      await openProviderService(a);
       return;
     }
 
