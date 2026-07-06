@@ -92,7 +92,7 @@ test.describe('Capturas: proveedor + operador', () => {
       const details = await page.locator('pre').first().textContent().catch(() => null);
       console.log('ERROR_BOUNDARY_DETAILS:', (details || '').trim());
     }
-    await page.screenshot({ path: 'qa-artifacts/out/operator-01-home-latest.png', fullPage: true });
+    await page.screenshot({ path: 'qa-artifacts/out/operator-01-home-footer.png', fullPage: false });
 
     await page.goto(`${baseURL}/operator/avisos`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByText(/centro de avisos/i)).toBeVisible();
