@@ -41,6 +41,7 @@ function OperatorHomeScreen() {
     const saved = getObject('providerData', {});
     return saved.businessName || '';
   });
+  const [companyRating, setCompanyRating] = useState(null);
   const [stats, setStats] = useState({ completed: 0, pending: 0, hoursWorked: 0 });
   const [loading, setLoading] = useState(true);
   const [nextJob, setNextJob] = useState(null);
@@ -121,14 +122,18 @@ function OperatorHomeScreen() {
           const ownerRes = await axios.get(`${BACKEND_URL}/api/users/${ownerId}`);
           if (ownerRes.data) {
             setOwnerName(ownerRes.data.name || ownerRes.data.providerData?.businessName || 'Mi Empresa');
+            const r = ownerRes.data?.rating;
+            setCompanyRating(Number.isFinite(Number(r)) ? Number(r) : null);
           }
         } catch {
           const savedProvider = getObject('providerData', {});
           setOwnerName(savedProvider.businessName || 'Transportes Silva SpA');
+          setCompanyRating(null);
         }
       } else {
         const savedProvider = getObject('providerData', {});
         setOwnerName(savedProvider.businessName || 'Transportes Silva SpA');
+        setCompanyRating(null);
       }
 
       // Sincronizar disponibilidad desde backend (fuente de verdad) al montar
@@ -405,6 +410,28 @@ function OperatorHomeScreen() {
     navigate('/operator/en-route');
   };
 
+  const renderCompanyStars = (rating) => {
+    const val = Number(rating);
+    if (!Number.isFinite(val)) return null;
+    const rounded = Math.max(0, Math.min(5, Math.round(val)));
+    return (
+      <div style={{ display: 'flex', gap: 2 }}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <svg
+            key={star}
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill={star <= rounded ? '#FFD700' : '#444'}
+            aria-hidden="true"
+          >
+            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+          </svg>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="maqgo-app maqgo-provider-funnel">
       <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
@@ -452,7 +479,7 @@ function OperatorHomeScreen() {
               {loading ? '...' : ownerName}
             </p>
           </div>
-          {null}
+          {renderCompanyStars(companyRating)}
         </div>
 
         {/* Toggle de disponibilidad - más grande y claro */}
