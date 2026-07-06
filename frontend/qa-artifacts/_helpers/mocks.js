@@ -106,7 +106,16 @@ export async function installApiMocks(context, options = {}) {
       return route.fulfill(json(200, { id: `user-${Date.now()}`, token: 'test-token' }));
     }
     if (url.includes('/api/users/') && method === 'GET') {
-      return route.fulfill(json(200, { id: 'user-1', role: 'provider', available: true, name: 'Test User' }));
+      return route.fulfill(
+        json(200, {
+          id: 'user-1',
+          role: 'provider',
+          available: true,
+          name: 'Transportes Silva SpA',
+          rating: 4.8,
+          providerData: { businessName: 'Transportes Silva SpA' },
+        })
+      );
     }
     if (url.includes('/api/users/') && (method === 'PATCH' || method === 'PUT')) {
       state.usersPatchCalls += 1;

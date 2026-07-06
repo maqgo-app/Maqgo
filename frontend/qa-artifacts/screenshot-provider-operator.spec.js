@@ -79,7 +79,8 @@ test.describe('Capturas: proveedor + operador', () => {
 
     await page.goto(`${baseURL}/operator/home`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByText('Empresa')).toBeVisible();
-    await page.screenshot({ path: 'qa-artifacts/out/operator-01-home.png', fullPage: true });
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: 'qa-artifacts/out/operator-01-home-latest.png', fullPage: true });
 
     await page.goto(`${baseURL}/provider/request-received`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('accept-request-btn')).toBeVisible();
