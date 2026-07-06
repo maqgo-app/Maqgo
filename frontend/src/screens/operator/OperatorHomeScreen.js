@@ -41,7 +41,7 @@ function OperatorHomeScreen() {
     const saved = getObject('providerData', {});
     return saved.businessName || '';
   });
-  const [stats, setStats] = useState({ completed: 0, pending: 0, rating: 5.0, hoursWorked: 0 });
+  const [stats, setStats] = useState({ completed: 0, pending: 0, hoursWorked: 0 });
   const [loading, setLoading] = useState(true);
   const [nextJob, setNextJob] = useState(null);
   const [gpsMeta, setGpsMeta] = useState(() => ({ hasCoords: false, updatedAt: null }));
@@ -159,12 +159,11 @@ function OperatorHomeScreen() {
             setStats({
               completed: dashRes.data.completed_services || 0,
               pending: dashRes.data.pending_services || 0,
-              rating: dashRes.data.rating || 5.0,
               hoursWorked: dashRes.data.total_hours || 0
             });
           }
         } catch {
-          setStats({ completed: 12, pending: 1, rating: 4.8, hoursWorked: 48 });
+          setStats({ completed: 12, pending: 1, hoursWorked: 48 });
         }
       }
       
@@ -179,7 +178,7 @@ function OperatorHomeScreen() {
     } catch (e) {
       console.error('Error loading operator data:', e);
       setOwnerName('Transportes Silva SpA');
-      setStats({ completed: 12, pending: 1, rating: 4.8, hoursWorked: 48 });
+      setStats({ completed: 12, pending: 1, hoursWorked: 48 });
     }
     setLoading(false);
   }, []);
@@ -378,7 +377,7 @@ function OperatorHomeScreen() {
       hours: 4,
       clientName: 'Carlos González',
       clientPhone,
-      clientRating: 4.7,
+      clientRating: null,
       pricePerHour: 80000,
       transportFee: 35000,
       distance: 5.2,
@@ -404,20 +403,6 @@ function OperatorHomeScreen() {
     localStorage.setItem('acceptedRequest', JSON.stringify(assigned));
     setNextJob(assigned);
     navigate('/operator/en-route');
-  };
-
-  // Renderizar estrellas de rating
-  const renderStars = (rating) => {
-    return (
-      <div style={{ display: 'flex', gap: 2 }}>
-        {[1, 2, 3, 4, 5].map(star => (
-          <svg key={star} width="16" height="16" viewBox="0 0 24 24" 
-            fill={star <= rating ? '#FFD700' : '#444'}>
-            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
-          </svg>
-        ))}
-      </div>
-    );
   };
 
   return (
@@ -467,7 +452,7 @@ function OperatorHomeScreen() {
               {loading ? '...' : ownerName}
             </p>
           </div>
-          {renderStars(Math.round(stats.rating))}
+          {null}
         </div>
 
         {/* Toggle de disponibilidad - más grande y claro */}
@@ -641,25 +626,7 @@ function OperatorHomeScreen() {
               Trabajadas
             </p>
           </div>
-          <div style={{
-            background: '#2A2A2A',
-            borderRadius: 12,
-            padding: 14,
-            textAlign: 'center'
-          }}>
-            <p style={{ 
-              color: '#FFD700', 
-              fontSize: 24, 
-              fontWeight: 700, 
-              margin: 0,
-              fontFamily: "'JetBrains Mono', monospace"
-            }}>
-              {stats.rating.toFixed(1)}
-            </p>
-            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
-              Rating
-            </p>
-          </div>
+          {null}
         </div>
 
         {/* Mensaje motivacional cuando está activo */}

@@ -14,20 +14,16 @@ import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNa
  * 
  * Flujo simplificado:
  * 1. Muestra "¡Buen trabajo!" con animación
- * 2. Califica al cliente (1-5 estrellas + comentario)
- * 3. Muestra estadísticas motivadoras
+ * 2. Muestra estadísticas
  * 4. Auto-redirect a Home en 5 segundos o click
  */
 function OperatorServiceCompletedScreen() {
   const navigate = useNavigate();
-  const [step, setStep] = useState('congrats'); // 'congrats' | 'rating' | 'stats'
-  const [rating, setRating] = useState(0);
-  const [comment, setComment] = useState('');
+  const [step, setStep] = useState('congrats'); // 'congrats' | 'stats'
   const [stats, setStats] = useState({
     todayServices: 1,
     monthServices: 12,
     totalHours: 48,
-    rating: 4.8
   });
   const [countdown, setCountdown] = useState(5);
   const [serviceData] = useState(() => {
@@ -47,7 +43,6 @@ function OperatorServiceCompletedScreen() {
           todayServices: response.data.services_today || 1,
           monthServices: response.data.services_this_month || 12,
           totalHours: response.data.total_hours || 48,
-          rating: response.data.rating || 4.8
         });
       }
     } catch {
@@ -65,33 +60,9 @@ function OperatorServiceCompletedScreen() {
       loadStats();
     }, 0);
     
-    // Avanzar a rating después de 2 segundos
-    const timer = setTimeout(() => setStep('rating'), 2000);
+    const timer = setTimeout(() => setStep('stats'), 2000);
     return () => clearTimeout(timer);
   }, [loadStats]);
-
-  const submitRating = async () => {
-    try {
-      const serviceId = serviceData.id || localStorage.getItem('activeServiceId');
-      const operatorId = localStorage.getItem('userId');
-      
-      if (rating > 0) {
-        await axios.post(`${BACKEND_URL}/api/ratings`, {
-          service_id: serviceId,
-          from_id: operatorId,
-          from_type: 'provider',
-          to_id: serviceData.client_id,
-          to_type: 'client',
-          rating: rating,
-          comment: comment
-        });
-      }
-    } catch (e) {
-      console.error('Error submitting rating:', e);
-    }
-    
-    setStep('stats');
-  };
 
   // Countdown para auto-redirect
   useEffect(() => {
@@ -163,82 +134,7 @@ function OperatorServiceCompletedScreen() {
           </div>
         )}
 
-        {/* PASO 2: Calificar al Cliente */}
-        {step === 'rating' && (
-          <div style={{ textAlign: 'center', maxWidth: 340, margin: '0 auto' }}>
-            <h2 style={{ 
-              color: '#fff', 
-              fontSize: 22, 
-              fontWeight: 600, 
-              margin: '0 0 8px',
-              fontFamily: "'Space Grotesk', sans-serif"
-            }}>
-              Dale nota
-            </h2>
-            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, margin: '0 0 30px' }}>
-              ¿Cómo fue trabajar con este cliente?
-            </p>
-
-            {/* Estrellas */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 25 }}>
-              {[1, 2, 3, 4, 5].map(star => (
-                <button
-                  key={star}
-                  onClick={() => setRating(star)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 8,
-                    transform: rating >= star ? 'scale(1.1)' : 'scale(1)',
-                    transition: 'transform 0.2s'
-                  }}
-                  data-testid={`star-${star}`}
-                >
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill={rating >= star ? '#FFC107' : 'none'}>
-                    <path 
-                      d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" 
-                      stroke={rating >= star ? '#FFC107' : '#666'}
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-              ))}
-            </div>
-
-            {/* Comentario opcional */}
-            <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Comentario (opcional)"
-              style={{
-                width: '100%',
-                padding: 14,
-                fontSize: 15,
-                background: '#2A2A2A',
-                border: '1px solid #444',
-                borderRadius: 12,
-                color: '#fff',
-                resize: 'none',
-                height: 80,
-                marginBottom: 20,
-                outline: 'none'
-              }}
-              data-testid="rating-comment"
-            />
-
-            <button
-              onClick={submitRating}
-              className="maqgo-btn-primary"
-              style={{ width: '100%' }}
-              data-testid="submit-rating-btn"
-            >
-              {rating > 0 ? 'Enviar y continuar' : 'Saltar'}
-            </button>
-          </div>
-        )}
+        {null}
 
         {/* PASO 3: Estadísticas */}
         {step === 'stats' && (
@@ -301,18 +197,7 @@ function OperatorServiceCompletedScreen() {
                 </p>
               </div>
               
-              <div style={{
-                background: '#2A2A2A',
-                borderRadius: 12,
-                padding: 16
-              }}>
-                <p style={{ color: '#FFC107', fontSize: 28, fontWeight: 700, margin: 0 }}>
-                  {stats.rating.toFixed(1)}
-                </p>
-                <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '4px 0 0' }}>
-                  Tu rating
-                </p>
-              </div>
+              {null}
             </div>
 
             {/* Mensaje motivacional */}
