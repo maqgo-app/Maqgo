@@ -1,17 +1,73 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { playTimerWarningSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
+import axios from 'axios';
+import BACKEND_URL from '../../utils/api';
 
 function Last30Minutes() {
   const navigate = useNavigate();
+
+  const serviceId = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('activeServiceRequest');
+      if (raw) {
+        const sr = JSON.parse(raw);
+        const id = String(sr?.id || '').trim();
+        if (id) return id;
+      }
+    } catch {
+      void 0;
+    }
+    return String(localStorage.getItem('currentServiceId') || '').trim();
+  }, []);
+
+  const [endTimeMs, setEndTimeMs] = useState(null);
+  const [remainingTime, setRemainingTime] = useState(30 * 60);
 
   useEffect(() => {
     unlockAudio();
     playTimerWarningSound();
     vibrate('alert');
   }, []);
+
+  useEffect(() => {
+    if (!endTimeMs) return undefined;
+    const timer = setInterval(() => {
+      const diff = Math.max(0, Math.floor((endTimeMs - Date.now()) / 1000));
+      setRemainingTime(diff);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [endTimeMs]);
+
+  useEffect(() => {
+    if (!serviceId) return undefined;
+    const poll = async () => {
+      try {
+        const res = await axios.get(`${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceId)}`);
+        const sr = res?.data || {};
+        const rawEnd = sr.endTime;
+        const end = rawEnd ? new Date(String(rawEnd)).getTime() : null;
+        if (Number.isFinite(end)) setEndTimeMs(end);
+        const st = String(sr.status || '').toLowerCase();
+        if (st === 'finished' || st === 'rated') {
+          navigate('/client/service-finished');
+        }
+      } catch {
+        void 0;
+      }
+    };
+    poll();
+    const t = setInterval(poll, 5000);
+    return () => clearInterval(t);
+  }, [serviceId, navigate]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
     <div className="maqgo-app maqgo-client-funnel">
@@ -26,6 +82,24 @@ function Last30Minutes() {
             <div style={{ fontSize: '60px', marginBottom: '20px' }}>⏰</div>
             <h2 style={{ color: '#EC6819', marginBottom: '15px', fontSize: 24, fontWeight: 700 }}>Últimos 30 Minutos</h2>
             <p style={{ color: 'rgba(255,255,255,0.95)' }}>El servicio finalizará pronto automáticamente</p>
+          </div>
+
+          <div
+            style={{
+              background: 'rgba(255, 193, 7, 0.18)',
+              border: '1px solid rgba(255, 193, 7, 0.35)',
+              borderRadius: 14,
+              padding: 18,
+              width: '100%',
+              marginBottom: 16,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <div style={{ color: '#ffc107', fontWeight: 800 }}>Tiempo restante</div>
+            <div style={{ color: '#fff', fontSize: 42, fontWeight: 900, letterSpacing: 1 }}>{formatTime(remainingTime)}</div>
           </div>
           
           <div style={{ 

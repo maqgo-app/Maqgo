@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import ServiceStateLayout from '../../components/serviceState/ServiceStateLayout';
+import BACKEND_URL from '../../utils/api';
+import axios from 'axios';
 
 function buildLast30Request() {
   try {
@@ -20,13 +22,40 @@ function OperatorLast30Screen() {
   const navigate = useNavigate();
   const [request] = useState(buildLast30Request);
   const [remaining, setRemaining] = useState(30 * 60);
+  const [endTimeMs, setEndTimeMs] = useState(null);
+
+  const serviceId = useMemo(() => String(request?.id || '').trim(), [request]);
 
   useEffect(() => {
+    if (!endTimeMs) return undefined;
     const t = setInterval(() => {
-      setRemaining((v) => (v > 0 ? v - 1 : 0));
+      const diff = Math.max(0, Math.floor((endTimeMs - Date.now()) / 1000));
+      setRemaining(diff);
     }, 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [endTimeMs]);
+
+  useEffect(() => {
+    if (!serviceId) return undefined;
+    const poll = async () => {
+      try {
+        const res = await axios.get(`${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceId)}`);
+        const sr = res?.data || {};
+        const rawEnd = sr.endTime;
+        const end = rawEnd ? new Date(String(rawEnd)).getTime() : null;
+        if (Number.isFinite(end)) setEndTimeMs(end);
+        const st = String(sr.status || '').toLowerCase();
+        if (st === 'finished' || st === 'rated') {
+          navigate('/operator/completed');
+        }
+      } catch {
+        void 0;
+      }
+    };
+    poll();
+    const t = setInterval(poll, 5000);
+    return () => clearInterval(t);
+  }, [serviceId, navigate]);
 
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;

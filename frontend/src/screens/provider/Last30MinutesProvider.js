@@ -9,7 +9,6 @@ import { useAdaptivePolling } from '../../hooks/useAdaptivePolling';
 function Last30MinutesProvider() {
   const navigate = useNavigate();
   const [remainingTime, setRemainingTime] = useState(30 * 60);
-  const [showExtendOption, setShowExtendOption] = useState(false);
 
   const serviceId = useMemo(() => {
     const raw = localStorage.getItem('currentServiceId') || localStorage.getItem('currentServiceRequestId') || '';
@@ -122,41 +121,6 @@ function Last30MinutesProvider() {
             </div>
           </div>
         </div>
-
-        {/* Acciones rápidas */}
-        <div className="quick-actions">
-          <h3 className="actions-title">Acciones disponibles</h3>
-          
-          <button 
-            className="action-btn extend"
-            onClick={() => setShowExtendOption(true)}
-          >
-            <span className="action-icon">➕</span>
-            <span className="action-text">Solicitar extensión de tiempo</span>
-          </button>
-
-        </div>
-
-        {/* Modal de extensión */}
-        {showExtendOption && (
-          <div className="modal-overlay">
-            <div className="modal-content">
-              <h3>Solicitar Extensión</h3>
-              <p>¿Necesitas más tiempo para completar el trabajo?</p>
-              <p className="modal-note">
-                La solicitud quedará registrada y requerirá aprobación.
-              </p>
-              <div className="modal-buttons">
-                <button onClick={() => setShowExtendOption(false)} className="modal-btn cancel">
-                  Cancelar
-                </button>
-                <button className="modal-btn confirm">
-                  Solicitar +1 hora
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Recordatorio */}
         <div className="info-card">
