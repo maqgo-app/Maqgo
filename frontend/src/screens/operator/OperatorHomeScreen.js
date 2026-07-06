@@ -27,6 +27,17 @@ const parseIsoOrNull = (value) => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
+const getJobLocationText = (job) => {
+  const raw = job?.location ?? job?.address ?? job?.address_full ?? job?.address_short;
+  if (!raw) return '';
+  if (typeof raw === 'string') return raw;
+  if (typeof raw === 'object') {
+    const addr = raw.address || raw.address_full || raw.address_short;
+    if (typeof addr === 'string') return addr;
+  }
+  return '';
+};
+
 function OperatorHomeScreen() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -724,7 +735,7 @@ function OperatorHomeScreen() {
               {nextJob.machineryType} · {isPerTripMachineryType(nextJob.machinery_type || nextJob.machineryType) ? 'Valor viaje' : `${nextJob.hours}h`}
             </p>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
-              {nextJob.location}
+              {getJobLocationText(nextJob)}
             </p>
           </div>
         )}

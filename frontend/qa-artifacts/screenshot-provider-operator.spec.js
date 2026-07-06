@@ -77,21 +77,25 @@ test.describe('Capturas: proveedor + operador', () => {
     await seedOperatorSession(page);
     await seedIncomingRequest(page, { id: 'req-op-001' });
 
+    page.on('pageerror', (e) => console.log('PAGEERROR:', e?.message || String(e)));
+    page.on('console', (msg) => {
+      const t = msg.type();
+      if (t === 'error' || t === 'warning') console.log(`CONSOLE:${t}:`, msg.text());
+    });
+
     await page.goto(`${baseURL}/operator/home`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByText('Empresa')).toBeVisible();
     await page.waitForTimeout(900);
+
+    const hasBoundary = (await page.getByRole('heading', { name: 'Algo salió mal' }).count()) > 0;
+    if (hasBoundary) {
+      const details = await page.locator('pre').first().textContent().catch(() => null);
+      console.log('ERROR_BOUNDARY_DETAILS:', (details || '').trim());
+    }
     await page.screenshot({ path: 'qa-artifacts/out/operator-01-home-latest.png', fullPage: true });
 
-    await page.goto(`${baseURL}/provider/request-received`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('accept-request-btn')).toBeVisible();
-    await page.screenshot({ path: 'qa-artifacts/out/operator-02-request-received.png', fullPage: true });
-
-    await expect(page.getByText(/\d+:\d{2}/)).toBeVisible();
-    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/operator-request-received-timer.png', fullPage: true });
-
-    const confirmBtn = page.getByTestId('accept-request-btn');
-    await confirmBtn.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(250);
-    await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/operator-confirmar-ubicacion-y-llegada.png', fullPage: true });
+    await page.goto(`${baseURL}/operator/avisos`, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByText(/centro de avisos/i)).toBeVisible();
+    await page.screenshot({ path: 'qa-artifacts/out/operator-02-avisos.png', fullPage: true });
   });
 });
