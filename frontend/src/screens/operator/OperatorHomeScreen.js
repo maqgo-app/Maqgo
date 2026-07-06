@@ -108,11 +108,11 @@ function OperatorHomeScreen() {
       return { color: '#666', label: 'Desconectado' };
     }
     if (!gpsMeta?.hasCoords) {
-      return { color: '#F44336', label: 'Activa Ubicación del celular' };
+      return { color: '#F44336', label: 'Activa el GPS del celular' };
     }
     const updatedAt = gpsMeta?.updatedAt;
     if (!updatedAt) {
-      return { color: '#F44336', label: 'Activa Ubicación del celular' };
+      return { color: '#F44336', label: 'Activa el GPS del celular' };
     }
     const diffMin = (Date.now() - updatedAt.getTime()) / 60000;
     if (diffMin <= GPS_FRESH_MINUTES) {
@@ -641,7 +641,7 @@ function OperatorHomeScreen() {
               {stats.completed}
             </p>
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
-              Completados
+              Servicios completados
             </p>
           </div>
           <div style={{

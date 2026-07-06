@@ -77,6 +77,8 @@ test.describe('Capturas: proveedor + operador', () => {
     await seedOperatorSession(page);
     await seedIncomingRequest(page, { id: 'req-op-001' });
 
+    await page.setViewportSize({ width: 390, height: 844 });
+
     page.on('pageerror', (e) => console.log('PAGEERROR:', e?.message || String(e)));
     page.on('console', (msg) => {
       const t = msg.type();
@@ -92,7 +94,7 @@ test.describe('Capturas: proveedor + operador', () => {
       const details = await page.locator('pre').first().textContent().catch(() => null);
       console.log('ERROR_BOUNDARY_DETAILS:', (details || '').trim());
     }
-    await page.screenshot({ path: 'qa-artifacts/out/operator-01-home-footer.png', fullPage: false });
+    await page.screenshot({ path: 'qa-artifacts/out/operator-01-home-footer-mobile.png', fullPage: false });
 
     await page.goto(`${baseURL}/operator/avisos`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByText(/centro de avisos/i)).toBeVisible();
