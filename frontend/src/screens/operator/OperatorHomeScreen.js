@@ -105,20 +105,20 @@ function OperatorHomeScreen() {
 
   const getGpsBadge = () => {
     if (!available) {
-      return { color: '#666', label: 'Servicio inactivo' };
+      return { color: '#666', label: 'Desconectado' };
     }
     if (!gpsMeta?.hasCoords) {
-      return { color: '#F44336', label: 'GPS apagado' };
+      return { color: '#F44336', label: 'Activa Ubicación del celular' };
     }
     const updatedAt = gpsMeta?.updatedAt;
     if (!updatedAt) {
-      return { color: '#F44336', label: 'GPS apagado' };
+      return { color: '#F44336', label: 'Activa Ubicación del celular' };
     }
     const diffMin = (Date.now() - updatedAt.getTime()) / 60000;
     if (diffMin <= GPS_FRESH_MINUTES) {
-      return { color: '#4CAF50', label: 'GPS activo' };
+      return { color: '#4CAF50', label: 'Ubicación activa' };
     }
-    return { color: '#FFA726', label: 'GPS activo (señal débil)' };
+    return { color: '#FFA726', label: 'Ubicación activa (señal débil)' };
   };
 
   const loadOperatorData = useCallback(async () => {
@@ -636,8 +636,7 @@ function OperatorHomeScreen() {
               color: '#4CAF50', 
               fontSize: 24, 
               fontWeight: 700, 
-              margin: 0,
-              fontFamily: "'JetBrains Mono', monospace"
+              margin: 0
             }}>
               {stats.completed}
             </p>
@@ -655,13 +654,12 @@ function OperatorHomeScreen() {
               color: '#90BDD3', 
               fontSize: 24, 
               fontWeight: 700, 
-              margin: 0,
-              fontFamily: "'JetBrains Mono', monospace"
+              margin: 0
             }}>
               {stats.hoursWorked}h
             </p>
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
-              Trabajadas
+              Horas trabajadas
             </p>
           </div>
           {null}
@@ -681,7 +679,7 @@ function OperatorHomeScreen() {
               Los servicios asignados llegan automáticamente
             </p>
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, margin: '6px 0 0' }}>
-              Mantente cerca de tu máquina y listo para partir
+              Mantente cerca de la máquina y atento: el trabajo puede asignarse en cualquier momento.
             </p>
           </div>
         )}
