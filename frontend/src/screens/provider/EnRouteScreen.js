@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
 import axios from 'axios';
+import { Navigation, MapPin, Timer, AlertTriangle } from 'lucide-react';
 
 // Coordenadas de demo para la obra (Santiago Centro)
 const DEMO_WORK_LOCATION = { lat: -33.4489, lng: -70.6693 };
@@ -176,155 +177,110 @@ function EnRouteScreen() {
 
   // Sin llamada directa.
 
+  const cardStyle = {
+    background: '#2A2A2A',
+    borderRadius: 16,
+    padding: 16,
+    border: '1px solid rgba(255,255,255,0.08)',
+  };
+
+  const sectionLabelStyle = {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 12,
+    fontWeight: 900,
+    textTransform: 'uppercase',
+  };
+
   return (
-    <div className="maqgo-app maqgo-provider-funnel">
-      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 20px' }}>
-        {/* Header */}
-        <div style={{ marginBottom: 16, textAlign: 'center' }}>
-          <MaqgoLogo size="small" />
-        </div>
-
-        {/* Estado */}
-        <div style={{
-          background: 'rgba(144, 189, 211, 0.15)',
-          borderRadius: 10,
-          padding: '12px 16px',
-          marginBottom: 16,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10
-        }}>
-          <div style={{
-            width: 10,
-            height: 10,
-            borderRadius: '50%',
-            background: '#90BDD3',
-            animation: 'pulse 1.5s infinite'
-          }} />
-          <span style={{ color: '#90BDD3', fontSize: 14, fontWeight: 600 }}>
-            {isOperator ? 'EN CAMINO AL SITIO' : 'EN CAMINO A LA OBRA'}
-          </span>
-          <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
-        </div>
-
-        {/* ETA grande */}
-        <div style={{
-          background: '#363636',
-          borderRadius: 12,
-          padding: 24,
-          marginBottom: 16,
-          textAlign: 'center'
-        }}>
-          <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, textTransform: 'uppercase', marginBottom: 4 }}>
-            Tiempo estimado de llegada
+    <div className="maqgo-app maqgo-client-funnel">
+      <div className="maqgo-screen" style={{ padding: '16px 24px 24px', paddingBottom: 'calc(60px + env(safe-area-inset-bottom, 0px))' }}>
+        <div className="w-full mx-auto" style={{ maxWidth: 1040 }}>
+          <div style={{ marginBottom: 18 }}>
+            <MaqgoLogo size="small" />
           </div>
-          <div style={{ color: '#90BDD3', fontSize: 42, fontWeight: 700 }}>
-            {eta} <span style={{ fontSize: 18, fontWeight: 400 }}>min</span>
-          </div>
-        </div>
 
-        {/* Destino */}
-        <div style={{
-          background: '#2A2A2A',
-          borderRadius: 12,
-          padding: 14,
-          marginBottom: 12
-        }}>
-          <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 6 }}>
-            Destino
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
-              <path d="M10 1C6.69 1 4 3.69 4 7C4 11.5 10 19 10 19S16 11.5 16 7C16 3.69 13.31 1 10 1Z" stroke="#EC6819" strokeWidth="1.5" fill="none"/>
-              <circle cx="10" cy="7" r="2" fill="#EC6819"/>
-            </svg>
-            <div style={{ flex: 1 }}>
-              <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>
-                {serviceData.location}
+          <div
+            style={{
+              background: '#363636',
+              border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: 16,
+              padding: '16px 18px',
+              marginBottom: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 14,
+                  background: 'rgba(236, 104, 25, 0.18)',
+                  border: '1px solid rgba(236, 104, 25, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Navigation size={20} color="#EC6819" strokeWidth={2.5} />
               </div>
-              {serviceData.reference && (
-                <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 }}>
-                  Referencia: {serviceData.reference}
+              <div>
+                <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, letterSpacing: 0.2 }}>En ruta</div>
+                <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, marginTop: 6, lineHeight: 1.25 }}>
+                  {isOperator ? 'Camino al sitio del servicio' : 'Camino a la obra'}
                 </div>
-              )}
+              </div>
+            </div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 999, background: 'rgba(236,104,25,0.12)', border: '1px solid rgba(236,104,25,0.28)' }}>
+              <Timer size={16} color="#EC6819" />
+              <div style={{ color: 'rgba(255,255,255,0.92)', fontSize: 12, fontWeight: 900 }}>{eta} min</div>
             </div>
           </div>
-        </div>
 
-        {/* NAVEGACIÓN: Waze + Google Maps - el operador elige con qué app seguir la ruta */}
-        <div style={{ marginBottom: 12 }}>
-          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 10 }}>
-            Abre en la app que prefieras para seguir la ruta en línea
-          </p>
-          <div style={{ display: 'flex', gap: 10 }}>
-          {/* Waze */}
-          <button
-            onClick={handleOpenWaze}
-            style={{
-              flex: 1,
-              padding: '14px 16px',
-              background: '#33CCFF',
-              border: 'none',
-              borderRadius: 12,
-              color: '#000',
-              fontSize: 14,
-              fontWeight: 600,
-              fontFamily: "'Space Grotesk', sans-serif",
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8
-            }}
-            data-testid="open-waze-btn"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" fill="#000"/>
-              <circle cx="9" cy="10" r="2" fill="#33CCFF"/>
-              <circle cx="15" cy="10" r="2" fill="#33CCFF"/>
-              <path d="M8 15C9 17 15 17 16 15" stroke="#33CCFF" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            Waze
-          </button>
-          
-          {/* Google Maps - Alternativa */}
-          <button
-            onClick={handleOpenGoogleMaps}
-            style={{
-              flex: 1,
-              padding: '14px 16px',
-              background: '#2A2A2A',
-              border: '1px solid rgba(255,255,255,0.2)',
-              borderRadius: 12,
-              color: '#fff',
-              fontSize: 14,
-              fontWeight: 500,
-              fontFamily: "'Space Grotesk', sans-serif",
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8
-            }}
-            data-testid="open-gmaps-btn"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#EA4335"/>
-              <circle cx="12" cy="9" r="2.5" fill="#fff"/>
-            </svg>
-            Google Maps
-          </button>
+          <div style={{ background: 'rgba(255, 193, 7, 0.14)', border: '1px solid rgba(255, 193, 7, 0.30)', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+            <div style={{ color: '#ffc107', fontWeight: 900, letterSpacing: 0.2 }}>Tiempo estimado de llegada</div>
+            <div style={{ color: '#fff', fontSize: 46, fontWeight: 950, letterSpacing: 1, marginTop: 8 }}>
+              {eta}<span style={{ color: 'rgba(255,255,255,0.78)', fontSize: 18, fontWeight: 700, marginLeft: 8 }}>min</span>
+            </div>
           </div>
-        </div>
 
-        {/* Cliente - DATOS PROTEGIDOS */}
-        <div style={{
-          background: '#2A2A2A',
-          borderRadius: 12,
-          padding: 14,
-          marginBottom: 12
-        }}>
-          <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 8 }}>
+          <div style={{ ...cardStyle, marginBottom: 12 }}>
+            <div style={sectionLabelStyle}>Destino</div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10 }}>
+              <MapPin size={18} color="#EC6819" style={{ marginTop: 2, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 800, lineHeight: 1.35 }}>{serviceData.location}</div>
+                {serviceData.reference ? (
+                  <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>
+                    Referencia: {serviceData.reference}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ ...cardStyle, marginBottom: 12 }}>
+            <div style={sectionLabelStyle}>Navegación</div>
+            <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 8, lineHeight: 1.35 }}>
+              Abre la app que prefieras para seguir la ruta.
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+              <button className="maqgo-btn-secondary" type="button" onClick={handleOpenWaze} data-testid="open-waze-btn" style={{ flex: 1, minWidth: 160 }}>
+                Abrir Waze
+              </button>
+              <button className="maqgo-btn-secondary" type="button" onClick={handleOpenGoogleMaps} data-testid="open-gmaps-btn" style={{ flex: 1, minWidth: 160 }}>
+                Abrir Google Maps
+              </button>
+            </div>
+          </div>
+
+          {/* Cliente - DATOS PROTEGIDOS */}
+          <div style={{ ...cardStyle, marginBottom: 12 }}>
+          <div style={{ ...sectionLabelStyle, marginBottom: 8 }}>
             Cliente MAQGO
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -332,7 +288,7 @@ function EnRouteScreen() {
               <div style={{ color: '#fff', fontSize: 15, fontWeight: 500 }}>
                 {serviceData.clientName?.split(' ')[0]} {serviceData.clientName?.split(' ')[1]?.charAt(0)}.
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
+              <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, marginTop: 4 }}>
                 Contacto protegido
               </div>
             </div>
@@ -341,12 +297,7 @@ function EnRouteScreen() {
         </div>
 
         {/* Servicio */}
-        <div style={{
-          background: '#2A2A2A',
-          borderRadius: 12,
-          padding: 14,
-          marginBottom: 12
-        }}>
+        <div style={{ ...cardStyle, marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
@@ -374,13 +325,8 @@ function EnRouteScreen() {
         </div>
 
         {!isOperator && assignedOperator && assignedOperator.nombre && (
-          <div style={{
-            background: '#2A2A2A',
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 20
-          }}>
-            <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12, textTransform: 'uppercase', marginBottom: 8 }}>
+          <div style={{ ...cardStyle, marginBottom: 20 }}>
+            <div style={{ ...sectionLabelStyle, marginBottom: 8 }}>
               Operador asignado
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -405,8 +351,9 @@ function EnRouteScreen() {
                     <span style={{ 
                       marginLeft: 8, 
                       fontSize: 12, 
-                      background: 'rgba(144, 189, 211, 0.2)', 
-                      color: '#90BDD3',
+                      background: 'rgba(236, 104, 25, 0.14)', 
+                      color: 'rgba(255,255,255,0.92)',
+                      border: '1px solid rgba(236, 104, 25, 0.28)',
                       padding: '2px 6px',
                       borderRadius: 4
                     }}>
@@ -420,22 +367,7 @@ function EnRouteScreen() {
               </div>
             </div>
             {canChangeAssignedOperator && (
-              <button
-                type="button"
-                onClick={() => navigate('/provider/select-operator', { state: { fromEnRoute: true } })}
-                style={{
-                  width: '100%',
-                  marginTop: 12,
-                  padding: 10,
-                  background: 'transparent',
-                  border: '1px solid rgba(236, 104, 25, 0.45)',
-                  borderRadius: 10,
-                  color: '#EC6819',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
+                <button type="button" className="maqgo-btn-secondary" onClick={() => navigate('/provider/select-operator', { state: { fromEnRoute: true } })} style={{ marginTop: 12 }}>
                 Cambiar operador
               </button>
             )}
@@ -471,28 +403,8 @@ function EnRouteScreen() {
           )}
         </button>
 
-        {/* Botón reportar incidente */}
-        <button
-          onClick={() => setShowIncidentModal(true)}
-          style={{
-            width: '100%',
-            padding: 14,
-            background: 'transparent',
-            border: '1px solid rgba(255,255,255,0.3)',
-            borderRadius: 25,
-            color: 'rgba(255,255,255,0.95)',
-            fontSize: 14,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8
-          }}
-          data-testid="report-incident-btn"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
+        <button className="maqgo-btn-secondary" type="button" onClick={() => setShowIncidentModal(true)} data-testid="report-incident-btn" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          <AlertTriangle size={18} />
           Reportar incidente en ruta
         </button>
 
@@ -594,6 +506,7 @@ function EnRouteScreen() {
         )}
 
         {null}
+        </div>
       </div>
     </div>
   );

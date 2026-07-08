@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { playAccessGrantedAlert, playSuccessAlert, playArrivalAlert, vibrate } from '../../utils/alertSound';
+import { MapPin, Hourglass, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getObjectFirst } from '../../utils/safeStorage';
@@ -175,156 +176,116 @@ function ArrivalScreen() {
     };
   }, [serviceRequestId, waitingForClient, clientAccepted, waitingMinutes, autoStartRequested]);
 
+  const cardStyle = {
+    background: '#2A2A2A',
+    borderRadius: 16,
+    padding: 16,
+    border: '1px solid rgba(255,255,255,0.08)',
+  };
+
   return (
-    <div className="maqgo-app maqgo-provider-funnel">
-      <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 20px' }}>
-        {/* Header */}
-        <div style={{ marginBottom: 16, textAlign: 'center' }}>
-          <MaqgoLogo size="small" />
-        </div>
+    <div className="maqgo-app maqgo-client-funnel">
+      <div className="maqgo-screen" style={{ padding: '16px 24px 24px', paddingBottom: 'calc(60px + env(safe-area-inset-bottom, 0px))' }}>
+        <div className="w-full mx-auto" style={{ maxWidth: 1040 }}>
+          <div style={{ marginBottom: 18 }}>
+            <MaqgoLogo size="small" />
+          </div>
 
-        {/* Banner de auto-inicio (30 min sin respuesta) */}
-        {!isOperator && autoStarting && (
-          <div style={{
-            background: 'linear-gradient(135deg, #FFC107 0%, #FF9800 100%)',
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 16,
-            textAlign: 'center'
-          }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              gap: 12
-            }}>
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2"/>
-                  <path d="M12 6V12L16 14" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
+          <div
+            style={{
+              background: '#363636',
+              border: '1px solid rgba(255,255,255,0.10)',
+              borderRadius: 16,
+              padding: '16px 18px',
+              marginBottom: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 14,
+                  background: 'rgba(236, 104, 25, 0.18)',
+                  border: '1px solid rgba(236, 104, 25, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <MapPin size={20} color="#EC6819" strokeWidth={2.5} />
               </div>
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ color: '#1a1a1a', fontSize: 16, fontWeight: 700, margin: 0 }}>
-                  30 minutos desde la llegada
-                </p>
-                <p style={{ color: 'rgba(0,0,0,0.7)', fontSize: 13, margin: '4px 0 0' }}>
-                  Si la llegada está verificada, el servicio pasa a En curso automáticamente
-                </p>
+              <div>
+                <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, letterSpacing: 0.2 }}>Llegada</div>
+                <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, marginTop: 6, lineHeight: 1.25 }}>
+                  Esperando confirmación para iniciar
+                </div>
+              </div>
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: 800 }}>{arrivalTime}</div>
+          </div>
+
+        {!isOperator && autoStarting ? (
+          <div style={{ background: 'rgba(255, 193, 7, 0.14)', border: '1px solid rgba(255, 193, 7, 0.30)', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <Hourglass size={20} color="#ffc107" style={{ marginTop: 2 }} />
+              <div>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>30 minutos desde la llegada</div>
+                <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>
+                  Si la llegada está verificada, el servicio pasa a En curso automáticamente.
+                </div>
               </div>
             </div>
           </div>
-        )}
+        ) : null}
 
-        {/* Banner de confirmación del cliente */}
-        {clientAccepted && !autoStarting && (
-          <div style={{
-            background: 'linear-gradient(135deg, #90BDD3 0%, #00ACC1 100%)',
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 16,
-            textAlign: 'center',
-            animation: 'pulse-banner 0.5s ease-out'
-          }}>
-            <style>{`
-              @keyframes pulse-banner {
-                0% { transform: scale(0.95); opacity: 0; }
-                100% { transform: scale(1); opacity: 1; }
-              }
-            `}</style>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              gap: 12
-            }}>
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 13L9 17L19 7" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0 }}>
-                  El cliente autorizó tu ingreso
-                </p>
-                <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '4px 0 0' }}>
-                  Puedes iniciar el servicio.
-                </p>
+        {clientAccepted && !autoStarting ? (
+          <div style={{ background: 'rgba(236, 104, 25, 0.14)', border: '1px solid rgba(236, 104, 25, 0.28)', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <CheckCircle2 size={20} color="#EC6819" style={{ marginTop: 2 }} />
+              <div>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>Ingreso confirmado</div>
+                <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>
+                  El cliente autorizó tu ingreso. Puedes iniciar el servicio.
+                </div>
               </div>
             </div>
           </div>
-        )}
+        ) : null}
 
-        {/* Banner "Cliente en camino" - cuando presiona "Ya voy" */}
-        {clientOnTheWay && !clientAccepted && !autoStarting && (
-          <div style={{
-            background: 'linear-gradient(135deg, #EC6819 0%, #FF8C42 100%)',
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 16,
-            textAlign: 'center',
-            animation: 'pulse-banner 0.5s ease-out'
-          }} data-testid="client-on-the-way-banner">
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              gap: 12
-            }}>
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0 }}>
-                  Llegada registrada
-                </p>
-                <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: '4px 0 0' }}>
+        {clientOnTheWay && !clientAccepted && !autoStarting ? (
+          <div style={{ background: 'rgba(236, 104, 25, 0.14)', border: '1px solid rgba(236, 104, 25, 0.28)', borderRadius: 16, padding: 16, marginBottom: 12 }} data-testid="client-on-the-way-banner">
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <CheckCircle2 size={20} color="#EC6819" style={{ marginTop: 2 }} />
+              <div>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 900 }}>Llegada registrada</div>
+                <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>
                   Enviamos un aviso al cliente informando de tu llegada.
-                </p>
+                </div>
               </div>
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* Estado de llegada */}
         <div style={{
-          background: waitingForClient ? 'rgba(255, 193, 7, 0.15)' : 'rgba(144, 189, 211, 0.15)',
-          borderRadius: 12,
-          padding: 24,
-          marginBottom: 20,
+          background: waitingForClient ? 'rgba(255, 193, 7, 0.14)' : 'rgba(236, 104, 25, 0.14)',
+          border: waitingForClient ? '1px solid rgba(255, 193, 7, 0.30)' : '1px solid rgba(236, 104, 25, 0.28)',
+          borderRadius: 16,
+          padding: 22,
+          marginBottom: 16,
           textAlign: 'center'
         }}>
           <div style={{
             width: 60,
             height: 60,
             borderRadius: '50%',
-            background: waitingForClient ? 'rgba(255, 193, 7, 0.2)' : 'rgba(144, 189, 211, 0.2)',
+            background: waitingForClient ? 'rgba(255, 193, 7, 0.20)' : 'rgba(236, 104, 25, 0.18)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -337,11 +298,11 @@ function ArrivalScreen() {
               </svg>
             ) : (
               <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
-                <path d="M5 13L9 17L19 7" stroke="#90BDD3" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M5 13L9 17L19 7" stroke="#EC6819" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             )}
           </div>
-          <h2 style={{ color: waitingForClient ? '#FFC107' : '#90BDD3', fontSize: 20, fontWeight: 700, margin: '0 0 4px' }}>
+          <h2 style={{ color: waitingForClient ? '#FFC107' : '#EC6819', fontSize: 20, fontWeight: 800, margin: '0 0 4px' }}>
             Llegaste al destino
           </h2>
           <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0 }}>
@@ -499,10 +460,10 @@ function ArrivalScreen() {
         ) : (
           <div
             style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.10)',
-              borderRadius: 12,
-              padding: 14,
+              background: '#2A2A2A',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 16,
+              padding: 16,
               marginBottom: 12,
             }}
           >
@@ -517,20 +478,23 @@ function ArrivalScreen() {
 
         {/* Info de pago */}
         <div style={{
-          background: 'rgba(144, 189, 211, 0.1)',
-          borderRadius: 8,
-          padding: '10px 12px',
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          borderRadius: 16,
+          padding: '12px 14px',
           display: 'flex',
           alignItems: 'center',
-          gap: 8
+          gap: 10
         }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="#90BDD3" strokeWidth="2"/>
-            <path d="M12 6V12L16 14" stroke="#90BDD3" strokeWidth="2" strokeLinecap="round"/>
+            <circle cx="12" cy="12" r="10" stroke="#EC6819" strokeWidth="2"/>
+            <path d="M12 6V12L16 14" stroke="#EC6819" strokeWidth="2" strokeLinecap="round"/>
           </svg>
-          <span style={{ color: '#90BDD3', fontSize: 12 }}>
+          <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, lineHeight: 1.35 }}>
             Sube factura 24 h después del servicio · Pago en 2 días hábiles tras subirla
           </span>
+        </div>
+
         </div>
       </div>
     </div>
