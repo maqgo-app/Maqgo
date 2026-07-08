@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { useToast } from '../../components/Toast';
 import axios from 'axios';
@@ -23,11 +23,12 @@ import { isPerTripMachineryType } from '../../utils/machineryNames';
  */
 function EnRouteScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const [isOperator] = useState(() => {
     const pr = String(localStorage.getItem('providerRole') || '').toLowerCase();
     const ur = String(localStorage.getItem('userRole') || '').toLowerCase();
-    return pr === 'operator' || ur === 'operator';
+    return location.pathname.startsWith('/operator') || pr === 'operator' || ur === 'operator';
   });
   const [eta, setEta] = useState(15);
   const [serviceData, setServiceData] = useState({});

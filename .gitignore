@@ -25,6 +25,10 @@ frontend/.playwright-browsers/
 test-results/
 playwright-report/
 
+# Playwright auth/user profiles (local)
+playwright/.user-data/
+playwright/.auth/
+
 # Next.js (legacy)
 /.next/
 /out/

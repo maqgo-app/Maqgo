@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { playAccessGrantedAlert, playSuccessAlert, playArrivalAlert, vibrate } from '../../utils/alertSound';
 
@@ -32,11 +32,12 @@ function resolveServiceRequestId() {
 
 function ArrivalScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const startedRef = useRef(false);
   const [isOperator] = useState(() => {
     const pr = String(localStorage.getItem('providerRole') || '').toLowerCase();
     const ur = String(localStorage.getItem('userRole') || '').toLowerCase();
-    return pr === 'operator' || ur === 'operator';
+    return location.pathname.startsWith('/operator') || pr === 'operator' || ur === 'operator';
   });
   const [serviceData] = useState(buildArrivalServiceData);
   const [arrivalTime] = useState(() =>

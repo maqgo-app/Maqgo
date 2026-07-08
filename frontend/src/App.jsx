@@ -8,6 +8,7 @@ import WelcomeScreen from './screens/WelcomeScreen.jsx'; // Import directo: evit
 import LoginScreen from './screens/LoginScreen.jsx'; // Import directo: evita flash Suspense (spinner) Welcome → Iniciar sesión
 import ClientHome from './screens/client/ClientHome'; // Eager: primer destino post-login/registro cliente (menos flash Suspense)
 import { hasPersistedSessionCredentials } from './utils/api';
+import { getProviderLandingPath } from './utils/providerOnboardingStatus';
 import BookingFlowEntry from './screens/client/BookingFlowEntry.jsx';
 import MachinerySelection from './screens/client/MachinerySelection'; // Eager: entrada típica al embudo de reserva
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen.jsx'; // Import directo: evita pantalla legacy de recuperación
@@ -28,6 +29,7 @@ import { AppNavigateToLogin } from './components/AppNavigateToLogin';
 import FAQScreen from './screens/FAQScreen';
 import TermsScreen from './screens/TermsScreen';
 import PrivacyScreen from './screens/PrivacyScreen';
+import { useAuth } from './context/authHooks';
 
 /** /verified (SMS ok) → selección de rol; sin pantalla intermedia. */
 function LegacyVerifiedToSelectRole() {
@@ -80,6 +82,33 @@ function ProviderSensitiveGate({ children }) {
       />
     );
   }
+  return children;
+}
+
+function OperatorSensitiveGate({ children }) {
+  const location = useLocation();
+  const auth = useAuth();
+  const hasSession = hasPersistedSessionCredentials();
+
+  const isOperator = Boolean(!auth.loading && auth.user?.role === 'provider' && String(auth.providerRole || '').toLowerCase() === 'operator');
+
+  if (!isOperator) {
+    if (hasSession) {
+      return <Navigate to={getProviderLandingPath()} replace />;
+    }
+    const fullPath = `${location.pathname}${location.search || ''}`;
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{
+          entry: 'operator',
+          redirect: fullPath,
+        }}
+      />
+    );
+  }
+
   return children;
 }
 
@@ -215,7 +244,10 @@ function AppContent() {
     '/provider/profile/empresa', '/provider/profile/banco',
     '/client/machinery',
     '/client/confirm', '/client/billing', '/client/card-input', '/client/service-location',
-    '/client/providers', '/client/hours-selection', '/client/searching', '/client/waiting-confirmation'
+    '/client/providers', '/client/hours-selection', '/client/searching', '/client/waiting-confirmation',
+    '/client/last-30',
+    '/operator/last-30',
+    '/provider/last-30'
   ];
   const hideNav = noNavPaths.some(p => path === p || path.startsWith(p + '/'));
   // MOSTRAR footer en pantallas principales: home, máquinas, perfil, historial (incluye subrutas)
@@ -224,7 +256,7 @@ function AppContent() {
     '/provider/home', '/provider/machines', '/provider/edit-machine',
     '/provider/avisos', '/provider/profile', '/provider/history', '/provider/cobros', '/provider/dashboard', '/provider/my-services',
     '/provider/operator', '/provider/team', '/provider/tariffs',
-    '/operator/home', '/operator/en-route', '/operator/arrival', '/operator/service-active', '/operator/last-30', '/operator/avisos', '/operator/history', '/operator/completed',
+    '/operator/home', '/operator/en-route', '/operator/arrival', '/operator/service-active', '/operator/avisos', '/operator/history', '/operator/completed',
     '/profile', '/faq', '/terms', '/privacy'
   ];
   const showBottomNav = !hideNav && mainPathsWithNav.some(p => path === p || path.startsWith(p + '/'));
@@ -542,14 +574,14 @@ function AppContent() {
         <Route path="/provider/profile/maqgo-billing" element={<MaqgoBillingScreen />} />
 
         {/* Operador */}
-        <Route path="/operator/home" element={<OperatorHomeScreen />} />
-        <Route path="/operator/en-route" element={<EnRouteScreen />} />
-        <Route path="/operator/arrival" element={<ArrivalScreen />} />
-        <Route path="/operator/service-active" element={<OperatorServiceActiveScreen />} />
-        <Route path="/operator/last-30" element={<OperatorLast30Screen />} />
-        <Route path="/operator/avisos" element={<AvisosHubScreen audienceRole="operator" />} />
-        <Route path="/operator/history" element={<OperatorHistoryScreen />} />
-        <Route path="/operator/completed" element={<OperatorServiceCompletedScreen />} />
+        <Route path="/operator/home" element={<OperatorSensitiveGate><OperatorHomeScreen /></OperatorSensitiveGate>} />
+        <Route path="/operator/en-route" element={<OperatorSensitiveGate><EnRouteScreen /></OperatorSensitiveGate>} />
+        <Route path="/operator/arrival" element={<OperatorSensitiveGate><ArrivalScreen /></OperatorSensitiveGate>} />
+        <Route path="/operator/service-active" element={<OperatorSensitiveGate><ProviderServiceActiveScreen /></OperatorSensitiveGate>} />
+        <Route path="/operator/last-30" element={<OperatorSensitiveGate><OperatorLast30Screen /></OperatorSensitiveGate>} />
+        <Route path="/operator/avisos" element={<OperatorSensitiveGate><AvisosHubScreen audienceRole="operator" /></OperatorSensitiveGate>} />
+        <Route path="/operator/history" element={<OperatorSensitiveGate><OperatorHistoryScreen /></OperatorSensitiveGate>} />
+        <Route path="/operator/completed" element={<OperatorSensitiveGate><OperatorServiceCompletedScreen /></OperatorSensitiveGate>} />
 
         <Route path="/profile" element={<ProfileScreen />} />
         </Route>

@@ -22,11 +22,17 @@ export const VIBRATION_PATTERNS = {
 
 // Vibrar dispositivo - acepta string (clave) o array (patrón directo)
 export const vibrate = (pattern) => {
-  if ('vibrate' in navigator) {
+  try {
+    if (typeof navigator === 'undefined') return;
+    if (!('vibrate' in navigator)) return;
+    const ua = navigator.userActivation;
+    if (ua && ua.hasBeenActive === false && ua.isActive === false) return;
     const vibrationPattern = Array.isArray(pattern)
       ? pattern
       : (VIBRATION_PATTERNS[pattern] || VIBRATION_PATTERNS.tap);
     navigator.vibrate(vibrationPattern);
+  } catch {
+    void 0;
   }
 };
 

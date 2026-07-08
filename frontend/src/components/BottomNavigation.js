@@ -295,60 +295,8 @@ export function ProviderNavigation() {
     };
   }, [isProviderSessionOk]);
 
-  // Navegación para Operador (sin Cobros ni Máquinas)
   if (isOperatorOnly) {
-    const dockStyle = isDesktop
-      ? { left: '50%', right: 'auto', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, borderRadius: '0 0 40px 40px' }
-      : { left: 0, right: 0, transform: 'none', width: 'auto', maxWidth: 'none', borderRadius: 0 };
-
-    return (
-      <div style={{
-        position: 'fixed',
-        bottom: 0,
-        ...dockStyle,
-        background: '#1A1A1F',
-        borderTop: '1px solid rgba(255,255,255,0.1)',
-        display: 'flex',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-      padding: '4px 0',
-      paddingBottom: 'max(4px, env(safe-area-inset-bottom))',
-      zIndex: Z_INDEX.fixedBar
-    }}>
-        <NavItem
-          active={isActive('/operator/home')}
-          onClick={() => navigate('/operator/home')}
-          label="Inicio"
-          icon={Icons.home}
-          isPrimary
-        />
-        <NavItem
-          active={isActive('/operator/avisos')}
-          onClick={() => navigate('/operator/avisos')}
-          label="Avisos"
-          icon={Icons.avisos}
-          badgeCount={unreadAvisos}
-        />
-        <NavItem
-          active={isActive('/operator/history')}
-          onClick={() => navigate('/operator/history')}
-          label="Historial"
-          icon={Icons.history}
-        />
-        <NavItem
-          active={isActive('/provider/profile')}
-          onClick={() => navigate('/provider/profile')}
-          label="Mi Empresa"
-          icon={Icons.profile}
-        />
-        <NavItem
-          active={false}
-          onClick={() => goToPortada(navigate)}
-          label="Salir"
-          icon={Icons.logout}
-        />
-      </div>
-    );
+    return <OperatorNavigation />;
   }
 
   // Navegación para Titular/Gerente (completa)
@@ -410,6 +358,104 @@ export function ProviderNavigation() {
   );
 }
 
+export function OperatorNavigation() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const auth = useAuth();
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+
+  const [unreadAvisos, setUnreadAvisos] = useState(0);
+
+  const isOperatorSessionOk = Boolean(!auth.loading && auth.user?.id && auth.user.role === 'provider');
+
+  const isActive = (paths) => {
+    if (Array.isArray(paths)) {
+      return paths.some(p => location.pathname.includes(p));
+    }
+    return location.pathname.includes(paths);
+  };
+
+  const dockStyle = isDesktop
+    ? { left: '50%', right: 'auto', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, borderRadius: '0 0 40px 40px' }
+    : { left: 0, right: 0, transform: 'none', width: 'auto', maxWidth: 'none', borderRadius: 0 };
+
+  useEffect(() => {
+    if (!isOperatorSessionOk) return;
+    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+    if (!token) return;
+
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        const res = await fetchUnreadCount();
+        if (!mounted) return;
+        const nextVal = Number(res?.unread || 0);
+        setUnreadAvisos(Number.isFinite(nextVal) ? nextVal : 0);
+      } catch {
+        if (!mounted) return;
+        setUnreadAvisos(0);
+      }
+    };
+
+    load();
+    const id = window.setInterval(load, 20000);
+    return () => {
+      mounted = false;
+      window.clearInterval(id);
+    };
+  }, [isOperatorSessionOk]);
+
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: 0,
+      ...dockStyle,
+      background: '#1A1A1F',
+      borderTop: '1px solid rgba(255,255,255,0.1)',
+      display: 'flex',
+      justifyContent: 'space-around',
+      alignItems: 'center',
+      padding: '4px 0',
+      paddingBottom: 'max(4px, env(safe-area-inset-bottom))',
+      zIndex: Z_INDEX.fixedBar,
+    }}>
+      <NavItem
+        active={isActive('/operator/home')}
+        onClick={() => navigate('/operator/home')}
+        label="Inicio"
+        icon={Icons.home}
+        isPrimary
+      />
+      <NavItem
+        active={isActive('/operator/avisos')}
+        onClick={() => navigate('/operator/avisos')}
+        label="Avisos"
+        icon={Icons.avisos}
+        badgeCount={unreadAvisos}
+      />
+      <NavItem
+        active={isActive('/operator/history')}
+        onClick={() => navigate('/operator/history')}
+        label="Historial"
+        icon={Icons.history}
+      />
+      <NavItem
+        active={isActive('/provider/profile')}
+        onClick={() => navigate('/provider/profile')}
+        label="Mi Empresa"
+        icon={Icons.profile}
+      />
+      <NavItem
+        active={false}
+        onClick={() => goToPortada(navigate)}
+        label="Salir"
+        icon={Icons.logout}
+      />
+    </div>
+  );
+}
+
 /**
  * Componente que detecta el rol y muestra la navegación correcta
  */
@@ -432,6 +478,9 @@ function BottomNavigation() {
   }
 
   if (role === 'provider') {
+    if (location.pathname.startsWith('/operator')) {
+      return <OperatorNavigation />;
+    }
     return <ProviderNavigation />;
   }
 

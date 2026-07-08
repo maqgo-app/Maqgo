@@ -5,12 +5,24 @@ import { vibrate } from '../../utils/uberUX';
 import axios from 'axios';
 import BACKEND_URL from '../../utils/api';
 import { useAdaptivePolling } from '../../hooks/useAdaptivePolling';
+import MaqgoLogo from '../../components/MaqgoLogo';
+import { Clock } from 'lucide-react';
 
 function Last30MinutesProvider() {
   const navigate = useNavigate();
   const [remainingTime, setRemainingTime] = useState(30 * 60);
 
   const serviceId = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('activeServiceRequest');
+      if (raw) {
+        const sr = JSON.parse(raw);
+        const id = String(sr?.id || '').trim();
+        if (id) return id;
+      }
+    } catch {
+      void 0;
+    }
     const raw = localStorage.getItem('currentServiceId') || localStorage.getItem('currentServiceRequestId') || '';
     return String(raw || '').trim();
   }, []);
@@ -37,14 +49,15 @@ function Last30MinutesProvider() {
     baseIntervalMs: 5000,
     maxIntervalMs: 30000,
     run: async () => {
-      const res = await axios.get(`${BACKEND_URL}/api/service-requests/${serviceId}`);
+      const res = await axios.get(`${BACKEND_URL}/api/service-requests/${encodeURIComponent(serviceId)}`);
       const sr = res?.data || {};
       const rawEnd = sr.endTime;
       const end = rawEnd ? new Date(String(rawEnd)).getTime() : null;
       if (Number.isFinite(end)) {
         setEndTimeMs(end);
       }
-      if (String(sr.status || '').toLowerCase() === 'finished') {
+      const st = String(sr.status || '').toLowerCase();
+      if (st === 'finished' || st === 'rated') {
         navigate('/provider/service-finished');
       }
       return true;
@@ -57,278 +70,70 @@ function Last30MinutesProvider() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const timeLabel = endTimeMs ? formatTime(remainingTime) : '--:--';
+
   return (
-    <div className="maqgo-app maqgo-provider-funnel">
-      <div
-        className="maqgo-screen maqgo-screen--scroll"
-        style={{
-          padding: 'var(--maqgo-screen-padding-top) 24px 24px',
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: '100%',
-        }}
-      >
-      {/* Header */}
-      <div className="maqgo-header">
-        <svg width="40" height="40" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="30" cy="30" r="28" stroke="#ff8c42" strokeWidth="2" fill="none"/>
-          <path d="M30 12L33 20H27L30 12Z" fill="#ff8c42"/>
-          <circle cx="30" cy="30" r="8" stroke="#ff8c42" strokeWidth="2" fill="none"/>
-          <circle cx="30" cy="30" r="3" fill="#ff8c42"/>
-        </svg>
-        <h1 className="app-title">MAQGO</h1>
-      </div>
-
-      <div className="content" style={{ justifyContent: 'flex-start', paddingTop: '10px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Alerta de tiempo */}
-        <div className="warning-alert">
-          <div className="warning-icon">!</div>
-          <div className="warning-content">
-            <span className="warning-title">Últimos 30 minutos</span>
-            <span className="warning-subtitle">El servicio está por finalizar</span>
-          </div>
+    <div className="maqgo-app maqgo-client-funnel">
+      <div className="maqgo-screen">
+        <div style={{ marginBottom: 30 }}>
+          <MaqgoLogo size="small" />
         </div>
 
-        {/* Countdown grande */}
-        <div className="countdown-container">
-          <div className="countdown-ring">
-            <svg width="220" height="220" viewBox="0 0 220 220">
-              <circle
-                cx="110"
-                cy="110"
-                r="100"
-                fill="none"
-                stroke="rgba(255, 193, 7, 0.2)"
-                strokeWidth="10"
-              />
-              <circle
-                cx="110"
-                cy="110"
-                r="100"
-                fill="none"
-                stroke="#ffc107"
-                strokeWidth="10"
-                strokeDasharray={`${2 * Math.PI * 100}`}
-                strokeDashoffset={`${2 * Math.PI * 100 * (1 - remainingTime / (30 * 60))}`}
-                transform="rotate(-90 110 110)"
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="countdown-content">
-              <span className="countdown-label">Tiempo restante</span>
-              <span className="countdown-value">{formatTime(remainingTime)}</span>
-              <span className="countdown-unit">minutos</span>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+            <div
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 18,
+                background: 'rgba(236, 104, 25, 0.18)',
+                border: '1px solid rgba(236, 104, 25, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 20px',
+              }}
+            >
+              <Clock size={34} color="#EC6819" strokeWidth={2.5} />
             </div>
+            <h2 style={{ color: '#EC6819', marginBottom: '15px', fontSize: 24, fontWeight: 700 }}>Últimos 30 Minutos</h2>
+            <p style={{ color: 'rgba(255,255,255,0.95)' }}>El servicio finalizará pronto automáticamente</p>
+          </div>
+
+          <div
+            style={{
+              background: 'rgba(255, 193, 7, 0.18)',
+              border: '1px solid rgba(255, 193, 7, 0.35)',
+              borderRadius: 14,
+              padding: 18,
+              width: '100%',
+              marginBottom: 16,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <div style={{ color: '#ffc107', fontWeight: 800 }}>Tiempo restante</div>
+            <div style={{ color: '#fff', fontSize: 42, fontWeight: 900, letterSpacing: 1 }}>{timeLabel}</div>
+            {!serviceId ? (
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center' }}>No hay un servicio activo asociado.</div>
+            ) : !endTimeMs ? (
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center' }}>Cargando tiempo restante…</div>
+            ) : null}
+          </div>
+
+          <div style={{ background: '#363636', borderRadius: 14, padding: 24, width: '100%', marginBottom: 20 }}>
+            <p style={{ color: '#fff', textAlign: 'center', margin: 0 }}>
+              El servicio se cerrará automáticamente al cumplir la jornada contratada.
+            </p>
           </div>
         </div>
 
-        {/* Recordatorio */}
-        <div className="info-card">
-          <span className="info-icon">ℹ️</span>
-          <span className="info-text">
-            El servicio finalizará automáticamente al cumplirse el endTime definido por MAQGO.
-          </span>
-        </div>
+        <button className="maqgo-btn-primary" onClick={() => navigate('/provider/service-active')} data-testid="back-to-progress-btn">
+          Volver a Servicio
+        </button>
       </div>
-      </div>
-
-      <style>{`
-        .maqgo-header {
-          text-align: center;
-          padding: 15px 0;
-        }
-        .app-title {
-          font-size: 24px;
-          font-weight: bold;
-          color: #fff;
-          margin: 8px 0 0;
-          letter-spacing: 2px;
-        }
-        .warning-alert {
-          background: rgba(255, 193, 7, 0.2);
-          border: 2px solid #ffc107;
-          border-radius: 12px;
-          padding: 16px;
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          margin-bottom: 20px;
-          animation: pulse-border 2s infinite;
-        }
-        @keyframes pulse-border {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.02); }
-        }
-        .warning-icon {
-          font-size: 36px;
-        }
-        .warning-content {
-          display: flex;
-          flex-direction: column;
-        }
-        .warning-title {
-          color: #ffc107;
-          font-size: 20px;
-          font-weight: bold;
-        }
-        .warning-subtitle {
-          color: #aaa;
-          font-size: 14px;
-        }
-        .countdown-container {
-          display: flex;
-          justify-content: center;
-          margin-bottom: 24px;
-        }
-        .countdown-ring {
-          position: relative;
-          width: 220px;
-          height: 220px;
-        }
-        .countdown-content {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          text-align: center;
-        }
-        .countdown-label {
-          display: block;
-          color: #888;
-          font-size: 12px;
-          margin-bottom: 4px;
-        }
-        .countdown-value {
-          display: block;
-          color: #ffc107;
-          font-size: 48px;
-          font-weight: bold;
-        }
-        .countdown-unit {
-          display: block;
-          color: #666;
-          font-size: 14px;
-        }
-        .quick-actions {
-          margin-bottom: 20px;
-        }
-        .actions-title {
-          color: #fff;
-          font-size: 16px;
-          margin-bottom: 12px;
-        }
-        .action-btn {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 16px;
-          border-radius: 12px;
-          border: none;
-          cursor: pointer;
-          margin-bottom: 12px;
-          transition: all 0.3s ease;
-        }
-        .action-btn.extend {
-          background: rgba(144, 189, 211, 0.15);
-          border: 1px solid rgba(144, 189, 211, 0.3);
-        }
-        .action-btn.extend:hover {
-          background: rgba(144, 189, 211, 0.25);
-        }
-        .action-btn.extend .action-icon,
-        .action-btn.extend .action-text {
-          color: #90BDD3;
-        }
-        .action-btn.finish {
-          background: rgba(255, 140, 66, 0.15);
-          border: 1px solid rgba(255, 140, 66, 0.3);
-        }
-        .action-btn.finish:hover {
-          background: rgba(255, 140, 66, 0.25);
-        }
-        .action-btn.finish .action-icon,
-        .action-btn.finish .action-text {
-          color: #ff8c42;
-        }
-        .action-icon {
-          font-size: 20px;
-        }
-        .action-text {
-          font-size: 16px;
-          font-weight: 500;
-        }
-        .info-card {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          background: rgba(45, 45, 45, 0.8);
-          border-radius: 12px;
-          padding: 16px;
-          margin-top: auto;
-        }
-        .info-icon {
-          font-size: 20px;
-        }
-        .info-text {
-          color: #888;
-          font-size: 13px;
-          line-height: 1.5;
-        }
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.8);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 100;
-        }
-        .modal-content {
-          background: #2d2d2d;
-          border-radius: 16px;
-          padding: 24px;
-          max-width: 340px;
-          width: 90%;
-        }
-        .modal-content h3 {
-          color: #fff;
-          margin-bottom: 12px;
-        }
-        .modal-content p {
-          color: #aaa;
-          font-size: 14px;
-          margin-bottom: 8px;
-        }
-        .modal-note {
-          color: #ffc107 !important;
-          font-size: 13px !important;
-        }
-        .modal-buttons {
-          display: flex;
-          gap: 12px;
-          margin-top: 20px;
-        }
-        .modal-btn {
-          flex: 1;
-          padding: 12px;
-          border-radius: 8px;
-          font-weight: 600;
-          cursor: pointer;
-          border: none;
-        }
-        .modal-btn.cancel {
-          background: rgba(255, 255, 255, 0.1);
-          color: #fff;
-        }
-        .modal-btn.confirm {
-          background: #90BDD3;
-          color: white;
-        }
-      `}</style>
     </div>
   );
 }

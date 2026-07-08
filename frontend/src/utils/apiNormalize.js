@@ -41,6 +41,11 @@ export function resolveBackendBaseUrl(rawFromEnv) {
   }
 
   const host = (window.location.hostname || '').toLowerCase();
+
+  if (isLocalHostname(host) && !forceAbsolute) {
+    return '';
+  }
+
   const isMaqgoCl =
     import.meta.env.PROD && (host === 'www.maqgo.cl' || host === 'maqgo.cl');
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { getMachineryDisplayName, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getObject, getJSON } from '../../utils/safeStorage';
@@ -29,10 +29,11 @@ function buildProviderActiveRequest() {
  */
 function ProviderServiceActiveScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const isOperator = useState(() => {
     const pr = String(localStorage.getItem('providerRole') || '').toLowerCase();
     const ur = String(localStorage.getItem('userRole') || '').toLowerCase();
-    return pr === 'operator' || ur === 'operator';
+    return location.pathname.startsWith('/operator') || pr === 'operator' || ur === 'operator';
   })[0];
   const [request] = useState(buildProviderActiveRequest);
 

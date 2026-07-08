@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
+import { Clock } from 'lucide-react';
 import { playTimerWarningSound, unlockAudio } from '../../utils/notificationSounds';
 import { vibrate } from '../../utils/uberUX';
 import axios from 'axios';
@@ -79,7 +80,21 @@ function Last30Minutes() {
       
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <div style={{ fontSize: '60px', marginBottom: '20px' }}>⏰</div>
+            <div
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 18,
+                background: 'rgba(236, 104, 25, 0.18)',
+                border: '1px solid rgba(236, 104, 25, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 20px',
+              }}
+            >
+              <Clock size={34} color="#EC6819" strokeWidth={2.5} />
+            </div>
             <h2 style={{ color: '#EC6819', marginBottom: '15px', fontSize: 24, fontWeight: 700 }}>Últimos 30 Minutos</h2>
             <p style={{ color: 'rgba(255,255,255,0.95)' }}>El servicio finalizará pronto automáticamente</p>
           </div>
