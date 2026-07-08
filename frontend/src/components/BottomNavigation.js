@@ -116,7 +116,8 @@ const Icons = {
   )
 };
 
-function goToPortada(navigate) {
+function signOutToWelcome(auth, navigate) {
+  auth?.logout?.();
   navigate('/welcome');
 }
 
@@ -258,7 +259,7 @@ export function ProviderNavigation() {
 
   const isProviderSessionOk = Boolean(!auth.loading && auth.user?.id && auth.user.role === 'provider');
   
-  // Operadores solo ven: Inicio | Historial | Perfil (sin Cobros ni Máquinas)
+  // Operadores solo ven: Inicio | Avisos | Historial (sin Cobros, Máquinas ni Perfil)
   const isOperatorOnly = providerRole === 'operator';
   
   const isActive = (paths) => {
@@ -350,7 +351,7 @@ export function ProviderNavigation() {
       />
       <NavItem
         active={false}
-        onClick={() => goToPortada(navigate)}
+        onClick={() => signOutToWelcome(auth, navigate)}
         label="Salir"
         icon={Icons.logout}
       />
@@ -358,6 +359,11 @@ export function ProviderNavigation() {
   );
 }
 
+/**
+ * Navegación inferior para OPERADOR
+ * Inicio | Avisos | Historial
+ * Mantiene lenguaje operativo puro, sin etiquetas de proveedor ni perfil.
+ */
 export function OperatorNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -439,18 +445,6 @@ export function OperatorNavigation() {
         onClick={() => navigate('/operator/history')}
         label="Historial"
         icon={Icons.history}
-      />
-      <NavItem
-        active={isActive('/provider/profile')}
-        onClick={() => navigate('/provider/profile')}
-        label="Mi Empresa"
-        icon={Icons.profile}
-      />
-      <NavItem
-        active={false}
-        onClick={() => goToPortada(navigate)}
-        label="Salir"
-        icon={Icons.logout}
       />
     </div>
   );

@@ -51,6 +51,7 @@ function ArrivalScreen() {
   const [autoStartRequested, setAutoStartRequested] = useState(false);
   const [clientOnTheWay, setClientOnTheWay] = useState(false);
   const [serviceRequestId] = useState(resolveServiceRequestId);
+  const [arrivalNoticeSent, setArrivalNoticeSent] = useState(false);
 
   // Timer de 30 minutos
   const MAX_WAITING_MINUTES = 30;
@@ -70,6 +71,7 @@ function ArrivalScreen() {
     // Notificar al cliente que el operador llegó
     localStorage.setItem('operatorArrived', 'true');
     localStorage.setItem('operatorArrivedTime', now.toISOString());
+    setArrivalNoticeSent(true);
 
     // Sonido y vibración de confirmación de llegada (proveedor)
     playArrivalAlert();
@@ -191,44 +193,46 @@ function ArrivalScreen() {
             <MaqgoLogo size="small" />
           </div>
 
-          <div
-            style={{
-              background: '#363636',
-              border: '1px solid rgba(255,255,255,0.10)',
-              borderRadius: 16,
-              padding: '16px 18px',
-              marginBottom: 12,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 14,
-                  background: 'rgba(236, 104, 25, 0.18)',
-                  border: '1px solid rgba(236, 104, 25, 0.35)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <MapPin size={20} color="#EC6819" strokeWidth={2.5} />
-              </div>
-              <div>
-                <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, letterSpacing: 0.2 }}>Llegada</div>
-                <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, marginTop: 6, lineHeight: 1.25 }}>
-                  Esperando confirmación para iniciar
+          {!isOperator ? (
+            <div
+              style={{
+                background: '#363636',
+                border: '1px solid rgba(255,255,255,0.10)',
+                borderRadius: 16,
+                padding: '16px 18px',
+                marginBottom: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 14,
+                    background: 'rgba(236, 104, 25, 0.18)',
+                    border: '1px solid rgba(236, 104, 25, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <MapPin size={20} color="#EC6819" strokeWidth={2.5} />
+                </div>
+                <div>
+                  <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, letterSpacing: 0.2 }}>Llegada</div>
+                  <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, marginTop: 6, lineHeight: 1.25 }}>
+                    Esperando confirmación para iniciar
+                  </div>
                 </div>
               </div>
+              <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: 800 }}>{arrivalTime}</div>
             </div>
-            <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: 800 }}>{arrivalTime}</div>
-          </div>
+          ) : null}
 
         {!isOperator && autoStarting ? (
           <div style={{ background: 'rgba(255, 193, 7, 0.14)', border: '1px solid rgba(255, 193, 7, 0.30)', borderRadius: 16, padding: 16, marginBottom: 12 }}>
@@ -458,42 +462,41 @@ function ArrivalScreen() {
             {waitingForClient ? 'Esperando al cliente...' : 'Iniciar servicio'}
           </button>
         ) : (
-          <div
+          <button
+            className="maqgo-btn-primary"
+            type="button"
+            disabled
             style={{
-              background: '#2A2A2A',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 16,
-              padding: 16,
               marginBottom: 12,
+              opacity: 0.72,
+              cursor: 'default',
             }}
+            data-testid="operator-arrival-notified-btn"
           >
-            <div style={{ color: '#fff', fontSize: 14, fontWeight: 900, marginBottom: 6 }}>
-              Esperando inicio
-            </div>
-            <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, lineHeight: 1.45 }}>
-              La empresa o el cliente iniciarán el servicio cuando corresponda.
-            </div>
-          </div>
+            {arrivalNoticeSent ? 'Cliente notificado' : 'Notificando al cliente...'}
+          </button>
         )}
 
         {/* Info de pago */}
-        <div style={{
-          background: 'rgba(255,255,255,0.06)',
-          border: '1px solid rgba(255,255,255,0.10)',
-          borderRadius: 16,
-          padding: '12px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10
-        }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="#EC6819" strokeWidth="2"/>
-            <path d="M12 6V12L16 14" stroke="#EC6819" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-          <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, lineHeight: 1.35 }}>
-            Sube factura 24 h después del servicio · Pago en 2 días hábiles tras subirla
-          </span>
-        </div>
+        {!isOperator ? (
+          <div style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            borderRadius: 16,
+            padding: '12px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="#EC6819" strokeWidth="2"/>
+              <path d="M12 6V12L16 14" stroke="#EC6819" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, lineHeight: 1.35 }}>
+              Sube factura 24 h después del servicio · Pago en 2 días hábiles tras subirla
+            </span>
+          </div>
+        ) : null}
 
         </div>
       </div>

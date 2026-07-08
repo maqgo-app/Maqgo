@@ -17,7 +17,7 @@ test.describe('Screenshots: Operador reportar incidente', () => {
       localStorage.setItem('token', 'operator-token');
       localStorage.setItem('authToken', 'operator-token');
       localStorage.setItem('legalAcceptedAt', new Date().toISOString());
-      localStorage.setItem('userRole', 'operator');
+      localStorage.setItem('userRole', 'provider');
       localStorage.setItem('providerRole', 'operator');
       localStorage.setItem('userId', 'operator-qa-001');
       localStorage.setItem('providerAvailable', 'true');
@@ -41,7 +41,7 @@ test.describe('Screenshots: Operador reportar incidente', () => {
     });
 
     const page = await context.newPage();
-    await page.goto(`${BASE_URL}/provider/en-route`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.goto(`${BASE_URL}/operator/en-route`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await expect(page.getByText(/en camino a la obra/i)).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(600);
     await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/operator-en-route.png', fullPage: true });

@@ -470,7 +470,7 @@ function SearchingProviderScreen() {
           right: 16,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-start',
           zIndex: Z_INDEX.sticky
         }}>
           <button 
@@ -479,19 +479,6 @@ function SearchingProviderScreen() {
             aria-label="Volver"
           >
             <BackArrowIcon style={{ color: '#fff' }} />
-          </button>
-          <button 
-            onClick={() => navigate('/client/home')}
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              padding: '8px 12px', 
-              cursor: 'pointer',
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: 13
-            }}
-          >
-            Inicio
           </button>
         </div>
 
@@ -569,9 +556,9 @@ function SearchingProviderScreen() {
                 <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
                   {isRealRequest
                     ? clientPhase === 'contacting'
-                      ? `Intento ${currentAttempt} de 5`
+                      ? ''
                       : 'Buscando en tu zona'
-                    : `Proveedor ${currentAttempt} de ${maxAttempts}`}
+                    : ''}
                 </div>
               </div>
             </div>

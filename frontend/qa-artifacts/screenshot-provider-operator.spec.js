@@ -16,7 +16,7 @@ async function seedProviderSession(page, { providerRole = 'super_master' } = {})
 
 async function seedOperatorSession(page) {
   await page.addInitScript(() => {
-    localStorage.setItem('userRole', 'operator');
+    localStorage.setItem('userRole', 'provider');
     localStorage.setItem('providerRole', 'operator');
     localStorage.setItem('userId', 'operator-qa-001');
     localStorage.setItem('token', 'operator-token');
@@ -86,7 +86,7 @@ test.describe('Capturas: proveedor + operador', () => {
     });
 
     await page.goto(`${baseURL}/operator/home`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText('Empresa')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Inicio' })).toBeVisible();
     await page.waitForTimeout(900);
 
     const hasBoundary = (await page.getByRole('heading', { name: 'Algo salió mal' }).count()) > 0;

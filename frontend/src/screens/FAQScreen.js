@@ -79,7 +79,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Qué ve cada rol en la app?',
-        a: 'Titular y Gerente ven: Inicio, Máquinas, Cobros y Perfil. El Operador solo ve: Inicio (su disponibilidad y servicios asignados) y Perfil básico.'
+        a: 'Titular y Gerente ven: Inicio, Máquinas, Cobros y Perfil. El Operador solo ve: Inicio, Avisos e Historial.'
       },
       {
         q: '¿Cuál es la tarifa por servicio?',

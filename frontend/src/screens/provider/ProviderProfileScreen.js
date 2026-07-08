@@ -93,6 +93,13 @@ function ProviderProfileScreen() {
 
   const handleLogout = () => {
     clearAuthSessionPreservingDraft();
+    if (isOperator) {
+      navigate('/login', {
+        replace: true,
+        state: { entry: 'provider', redirect: '/operator/home' },
+      });
+      return;
+    }
     navigate('/welcome');
   };
 
@@ -241,7 +248,7 @@ function ProviderProfileScreen() {
             <MenuItem 
               label="Historial" 
               sublabel="Servicios completados"
-              onClick={() => navigate('/provider/history')}
+              onClick={() => navigate('/operator/history')}
             />
           </>
         )}

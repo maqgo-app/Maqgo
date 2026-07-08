@@ -3,22 +3,8 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import BACKEND_URL, { clearLocalSession, fetchWithAuth, hasPersistedSessionCredentials } from "../utils/api";
 import MaqgoLogo from "./MaqgoLogo";
 
-function shouldEnforceLegalForPath(path) {
+export function shouldEnforceLegalForPath(path) {
   const p = String(path || "");
-  if (p.startsWith("/provider/")) {
-    return (
-      p === "/provider/home" ||
-      p === "/provider/dashboard" ||
-      p === "/provider/my-services" ||
-      p === "/provider/cobros" ||
-      p === "/provider/profile" ||
-      p === "/provider/profile/empresa" ||
-      p === "/provider/profile/banco" ||
-      p === "/provider/tariffs" ||
-      p === "/provider/team" ||
-      p === "/provider/managers"
-    );
-  }
   if (p.startsWith("/client/")) {
     return (
       p === "/client/booking" ||

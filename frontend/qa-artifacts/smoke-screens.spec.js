@@ -101,7 +101,8 @@ function seedForProvider() {
 function seedForOperator() {
   localStorage.setItem('token', 'test-token');
   localStorage.setItem('userId', 'operator-1');
-  localStorage.setItem('userRole', 'operator');
+  localStorage.setItem('userRole', 'provider');
+  localStorage.setItem('providerRole', 'operator');
   localStorage.setItem('providerAvailable', 'true');
   localStorage.setItem('ownerId', 'provider-1');
   localStorage.setItem(

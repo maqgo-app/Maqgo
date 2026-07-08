@@ -316,6 +316,12 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
     return 'Actualizaciones de tu servicio, en un solo lugar';
   }, [audienceRole]);
 
+  const showRoleLogo = audienceRole !== 'operator';
+  const showHeaderIcon = audienceRole !== 'operator';
+  const pushDescription = pushBackendUnavailable
+    ? 'No disponible por ahora (Push desactivado en servidor).'
+    : 'Recibe avisos importantes incluso cuandl la app este cerrada';
+
   return (
     <div className="maqgo-app maqgo-client-funnel">
       <div
@@ -326,28 +332,32 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
         }}
       >
         <div className="w-full mx-auto" style={{ maxWidth: 1040 }}>
-          <div style={{ marginBottom: 18 }}>
-            <MaqgoLogo size="small" />
-          </div>
+          {showRoleLogo ? (
+            <div style={{ marginBottom: 18 }}>
+              <MaqgoLogo size="small" />
+            </div>
+          ) : null}
 
           <div style={headerCardStyle}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 14,
-                    background: 'rgba(236, 104, 25, 0.18)',
-                    border: '1px solid rgba(236, 104, 25, 0.35)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Bell size={20} color="#EC6819" strokeWidth={2.5} />
-                </div>
+                {showHeaderIcon ? (
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 14,
+                      background: 'rgba(236, 104, 25, 0.18)',
+                      border: '1px solid rgba(236, 104, 25, 0.35)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Bell size={20} color="#EC6819" strokeWidth={2.5} />
+                  </div>
+                ) : null}
                 <div>
                   <div style={headerTitleStyle}>Centro de Avisos</div>
                   <div style={headerSubtitleStyle}>{headerSubtitle}</div>
@@ -459,7 +469,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
             <div style={{ minWidth: 0 }}>
               <div style={{ color: '#fff', fontSize: 13, fontWeight: 900 }}>Notificaciones Push</div>
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 4, lineHeight: 1.3 }}>
-                {'Recibe avisos importantes incluso cuandl la app este cerrada'}
+                {pushDescription}
               </div>
             </div>
 
@@ -518,7 +528,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                     <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase' }}>HOY</div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8 }}>
                     {grouped.today.map((a, idx) => {
                       const colors = toneToColors(a?.severity);
                       const isUnread = !a?.readAt;
@@ -545,7 +555,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                             padding: 12,
                             background: colors.bg,
                             border: 'none',
-                            borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                            borderRadius: 12,
                             cursor: 'pointer',
                           }}
                         >
@@ -585,7 +595,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                     <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: 900, textTransform: 'uppercase' }}>ANTERIORES</div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8 }}>
                     {grouped.older.map((a, idx) => {
                       const colors = toneToColors(a?.severity);
                       const isUnread = !a?.readAt;
@@ -612,7 +622,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                             padding: 12,
                             background: colors.bg,
                             border: 'none',
-                            borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                            borderRadius: 12,
                             cursor: 'pointer',
                           }}
                         >

@@ -64,7 +64,8 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user_id = session.get("userId")
+    # Compatibilidad: sesiones legacy pueden persistir user_id (snake_case).
+    user_id = session.get("userId") or session.get("user_id")
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

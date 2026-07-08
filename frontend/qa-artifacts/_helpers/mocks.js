@@ -205,6 +205,19 @@ export async function installApiMocks(context, options = {}) {
         if (role === 'provider') {
           return [
             {
+              id: 'provider:provider-qa-001:sr:svc-123:arrival',
+              subjectId: 'svc-123',
+              eventType: 'arrival',
+              title: 'Operador llegó',
+              body: 'El operador marcó llegada al servicio.',
+              severity: 'critical',
+              createdAt: new Date(now.getTime() - 4 * 60 * 1000).toISOString(),
+              readAt: null,
+              ackRequired: false,
+              pinned: true,
+              deepLink: '/provider/arrival',
+            },
+            {
               id: 'provider:provider-qa-001:sr:svc-123:assigned',
               subjectId: 'svc-123',
               eventType: 'assigned',
@@ -494,7 +507,8 @@ export function seedProviderSession() {
 export function seedOperatorSession() {
   localStorage.setItem('token', 'test-token');
   localStorage.setItem('userId', 'operator-1');
-  localStorage.setItem('userRole', 'operator');
+  localStorage.setItem('userRole', 'provider');
+  localStorage.setItem('providerRole', 'operator');
   localStorage.setItem('providerAvailable', 'true');
   localStorage.setItem('ownerId', 'provider-1');
   localStorage.setItem('legalAcceptedAt', new Date().toISOString());

@@ -260,7 +260,7 @@ function AppContent() {
     '/provider/home', '/provider/machines', '/provider/edit-machine',
     '/provider/avisos', '/provider/profile', '/provider/history', '/provider/cobros', '/provider/dashboard', '/provider/my-services',
     '/provider/operator', '/provider/team', '/provider/tariffs',
-    '/operator/home', '/operator/en-route', '/operator/arrival', '/operator/service-active', '/operator/avisos', '/operator/history', '/operator/completed',
+    '/operator/home', '/operator/en-route', '/operator/arrival', '/operator/service-active', '/operator/avisos', '/operator/history', '/operator/completed', '/operator/account', '/operator/profile',
     '/profile', '/faq', '/terms', '/privacy'
   ];
   const showBottomNav = !hideNav && mainPathsWithNav.some(p => path === p || path.startsWith(p + '/'));
@@ -581,11 +581,13 @@ function AppContent() {
         <Route path="/operator/home" element={<OperatorSensitiveGate><OperatorHomeScreen /></OperatorSensitiveGate>} />
         <Route path="/operator/en-route" element={<OperatorSensitiveGate><EnRouteScreen /></OperatorSensitiveGate>} />
         <Route path="/operator/arrival" element={<OperatorSensitiveGate><ArrivalScreen /></OperatorSensitiveGate>} />
-        <Route path="/operator/service-active" element={<OperatorSensitiveGate><ProviderServiceActiveScreen /></OperatorSensitiveGate>} />
+        <Route path="/operator/service-active" element={<OperatorSensitiveGate><OperatorServiceActiveScreen /></OperatorSensitiveGate>} />
         <Route path="/operator/last-30" element={<OperatorSensitiveGate><OperatorLast30Screen /></OperatorSensitiveGate>} />
         <Route path="/operator/avisos" element={<OperatorSensitiveGate><AvisosHubScreen audienceRole="operator" /></OperatorSensitiveGate>} />
         <Route path="/operator/history" element={<OperatorSensitiveGate><OperatorHistoryScreen /></OperatorSensitiveGate>} />
         <Route path="/operator/completed" element={<OperatorSensitiveGate><OperatorServiceCompletedScreen /></OperatorSensitiveGate>} />
+        <Route path="/operator/account" element={<OperatorSensitiveGate><ProviderProfileScreen /></OperatorSensitiveGate>} />
+        <Route path="/operator/profile" element={<Navigate to="/operator/account" replace />} />
 
         <Route path="/profile" element={<ProfileScreen />} />
         </Route>

@@ -52,7 +52,7 @@ test.describe('Screenshots: Centro de Avisos por rol', () => {
     await installApiMocks(operatorContext, { notificationsRole: 'operator' });
     await seedCommon(operatorContext);
     await operatorContext.addInitScript(() => {
-      localStorage.setItem('userRole', 'operator');
+      localStorage.setItem('userRole', 'provider');
       localStorage.setItem('providerRole', 'operator');
       localStorage.setItem('userId', 'operator-qa-001');
       localStorage.setItem('ownerId', 'owner-qa-001');

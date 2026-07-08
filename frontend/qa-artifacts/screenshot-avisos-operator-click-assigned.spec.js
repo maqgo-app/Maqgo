@@ -16,7 +16,7 @@ test.describe('Screenshots: Operador abre aviso de servicio asignado', () => {
       localStorage.setItem('token', 'test-token');
       localStorage.setItem('authToken', 'test-token');
       localStorage.setItem('legalAcceptedAt', new Date().toISOString());
-      localStorage.setItem('userRole', 'operator');
+      localStorage.setItem('userRole', 'provider');
       localStorage.setItem('providerRole', 'operator');
       localStorage.setItem('userId', 'operator-qa-001');
       localStorage.setItem('ownerId', 'owner-qa-001');
