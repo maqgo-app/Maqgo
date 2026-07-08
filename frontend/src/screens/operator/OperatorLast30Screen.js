@@ -6,6 +6,7 @@ import { playTimerWarningSound, unlockAudio } from '../../utils/notificationSoun
 import { vibrate } from '../../utils/uberUX';
 import BACKEND_URL from '../../utils/api';
 import axios from 'axios';
+import Last30CountdownHero from '../../components/Last30CountdownHero.jsx';
 
 function OperatorLast30Screen() {
   const navigate = useNavigate();
@@ -63,11 +64,7 @@ function OperatorLast30Screen() {
     return () => clearInterval(t);
   }, [serviceId, navigate]);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  const loadingTime = Boolean(serviceId) && !endTimeMs;
 
   return (
     <div className="maqgo-app maqgo-client-funnel">
@@ -98,23 +95,7 @@ function OperatorLast30Screen() {
             <p style={{ color: 'rgba(255,255,255,0.95)' }}>Quedan aprox. 30 minutos para el término del servicio</p>
           </div>
 
-          <div
-            style={{
-              background: 'rgba(255, 193, 7, 0.18)',
-              border: '1px solid rgba(255, 193, 7, 0.35)',
-              borderRadius: 14,
-              padding: 18,
-              width: '100%',
-              marginBottom: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <div style={{ color: '#ffc107', fontWeight: 800 }}>Tiempo restante</div>
-            <div style={{ color: '#fff', fontSize: 42, fontWeight: 900, letterSpacing: 1 }}>{formatTime(remainingTime)}</div>
-          </div>
+          <Last30CountdownHero remainingSeconds={remainingTime} loading={loadingTime} />
 
           <div
             style={{

@@ -7,6 +7,7 @@ import BACKEND_URL from '../../utils/api';
 import { useAdaptivePolling } from '../../hooks/useAdaptivePolling';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { Clock } from 'lucide-react';
+import Last30CountdownHero from '../../components/Last30CountdownHero.jsx';
 
 function Last30MinutesProvider() {
   const navigate = useNavigate();
@@ -64,13 +65,7 @@ function Last30MinutesProvider() {
     },
   });
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const timeLabel = endTimeMs ? formatTime(remainingTime) : '--:--';
+  const loadingTime = Boolean(serviceId) && !endTimeMs;
 
   return (
     <div className="maqgo-app maqgo-client-funnel">
@@ -100,28 +95,13 @@ function Last30MinutesProvider() {
             <p style={{ color: 'rgba(255,255,255,0.95)' }}>Quedan aprox. 30 minutos para el término del servicio</p>
           </div>
 
-          <div
-            style={{
-              background: 'rgba(255, 193, 7, 0.18)',
-              border: '1px solid rgba(255, 193, 7, 0.35)',
-              borderRadius: 14,
-              padding: 18,
-              width: '100%',
-              marginBottom: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <div style={{ color: '#ffc107', fontWeight: 800 }}>Tiempo restante</div>
-            <div style={{ color: '#fff', fontSize: 42, fontWeight: 900, letterSpacing: 1 }}>{timeLabel}</div>
-            {!serviceId ? (
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center' }}>No hay un servicio activo asociado.</div>
-            ) : !endTimeMs ? (
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center' }}>Cargando tiempo restante…</div>
-            ) : null}
-          </div>
+          <Last30CountdownHero remainingSeconds={remainingTime} loading={loadingTime} />
+
+          {!serviceId ? (
+            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center', marginTop: -6, marginBottom: 10 }}>
+              No hay un servicio activo asociado.
+            </div>
+          ) : null}
 
           <div style={{ background: '#363636', borderRadius: 14, padding: 24, width: '100%', marginBottom: 20 }}>
             <p style={{ color: '#fff', textAlign: 'center', margin: 0 }}>
