@@ -96,7 +96,7 @@ function Last30Minutes() {
               <Clock size={34} color="#EC6819" strokeWidth={2.5} />
             </div>
             <h2 style={{ color: '#EC6819', marginBottom: '15px', fontSize: 24, fontWeight: 700 }}>Últimos 30 Minutos</h2>
-            <p style={{ color: 'rgba(255,255,255,0.95)' }}>El servicio finalizará pronto automáticamente</p>
+            <p style={{ color: 'rgba(255,255,255,0.95)' }}>Quedan aprox. 30 minutos para el término del servicio</p>
           </div>
 
           <div
@@ -125,7 +125,7 @@ function Last30Minutes() {
             marginBottom: 20 
           }}>
             <p style={{ color: '#fff', textAlign: 'center', margin: 0 }}>
-              El servicio se cerrará automáticamente al cumplir la jornada contratada.
+              El cierre se realizará al cumplir la jornada contratada.
             </p>
           </div>
         </div>
