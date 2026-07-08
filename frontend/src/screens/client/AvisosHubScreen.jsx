@@ -378,19 +378,30 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
 
           <div style={{ height: 10 }} />
 
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              flexWrap: 'nowrap',
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              paddingBottom: 2,
+              scrollbarWidth: 'none',
+            }}
+          >
             <button
               type="button"
               onClick={() => setFilter('all')}
               style={{
-                padding: '9px 12px',
+                padding: '8px 10px',
                 borderRadius: 999,
                 border: filter === 'all' ? '1px solid rgba(236,104,25,0.55)' : '1px solid rgba(255,255,255,0.12)',
                 background: filter === 'all' ? 'rgba(236,104,25,0.12)' : 'rgba(255,255,255,0.04)',
                 color: 'rgba(255,255,255,0.92)',
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 800,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
               }}
             >
               Todos
@@ -399,14 +410,15 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
               type="button"
               onClick={() => setFilter('unread')}
               style={{
-                padding: '9px 12px',
+                padding: '8px 10px',
                 borderRadius: 999,
                 border: filter === 'unread' ? '1px solid rgba(236,104,25,0.55)' : '1px solid rgba(255,255,255,0.12)',
                 background: filter === 'unread' ? 'rgba(236,104,25,0.12)' : 'rgba(255,255,255,0.04)',
                 color: 'rgba(255,255,255,0.92)',
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 800,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
               }}
             >
               Sin leer
@@ -415,14 +427,15 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
               type="button"
               onClick={() => setFilter('important')}
               style={{
-                padding: '9px 12px',
+                padding: '8px 10px',
                 borderRadius: 999,
                 border: filter === 'important' ? '1px solid rgba(236,104,25,0.55)' : '1px solid rgba(255,255,255,0.12)',
                 background: filter === 'important' ? 'rgba(236,104,25,0.12)' : 'rgba(255,255,255,0.04)',
                 color: 'rgba(255,255,255,0.92)',
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 800,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
               }}
             >
               Importantes
@@ -446,9 +459,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
             <div style={{ minWidth: 0 }}>
               <div style={{ color: '#fff', fontSize: 13, fontWeight: 900 }}>Notificaciones Push</div>
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 4, lineHeight: 1.3 }}>
-                {pushBackendUnavailable
-                  ? 'No disponible por ahora (Push desactivado en servidor).'
-                  : 'Recibe avisos importantes incluso cuando la app está cerrada. Sin Push, los avisos fuera de la app quedan limitados a casos críticos.'}
+                {'Recibe avisos importantes incluso cuandl la app este cerrada'}
               </div>
             </div>
 
@@ -501,7 +512,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, marginTop: 6 }}>No hay eventos para este filtro.</div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {grouped.today.length ? (
                 <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, overflow: 'hidden' }}>
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -512,6 +523,17 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                       const colors = toneToColors(a?.severity);
                       const isUnread = !a?.readAt;
                       const at = a?.createdAt || a?.updatedAt;
+                      const bodyClampStyle = {
+                        color: 'rgba(255,255,255,0.78)',
+                        fontSize: 12,
+                        marginTop: 4,
+                        lineHeight: 1.3,
+                        display: '-webkit-box',
+                        WebkitBoxOrient: 'vertical',
+                        WebkitLineClamp: 2,
+                        overflow: 'hidden',
+                      };
+
                       return (
                         <button
                           key={a.id}
@@ -520,7 +542,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                           style={{
                             width: '100%',
                             textAlign: 'left',
-                            padding: 14,
+                            padding: 12,
                             background: colors.bg,
                             border: 'none',
                             borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
@@ -532,7 +554,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                               <div style={{ marginTop: 3, width: 10, height: 10, borderRadius: 99, background: colors.dot }} />
                               <div>
                                 <div style={{ color: '#fff', fontSize: 14, fontWeight: isUnread ? 900 : 800, lineHeight: 1.25 }}>{a.title}</div>
-                                <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>{a.body}</div>
+                                <div style={bodyClampStyle}>{a.body}</div>
                                 <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center' }}>
                                   <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700 }}>{formatTimeLabel(at)}</div>
                                   {a.ackRequired ? (
@@ -545,7 +567,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                             </div>
                             {isUnread ? (
                               <div style={{ minWidth: 74, display: 'flex', justifyContent: 'flex-end' }}>
-                                <div style={{ background: 'rgba(236,104,25,0.14)', border: '1px solid rgba(236,104,25,0.28)', color: 'rgba(255,255,255,0.92)', fontSize: 11, fontWeight: 900, padding: '6px 10px', borderRadius: 999 }}>
+                                <div style={{ background: 'rgba(236,104,25,0.14)', border: '1px solid rgba(236,104,25,0.28)', color: 'rgba(255,255,255,0.92)', fontSize: 11, fontWeight: 900, padding: '5px 9px', borderRadius: 999 }}>
                                   Nuevo
                                 </div>
                               </div>
@@ -568,6 +590,17 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                       const colors = toneToColors(a?.severity);
                       const isUnread = !a?.readAt;
                       const at = a?.createdAt || a?.updatedAt;
+                      const bodyClampStyle = {
+                        color: 'rgba(255,255,255,0.78)',
+                        fontSize: 12,
+                        marginTop: 4,
+                        lineHeight: 1.3,
+                        display: '-webkit-box',
+                        WebkitBoxOrient: 'vertical',
+                        WebkitLineClamp: 2,
+                        overflow: 'hidden',
+                      };
+
                       return (
                         <button
                           key={a.id}
@@ -576,7 +609,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                           style={{
                             width: '100%',
                             textAlign: 'left',
-                            padding: 14,
+                            padding: 12,
                             background: colors.bg,
                             border: 'none',
                             borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
@@ -588,7 +621,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                               <div style={{ marginTop: 3, width: 10, height: 10, borderRadius: 99, background: colors.dot }} />
                               <div>
                                 <div style={{ color: '#fff', fontSize: 14, fontWeight: isUnread ? 900 : 800, lineHeight: 1.25 }}>{a.title}</div>
-                                <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, marginTop: 6, lineHeight: 1.35 }}>{a.body}</div>
+                                <div style={bodyClampStyle}>{a.body}</div>
                                 <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center' }}>
                                   <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700 }}>{formatFullDateTime(at)}</div>
                                   {a.ackRequired ? (
@@ -601,7 +634,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                             </div>
                             {isUnread ? (
                               <div style={{ minWidth: 74, display: 'flex', justifyContent: 'flex-end' }}>
-                                <div style={{ background: 'rgba(236,104,25,0.14)', border: '1px solid rgba(236,104,25,0.28)', color: 'rgba(255,255,255,0.92)', fontSize: 11, fontWeight: 900, padding: '6px 10px', borderRadius: 999 }}>
+                                <div style={{ background: 'rgba(236,104,25,0.14)', border: '1px solid rgba(236,104,25,0.28)', color: 'rgba(255,255,255,0.92)', fontSize: 11, fontWeight: 900, padding: '5px 9px', borderRadius: 999 }}>
                                   Nuevo
                                 </div>
                               </div>
