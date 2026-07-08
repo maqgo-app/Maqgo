@@ -29,6 +29,9 @@ playwright-report/
 playwright/.user-data/
 playwright/.auth/
 
+# QA artifacts
+frontend/qa-artifacts/
+
 # Next.js (legacy)
 /.next/
 /out/

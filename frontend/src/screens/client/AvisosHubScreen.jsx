@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { requestPushPermissionAndSubscribe, unsubscribePushNotifications } from '../../utils/pushNotifications';
 import BACKEND_URL from '../../utils/api';
 import { fetchWithAuth } from '../../utils/api';
+import MaqgoLogo from '../../components/MaqgoLogo';
+import { Bell } from 'lucide-react';
 import {
   ackNotification,
   fetchNotifications,
@@ -189,23 +191,23 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
   const pushEnabled = pushBackendAvailable ? pushPermission === 'granted' : pushPermission === 'granted';
 
   const headerCardStyle = {
-    background: 'rgba(255,255,255,0.04)',
+    background: '#363636',
     border: '1px solid rgba(255,255,255,0.10)',
-    borderRadius: 14,
-    padding: '12px 14px',
+    borderRadius: 16,
+    padding: '16px 18px',
   };
 
   const headerTitleStyle = {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 900,
     letterSpacing: 0.2,
   };
 
   const headerSubtitleStyle = {
     color: 'rgba(255,255,255,0.70)',
-    fontSize: 12,
-    marginTop: 6,
+    fontSize: 13,
+    marginTop: 8,
     lineHeight: 1.25,
   };
 
@@ -315,7 +317,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
   }, [audienceRole]);
 
   return (
-    <div className={audienceRole === 'client' ? 'maqgo-app maqgo-client-funnel' : 'maqgo-app'}>
+    <div className="maqgo-app maqgo-client-funnel">
       <div
         className="maqgo-screen"
         style={{
@@ -324,9 +326,33 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
         }}
       >
         <div className="w-full mx-auto" style={{ maxWidth: 1040 }}>
+          <div style={{ marginBottom: 18 }}>
+            <MaqgoLogo size="small" />
+          </div>
+
           <div style={headerCardStyle}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div style={headerTitleStyle}>Centro de Avisos</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 14,
+                    background: 'rgba(236, 104, 25, 0.18)',
+                    border: '1px solid rgba(236, 104, 25, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Bell size={20} color="#EC6819" strokeWidth={2.5} />
+                </div>
+                <div>
+                  <div style={headerTitleStyle}>Centro de Avisos</div>
+                  <div style={headerSubtitleStyle}>{headerSubtitle}</div>
+                </div>
+              </div>
               {unread > 0 ? (
                 <div
                   style={{
@@ -348,8 +374,6 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                 </div>
               ) : null}
             </div>
-
-            <div style={headerSubtitleStyle}>{headerSubtitle}</div>
           </div>
 
           <div style={{ height: 10 }} />

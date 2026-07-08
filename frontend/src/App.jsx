@@ -90,6 +90,10 @@ function OperatorSensitiveGate({ children }) {
   const auth = useAuth();
   const hasSession = hasPersistedSessionCredentials();
 
+  if (auth.loading && hasSession) {
+    return <BookingFlowFallback />;
+  }
+
   const isOperator = Boolean(!auth.loading && auth.user?.role === 'provider' && String(auth.providerRole || '').toLowerCase() === 'operator');
 
   if (!isOperator) {
