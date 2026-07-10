@@ -193,16 +193,13 @@ function TermsScreen() {
             MAQGO favorece la ejecución exitosa del servicio por sobre la cancelación. El sistema nunca cancela automáticamente un servicio.
           </p>
           <p style={{ marginBottom: 12 }}>
-            Cancelación cliente (desde la aceptación): 0–60 min = 0% · 60–120 min = 20% · +120 min = 40%.
+            Reserva Programada: más de 48 horas antes = 0% · entre 48 y 24 horas = 10% · 24 horas o menos = 20% · llegada verificada a la obra = 100% · servicio iniciado = 100%.
           </p>
           <p style={{ marginBottom: 12 }}>
-            Presencia confirmada en obra: a partir de este punto el cliente ya no puede cancelar.
+            Reserva para Hoy: antes de aceptación del proveedor = 0% · después de aceptación del proveedor = 20% · llegada verificada a la obra = 100% · servicio iniciado = 100%.
           </p>
           <p style={{ marginBottom: 12 }}>
-            Se considera presencia confirmada cuando existe evidencia suficiente de llegada, por ejemplo: llegada verificada, cliente autoriza ingreso, auto-start con llegada verificada, o servicio iniciado.
-          </p>
-          <p style={{ marginBottom: 12 }}>
-            Retrasos sin llegada registrada: a 120, 180 y 240 minutos se generan avisos críticos. Opciones del cliente: seguir esperando, contactar MAQGO o cancelar.
+            Para reservas del mismo día existe un límite máximo absoluto de atraso de 4 horas desde la hora comprometida. Este límite no se modifica por nuevas ETA. Si se supera el límite, el cliente puede cancelar sin costo y MAQGO puede intentar reasignar el servicio.
           </p>
           <p>
             Las reservas programadas (varios días) deben ser días consecutivos. El domingo no 
