@@ -32,23 +32,20 @@ Este documento reconstruye **solo lo que existe hoy** en MAQGO (código + docs d
 
 Valores de policy keys (según documento):
 
-- `cancellation.free_window_minutes = 60`
-- `cancellation.mid_window_minutes = 120`
-- `cancellation.fee_percent_60_120 = 20%`
-- `cancellation.fee_percent_120_plus = 40%`
+- `cancellation.scheduled.more_than_48h_percent = 0%`
+- `cancellation.scheduled.between_48h_24h_percent = 10%`
+- `cancellation.scheduled.less_or_equal_24h_percent = 20%`
+- `cancellation.today.pre_accept_percent = 0%`
+- `cancellation.today.post_accept_percent = 20%`
+- `cancellation.today.max_absolute_delay_hours = 4`
+- `cancellation.today.max_delay_not_affected_by_new_eta = true`
   - Fuente: [POLICY_ENGINE_V1.md](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/docs/POLICY_ENGINE_V1.md)
 
 ### 1.2 No-arrival / demoras
 
-- Existen alertas automáticas por no-llegada 120/180/240 (policy + constants):
+- Existe un aviso por superar el límite máximo absoluto de atraso (4h) para reservas del mismo día:
   - Policy: [POLICY_ENGINE_V1.md](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/docs/POLICY_ENGINE_V1.md)
-  - Constantes: [business_rules.py](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/backend/pricing/business_rules.py)
   - Ejecución (timer): [timer_service.py](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/backend/services/timer_service.py)
-
-Valores de policy keys (según documento):
-
-- `no_arrival.alert_minutes = 120 / 180 / 240`
-  - Fuente: [POLICY_ENGINE_V1.md](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/docs/POLICY_ENGINE_V1.md)
 
 ### 1.3 Llegada verificada (radio)
 
@@ -159,7 +156,7 @@ Eventos oficiales declarados (según documento):
 - `started`
 - `cancelled_client` / `cancel_with_fee`
 - `incident`
-- `no_arrival_alert_120` / `no_arrival_alert_180` / `no_arrival_alert_240`
+- `late_limit_4h`
 - `safety_stop` (si aplica)
 - `access_denied` (si aplica)
 - `client_entry_confirmed` (si aplica)
@@ -175,14 +172,14 @@ Kinds existentes (según catálogo backend):
 
 - Operación (cliente/proveedor/operador): `confirmed`, `assigned`, `en_route`, `arrival`, `entry_pending`, `entry_authorized`, `started`, `last_30`, `finished`, `incident`, `incident_cleared`, `cancelled`, `payment_failed`
 - Matching/ofertas: `nueva_oferta`, `oferta_expira`, `search_expanded`
-- No-arrival: `no_arrival_120`, `no_arrival_180`, `no_arrival_240`
+- No-arrival: `late_limit_4h`
 - Cobros/facturación (definidos en catálogo): `factura_lista`, `pago_enviado`
   - Fuente: [notification_items_service.py](file:///Users/tomasvillalta/Desktop/Repositorios%20Github/Maqgo%20Principal/Maqgo/backend/services/notification_items_service.py)
 
 Deep-links declarados por kind y rol (fuente backend):
 
 - Cliente:
-  - `confirmed/assigned/en_route/incident/incident_cleared/no_arrival_*` → `/client/assigned`
+  - `confirmed/assigned/en_route/incident/incident_cleared/late_limit_4h` → `/client/assigned`
   - `arrival/entry_pending/entry_authorized` → `/client/provider-arrived`
   - `started` → `/client/service-active`
   - `last_30` → `/client/in-progress`

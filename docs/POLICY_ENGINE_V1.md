@@ -33,7 +33,7 @@
 - started (manual)
 - cancelled_client / cancel_with_fee
 - incident (si aplica)
-- no_arrival_alert_120 / no_arrival_alert_180 / no_arrival_alert_240
+- late_limit_4h
 - safety_stop (si aplica)
 - access_denied (si aplica)
 - client_entry_confirmed (si aplica)
@@ -42,11 +42,13 @@
 - customer_unresponsive (derivado desde arrival verified + SLA sin entry)
 
 ## Policy Keys (valores oficiales)
-- cancellation.free_window_minutes = 60
-- cancellation.mid_window_minutes = 120
-- cancellation.fee_percent_60_120 = 20%
-- cancellation.fee_percent_120_plus = 40%
-- no_arrival.alert_minutes = 120 / 180 / 240
+- cancellation.scheduled.more_than_48h_percent = 0%
+- cancellation.scheduled.between_48h_24h_percent = 10%
+- cancellation.scheduled.less_or_equal_24h_percent = 20%
+- cancellation.today.pre_accept_percent = 0%
+- cancellation.today.post_accept_percent = 20%
+- cancellation.today.max_absolute_delay_hours = 4
+- cancellation.today.max_delay_not_affected_by_new_eta = true
 - waiting.auto_start_sla_minutes = 30
 - arrival.verification_radius_meters = 300
 - incident.protected_window_default_minutes = 30
@@ -72,9 +74,9 @@ Auto-start solo puede ejecutarse cuando existe llegada verificada (`arrivalLocat
 ## Constitución temporal (clocks contractuales)
 | Clock | Start | Pausa | Bloquea | Resetea | Trigger | Consecuencia |
 |------|-------|-------|---------|---------|---------|--------------|
-| no_arrival.alert_minutes | acceptedAt; si no existe, confirmedAt/createdAt | incident (protected window activo) | si ya hay arrivalDetectedAt | NO | status=confirmed sin arrival | avisos críticos 120/180/240; nunca auto-cancel |
+| late_limit_4h | hora comprometida (ETA confirmada + minutos de compromiso; fallback confirmedAt/acceptedAt/createdAt) | N/A | si ya hay llegada verificada o servicio iniciado | NO | reserva para hoy, status=confirmed/en_route, sin llegada verificada | aviso “Demora crítica”; cliente puede cancelar sin costo; MAQGO puede intentar reasignar |
 | waiting.auto_start_sla_minutes | arrivalDetectedAt (solo si arrivalLocation.verified=true) | safety_stop activo | si client_entry_confirmed o in_progress | NO | arrival verified | auto_start → in_progress |
-| cancellation.fee_tiers | acceptedAt; si no existe, confirmedAt/createdAt | incident (protected window activo) | si presencia confirmada | NO | client cancel request | 0–60m=0%; 60–120m=20%; +120m=40% |
+| cancellation.fee | N/A | N/A | llegada verificada o servicio iniciado | N/A | client cancel request | Programada: >48h=0% / 48–24h=10% / ≤24h=20% / llegada verificada=100% / iniciado=100%. Hoy: pre-aceptación=0% / post-aceptación=20% / llegada verificada=100% / iniciado=100% (si supera 4h atraso absoluto: 0%) |
 | dispute.ticket_window_hours | finishedAt | N/A | N/A | NO | abrir ticket | fuera de plazo = no hold/refund automático |
 
 ## Jerarquía oficial de precedencia contractual (tick server-side)
