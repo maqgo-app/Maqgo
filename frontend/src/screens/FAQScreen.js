@@ -34,7 +34,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Puedo cancelar una reserva?',
-        a: 'Sí. La política depende del tipo de reserva. Reserva Programada: más de 48 horas antes = 0% · entre 48 y 24 horas = 10% · 24 horas o menos = 20% · llegada verificada a la obra = 100% · servicio iniciado = 100%. Reserva para Hoy: antes de aceptación del proveedor = 0% · después de aceptación del proveedor = 20% · llegada verificada a la obra = 100% · servicio iniciado = 100%. Para reservas del mismo día existe un límite máximo absoluto de atraso de 4 horas desde la hora comprometida. Este límite no se modifica por nuevas ETA. Si se supera el límite, el cliente puede cancelar sin costo y MAQGO puede intentar reasignar el servicio.'
+        a: 'Sí. La política depende del tipo de reserva. Reserva Programada: más de 48 horas antes = 0% · entre 48 y 24 horas = 10% · 24 horas o menos = 20% · ingreso confirmado = 100% · servicio iniciado = 100%. Reserva para Hoy: antes de aceptación del proveedor = 0% · después de aceptación del proveedor = 20% · ingreso confirmado = 100% · servicio iniciado = 100%. Para reservas del mismo día existe un límite máximo absoluto de atraso de 4 horas. Este límite no se modifica por nuevas ETA. Si se supera el límite, el cliente puede cancelar sin costo y MAQGO puede intentar reasignar el servicio.'
       },
       {
         q: '¿Cómo me comunico con el operador?',

@@ -76,7 +76,7 @@ Auto-start solo puede ejecutarse cuando existe llegada verificada (`arrivalLocat
 |------|-------|-------|---------|---------|---------|--------------|
 | late_limit_4h | hora comprometida (ETA confirmada + minutos de compromiso; fallback confirmedAt/acceptedAt/createdAt) | N/A | si ya hay llegada verificada o servicio iniciado | NO | reserva para hoy, status=confirmed/en_route, sin llegada verificada | aviso “Demora crítica”; cliente puede cancelar sin costo; MAQGO puede intentar reasignar |
 | waiting.auto_start_sla_minutes | arrivalDetectedAt (solo si arrivalLocation.verified=true) | safety_stop activo | si client_entry_confirmed o in_progress | NO | arrival verified | auto_start → in_progress |
-| cancellation.fee | N/A | N/A | llegada verificada o servicio iniciado | N/A | client cancel request | Programada: >48h=0% / 48–24h=10% / ≤24h=20% / llegada verificada=100% / iniciado=100%. Hoy: pre-aceptación=0% / post-aceptación=20% / llegada verificada=100% / iniciado=100% (si supera 4h atraso absoluto: 0%) |
+| cancellation.fee | N/A | incident (protected window activo) | ingreso confirmado o servicio iniciado | N/A | client cancel request | Programada: >48h=0% / 48–24h=10% / ≤24h=20% / ingreso confirmado=100% / iniciado=100%. Hoy: pre-aceptación=0% / post-aceptación=20% / ingreso confirmado=100% / iniciado=100% (si supera 4h atraso absoluto: 0%) |
 | dispute.ticket_window_hours | finishedAt | N/A | N/A | NO | abrir ticket | fuera de plazo = no hold/refund automático |
 
 ## Jerarquía oficial de precedencia contractual (tick server-side)

@@ -65,6 +65,8 @@ def _parse_iso_datetime_utc(value: Optional[str]) -> Optional[datetime]:
 
 def today_committed_time_utc(
     *,
+    eta_first_confirmed_at: Optional[str] = None,
+    eta_first_commit_minutes: Optional[int] = None,
     eta_confirmed_at: Optional[str],
     eta_commit_minutes: Optional[int],
     confirmed_at: Optional[str],
@@ -72,7 +74,8 @@ def today_committed_time_utc(
     created_at: Optional[str],
 ) -> Optional[datetime]:
     base = (
-        _parse_iso_datetime_utc(eta_confirmed_at)
+        _parse_iso_datetime_utc(eta_first_confirmed_at)
+        or _parse_iso_datetime_utc(eta_confirmed_at)
         or _parse_iso_datetime_utc(confirmed_at)
         or _parse_iso_datetime_utc(accepted_at)
         or _parse_iso_datetime_utc(created_at)
@@ -80,7 +83,9 @@ def today_committed_time_utc(
     if not base:
         return None
     try:
-        mins = int(eta_commit_minutes) if eta_commit_minutes is not None else 0
+        mins = int(eta_first_commit_minutes) if eta_first_commit_minutes is not None else (
+            int(eta_commit_minutes) if eta_commit_minutes is not None else 0
+        )
     except Exception:
         mins = 0
     if mins <= 0:
@@ -88,6 +93,44 @@ def today_committed_time_utc(
     from datetime import timedelta
 
     return base + timedelta(minutes=mins)
+
+
+def incident_protected_minutes_used_total(
+    *,
+    incident_stats: Optional[dict],
+    active_incident: Optional[dict],
+    now: datetime,
+) -> float:
+    stats = incident_stats or {}
+    try:
+        used_total = float(stats.get('protectedMinutesUsedTotal') or 0)
+    except Exception:
+        used_total = 0.0
+    if used_total < 0:
+        used_total = 0.0
+
+    active = active_incident or {}
+    reported_at = _parse_iso_datetime_utc(active.get('reportedAt'))
+    protected_end = _parse_iso_datetime_utc(active.get('protectedWindowEnd'))
+    try:
+        protected_minutes_i = int(active.get('protectedWindowMinutes'))
+    except Exception:
+        protected_minutes_i = 0
+    if protected_minutes_i < 0:
+        protected_minutes_i = 0
+
+    used_minutes = 0.0
+    if reported_at and protected_end and now > reported_at:
+        used_minutes = (min(now, protected_end) - reported_at).total_seconds() / 60
+        if used_minutes < 0:
+            used_minutes = 0.0
+    if used_minutes > float(protected_minutes_i):
+        used_minutes = float(protected_minutes_i)
+
+    total = float(used_total) + float(used_minutes)
+    if total < 0:
+        total = 0.0
+    return total
 
 
 # =============================================================================

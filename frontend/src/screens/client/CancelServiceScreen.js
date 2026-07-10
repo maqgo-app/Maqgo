@@ -155,19 +155,19 @@ function CancelServiceScreen() {
           </p>
           {reservationType === 'today' ? (
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-              <strong style={{ color: '#fff' }}>Reserva para Hoy</strong>: antes de la aceptación = 0% · después de la aceptación = 20% · llegada verificada = 100% · servicio iniciado = 100%. Si se supera el límite máximo absoluto de atraso (4 horas desde la hora comprometida), puedes cancelar sin costo. Este límite no cambia por nuevas ETA y MAQGO puede intentar reasignar el servicio.
+              <strong style={{ color: '#fff' }}>Reserva para Hoy</strong>: antes de la aceptación = 0% · después de la aceptación = 20% · ingreso confirmado = 100% · servicio iniciado = 100%. Si se supera el límite máximo absoluto de atraso (4 horas), puedes cancelar sin costo. Este límite no cambia por nuevas ETA y MAQGO puede intentar reasignar el servicio.
             </p>
           ) : reservationType === 'scheduled' ? (
             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-              <strong style={{ color: '#fff' }}>Reserva Programada</strong>: &gt;48h = 0% · 48–24h = 10% · 24h o menos = 20% · llegada verificada = 100% · servicio iniciado = 100%.
+              <strong style={{ color: '#fff' }}>Reserva Programada</strong>: &gt;48h = 0% · 48–24h = 10% · 24h o menos = 20% · ingreso confirmado = 100% · servicio iniciado = 100%.
             </p>
           ) : (
             <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, lineHeight: 1.5 }}>
               <p style={{ margin: '0 0 10px' }}>
-                <strong style={{ color: '#fff' }}>Reserva Programada</strong>: &gt;48h = 0% · 48–24h = 10% · 24h o menos = 20% · llegada verificada = 100% · servicio iniciado = 100%.
+                <strong style={{ color: '#fff' }}>Reserva Programada</strong>: &gt;48h = 0% · 48–24h = 10% · 24h o menos = 20% · ingreso confirmado = 100% · servicio iniciado = 100%.
               </p>
               <p style={{ margin: 0 }}>
-                <strong style={{ color: '#fff' }}>Reserva para Hoy</strong>: antes de la aceptación = 0% · después de la aceptación = 20% · llegada verificada = 100% · servicio iniciado = 100%. Si se supera el límite máximo absoluto de atraso (4 horas desde la hora comprometida), puedes cancelar sin costo. Este límite no cambia por nuevas ETA y MAQGO puede intentar reasignar el servicio.
+                <strong style={{ color: '#fff' }}>Reserva para Hoy</strong>: antes de la aceptación = 0% · después de la aceptación = 20% · ingreso confirmado = 100% · servicio iniciado = 100%. Si se supera el límite máximo absoluto de atraso (4 horas), puedes cancelar sin costo. Este límite no cambia por nuevas ETA y MAQGO puede intentar reasignar el servicio.
               </p>
             </div>
           )}

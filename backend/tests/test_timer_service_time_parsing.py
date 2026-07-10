@@ -146,14 +146,31 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
         pricing_rules = types.ModuleType("pricing.business_rules")
         pricing_rules.TODAY_MAX_ABSOLUTE_DELAY_HOURS = 4
 
-        def today_committed_time_utc(*, eta_confirmed_at=None, eta_commit_minutes=None, confirmed_at=None, accepted_at=None, created_at=None):
+        def today_committed_time_utc(
+            *,
+            eta_first_confirmed_at=None,
+            eta_first_commit_minutes=None,
+            eta_confirmed_at=None,
+            eta_commit_minutes=None,
+            confirmed_at=None,
+            accepted_at=None,
+            created_at=None,
+        ):
             from services.timer_service import _parse_offer_expires_at_utc
 
-            base = _parse_offer_expires_at_utc(eta_confirmed_at) or _parse_offer_expires_at_utc(confirmed_at) or _parse_offer_expires_at_utc(accepted_at) or _parse_offer_expires_at_utc(created_at)
+            base = (
+                _parse_offer_expires_at_utc(eta_first_confirmed_at)
+                or _parse_offer_expires_at_utc(eta_confirmed_at)
+                or _parse_offer_expires_at_utc(confirmed_at)
+                or _parse_offer_expires_at_utc(accepted_at)
+                or _parse_offer_expires_at_utc(created_at)
+            )
             if base is None:
                 return None
             try:
-                mins = int(eta_commit_minutes) if eta_commit_minutes is not None else 0
+                mins = int(eta_first_commit_minutes) if eta_first_commit_minutes is not None else (
+                    int(eta_commit_minutes) if eta_commit_minutes is not None else 0
+                )
             except Exception:
                 mins = 0
             if mins <= 0:
@@ -161,6 +178,11 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
             return base + timedelta(minutes=mins)
 
         pricing_rules.today_committed_time_utc = today_committed_time_utc
+
+        def incident_protected_minutes_used_total(*, incident_stats=None, active_incident=None, now=None):
+            return 0.0
+
+        pricing_rules.incident_protected_minutes_used_total = incident_protected_minutes_used_total
         sys.modules["pricing.business_rules"] = pricing_rules
 
         push_mod = types.ModuleType("services.webpush_service")

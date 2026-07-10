@@ -17,6 +17,7 @@ from pricing.business_rules import (
     TODAY_MAX_ABSOLUTE_DELAY_HOURS,
     TODAY_CANCEL_AFTER_ACCEPT_PERCENT,
     cancellation_fee_from_percent,
+    incident_protected_minutes_used_total,
     scheduled_cancellation_percent,
     today_committed_time_utc,
 )
@@ -934,20 +935,25 @@ async def provider_intent(
         "confirmedByRole": role,
     }
 
+    update_set = {
+        "providerIntentAt": now.isoformat(),
+        "providerIntentByUserId": current_user.get("id"),
+        "providerIntentByRole": role,
+        "confirmedDepartureLocation": confirmed_loc,
+        "etaCommitMinutes": eta,
+        "etaConfirmedAt": now.isoformat(),
+        "etaConfirmedByUserId": current_user.get("id"),
+        "etaConfirmedByRole": role,
+    }
+    if not req.get("etaFirstConfirmedAt"):
+        update_set["etaFirstConfirmedAt"] = now.isoformat()
+    if req.get("etaFirstCommitMinutes") is None:
+        update_set["etaFirstCommitMinutes"] = eta
+
     await db.service_requests.update_one(
         {"id": request_id, "status": "offer_sent"},
         {
-            "$set": {
-                "providerIntentAt": now.isoformat(),
-                "providerIntentByUserId": current_user.get("id"),
-                "providerIntentByRole": role,
-                "confirmedDepartureLocation": confirmed_loc,
-                "etaCommitMinutes": eta,
-                "etaConfirmedAt": now.isoformat(),
-                "etaConfirmedByUserId": current_user.get("id"),
-                "etaConfirmedByRole": role,
-            }
-            ,
+            "$set": update_set,
             "$push": {
                 "events": {
                     "type": "provider_intent",
@@ -1181,19 +1187,13 @@ async def cancel_service_client(
             detail="No se puede cancelar en el estado actual del servicio"
         )
 
-    arrival_loc = request.get("arrivalLocation") if isinstance(request.get("arrivalLocation"), dict) else {}
-    arrival_verified = bool(arrival_loc.get("verified") is True)
-
     st_lower = str(request.get("status") or "").strip().lower()
     service_started = bool(
         request.get("startedAt")
         or st_lower in {"in_progress", "last_30"}
     )
-    arrival_confirmed = bool(
-        (request.get("arrivalDetectedAt") and arrival_verified)
-        or request.get("clientEntryConfirmedAt")
-        or (request.get("autoStartedAt") and arrival_verified)
-    )
+    entry_confirmed = bool(request.get("clientEntryConfirmedAt") and request.get("arrivalDetectedAt"))
+    point_of_no_return = bool(service_started or entry_confirmed)
 
     now = datetime.now(timezone.utc)
 
@@ -1219,7 +1219,7 @@ async def cancel_service_client(
         scheduled_date_raw = request.get('scheduledDate')
         is_scheduled = reservation_type == 'scheduled' or bool(scheduled_date_raw)
 
-        if service_started or arrival_confirmed:
+        if point_of_no_return:
             fee_percent = 1.0
         elif is_scheduled:
             scheduled_dt = _parse_iso_datetime(scheduled_date_raw)
@@ -1229,6 +1229,8 @@ async def cancel_service_client(
             fee_percent = scheduled_cancellation_percent(hours_until_start=hours_until_start)
         else:
             committed_dt = today_committed_time_utc(
+                eta_first_confirmed_at=request.get('etaFirstConfirmedAt'),
+                eta_first_commit_minutes=request.get('etaFirstCommitMinutes'),
                 eta_confirmed_at=request.get('etaConfirmedAt'),
                 eta_commit_minutes=request.get('etaCommitMinutes'),
                 confirmed_at=request.get('confirmedAt'),
@@ -1237,7 +1239,16 @@ async def cancel_service_client(
             )
             limit_exceeded = False
             if committed_dt:
-                limit_exceeded = now >= (committed_dt + timedelta(hours=TODAY_MAX_ABSOLUTE_DELAY_HOURS))
+                protected_minutes = incident_protected_minutes_used_total(
+                    incident_stats=request.get("incidentStats"),
+                    active_incident=request.get("activeIncident"),
+                    now=now,
+                )
+                limit_exceeded = now >= (
+                    committed_dt
+                    + timedelta(hours=TODAY_MAX_ABSOLUTE_DELAY_HOURS)
+                    + timedelta(minutes=float(protected_minutes or 0))
+                )
             if limit_exceeded:
                 fee_percent = 0.0
             else:
