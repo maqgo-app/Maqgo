@@ -158,7 +158,7 @@ class TimerService:
                 'late_limit_4h': 'Demora crítica',
             }
             bodies = {
-                'late_limit_4h': 'Se superó el límite máximo de atraso. Puedes cancelar sin costo.',
+                'late_limit_4h': 'Se superó el límite máximo absoluto de atraso (4 horas). Puedes cancelar sin costo.',
             }
 
             item = await upsert_notification_item(

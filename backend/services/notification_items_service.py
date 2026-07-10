@@ -24,6 +24,7 @@ def _severity_for_kind(kind: str) -> str:
         'no_arrival_120',
         'no_arrival_180',
         'no_arrival_240',
+        'late_limit_4h',
     }:
         return 'critical'
     if k in {'confirmed', 'assigned', 'en_route', 'started', 'finished', 'last_30', 'incident_cleared', 'factura_lista', 'pago_enviado', 'search_expanded'}:
@@ -68,7 +69,7 @@ def _deep_link_for_kind(kind: str, service_request_id: str, audience_role: str) 
         return '/operator/home'
     if k == 'search_expanded':
         return '/client/searching'
-    if k in {'confirmed', 'assigned', 'en_route', 'incident', 'incident_cleared', 'no_arrival_120', 'no_arrival_180', 'no_arrival_240'}:
+    if k in {'confirmed', 'assigned', 'en_route', 'incident', 'incident_cleared', 'no_arrival_120', 'no_arrival_180', 'no_arrival_240', 'late_limit_4h'}:
         return '/client/assigned'
     if k in {'arrival', 'entry_pending', 'entry_authorized'}:
         return '/client/provider-arrived'
@@ -139,6 +140,8 @@ def _title_body_for_kind(kind: str, extra: Optional[dict] = None, audience_role:
         return 'Demora crítica', 'Han pasado 180 minutos desde la aceptación sin llegada registrada. Revisa el estado y define el siguiente paso.'
     if k == 'no_arrival_240':
         return 'Demora crítica', 'Han pasado 240 minutos desde la aceptación sin llegada registrada. Revisa el estado y define el siguiente paso.'
+    if k == 'late_limit_4h':
+        return 'Demora crítica', 'Se superó el límite máximo absoluto de atraso (4 horas). Puedes cancelar sin costo.'
     if k == 'cancelled':
         if ar == 'provider':
             return 'Servicio cancelado', 'El servicio fue cancelado.'

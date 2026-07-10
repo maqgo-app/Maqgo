@@ -364,7 +364,7 @@ const NoChargeNotice = () => (
       margin: 0,
       fontFamily: "'Inter', sans-serif"
     }}>
-      No se realizó ningún cobro.
+      No se aplicó cargo por cancelación. Si corresponde, verás una devolución en tu medio de pago.
     </p>
   </div>
 );
@@ -395,7 +395,7 @@ const ChargeNotice = ({ amount }) => {
         margin: 0,
         fontFamily: "'Inter', sans-serif"
       }}>
-        Se aplicó el cobro correspondiente según las condiciones.
+        Se aplicó un cargo por cancelación según la política vigente.
         {amount && <span style={{ display: 'block', marginTop: 4 }}>{formatPrice(amount)}</span>}
       </p>
     </div>
