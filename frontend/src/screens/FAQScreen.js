@@ -6,7 +6,7 @@ import { useAuth } from '../context/authHooks';
 
 const SERVICE_FEE_QA = {
   q: '¿Cuál es la tarifa por servicio?',
-  a: 'El precio final que ves en la app es el total a pagar por el servicio. Siempre verás el total antes de confirmar una reserva.'
+  a: 'MAQGO cobra una tarifa por servicio sobre el valor neto de cada arriendo. En tu Resumen de Servicio verás el desglose completo.'
 };
 
 const FAQ_DATA = [
@@ -15,7 +15,7 @@ const FAQ_DATA = [
     questions: [
       {
         q: '¿Qué es MAQGO?',
-        a: 'MAQGO es una plataforma que conecta empresas que necesitan maquinaria pesada con proveedores que la ofrecen. Puedes solicitar servicios por horas, días o semanas, con disponibilidad visible y condiciones claras antes de confirmar. MAQGO no es dueño de las máquinas: coordinamos tu solicitud con proveedores registrados en la plataforma.'
+        a: 'MAQGO es el marketplace que conecta empresas que necesitan maquinaria pesada con proveedores que la ofrecen. Encuentras disponibilidad y precios en minutos, arriendas por horas, días o semanas. MAQGO no es dueño de las máquinas: conectamos tu empresa directamente con proveedores verificados.'
       },
       {
         q: '¿MAQGO es dueño de las máquinas?',
