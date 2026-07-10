@@ -265,7 +265,7 @@ function UploadInvoiceScreen() {
         {/* Desglose del proveedor — detalle menos tarifa por servicio */}
         <div style={{ background: '#1A1A1F', borderRadius: 12, padding: 16, marginBottom: 16, border: '1px solid rgba(255,255,255,0.1)' }}>
           <p style={{ color: '#90BDD3', fontSize: 12, fontWeight: 600, margin: '0 0 8px' }}>
-            📄 TU DESGLOSE · Factura a MAQGO por:
+            📄 DETALLE DE FACTURACIÓN · Factura Proveedor → MAQGO por:
           </p>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
             <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{service && isPerTripMachineryType(service.machinery_type || service.machineryType) ? 'Servicio (viaje)' : `Servicio (${service?.hours}h)`}</span>

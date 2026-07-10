@@ -18,7 +18,7 @@ import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
  */
 function ProviderServiceFinishedScreen() {
   const navigate = useNavigate();
-  const [step, setStep] = useState('rating'); // 'rating' | 'voucher' (MAQGO factura al cliente, proveedor factura a MAQGO)
+  const [step] = useState('rating');
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
@@ -136,17 +136,18 @@ function ProviderServiceFinishedScreen() {
     }
     
     setLoading(false);
-    setStep('voucher');
+    await handleFinish();
   };
 
   const handleSkipRating = () => {
-    setStep('voucher');
+    handleFinish();
   };
 
   const handleFinish = async () => {
     // Guardar servicio completado para upload de factura (con transaction_id)
+    const serviceId = localStorage.getItem('currentServiceId') || `srv-${Date.now()}`;
     localStorage.setItem('lastCompletedService', JSON.stringify({
-      id: localStorage.getItem('currentServiceId') || `srv-${Date.now()}`,
+      id: serviceId,
       transactionId: orderNumber,
       machineryType: serviceData.machinery,
       hours: serviceData.hours,
@@ -161,6 +162,7 @@ function ProviderServiceFinishedScreen() {
     try {
       const providerId = localStorage.getItem('providerId') || localStorage.getItem('userId') || 'demo-provider-001';
       await axios.post(`${BACKEND_URL}/api/services/create`, {
+        service_id: serviceId,
         provider_id: providerId,
         client_id: serviceData.client.id || 'demo-client',
         client_name: serviceData.client.name,
@@ -187,7 +189,7 @@ function ProviderServiceFinishedScreen() {
     localStorage.removeItem('assignedOperator');
     localStorage.removeItem('providerArrived');
     localStorage.removeItem('serviceStarted');
-    navigate(getProviderLandingPath());
+    navigate('/provider/cobros', { state: { focusServiceId: serviceId } });
   };
 
   // Valorización del cliente
@@ -343,7 +345,7 @@ function ProviderServiceFinishedScreen() {
             }}
             data-testid="skip-rating-btn"
           >
-            Omitir y ver detalle
+            Omitir y ver Detalle de Facturación
           </button>
         </div>
       </div>
