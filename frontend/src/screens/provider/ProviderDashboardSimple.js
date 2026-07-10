@@ -76,6 +76,10 @@ function ProviderDashboardSimple() {
   const [dataMode, setDataMode] = useState('loading');
   const [selectedService, setSelectedService] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
+  const pendingInvoiceCount = useMemo(
+    () => services.filter((s) => s.status === 'approved').length,
+    [services]
+  );
 
   const load = useCallback(async () => {
     if (isOperator) return;
@@ -264,6 +268,24 @@ function ProviderDashboardSimple() {
             >
               Reintentar
             </button>
+          </div>
+        )}
+
+        {!loading && pendingInvoiceCount > 0 && (
+          <div
+            role="status"
+            style={{
+              background: 'rgba(236, 104, 25, 0.12)',
+              border: '1px solid rgba(236, 104, 25, 0.45)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              marginBottom: 14,
+            }}
+          >
+            <p style={{ color: '#fff', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
+              <strong>⚠️ Tienes {pendingInvoiceCount} servicio(s) pendiente(s) de facturación.</strong>
+              {' '}Revisa el Detalle de Servicio y emite tu factura a MAQGO utilizando el Service ID correspondiente.
+            </p>
           </div>
         )}
 
