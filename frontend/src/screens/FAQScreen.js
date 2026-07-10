@@ -4,6 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { MAQGO_BILLING } from '../utils/commissions';
 import { useAuth } from '../context/authHooks';
 
+const SERVICE_FEE_QA = {
+  q: '¿Cuál es la tarifa por servicio?',
+  a: 'El precio final que ves en la app es el total a pagar por el servicio. Siempre verás el total antes de confirmar una reserva.'
+};
+
 const FAQ_DATA = [
   {
     category: 'Clientes',
@@ -16,10 +21,7 @@ const FAQ_DATA = [
         q: '¿Cómo solicito una maquinaria?',
         a: 'Selecciona el tipo de maquinaria, define cuándo la necesitas (hoy, mañana o una fecha específica), indica la duración y confirma la ubicación de tu obra. Luego revisa las opciones disponibles y confirma tu solicitud.'
       },
-      {
-        q: '¿Cuál es la tarifa por servicio?',
-        a: 'El precio final que ves en la app es el total a pagar por el servicio. Siempre verás el total antes de confirmar una reserva.'
-      },
+      SERVICE_FEE_QA,
       {
         q: '¿Cómo calcula MAQGO el costo de traslado?',
         a: 'MAQGO calcula el traslado automáticamente según la comuna y región de origen declaradas para la maquinaria y la ubicación del servicio. Si el destino está en la misma comuna, aplica la tarifa "misma comuna"; si cambia la comuna pero se mantiene la región, aplica "comuna distinta, misma región"; y si cambia la región, solo aplica el tramo "región colindante" cuando la región destino colinda con la región origen y está dentro de 150 km.'
@@ -30,7 +32,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Cuándo se cobra mi tarjeta?',
-        a: 'El cobro se realiza únicamente cuando un operador acepta tu solicitud. Mientras buscamos disponibilidad, no se realiza ningún cargo.'
+        a: 'El cobro se realiza únicamente cuando un proveedor acepta tu solicitud. Mientras buscamos disponibilidad, no se realiza ningún cargo.'
       },
       {
         q: '¿Puedo cancelar una reserva?',
@@ -81,10 +83,7 @@ const FAQ_DATA = [
         q: '¿Qué ve cada rol en la app?',
         a: 'Titular y Gerente ven: Inicio, Máquinas, Cobros y Perfil. El Operador solo ve: Inicio, Avisos e Historial.'
       },
-      {
-        q: '¿Cuál es la tarifa por servicio?',
-        a: 'MAQGO cobra una tarifa por servicio sobre el valor neto de cada arriendo. En tu Resumen de Servicio verás el desglose completo.'
-      },
+      SERVICE_FEE_QA,
       {
         q: '¿Cómo configuro el traslado de una máquina?',
         a: 'Para cada máquina declaras una base de origen y tres valores netos de traslado: misma comuna, comuna distinta pero misma región y región colindante (máx. 150 km). MAQGO usa esa base para calcular automáticamente lo que verá el cliente.'
@@ -120,7 +119,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Qué puedo hacer como operador?',
-        a: 'Puedes ver tu disponibilidad, recibir solicitudes, aceptar o rechazar trabajos, marcar llegada, reportar incidentes y revisar tu historial. El término del servicio ocurre automáticamente al cumplirse la hora de término programada.'
+        a: 'Puedes ver y ejecutar los servicios asignados a ti, notificar tu llegada, reportar incidentes, revisar avisos y consultar tu historial. El término del servicio ocurre automáticamente al cumplirse la hora de término programada.'
       },
       {
         q: '¿Qué NO puedo ver como operador?',
@@ -138,7 +137,7 @@ const ROLE_GROUPS = {
   client: [
     {
       title: 'Sobre MAQGO',
-      questions: ['¿Qué es MAQGO?', '¿MAQGO es dueño de las máquinas?'],
+      questions: ['¿Qué es MAQGO?', '¿MAQGO es dueño de las máquinas?', '¿Cómo contacto a soporte?'],
     },
     {
       title: 'Reservas',
