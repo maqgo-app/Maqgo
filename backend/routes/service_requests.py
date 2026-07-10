@@ -8,16 +8,17 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from auth_dependency import get_current_user, get_current_admin_strict
-from models.service_request import ServiceRequest, ServiceRequestCreate, Location, calculate_commissions
+from models.service_request import ServiceRequestCreate, ServiceRequest
+from pricing.calculator import calculate_official_service_economics, get_high_demand_bonus_percent
 from pricing.business_rules import (
-    FREE_CANCELLATION_WINDOW_MINUTES,
-    MID_CANCELLATION_WINDOW_MINUTES,
-    CANCELLATION_FEE_PERCENT_60_120,
-    CANCELLATION_FEE_PERCENT_120_PLUS,
     INCIDENT_PROTECTED_WINDOW_MINUTES,
     INCIDENT_MAX_AUTO_COUNT,
     INCIDENT_MAX_PROTECTED_MINUTES_TOTAL,
-    calculate_client_cancellation_fee,
+    TODAY_MAX_ABSOLUTE_DELAY_HOURS,
+    TODAY_CANCEL_AFTER_ACCEPT_PERCENT,
+    cancellation_fee_from_percent,
+    scheduled_cancellation_percent,
+    today_committed_time_utc,
 )
 from services.utils import haversine_meters
 from services.matching_service import (
@@ -496,7 +497,44 @@ async def create_service_request(
             )
             logger.info("Usuario cliente creado: %s", payload.clientId)
 
-        commissions = calculate_commissions(payload.basePrice, payload.transportFee)
+        bonus_percent = get_high_demand_bonus_percent(
+            urgency_window_minutes=payload.urgencyWindowMinutes,
+            scheduled_date_iso=payload.scheduledDate,
+        )
+        service_value = float(payload.basePrice or 0)
+
+        transport_value = float(payload.transportFee or 0)
+        try:
+            from pricing.constants import MACHINERY_NO_TRANSPORT
+            from services.machines_service import compute_transport_amount
+
+            needs_transport = str(payload.machineryType or '').strip() not in set(MACHINERY_NO_TRANSPORT)
+            machine_id = payload.machineId or payload.machine_id
+            machine_doc = None
+            if machine_id:
+                machine_doc = await db.machines.find_one({"id": str(machine_id)}, {"_id": 0})
+            if needs_transport and machine_doc:
+                loc = payload.location.model_dump() if hasattr(payload.location, 'model_dump') else {}
+                quote = compute_transport_amount(
+                    machine=machine_doc,
+                    provider=None,
+                    service_location={
+                        **loc,
+                        'comuna': loc.get('comuna') or '',
+                        'region': loc.get('region') or '',
+                    },
+                )
+                transport_value = float(quote.get('amount') or 0)
+            if not needs_transport:
+                transport_value = 0.0
+        except Exception:
+            pass
+        high_demand_bonus = float(service_value * bonus_percent)
+        economic = calculate_official_service_economics(
+            service_value=service_value,
+            high_demand_bonus=high_demand_bonus,
+            transport=transport_value,
+        )
 
         raw_bid = (payload.booking_id or "").strip()
         if not raw_bid:
@@ -540,15 +578,13 @@ async def create_service_request(
         service_obj.status = "matching"
         service_obj.paymentStatus = "validated"
 
-        if payload.totalAmount is not None and payload.totalAmount > 0:
-            service_obj.totalAmount = float(payload.totalAmount)
-        else:
-            service_obj.totalAmount = commissions["totalAmount"]
-        service_obj.basePrice = commissions["basePrice"]
-        service_obj.clientCommission = commissions["clientCommission"]
-        service_obj.providerCommission = commissions["providerCommission"]
-        service_obj.providerEarnings = commissions["providerEarnings"]
-        service_obj.maqgoEarnings = commissions["maqgoEarnings"]
+        service_obj.economic = economic
+        service_obj.basePrice = float(economic["client"]["service_value"])
+        service_obj.totalAmount = float(economic["client"]["total_invoice"])
+        service_obj.clientCommission = float(economic["client"]["maqgo_service_fee"])
+        service_obj.providerCommission = float(economic["client"]["maqgo_service_fee"])
+        service_obj.providerEarnings = float(economic["provider"]["total_provider_invoice"])
+        service_obj.maqgoEarnings = float(economic["provider"]["maqgo_total_retained"])
         service_obj.events = [
             {
                 "type": "created",
@@ -605,15 +641,16 @@ async def create_service_request(
             "paymentStatus": "validated",
             "message": "Buscando proveedor disponible...",
             "pricing": {
-                "basePrice": commissions["basePrice"],
-                "clientCommission": commissions["clientCommission"],
-                "clientCommissionIVA": commissions["clientCommissionIVA"],
-                "totalClient": service_obj.totalAmount,
-                "providerCommission": commissions["providerCommission"],
-                "providerCommissionIVA": commissions["providerCommissionIVA"],
-                "providerEarnings": commissions["providerEarnings"],
-                "maqgoEarnings": commissions["maqgoEarnings"],
+                "serviceValue": economic["client"]["service_value"],
+                "highDemandBonus": economic["client"]["high_demand_bonus"],
+                "transport": economic["client"]["transport"],
+                "maqgoServiceFee": economic["client"]["maqgo_service_fee"],
+                "subtotal": economic["client"]["subtotal"],
+                "iva": economic["client"]["iva"],
+                "totalClientInvoice": economic["client"]["total_invoice"],
+                "providerInvoiceTotal": economic["provider"]["total_provider_invoice"],
             },
+            "economic": economic,
         }
         return 200, out
 
@@ -743,6 +780,7 @@ async def get_pending_requests_for_provider(
 @router.get("/operator/assigned", response_model=List[dict])
 @limiter.limit("60/minute")
 async def get_assigned_requests_for_operator(
+    request: Request,
     activeOnly: bool = True,
     current_user: dict = Depends(get_current_user),
 ):
@@ -1135,7 +1173,7 @@ async def cancel_service_client(
         )
 
     status = request.get('status', '')
-    cancellable = status in ['matching', 'offer_sent', 'confirmed', 'en_route']
+    cancellable = status in ['matching', 'offer_sent', 'confirmed', 'en_route', 'in_progress', 'last_30']
 
     if not cancellable:
         raise HTTPException(
@@ -1147,52 +1185,17 @@ async def cancel_service_client(
     arrival_verified = bool(arrival_loc.get("verified") is True)
 
     st_lower = str(request.get("status") or "").strip().lower()
-    presence_confirmed = bool(
+    service_started = bool(
+        request.get("startedAt")
+        or st_lower in {"in_progress", "last_30"}
+    )
+    arrival_confirmed = bool(
         (request.get("arrivalDetectedAt") and arrival_verified)
         or request.get("clientEntryConfirmedAt")
         or (request.get("autoStartedAt") and arrival_verified)
-        or request.get("startedAt")
-        or st_lower in {"in_progress", "last_30", "finished"}
     )
-    if presence_confirmed:
-        raise HTTPException(
-            status_code=400,
-            detail="No se puede cancelar: presencia en obra confirmada"
-        )
 
     now = datetime.now(timezone.utc)
-    accepted_at_dt = (
-        _parse_iso_datetime(request.get("acceptedAt"))
-        or _parse_iso_datetime(request.get("confirmedAt"))
-        or _parse_iso_datetime(request.get("createdAt"))
-        or now
-    )
-
-    elapsed_minutes = (now - accepted_at_dt).total_seconds() / 60
-    if elapsed_minutes < 0:
-        elapsed_minutes = 0
-
-    incident_stats = request.get("incidentStats") or {}
-    try:
-        incident_used_total = float(incident_stats.get("protectedMinutesUsedTotal") or 0)
-    except Exception:
-        incident_used_total = 0.0
-    if incident_used_total < 0:
-        incident_used_total = 0.0
-
-    active_incident = request.get("activeIncident") or {}
-    active_reported_at = _parse_iso_datetime(active_incident.get("reportedAt"))
-    active_end = _parse_iso_datetime(active_incident.get("protectedWindowEnd"))
-    active_used = 0.0
-    if active_reported_at and active_end:
-        if now > active_reported_at:
-            active_used = (min(now, active_end) - active_reported_at).total_seconds() / 60
-            if active_used < 0:
-                active_used = 0.0
-
-    effective_minutes = elapsed_minutes - incident_used_total - active_used
-    if effective_minutes < 0:
-        effective_minutes = 0
 
     total_client = float(request.get("totalAmount", 0))
     total_client_int = int(round(total_client))
@@ -1212,11 +1215,35 @@ async def cancel_service_client(
         refund_amount = 0
         cancel_event = {"type": "cancelled_client", **base_cancel_event}
     else:
-        fee = calculate_client_cancellation_fee(total_client_int, effective_minutes)
-        try:
-            fee_percent = float(fee.get("fee_percent") or 0)
-        except Exception:
-            fee_percent = 0.0
+        reservation_type = str(request.get('reservationType') or '').strip().lower()
+        scheduled_date_raw = request.get('scheduledDate')
+        is_scheduled = reservation_type == 'scheduled' or bool(scheduled_date_raw)
+
+        if service_started or arrival_confirmed:
+            fee_percent = 1.0
+        elif is_scheduled:
+            scheduled_dt = _parse_iso_datetime(scheduled_date_raw)
+            hours_until_start = None
+            if scheduled_dt:
+                hours_until_start = (scheduled_dt - now).total_seconds() / 3600
+            fee_percent = scheduled_cancellation_percent(hours_until_start=hours_until_start)
+        else:
+            committed_dt = today_committed_time_utc(
+                eta_confirmed_at=request.get('etaConfirmedAt'),
+                eta_commit_minutes=request.get('etaCommitMinutes'),
+                confirmed_at=request.get('confirmedAt'),
+                accepted_at=request.get('acceptedAt'),
+                created_at=request.get('createdAt'),
+            )
+            limit_exceeded = False
+            if committed_dt:
+                limit_exceeded = now >= (committed_dt + timedelta(hours=TODAY_MAX_ABSOLUTE_DELAY_HOURS))
+            if limit_exceeded:
+                fee_percent = 0.0
+            else:
+                fee_percent = float(TODAY_CANCEL_AFTER_ACCEPT_PERCENT)
+
+        fee = cancellation_fee_from_percent(total_client_int, fee_percent)
         cancelation_fee = int(fee.get("fee_amount") or 0)
         if cancelation_fee < 0:
             cancelation_fee = 0
@@ -1233,7 +1260,6 @@ async def cancel_service_client(
                 "lateFeeAmount": cancelation_fee,
                 "refundAmount": refund_amount,
                 "cancellationFeePercent": fee_percent,
-                "effectiveMinutesSinceAccepted": round(float(effective_minutes), 2),
             }
         else:
             cancelation_fee = 0
@@ -1245,7 +1271,6 @@ async def cancel_service_client(
         'late_fee_amount': cancelation_fee,
         'cancelationFee': cancelation_fee if cancelation_fee > 0 else None,
         'cancellationFeePercent': float(fee_percent) if cancelation_fee > 0 else 0.0,
-        'cancellationEffectiveMinutesSinceAccepted': round(float(effective_minutes), 2),
         'cancellation_reason': body.get('reason'),
         'cancelled_at': now.isoformat(),
     }
@@ -1280,7 +1305,6 @@ async def cancel_service_client(
         'late_fee_amount': cancelation_fee,
         'cancelationFee': cancelation_fee if cancelation_fee > 0 else None,
         'cancellation_fee_percent': float(fee_percent) if cancelation_fee > 0 else 0.0,
-        'cancellation_effective_minutes_since_accepted': round(float(effective_minutes), 2),
         'refund_request_id': rr_doc.get("id") if rr_doc else None,
         'refund_request_status': rr_doc.get("status") if rr_doc else None,
         'refund_pending_approval': bool(refund_amount > 0),

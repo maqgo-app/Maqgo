@@ -413,3 +413,74 @@ def calculate_hybrid_price(
         
         'price_frozen': True,
     }
+
+
+def get_high_demand_bonus_percent(
+    *,
+    urgency_window_minutes: Optional[int],
+    scheduled_date_iso: Optional[str],
+) -> float:
+    if scheduled_date_iso:
+        return 0.0
+    try:
+        m = int(urgency_window_minutes) if urgency_window_minutes is not None else None
+    except Exception:
+        m = None
+    if m is None or m < 0:
+        return 0.0
+    if m <= 120:
+        return 0.15
+    if m <= 240:
+        return 0.10
+    if m <= 480:
+        return 0.05
+    return 0.0
+
+
+def calculate_official_service_economics(
+    *,
+    service_value: float,
+    high_demand_bonus: float,
+    transport: float,
+) -> Dict:
+    try:
+        sv = float(service_value or 0)
+    except Exception:
+        sv = 0.0
+    try:
+        hdb = float(high_demand_bonus or 0)
+    except Exception:
+        hdb = 0.0
+    try:
+        tr = float(transport or 0)
+    except Exception:
+        tr = 0.0
+
+    subtotal = sv + hdb + tr
+
+    client_fee = round(subtotal * MAQGO_CLIENT_COMMISSION_RATE)
+    client_fee_iva = round(float(client_fee) * IVA_RATE)
+    total_client_invoice = round(subtotal + client_fee + client_fee_iva)
+
+    provider_fee = round(subtotal * MAQGO_PROVIDER_COMMISSION_RATE)
+    provider_fee_iva = round(float(provider_fee) * IVA_RATE)
+    total_provider_invoice = round(subtotal - provider_fee - provider_fee_iva)
+
+    return {
+        'client': {
+            'service_value': round(sv),
+            'high_demand_bonus': round(hdb),
+            'transport': round(tr),
+            'subtotal': round(subtotal),
+            'maqgo_service_fee': int(client_fee),
+            'maqgo_service_fee_iva': int(client_fee_iva),
+            'total_invoice': int(total_client_invoice),
+        },
+        'provider': {
+            'subtotal': round(subtotal),
+            'maqgo_service_fee': int(provider_fee),
+            'maqgo_service_fee_iva': int(provider_fee_iva),
+            'total_provider_invoice': int(total_provider_invoice),
+            'maqgo_total_retained': int(client_fee + client_fee_iva + provider_fee + provider_fee_iva),
+        },
+    }

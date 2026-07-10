@@ -144,9 +144,23 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
         self._orig_modules = {name: sys.modules.get(name) for name in self._patched_module_names}
 
         pricing_rules = types.ModuleType("pricing.business_rules")
-        pricing_rules.NO_ARRIVAL_ALERT_MINUTES_1 = 120
-        pricing_rules.NO_ARRIVAL_ALERT_MINUTES_2 = 180
-        pricing_rules.NO_ARRIVAL_ALERT_MINUTES_3 = 240
+        pricing_rules.TODAY_MAX_ABSOLUTE_DELAY_HOURS = 4
+
+        def today_committed_time_utc(*, eta_confirmed_at=None, eta_commit_minutes=None, confirmed_at=None, accepted_at=None, created_at=None):
+            from services.timer_service import _parse_offer_expires_at_utc
+
+            base = _parse_offer_expires_at_utc(eta_confirmed_at) or _parse_offer_expires_at_utc(confirmed_at) or _parse_offer_expires_at_utc(accepted_at) or _parse_offer_expires_at_utc(created_at)
+            if base is None:
+                return None
+            try:
+                mins = int(eta_commit_minutes) if eta_commit_minutes is not None else 0
+            except Exception:
+                mins = 0
+            if mins <= 0:
+                return base
+            return base + timedelta(minutes=mins)
+
+        pricing_rules.today_committed_time_utc = today_committed_time_utc
         sys.modules["pricing.business_rules"] = pricing_rules
 
         push_mod = types.ModuleType("services.webpush_service")
@@ -229,7 +243,7 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
 
         svc = TimerService(db)
         alerted = await svc.check_confirmed_no_arrival_timeout()
-        self.assertEqual(alerted, 12)
+        self.assertEqual(alerted, 4)
         statuses = {d["id"]: d.get("status") for d in db.service_requests.docs}
         self.assertEqual(statuses["a"], "confirmed")
         self.assertEqual(statuses["b"], "confirmed")
@@ -239,10 +253,8 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
 
         by_id = {d["id"]: d for d in db.service_requests.docs}
         for sid in ("a", "b", "c", "d"):
-            self.assertTrue(by_id[sid].get("noArrivalAlert1SentAt"))
-            self.assertTrue(by_id[sid].get("noArrivalAlert2SentAt"))
-            self.assertTrue(by_id[sid].get("noArrivalAlert3SentAt"))
-        self.assertIsNone(by_id["e"].get("noArrivalAlert1SentAt"))
+            self.assertTrue(by_id[sid].get("lateMaxDelayNotifiedAt"))
+        self.assertIsNone(by_id["e"].get("lateMaxDelayNotifiedAt"))
 
     async def test_check_auto_start_post_arrival_mixed_formats(self):
         from services.timer_service import TimerService

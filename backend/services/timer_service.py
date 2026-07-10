@@ -118,18 +118,22 @@ class TimerService:
         return cleared
 
     async def check_confirmed_no_arrival_timeout(self) -> int:
-        from pricing.business_rules import (
-            NO_ARRIVAL_ALERT_MINUTES_1,
-            NO_ARRIVAL_ALERT_MINUTES_2,
-            NO_ARRIVAL_ALERT_MINUTES_3,
-        )
+        from pricing.business_rules import TODAY_MAX_ABSOLUTE_DELAY_HOURS, today_committed_time_utc
 
         now = datetime.now(timezone.utc)
         cursor = (
             self.db.service_requests.find(
                 {
                     'status': {'$in': ['confirmed', 'en_route']},
-                    '$or': [{'arrivalDetectedAt': {'$exists': False}}, {'arrivalDetectedAt': None}],
+                    '$and': [
+                        {'$or': [{'arrivalDetectedAt': {'$exists': False}}, {'arrivalDetectedAt': None}]},
+                        {'$or': [
+                            {'reservationType': {'$exists': False}},
+                            {'reservationType': None},
+                            {'reservationType': ''},
+                            {'reservationType': 'immediate'},
+                        ]},
+                    ],
                 },
                 {
                     '_id': 0,
@@ -138,11 +142,9 @@ class TimerService:
                     'acceptedAt': 1,
                     'confirmedAt': 1,
                     'createdAt': 1,
-                    'incidentStats': 1,
-                    'activeIncident': 1,
-                    'noArrivalAlert1SentAt': 1,
-                    'noArrivalAlert2SentAt': 1,
-                    'noArrivalAlert3SentAt': 1,
+                    'etaCommitMinutes': 1,
+                    'etaConfirmedAt': 1,
+                    'lateMaxDelayNotifiedAt': 1,
                 },
             )
             .sort([('_id', 1)])
@@ -153,14 +155,10 @@ class TimerService:
             from services.webpush_service import notify_user
 
             titles = {
-                'no_arrival_120': 'Demora crítica',
-                'no_arrival_180': 'Demora crítica',
-                'no_arrival_240': 'Demora crítica',
+                'late_limit_4h': 'Demora crítica',
             }
             bodies = {
-                'no_arrival_120': 'Han pasado 120 minutos desde la aceptación sin llegada registrada. Revisa el estado y define el siguiente paso.',
-                'no_arrival_180': 'Han pasado 180 minutos desde la aceptación sin llegada registrada. Revisa el estado y define el siguiente paso.',
-                'no_arrival_240': 'Han pasado 240 minutos desde la aceptación sin llegada registrada. Revisa el estado y define el siguiente paso.',
+                'late_limit_4h': 'Se superó el límite máximo de atraso. Puedes cancelar sin costo.',
             }
 
             item = await upsert_notification_item(
@@ -196,58 +194,26 @@ class TimerService:
             if not srid or not client_id:
                 continue
 
-            base_dt = _parse_offer_expires_at_utc(sr.get('acceptedAt') or sr.get('confirmedAt') or sr.get('createdAt')) or now
-            elapsed = (now - base_dt).total_seconds() / 60
-            if elapsed < 0:
-                elapsed = 0
+            if sr.get('lateMaxDelayNotifiedAt'):
+                continue
 
-            stats = sr.get('incidentStats') or {}
-            try:
-                used_total = float(stats.get('protectedMinutesUsedTotal') or 0)
-            except Exception:
-                used_total = 0.0
-            if used_total < 0:
-                used_total = 0.0
+            committed_dt = today_committed_time_utc(
+                eta_confirmed_at=sr.get('etaConfirmedAt'),
+                eta_commit_minutes=sr.get('etaCommitMinutes'),
+                confirmed_at=sr.get('confirmedAt'),
+                accepted_at=sr.get('acceptedAt'),
+                created_at=sr.get('createdAt'),
+            ) or now
 
-            active = sr.get('activeIncident') or {}
-            active_reported = _parse_offer_expires_at_utc(active.get('reportedAt'))
-            active_end = _parse_offer_expires_at_utc(active.get('protectedWindowEnd'))
-            active_used = 0.0
-            if active_reported and active_end and now > active_reported:
-                active_used = (min(now, active_end) - active_reported).total_seconds() / 60
-                if active_used < 0:
-                    active_used = 0.0
+            if now < (committed_dt + timedelta(hours=int(TODAY_MAX_ABSOLUTE_DELAY_HOURS))):
+                continue
 
-            effective = elapsed - used_total - active_used
-            if effective < 0:
-                effective = 0
-
-            updates = {}
-            event_list = []
-
-            if effective >= float(NO_ARRIVAL_ALERT_MINUTES_1) and not sr.get('noArrivalAlert1SentAt'):
-                await send_alert(client_id, srid, 'no_arrival_120')
-                updates['noArrivalAlert1SentAt'] = now.isoformat()
-                event_list.append({'type': 'no_arrival_alert_120', 'at': now.isoformat(), 'effectiveMinutes': round(float(effective), 2)})
-                alerted += 1
-
-            if effective >= float(NO_ARRIVAL_ALERT_MINUTES_2) and not sr.get('noArrivalAlert2SentAt'):
-                await send_alert(client_id, srid, 'no_arrival_180')
-                updates['noArrivalAlert2SentAt'] = now.isoformat()
-                event_list.append({'type': 'no_arrival_alert_180', 'at': now.isoformat(), 'effectiveMinutes': round(float(effective), 2)})
-                alerted += 1
-
-            if effective >= float(NO_ARRIVAL_ALERT_MINUTES_3) and not sr.get('noArrivalAlert3SentAt'):
-                await send_alert(client_id, srid, 'no_arrival_240')
-                updates['noArrivalAlert3SentAt'] = now.isoformat()
-                event_list.append({'type': 'no_arrival_alert_240', 'at': now.isoformat(), 'effectiveMinutes': round(float(effective), 2)})
-                alerted += 1
-
-            if updates or event_list:
-                update = {'$set': updates} if updates else {}
-                if event_list:
-                    update['$push'] = {'events': {'$each': event_list}}
-                await self.db.service_requests.update_one({'id': srid, 'status': 'confirmed'}, update)
+            await send_alert(client_id, srid, 'late_limit_4h')
+            await self.db.service_requests.update_one(
+                {'id': srid, 'status': {'$in': ['confirmed', 'en_route']}},
+                {'$set': {'lateMaxDelayNotifiedAt': now.isoformat()}},
+            )
+            alerted += 1
 
         return alerted
 

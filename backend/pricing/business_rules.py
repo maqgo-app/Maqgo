@@ -1,35 +1,93 @@
-FREE_CANCELLATION_WINDOW_MINUTES = 60
-MID_CANCELLATION_WINDOW_MINUTES = 120
+from __future__ import annotations
 
-CANCELLATION_FEE_PERCENT_60_120 = 0.20
-CANCELLATION_FEE_PERCENT_120_PLUS = 0.40
+from datetime import datetime, timezone
+from typing import Optional
+
+
+SCHEDULED_CANCEL_MORE_THAN_48H_PERCENT = 0.0
+SCHEDULED_CANCEL_48H_TO_24H_PERCENT = 0.10
+SCHEDULED_CANCEL_LESS_THAN_24H_PERCENT = 0.20
+
+TODAY_CANCEL_AFTER_ACCEPT_PERCENT = 0.20
+
+CANCEL_ARRIVAL_VERIFIED_PERCENT = 1.00
+CANCEL_SERVICE_STARTED_PERCENT = 1.00
+
+TODAY_MAX_ABSOLUTE_DELAY_HOURS = 4
 
 INCIDENT_PROTECTED_WINDOW_MINUTES = 30
 INCIDENT_MAX_AUTO_COUNT = 2
 INCIDENT_MAX_PROTECTED_MINUTES_TOTAL = 60
 
-NO_ARRIVAL_ALERT_MINUTES_1 = 120
-NO_ARRIVAL_ALERT_MINUTES_2 = 180
-NO_ARRIVAL_ALERT_MINUTES_3 = 240
-
-LATE_CANCELLATION_FEE_PERCENT = CANCELLATION_FEE_PERCENT_60_120
-
-CONFIRMED_NO_ARRIVAL_TIMEOUT_MINUTES = NO_ARRIVAL_ALERT_MINUTES_1
-
-
-def calculate_client_cancellation_fee(total_amount_clp: int, effective_minutes_since_accepted: float) -> dict:
+def cancellation_fee_from_percent(total_amount_clp: int, percent: float) -> dict:
     try:
-        minutes = float(effective_minutes_since_accepted)
+        pct = float(percent or 0)
     except Exception:
-        minutes = 0.0
-    if minutes <= FREE_CANCELLATION_WINDOW_MINUTES:
-        percent = 0.0
-    elif minutes <= MID_CANCELLATION_WINDOW_MINUTES:
-        percent = CANCELLATION_FEE_PERCENT_60_120
-    else:
-        percent = CANCELLATION_FEE_PERCENT_120_PLUS
-    fee = int(round(float(total_amount_clp or 0) * percent))
-    return {"fee_amount": fee, "fee_percent": percent}
+        pct = 0.0
+    if pct < 0:
+        pct = 0.0
+    fee = int(round(float(total_amount_clp or 0) * pct))
+    if fee < 0:
+        fee = 0
+    return {"fee_amount": fee, "fee_percent": pct}
+
+
+def scheduled_cancellation_percent(*, hours_until_start: Optional[float]) -> float:
+    try:
+        h = float(hours_until_start) if hours_until_start is not None else None
+    except Exception:
+        h = None
+    if h is None:
+        return SCHEDULED_CANCEL_LESS_THAN_24H_PERCENT
+    if h > 48:
+        return SCHEDULED_CANCEL_MORE_THAN_48H_PERCENT
+    if h > 24:
+        return SCHEDULED_CANCEL_48H_TO_24H_PERCENT
+    return SCHEDULED_CANCEL_LESS_THAN_24H_PERCENT
+
+
+def _parse_iso_datetime_utc(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        s = str(value).strip()
+        if not s:
+            return None
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def today_committed_time_utc(
+    *,
+    eta_confirmed_at: Optional[str],
+    eta_commit_minutes: Optional[int],
+    confirmed_at: Optional[str],
+    accepted_at: Optional[str],
+    created_at: Optional[str],
+) -> Optional[datetime]:
+    base = (
+        _parse_iso_datetime_utc(eta_confirmed_at)
+        or _parse_iso_datetime_utc(confirmed_at)
+        or _parse_iso_datetime_utc(accepted_at)
+        or _parse_iso_datetime_utc(created_at)
+    )
+    if not base:
+        return None
+    try:
+        mins = int(eta_commit_minutes) if eta_commit_minutes is not None else 0
+    except Exception:
+        mins = 0
+    if mins <= 0:
+        return base
+    from datetime import timedelta
+
+    return base + timedelta(minutes=mins)
 
 
 # =============================================================================
