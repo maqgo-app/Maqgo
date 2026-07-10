@@ -15,11 +15,11 @@ const FAQ_DATA = [
     questions: [
       {
         q: '¿Qué es MAQGO?',
-        a: 'MAQGO es una plataforma tecnológica que conecta a clientes que requieren maquinaria pesada con proveedores que ofrecen estos servicios.'
+        a: 'MAQGO es una plataforma que conecta empresas que necesitan maquinaria pesada con proveedores que la ofrecen. Puedes solicitar servicios por horas, días o semanas, con disponibilidad visible y condiciones claras antes de confirmar. MAQGO no es dueño de las máquinas: coordinamos tu solicitud con proveedores registrados en la plataforma.'
       },
       {
         q: '¿MAQGO es dueño de las máquinas?',
-        a: 'MAQGO no es dueño de la maquinaria. No es propietario de las maquinarias ni empleador de los operadores. Los proveedores son independientes y ofrecen sus propios equipos.'
+        a: 'No. MAQGO es una plataforma que conecta tu empresa con proveedores. Las máquinas y los operadores pertenecen a empresas proveedoras registradas.'
       },
       {
         q: '¿Cómo solicito una maquinaria?',
@@ -52,7 +52,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Puedo cancelar una reserva?',
-        a: 'Sí. La política depende del tipo de reserva. Reserva Programada: más de 48 horas antes = 0% · entre 48 y 24 horas = 10% · 24 horas o menos = 20% · autorizar ingreso = 100% · servicio iniciado = 100%. Reserva para Hoy: antes de aceptación del proveedor = 0% · después de aceptación del proveedor = 20% · autorizar ingreso = 100% · servicio iniciado = 100%. Para reservas del mismo día existe un límite máximo absoluto de atraso de 4 horas. Este límite no se modifica por nuevas ETA. Si se supera el límite, el cliente puede cancelar sin costo y MAQGO puede intentar reasignar el servicio.'
+        a: 'Sí. La política depende del tipo de reserva. Reserva Programada: más de 48 horas antes = 0% · entre 48 y 24 horas = 10% · 24 horas o menos = 20% · ingreso confirmado = 100% · servicio iniciado = 100%. Reserva para Hoy: antes de aceptación del proveedor = 0% · después de aceptación del proveedor = 20% · ingreso confirmado = 100% · servicio iniciado = 100%. Para reservas del mismo día existe un límite máximo absoluto de atraso de 4 horas. Este límite no se modifica por nuevas ETA. Si se supera el límite, el cliente puede cancelar sin costo y MAQGO puede intentar reasignar el servicio.'
       },
       {
         q: '¿Cómo contacto a soporte?',
@@ -98,7 +98,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿A qué datos debe ir emitida la factura?',
-        a: 'La factura debe ser emitida a: Razón Social MAQGO SpA, RUT 76.248.124-3, Giro Servicios de TI, Dirección Fdo Chicureo HJ 1 y 2 Colina. Indica el ID de transacción en la factura. Luego cárgala en la app (Mis Cobros).'
+        a: `La factura debe ser emitida a: Razón Social ${MAQGO_BILLING.razonSocial}, RUT ${MAQGO_BILLING.rut}, Giro ${MAQGO_BILLING.giro}, Dirección ${MAQGO_BILLING.direccion}. Indica el ID de transacción en la factura. Luego cárgala en la app (Mis Cobros).`
       }
     ]
   },
