@@ -1,19 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import { CancellationSuccess, CancellationWithCharge } from '../../components/ErrorStates';
 import BACKEND_URL from '../../utils/api';
 
-const NON_CANCELLABLE_STATUSES = ['in_progress', 'started'];
-
-/**
- * Pantalla: Cancelar Servicio (CLIENTE)
- *
- * Política de cancelación (Términos y Condiciones):
- * - Desde la aceptación: 0–60 min = 0% · 60–120 min = 20% · +120 min = 40%
- * - Con presencia confirmada en obra o servicio iniciado: no es posible cancelar
- */
+const NON_CANCELLABLE_STATUSES = ['finished'];
 function CancelServiceScreen() {
   const navigate = useNavigate();
   const [reason, setReason] = useState('');
@@ -22,9 +14,35 @@ function CancelServiceScreen() {
   const [chargeAmount, setChargeAmount] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [serviceRequest, setServiceRequest] = useState(null);
 
   const serviceStatus = localStorage.getItem('serviceStatus') || 'pending';
   const cannotCancel = NON_CANCELLABLE_STATUSES.includes(serviceStatus);
+  const serviceId = localStorage.getItem('currentServiceId');
+
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      if (!serviceId) return;
+      try {
+        const { data } = await axios.get(`${BACKEND_URL}/api/service-requests/${serviceId}`, { timeout: 10000 });
+        if (isMounted) setServiceRequest(data || null);
+      } catch {
+        if (isMounted) setServiceRequest(null);
+      }
+    };
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, [serviceId]);
+
+  const reservationType = useMemo(() => {
+    const rt = String(serviceRequest?.reservationType || '').toLowerCase();
+    if (rt === 'scheduled' || serviceRequest?.scheduledDate) return 'scheduled';
+    if (rt === 'immediate') return 'today';
+    return null;
+  }, [serviceRequest]);
 
   const getStatusMessage = () => {
     switch (serviceStatus) {
@@ -34,6 +52,8 @@ function CancelServiceScreen() {
       case 'arrived': return 'El operador ya llegó a la obra';
       case 'started':
       case 'in_progress': return 'El servicio ya está en curso';
+      case 'last_30': return 'El servicio está por terminar';
+      case 'finished': return 'El servicio ya terminó';
       default: return '';
     }
   };
@@ -55,8 +75,6 @@ function CancelServiceScreen() {
     setShowConfirmModal(false);
     setLoading(true);
     setApiError('');
-
-    const serviceId = localStorage.getItem('currentServiceId');
 
     const clearLocalAndConfirm = (fee = 0) => {
       setChargeAmount(fee);
@@ -133,14 +151,29 @@ function CancelServiceScreen() {
           marginBottom: 20
         }}>
           <p style={{ color: 'var(--maqgo-orange)', fontSize: 12, fontWeight: 700, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Regla de cancelación
+            Política de cancelación
           </p>
-          <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '0 0 6px', lineHeight: 1.5 }}>
-            <strong style={{ color: '#fff' }}>MAQGO favorece ejecutar el servicio.</strong> Si cancelas: 0–60 min desde la aceptación = 0% · 60–120 min = 20% · +120 min = 40%. Con presencia confirmada en obra o servicio iniciado: no se puede cancelar.
-          </p>
+          {reservationType === 'today' ? (
+            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+              <strong style={{ color: '#fff' }}>Reserva para Hoy</strong>: antes de la aceptación = 0% · después de la aceptación = 20% · llegada verificada = 100% · servicio iniciado = 100%. Límite máximo absoluto de atraso: 4 horas.
+            </p>
+          ) : reservationType === 'scheduled' ? (
+            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+              <strong style={{ color: '#fff' }}>Reserva Programada</strong>: &gt;48h = 0% · 48–24h = 10% · &lt;24h = 20% · llegada verificada = 100% · servicio iniciado = 100%.
+            </p>
+          ) : (
+            <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, lineHeight: 1.5 }}>
+              <p style={{ margin: '0 0 10px' }}>
+                <strong style={{ color: '#fff' }}>Reserva Programada</strong>: &gt;48h = 0% · 48–24h = 10% · &lt;24h = 20% · llegada verificada = 100% · servicio iniciado = 100%.
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: '#fff' }}>Reserva para Hoy</strong>: antes de la aceptación = 0% · después de la aceptación = 20% · llegada verificada = 100% · servicio iniciado = 100%. Límite máximo absoluto de atraso: 4 horas.
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Bloqueo: servicio iniciado - no se puede cancelar */}
+        {/* Bloqueo: servicio finalizado */}
         {cannotCancel ? (
           <div style={{
             background: 'rgba(244, 67, 54, 0.15)',
@@ -155,10 +188,10 @@ function CancelServiceScreen() {
               </svg>
               <div>
                 <p style={{ color: '#F44336', fontSize: 15, fontWeight: 600, margin: '0 0 8px' }}>
-                  Ya empezó
+                  No se puede cancelar
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                  El servicio ya está en curso. Si tienes un problema, contáctanos desde Ayuda y Soporte.
+                  El servicio ya terminó. Si tienes un problema, contáctanos desde Ayuda y Soporte.
                 </p>
               </div>
             </div>
@@ -177,7 +210,7 @@ function CancelServiceScreen() {
             marginBottom: 20
           }}>
             <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, margin: 0, lineHeight: 1.45 }}>
-              El cargo (si aplica) se calcula automáticamente según el tiempo transcurrido desde la aceptación. La confirmación final se muestra al cancelar.
+              El cargo (si aplica) se calcula automáticamente según la Política de Cancelación. La confirmación final se muestra al cancelar.
             </p>
           </div>
         ) : null}
@@ -308,7 +341,7 @@ function CancelServiceScreen() {
                 marginBottom: 20
               }}>
                 <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 13, textAlign: 'center', margin: 0, lineHeight: 1.45 }}>
-                  Confirmas que deseas cancelar. Si aplica cargo, MAQGO lo calcula automáticamente según el tiempo desde la aceptación.
+                  Confirmas que deseas cancelar. Si aplica cargo, MAQGO lo calcula automáticamente según la Política de Cancelación.
                 </p>
               </div>
 
