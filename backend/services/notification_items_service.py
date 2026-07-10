@@ -54,7 +54,7 @@ def _deep_link_for_kind(kind: str, service_request_id: str, audience_role: str) 
         if k == 'cancelled':
             return '/provider/history'
         if k == 'factura_lista':
-            return '/provider/upload-invoice'
+            return '/provider/cobros'
         if k == 'pago_enviado':
             return '/provider/cobros'
         return '/provider/home'

@@ -85,7 +85,7 @@ export function downloadVoucherPDF(service) {
   doc.setFontSize(10);
   doc.setTextColor(100, 150, 180);
   doc.setFont('helvetica', 'bold');
-  doc.text('TU DESGLOSE', margin, y);
+  doc.text('DETALLE DE SERVICIO', margin, y);
   y += 8;
 
   doc.setFont('helvetica', 'normal');

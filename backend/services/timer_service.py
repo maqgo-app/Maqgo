@@ -118,7 +118,7 @@ class TimerService:
         return cleared
 
     async def check_confirmed_no_arrival_timeout(self) -> int:
-        from pricing.business_rules import TODAY_MAX_ABSOLUTE_DELAY_HOURS, today_committed_time_utc
+        from pricing.business_rules import TODAY_MAX_ABSOLUTE_DELAY_HOURS, incident_protected_minutes_used_total, today_committed_time_utc
 
         now = datetime.now(timezone.utc)
         cursor = (
@@ -144,7 +144,11 @@ class TimerService:
                     'createdAt': 1,
                     'etaCommitMinutes': 1,
                     'etaConfirmedAt': 1,
+                    'etaFirstCommitMinutes': 1,
+                    'etaFirstConfirmedAt': 1,
                     'lateMaxDelayNotifiedAt': 1,
+                    'incidentStats': 1,
+                    'activeIncident': 1,
                 },
             )
             .sort([('_id', 1)])
@@ -198,6 +202,8 @@ class TimerService:
                 continue
 
             committed_dt = today_committed_time_utc(
+                eta_first_confirmed_at=sr.get('etaFirstConfirmedAt'),
+                eta_first_commit_minutes=sr.get('etaFirstCommitMinutes'),
                 eta_confirmed_at=sr.get('etaConfirmedAt'),
                 eta_commit_minutes=sr.get('etaCommitMinutes'),
                 confirmed_at=sr.get('confirmedAt'),
@@ -205,7 +211,17 @@ class TimerService:
                 created_at=sr.get('createdAt'),
             ) or now
 
-            if now < (committed_dt + timedelta(hours=int(TODAY_MAX_ABSOLUTE_DELAY_HOURS))):
+            protected_minutes = incident_protected_minutes_used_total(
+                incident_stats=sr.get("incidentStats"),
+                active_incident=sr.get("activeIncident"),
+                now=now,
+            )
+
+            if now < (
+                committed_dt
+                + timedelta(hours=int(TODAY_MAX_ABSOLUTE_DELAY_HOURS))
+                + timedelta(minutes=float(protected_minutes or 0))
+            ):
                 continue
 
             await send_alert(client_id, srid, 'late_limit_4h')
@@ -923,7 +939,10 @@ class TimerService:
                     approved_count += 1
                     logger.info(f"Servicio {service['_id']} auto-aprobado ({AUTO_APPROVAL_HOURS}h - Pago Ágil)")
                     
-                    pass
+                    try:
+                        await self._notify_provider_invoice_ready(service)
+                    except Exception as notify_err:
+                        logger.warning("notify_provider_invoice_ready error id=%s err=%s", service.get('_id'), notify_err)
             
             return approved_count
             
@@ -932,7 +951,47 @@ class TimerService:
             return 0
     
     async def _notify_provider_invoice_ready(self, service: dict):
-        return
+        from communications import notify_service_approved_for_invoice
+        from services.notification_items_service import upsert_notification_item
+
+        provider_id = str(service.get('provider_id') or service.get('owner_id') or '').strip()
+        if not provider_id:
+            return
+
+        net_amount = service.get('net_total', 0)
+        try:
+            invoice_amount = str(int(float(net_amount or 0)))
+        except Exception:
+            invoice_amount = "0"
+
+        provider_phone = None
+        provider = await self.db.users.find_one({'id': provider_id}, {'_id': 0, 'phone': 1, 'owner_id': 1})
+        if provider:
+            if provider.get('owner_id'):
+                owner_id = str(provider.get('owner_id') or '').strip()
+                if owner_id:
+                    owner = await self.db.users.find_one({'id': owner_id}, {'_id': 0, 'phone': 1})
+                    provider_phone = (owner or {}).get('phone') or provider.get('phone')
+            else:
+                provider_phone = provider.get('phone')
+        provider_phone = str(provider_phone or '').strip()
+
+        service_id = str(service.get('id') or service.get('_id') or '').strip()
+        if service_id:
+            await upsert_notification_item(
+                self.db,
+                recipient_user_id=provider_id,
+                audience_role='provider',
+                service_request_id=service_id,
+                kind='factura_lista',
+                extra={'invoice_amount': invoice_amount},
+                occurred_at=datetime.now(timezone.utc).isoformat(),
+                action_required=True,
+                pinned=True,
+            )
+
+        if provider_phone:
+            notify_service_approved_for_invoice(provider_phone, invoice_amount)
     
     async def check_expired_offers(self) -> int:
         """

@@ -82,7 +82,7 @@ const ServiceVoucher = ({ service, onDownload, onUploadInvoice }) => {
           alignItems: 'center',
           gap: 6
         }}>
-          📄 TU DESGLOSE
+          📄 DETALLE DE SERVICIO
         </p>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
