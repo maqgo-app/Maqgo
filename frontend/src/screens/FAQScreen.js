@@ -34,7 +34,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Puedo cancelar una reserva?',
-        a: 'Sí. Desde la aceptación: 0–60 min = 0% · 60–120 min = 20% · +120 min = 40%. Con presencia confirmada en obra ya no es posible cancelar. Se considera presencia confirmada cuando existe evidencia suficiente (por ejemplo: llegada verificada, autorización de ingreso, auto‑inicio con llegada verificada o servicio iniciado). El sistema no cancela automáticamente por tiempo: si no hay llegada registrada, se generan avisos críticos a 120, 180 y 240 minutos.'
+        a: 'Sí. La política depende del tipo de reserva. Reserva Programada: más de 48 horas antes = 0% · entre 48 y 24 horas = 10% · 24 horas o menos = 20% · llegada verificada a la obra = 100% · servicio iniciado = 100%. Reserva para Hoy: antes de aceptación del proveedor = 0% · después de aceptación del proveedor = 20% · llegada verificada a la obra = 100% · servicio iniciado = 100%. Para reservas del mismo día existe un límite máximo absoluto de atraso de 4 horas desde la hora comprometida. Este límite no se modifica por nuevas ETA. Si se supera el límite, el cliente puede cancelar sin costo y MAQGO puede intentar reasignar el servicio.'
       },
       {
         q: '¿Cómo me comunico con el operador?',
@@ -50,7 +50,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Qué pasa si el operador no llega (no-show)?',
-        a: 'No hay cancelación automática por tiempo. Si no se registra llegada, se generan avisos críticos a 120, 180 y 240 minutos. Puedes seguir esperando, solicitar apoyo a MAQGO o cancelar según corresponda.'
+        a: 'No hay cancelación automática por tiempo. Para reservas del mismo día existe un límite máximo absoluto de atraso de 4 horas desde la hora comprometida. Si se supera ese límite, el cliente puede cancelar sin costo y MAQGO puede intentar reasignar el servicio.'
       },
       {
         q: '¿MAQGO es dueño de las máquinas?',
