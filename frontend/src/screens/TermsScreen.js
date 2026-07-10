@@ -193,10 +193,10 @@ function TermsScreen() {
             MAQGO favorece la ejecución exitosa del servicio por sobre la cancelación. El sistema nunca cancela automáticamente un servicio.
           </p>
           <p style={{ marginBottom: 12 }}>
-            Reserva Programada: más de 48 horas antes = 0% · entre 48 y 24 horas = 10% · 24 horas o menos = 20% · ingreso confirmado = 100% · servicio iniciado = 100%.
+            Reserva Programada: más de 48 horas antes = 0% · entre 48 y 24 horas = 10% · 24 horas o menos = 20% · autorizar ingreso = 100% · servicio iniciado = 100%.
           </p>
           <p style={{ marginBottom: 12 }}>
-            Reserva para Hoy: antes de aceptación del proveedor = 0% · después de aceptación del proveedor = 20% · ingreso confirmado = 100% · servicio iniciado = 100%.
+            Reserva para Hoy: antes de aceptación del proveedor = 0% · después de aceptación del proveedor = 20% · autorizar ingreso = 100% · servicio iniciado = 100%.
           </p>
           <p style={{ marginBottom: 12 }}>
             Para reservas del mismo día existe un límite máximo absoluto de atraso de 4 horas desde la hora comprometida. Este límite no se modifica por nuevas ETA. Si se supera el límite, el cliente puede cancelar sin costo y MAQGO puede intentar reasignar el servicio.
