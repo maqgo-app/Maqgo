@@ -142,7 +142,7 @@ def _title_body_for_kind(kind: str, extra: Optional[dict] = None, audience_role:
     if k == 'payment_failed':
         return 'Pago fallido', 'El cobro no pudo procesarse. Revisa el estado de tu reserva.'
     if k == 'factura_lista':
-        return 'Factura lista', 'Tienes una factura lista para revisar y gestionar.'
+        return 'Servicio aprobado', 'Ya puedes emitir tu factura a MAQGO. Revisa el Detalle de Servicio en Mis Cobros utilizando el Service ID indicado.'
     if k == 'pago_enviado':
         return 'Pago enviado', 'Se registró un pago enviado asociado a un servicio.'
     if k == 'nueva_oferta':
