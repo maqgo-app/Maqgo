@@ -46,9 +46,9 @@ function IconUser() {
 function WelcomeScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const auth = useAuth();
   const [searchParams] = useSearchParams();
   const [, setAdminPending] = useState(0);
-  const auth = useAuth();
   const { isDesktop, isNarrowMobile, isShortViewport, viewportHeight, viewportWidth } = useWelcomeLayout();
   // welcome-reveal en DOM desde el 1er frame (opacity 0 en CSS); welcome-mounted tras layout dispara animación (evita flash visible→oculto).
   const [mounted, setMounted] = useState(false);
@@ -264,6 +264,7 @@ function WelcomeScreen() {
                     navigate('/login', { state: { redirect: target, entry: 'client' } });
                     return;
                   }
+                  auth?.setActiveRole?.('client');
                   navigate(target);
                 }}
                 className="welcome-cta-primary welcome-reveal"
@@ -292,21 +293,17 @@ function WelcomeScreen() {
 
               <button
                 onClick={() => {
+                  if (hasSession) {
+                    auth?.setActiveRole?.('provider');
+                    navigate(getProviderLandingPath());
+                    return;
+                  }
                   try {
                     localStorage.setItem('desiredRole', 'provider');
-                    if (hasSession) {
-                      localStorage.setItem('userRole', 'provider');
-                    }
-                  } catch {
-                    /* ignore */
-                  }
-                  const fromWelcome = true;
-                  try {
                     localStorage.setItem('providerCameFromWelcome', 'true');
                   } catch {
                     /* ignore */
                   }
-                  console.log('PROVIDER FLOW ENTRY', { fromWelcome, finalRoute: '/login', entry: 'provider' });
                   navigate('/login', { state: { entry: 'provider' } });
                 }}
                 className="welcome-cta-secondary welcome-reveal"

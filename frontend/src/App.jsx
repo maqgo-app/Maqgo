@@ -60,16 +60,38 @@ function ProviderAddMachineRedirect() {
 
 function ProviderSensitiveGate({ children }) {
   const location = useLocation();
-  let isProvider = false;
+  const auth = useAuth();
   const hasSession = hasPersistedSessionCredentials();
-  try {
-    const userRole = String(globalThis.localStorage?.getItem('userRole') || '').trim();
-    const providerRole = String(globalThis.localStorage?.getItem('providerRole') || '').trim();
-    isProvider = userRole === 'provider' || Boolean(providerRole);
-  } catch {
-    isProvider = false;
+
+  let userRole = String(auth?.user?.role || '').trim();
+  if (!userRole) {
+    try {
+      userRole = String(globalThis.localStorage?.getItem('userRole') || '').trim();
+    } catch {
+      userRole = '';
+    }
   }
-  if (isProvider && !hasSession) {
+
+  let hasProviderAvailable = false;
+  try {
+    const raw = globalThis.localStorage?.getItem('userRoles');
+    const parsed = raw ? JSON.parse(raw) : [];
+    const roles = Array.isArray(parsed) ? parsed : [];
+    hasProviderAvailable = roles.includes('provider');
+  } catch {
+    hasProviderAvailable = false;
+  }
+
+  useEffect(() => {
+    if (!hasSession) return;
+    if (!hasProviderAvailable) return;
+    if (userRole === 'provider') return;
+    if (auth?.loading) return;
+    if (!auth?.user?.id) return;
+    auth?.setActiveRole?.('provider');
+  }, [auth, hasProviderAvailable, hasSession, userRole]);
+
+  if (userRole === 'provider' && !hasSession) {
     const fullPath = `${location.pathname}${location.search || ''}`;
     return (
       <Navigate
@@ -89,6 +111,22 @@ function OperatorSensitiveGate({ children }) {
   const location = useLocation();
   const auth = useAuth();
   const hasSession = hasPersistedSessionCredentials();
+
+  useEffect(() => {
+    if (!hasSession) return;
+    if (auth?.loading) return;
+    if (auth?.user?.role === 'provider') return;
+    let hasProviderAvailable = false;
+    try {
+      const raw = globalThis.localStorage?.getItem('userRoles');
+      const parsed = raw ? JSON.parse(raw) : [];
+      const roles = Array.isArray(parsed) ? parsed : [];
+      hasProviderAvailable = roles.includes('provider');
+    } catch {
+      hasProviderAvailable = false;
+    }
+    if (hasProviderAvailable) auth?.setActiveRole?.('provider');
+  }, [auth, hasSession]);
 
   if (auth.loading && hasSession) {
     return <BookingFlowFallback />;

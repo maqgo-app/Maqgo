@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/authHooks';
 import { requestPushPermissionAndSubscribe, unsubscribePushNotifications } from '../../utils/pushNotifications';
 import BACKEND_URL from '../../utils/api';
 import { fetchWithAuth } from '../../utils/api';
@@ -49,6 +50,7 @@ function toneToColors(severity) {
 
 function AvisosHubScreen({ audienceRole = 'client' }) {
   const navigate = useNavigate();
+  const auth = useAuth();
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState(null);
   const [pushPermission, setPushPermission] = useState(() => {
@@ -62,6 +64,14 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
   const [error, setError] = useState('');
   const [pushBusy, setPushBusy] = useState(false);
   const [pushBackend, setPushBackend] = useState({ checked: false, enabled: undefined, publicKey: undefined });
+
+  useEffect(() => {
+    if (auth?.loading) return;
+    if (!auth?.user?.id) return;
+    if (!audienceRole) return;
+    if (auth?.user?.role === audienceRole) return;
+    auth?.setActiveRole?.(audienceRole);
+  }, [auth?.loading, auth?.user?.id, auth?.user?.role, auth?.setActiveRole, audienceRole]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

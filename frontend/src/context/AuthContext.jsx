@@ -230,25 +230,48 @@ export function AuthProvider({ children }) {
     if (normalizedRole === 'owner') normalizedRole = 'super_master';
     localStorage.setItem('userId', userId);
     localStorage.setItem('userRole', userRole);
-    if (userRole === 'provider') {
+    if (normalizedRole) {
       localStorage.setItem('providerRole', normalizedRole);
-      if (ownerIdFromApi) {
-        localStorage.setItem('ownerId', ownerIdFromApi);
-        setOwnerId(ownerIdFromApi);
-      } else {
-        localStorage.removeItem('ownerId');
-        setOwnerId(null);
-      }
-    } else {
-      localStorage.removeItem('providerRole');
-      localStorage.removeItem('ownerId');
-      setOwnerId(null);
+    }
+    if (ownerIdFromApi) {
+      localStorage.setItem('ownerId', ownerIdFromApi);
+      setOwnerId(ownerIdFromApi);
     }
     setUser({ id: userId, role: userRole });
-    const permKey = userRole === 'provider' ? normalizedRole : 'super_master';
-    setProviderRole(userRole === 'provider' ? normalizedRole : 'super_master');
-    const basePerms = DEFAULT_PERMISSIONS[permKey] || DEFAULT_PERMISSIONS.super_master;
-    setPermissions(basePerms);
+    if (normalizedRole) {
+      setProviderRole(normalizedRole);
+      const basePerms = DEFAULT_PERMISSIONS[normalizedRole] || DEFAULT_PERMISSIONS.super_master;
+      setPermissions(basePerms);
+    }
+  }, []);
+
+  const setActiveRole = useCallback((nextRole) => {
+    const normalized = String(nextRole || '').trim();
+    if (!normalized) return false;
+    if (!['client', 'provider', 'admin'].includes(normalized)) return false;
+
+    let allowed = true;
+    try {
+      const raw = localStorage.getItem('userRoles');
+      const parsed = raw ? JSON.parse(raw) : [];
+      const roles = Array.isArray(parsed) ? parsed : [];
+      if (roles.length > 0 && !roles.includes(normalized)) allowed = false;
+    } catch {
+      allowed = true;
+    }
+    if (!allowed) return false;
+
+    try {
+      localStorage.setItem('userRole', normalized);
+    } catch {
+      /* ignore */
+    }
+    setUser((prev) => {
+      if (!prev?.id) return prev;
+      if (prev.role === normalized) return prev;
+      return { ...prev, role: normalized };
+    });
+    return true;
   }, []);
 
   const logout = useCallback(() => {
@@ -387,6 +410,7 @@ export function AuthProvider({ children }) {
     ownerId,
     ownerName,
     login,
+    setActiveRole,
     logout,
     hasPermission,
     can,
