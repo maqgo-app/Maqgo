@@ -263,14 +263,6 @@ function TermsScreen() {
           <p>Los reclamos deben ingresarse dentro de las primeras 24 horas desde finalizado el servicio.</p>
         </Section>
 
-        <p style={{ 
-          color: 'rgba(255,255,255,0.5)', 
-          fontSize: 12, 
-          textAlign: 'center',
-          marginTop: 32 
-        }}>
-          Última actualización: Marzo 2026
-        </p>
       </div>
       {acceptMode && (
         <div
