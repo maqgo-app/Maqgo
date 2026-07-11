@@ -15,7 +15,7 @@ CRUCE FACTURA vs REPORTE DEL SERVICIO:
   = subtotal del reporte + IVA (sin incluir la comisión 10%+IVA de MAQGO).
 - Así se cruza que la factura sea por el monto correcto que el proveedor emite.
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 import os
@@ -43,6 +43,8 @@ except ModuleNotFoundError:
 load_dotenv()
 
 from db_config import get_db_name, get_mongo_url
+from auth_dependency import get_current_user
+from security.policy import AccessPolicy
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -262,7 +264,8 @@ async def send_invoice_to_client(
 async def upload_invoice(
     service_id: str,
     file: UploadFile = File(...),
-    provider_id: str = Form(...)
+    provider_id: str = Form(...),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Endpoint para que el proveedor suba la factura
@@ -285,7 +288,31 @@ async def upload_invoice(
             pass
     if not service:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
-    # Verificar que el proveedor es dueño del servicio
+    
+    if not AccessPolicy.is_admin(current_user) and current_user.get("role") != "provider":
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    if not AccessPolicy.is_admin(current_user):
+        actor_company = AccessPolicy.company_owner_id(current_user)
+        if not actor_company:
+            raise HTTPException(status_code=403, detail="No autorizado")
+
+        provider_user = await db.users.find_one(
+            {"id": provider_id},
+            {"_id": 0, "id": 1, "owner_id": 1, "provider_role": 1, "role": 1},
+        )
+        if not provider_user or provider_user.get("role") != "provider":
+            raise HTTPException(status_code=403, detail="No autorizado")
+
+        provider_company = (
+            provider_user.get("id")
+            if AccessPolicy.is_owner_like(provider_user)
+            else provider_user.get("owner_id")
+        )
+        if actor_company != provider_company:
+            raise HTTPException(status_code=403, detail="No autorizado")
+
+    # Verificar que el proveedor corresponde al servicio
     if service.get("provider_id") != provider_id and service.get("providerId") != provider_id:
         raise HTTPException(status_code=403, detail="No tienes permiso para este servicio")
     

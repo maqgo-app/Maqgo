@@ -32,12 +32,14 @@ def build_provider_permissions(user: dict, provider_role: str) -> Dict[str, bool
     if is_master:
         can_accept_requests = bool(can_create_work)
 
+    can_manage_masters = bool(is_super or (is_master and _mperm("can_manage_masters")))
+
     return {
         "can_view_finances": can_view_finance,
         "can_view_invoices": can_view_finance,
         "can_upload_invoice": can_view_finance,
         "can_manage_operators": can_manage_operators,
-        "can_manage_masters": bool(is_super),
+        "can_manage_masters": can_manage_masters,
         "can_view_bank_data": bool(is_super),
         "can_accept_requests": bool(can_accept_requests),
         "can_view_services": bool(is_super or is_master or is_operator or can_view_work_details or can_create_work),
@@ -50,4 +52,3 @@ def build_provider_permissions(user: dict, provider_role: str) -> Dict[str, bool
         "can_view_work_details": can_view_work_details,
         "can_create_work": can_create_work,
     }
-

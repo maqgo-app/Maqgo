@@ -19,6 +19,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from db_config import get_db_name, get_mongo_url
 from auth_dependency import get_current_user
 from security.policy import AccessPolicy
+from security.provider_permissions_builder import build_provider_permissions
 
 router = APIRouter(prefix="/operators", tags=["operators"])
 
@@ -143,6 +144,13 @@ async def create_invitation(
     
     if owner.get("role") != "provider":
         raise HTTPException(status_code=400, detail="Solo proveedores pueden invitar operadores")
+
+    actor_provider_role = current_user.get("provider_role")
+    if actor_provider_role in (None, "owner"):
+        actor_provider_role = "super_master"
+    actor_perms = build_provider_permissions(current_user, str(actor_provider_role or ""))
+    if not actor_perms.get("can_manage_operators"):
+        raise HTTPException(status_code=403, detail="No tienes permisos para invitar operadores")
 
     # Regla de negocio: para operadores, la empresa debe definir al menos nombre y RUT
     if not data.operator_name or not data.operator_rut:
@@ -532,6 +540,16 @@ async def create_master_invitation(
     Super Master genera código de invitación para un Master.
     Solo Super Masters pueden invitar Masters.
     """
+
+    actor_provider_role = current_user.get("provider_role")
+    if actor_provider_role in (None, "owner"):
+        actor_provider_role = "super_master"
+    actor_perms = build_provider_permissions(current_user, str(actor_provider_role or ""))
+    if not actor_perms.get("can_manage_masters"):
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el dueño de la empresa o un Master con permiso delegado puede invitar Masters",
+        )
     # Verificar que el dueño existe y es Super Master
     owner = await db.users.find_one({"id": data.owner_id}, {"_id": 0})
     if not owner:
@@ -553,6 +571,7 @@ async def create_master_invitation(
 
     raw_perms = data.permissions if isinstance(data.permissions, dict) else {}
     allowed_keys = {
+        "can_manage_masters",
         "can_manage_machines",
         "can_delete_machines",
         "can_assign_operator",

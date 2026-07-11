@@ -27,8 +27,9 @@ import {
 function TeamManagementScreen() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isSuperMaster } = useAuth();
+  const { isSuperMaster, hasPermission } = useAuth();
   const isSuperMasterUser = isSuperMaster();
+  const canManageMasters = hasPermission('canManageMasters');
   const toast = useToast();
   const requestedMode = (() => {
     try {
@@ -57,7 +58,7 @@ function TeamManagementScreen() {
   const screenMode = location.pathname === '/provider/managers' ? 'master' : 'operator';
   const resolvedMode = requestedMode || screenMode;
   const effectiveMode =
-    resolvedMode === 'master' && !isSuperMasterUser
+    resolvedMode === 'master' && !isSuperMasterUser && !canManageMasters
       ? 'operator'
       : resolvedMode;
   const [activeTab, setActiveTab] = useState('team'); // 'team' | 'invite'
@@ -103,7 +104,7 @@ function TeamManagementScreen() {
   const GPS_STALE_MINUTES = 120;
 
   useEffect(() => {
-    if (!isSuperMasterUser && (requestedMode === 'master' || location.pathname === '/provider/managers')) {
+    if (!isSuperMasterUser && !canManageMasters && (requestedMode === 'master' || location.pathname === '/provider/managers')) {
       navigate('/provider/team', { replace: true });
     }
     setInviteType(effectiveMode);
