@@ -127,20 +127,7 @@ function PrivacyScreen() {
           </p>
         </Section>
 
-        <Section title="8. Tus derechos">
-          <p style={{ marginBottom: 12 }}>
-            Puedes:
-          </p>
-          <ul style={{ paddingLeft: 20 }}>
-            <li>Acceder a tus datos personales almacenados</li>
-            <li>Solicitar la rectificación de datos inexactos</li>
-            <li>Solicitar la eliminación de tus datos</li>
-            <li>Oponerte al tratamiento de tu información</li>
-            <li>Solicitar la portabilidad de tus datos</li>
-          </ul>
-        </Section>
-
-        <Section title="9. Contacto">
+        <Section title="8. Contacto">
           <p>
             Para ejercer tus derechos o realizar consultas sobre el tratamiento de tus 
             datos personales, contáctanos desde Soporte dentro de la app.
