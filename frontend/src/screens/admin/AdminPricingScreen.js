@@ -5,6 +5,7 @@ import { useToast } from '../../components/Toast';
 import {
   MACHINERY_NAMES as MACHINE_NAMES,
   getMachineryCapacityOptions,
+  getProviderSpecLabel,
   formatMachineryCapacityChipLabel,
 } from '../../utils/machineryNames';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
@@ -279,6 +280,9 @@ function AdminPricingScreen() {
   const capacityMachineIds = Object.keys(prices.by_capacity || {}).filter((machineId) => getMachineryCapacityOptions(machineId));
   const transport = prices.transport || {};
 
+  const perHourIds = Object.keys(prices.per_hour || {}).filter((id) => !getMachineryCapacityOptions(id));
+  const perServiceIds = Object.keys(prices.per_service || {}).filter((id) => !getMachineryCapacityOptions(id));
+
   return (
     <div className="maqgo-admin-page" style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
       <div className="maqgo-admin-topbar" style={{ background: ADMIN_THEME.panelBg, padding: '20px 24px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
@@ -525,7 +529,7 @@ function AdminPricingScreen() {
                 Precio base por hora
               </div>
               <div style={{ padding: '10px 16px', color: ADMIN_THEME.textMuted, fontSize: 12, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
-                Piso general por tipo. Si la maquinaria distingue capacidad, ajusta también su bloque específico más abajo.
+                Piso general por tipo. Si la maquinaria distingue especificación (capacidad/peso/etc.), se gestiona en su bloque específico más abajo.
               </div>
               <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
                 <span>Maquinaria</span>
@@ -533,7 +537,7 @@ function AdminPricingScreen() {
                 <span>Máx (CLP)</span>
                 <span>Sugerido</span>
               </div>
-              {Object.keys(prices.per_hour || {}).map(id => <PriceRow key={id} type="per_hour" machineId={id} />)}
+              {perHourIds.map(id => <PriceRow key={id} type="per_hour" machineId={id} />)}
             </div>
 
             <div style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', border: `1px solid ${ADMIN_THEME.border}` }}>
@@ -556,7 +560,7 @@ function AdminPricingScreen() {
                 <span>Máx (CLP)</span>
                 <span>Sugerido</span>
               </div>
-              {Object.keys(prices.per_service || {}).map(id => <PriceRow key={id} type="per_service" machineId={id} />)}
+              {perServiceIds.map(id => <PriceRow key={id} type="per_service" machineId={id} />)}
             </div>
 
             {capacityMachineIds.length > 0 && (
@@ -564,6 +568,7 @@ function AdminPricingScreen() {
                 {capacityMachineIds.map((machineId) => {
                   const capacityConfig = getMachineryCapacityOptions(machineId);
                   const capacityKeys = Object.keys((prices.by_capacity || {})[machineId] || {});
+                  const specLabel = getProviderSpecLabel(machineId);
                   return (
                     <div
                       key={machineId}
@@ -587,11 +592,11 @@ function AdminPricingScreen() {
                           </div>
                         </div>
                         <div style={{ color: ADMIN_THEME.textMuted, fontSize: 12 }}>
-                          {capacityConfig?.providerLabel || 'Capacidad'}
+                          {specLabel || capacityConfig?.providerLabel || 'Especificación'}
                         </div>
                       </div>
                       <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
-                        <span>{capacityConfig?.providerLabel || 'Capacidad'}</span>
+                        <span>{specLabel || capacityConfig?.providerLabel || 'Especificación'}</span>
                         <span>Mín (CLP)</span>
                         <span>Máx (CLP)</span>
                         <span>Sugerido</span>

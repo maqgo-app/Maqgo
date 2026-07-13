@@ -72,14 +72,21 @@ async def admin_set_google_maps_config(
 CAPACITY_REFERENCE_CONFIG = {
     "retroexcavadora": {"options": [0.4, 0.5, 0.6], "anchor": 0.5},
     "excavadora": {"options": [20, 25, 30, 35], "anchor": 25},
+    "excavadora_hidraulica": {"options": [20, 25, 30, 35], "anchor": 25},
     "bulldozer": {"options": [180, 200, 220, 250], "anchor": 200},
     "motoniveladora": {"options": [3, 3.5, 4], "anchor": 3.5},
     "grua": {"options": [25, 30, 35, 40], "anchor": 30},
     "compactadora": {"options": [5, 6, 8, 10], "anchor": 6},
+    "rodillo": {"options": [5, 6, 8, 10], "anchor": 6},
     "minicargador": {"options": [0.4, 0.5], "anchor": 0.4},
     "camion_pluma": {"options": [8, 10, 12, 15, 18], "anchor": 12},
     "camion_aljibe": {"options": [8000, 10000, 12000, 15000], "anchor": 10000},
     "camion_tolva": {"options": [12, 14, 16, 18, 20], "anchor": 16},
+}
+
+BASE_PRICE_ALIAS = {
+    "excavadora_hidraulica": "excavadora",
+    "rodillo": "compactadora",
 }
 
 TRANSPORT_REFERENCE_DEFAULT = {
@@ -208,6 +215,10 @@ def _build_capacity_reference_defaults() -> dict:
     result = {}
     for machine_id, config in CAPACITY_REFERENCE_CONFIG.items():
         base = REFERENCE_PRICES_PER_HOUR.get(machine_id) or REFERENCE_PRICES_PER_SERVICE.get(machine_id)
+        if not base:
+            alias = BASE_PRICE_ALIAS.get(machine_id)
+            if alias:
+                base = REFERENCE_PRICES_PER_HOUR.get(alias) or REFERENCE_PRICES_PER_SERVICE.get(alias)
         if not base:
             continue
         anchor = float(config.get("anchor") or 1)
