@@ -179,12 +179,11 @@ function TermsScreen() {
             contratadas y la urgencia del servicio. Este monto se muestra claramente 
             en el desglose antes de confirmar la reserva.
           </p>
-          <p>La bonificación se traslada al proveedor como ingreso adicional por su disponibilidad.</p>
         </Section>
 
         <Section title="5. Comunicación">
           <p>
-            Durante el servicio, revisa el estado del servicio y los avisos dentro de la app.
+            Durante el servicio, revisa el estado del servicio y el Centro de Avisos dentro de la app.
           </p>
         </Section>
 
@@ -248,6 +247,9 @@ function TermsScreen() {
           </p>
           <p style={{ marginBottom: 12 }}>
             <strong>GPS del operador:</strong> El GPS del operador no define por sí solo la ubicación base de la maquinaria, ya que el operador puede encontrarse en un punto distinto al equipo.
+          </p>
+          <p style={{ marginBottom: 12 }}>
+            Es importante que el operador mantenga el GPS activado al iniciar el servicio y lo desactive al finalizarlo, con el objetivo de contar con un respaldo secundario.
           </p>
           <p>
             <strong>Del cliente:</strong> Proporcionar acceso seguro al lugar de trabajo, 
