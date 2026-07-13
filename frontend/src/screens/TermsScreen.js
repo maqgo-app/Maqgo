@@ -183,7 +183,7 @@ function TermsScreen() {
 
         <Section title="5. Comunicación">
           <p>
-            Durante el servicio, revisa el estado del servicio y el Centro de Avisos dentro de la app.
+            Durante el servicio, revisa el estado del servicio en el Centro de Avisos dentro de la app. Además, recibirás notificaciones push y, cuando corresponda, mensajes SMS según el estado del servicio.
           </p>
         </Section>
 
