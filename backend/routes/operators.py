@@ -127,6 +127,16 @@ def _to_utc(dt):
     return dt
 
 
+def _owner_display_name(owner: dict | None) -> str:
+    if not owner:
+        return "Tu empresa"
+    razon = str(owner.get("razon_social") or "").strip()
+    if razon:
+        return razon
+    name = str(owner.get("name") or "").strip()
+    return name or "Tu empresa"
+
+
 @router.post("/invite")
 async def create_invitation(
     data: InvitationCreate,
@@ -167,7 +177,7 @@ async def create_invitation(
     invitation = {
         "code": code,
         "owner_id": data.owner_id,
-        "owner_name": owner.get("name", ""),
+        "owner_name": _owner_display_name(owner),
         "operator_name": data.operator_name,
         "operator_phone": data.operator_phone,
         "operator_rut": operator_rut,
@@ -249,7 +259,7 @@ async def create_invitations_batch(
         invitation = {
             "code": code,
             "owner_id": data.owner_id,
-            "owner_name": owner.get("name", ""),
+            "owner_name": _owner_display_name(owner),
             "operator_name": name,
             "operator_phone": phone,
             "operator_rut": rut,
@@ -390,14 +400,14 @@ async def use_invitation(data: InvitationUse):
             },
         )
 
-        owner = await db.users.find_one({"id": invitation["owner_id"]}, {"_id": 0, "name": 1})
+        owner = await db.users.find_one({"id": invitation["owner_id"]}, {"_id": 0, "name": 1, "razon_social": 1})
 
         response = {
             "success": True,
             "operator_id": operator_id,
             "owner_id": invitation["owner_id"],
-            "owner_name": owner.get("name", "Tu empresa") if owner else "Tu empresa",
-            "message": f"¡Bienvenido! Ya estás vinculado a {owner.get('name', 'tu empresa') if owner else 'tu empresa'}",
+            "owner_name": _owner_display_name(owner),
+            "message": f"¡Bienvenido! Ya estás vinculado a {_owner_display_name(owner)}",
         }
         return response
     except HTTPException:
@@ -593,7 +603,7 @@ async def create_master_invitation(
     invitation = {
         "code": code,
         "owner_id": data.owner_id,
-        "owner_name": owner.get("name", ""),
+        "owner_name": _owner_display_name(owner),
         "invite_type": "master",  # Tipo de invitación
         "master_name": data.master_name,
         "master_last_name": data.master_last_name,
@@ -731,14 +741,14 @@ async def use_master_invitation(data: MasterInvitationUse):
             },
         )
 
-        owner = await db.users.find_one({"id": invitation["owner_id"]}, {"_id": 0, "name": 1})
+        owner = await db.users.find_one({"id": invitation["owner_id"]}, {"_id": 0, "name": 1, "razon_social": 1})
 
         return {
             "success": True,
             "master_id": master_id,
             "owner_id": invitation["owner_id"],
-            "owner_name": owner.get("name", "Tu empresa") if owner else "Tu empresa",
-            "message": f"¡Bienvenido Master! Ya estás vinculado a {owner.get('name', 'tu empresa') if owner else 'tu empresa'}",
+            "owner_name": _owner_display_name(owner),
+            "message": f"¡Bienvenido Master! Ya estás vinculado a {_owner_display_name(owner)}",
         }
     except HTTPException:
         raise
