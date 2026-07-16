@@ -329,17 +329,6 @@ function ProviderOptionsScreen({ previewPublic = false }) {
     }
   });
 
-  useEffect(() => {
-    if (availabilityWatchEnabled) return;
-    try {
-      if (localStorage.getItem('maqgo_availability_watch_enabled') === '1') {
-        setAvailabilityWatchEnabled(true);
-      }
-    } catch {
-      void 0;
-    }
-  }, [availabilityWatchEnabled, pathname]);
-
   const enableAvailabilityWatch = useCallback(async () => {
     setAvailabilityWatchEnabled(true);
     try {
@@ -347,50 +336,45 @@ function ProviderOptionsScreen({ previewPublic = false }) {
     } catch {
       void 0;
     }
+
+    let msg = 'Listo. Verás aquí las opciones cuando aparezcan.';
+
+    if (canUseNotifications) {
+      try {
+        if (Notification.permission === 'denied') {
+          msg = 'Aviso activado. Para notificaciones, habilítalas en tu navegador.';
+        } else if (Notification.permission === 'default') {
+          const r = await requestPushPermissionAndSubscribe();
+          if (r?.denied) {
+            msg = 'Aviso activado. Si quieres notificaciones, permite notificaciones en el navegador.';
+          } else if (r?.success) {
+            msg = 'Aviso activado. Te enviaremos una notificación si aparecen opciones.';
+          }
+        } else if (Notification.permission === 'granted') {
+          const r = await ensurePushSubscribedIfGranted();
+          if (r?.success) {
+            msg = 'Aviso activado. Te enviaremos una notificación si aparecen opciones.';
+          }
+        }
+      } catch {
+        void 0;
+      }
+    }
+
     setAvailabilityToast({
       kind: 'enabled',
-      message: 'Listo. Verás aquí las opciones cuando aparezcan.',
+      message: msg,
     });
-
-    if (!canUseNotifications) return;
-    try {
-      if (Notification.permission === 'denied') {
-        setAvailabilityToast({
-          kind: 'enabled',
-          message: 'Aviso activado. Para notificaciones, habilítalas en tu navegador.',
-        });
-        return;
-      }
-
-      if (Notification.permission === 'default') {
-        const r = await requestPushPermissionAndSubscribe();
-        if (r?.denied) {
-          setAvailabilityToast({
-            kind: 'enabled',
-            message: 'Aviso activado. Si quieres notificaciones, permite notificaciones en el navegador.',
-          });
-        } else if (r?.success) {
-          setAvailabilityToast({
-            kind: 'enabled',
-            message: 'Aviso activado. Te enviaremos una notificación si aparecen opciones.',
-          });
-        }
-        return;
-      }
-
-      if (Notification.permission === 'granted') {
-        const r = await ensurePushSubscribedIfGranted();
-        if (r?.success) {
-          setAvailabilityToast({
-            kind: 'enabled',
-            message: 'Aviso activado. Te enviaremos una notificación si aparecen opciones.',
-          });
-        }
-      }
-    } catch {
-      void 0;
-    }
   }, [canUseNotifications]);
+
+  useEffect(() => {
+    if (!availabilityToast) return;
+    if (availabilityToast.kind !== 'enabled') return;
+    const timer = setTimeout(() => {
+      setAvailabilityToast(null);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [availabilityToast]);
 
   useEffect(() => {
     const count = Array.isArray(filteredProviders) ? filteredProviders.length : 0;
@@ -476,8 +460,9 @@ function ProviderOptionsScreen({ previewPublic = false }) {
     }
   }, [selectedMachinery]);
 
-  const fetchProviders = useCallback(async () => {
-    setLoading(true);
+  const fetchProviders = useCallback(async (options = {}) => {
+    const { silent = false } = options;
+    if (!silent) setLoading(true);
     setEmptyState(false);
     setEmptyKind('');
     // Usar la ubicación exacta ingresada en ServiceLocationScreen.
@@ -566,7 +551,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
         }))
       );
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [selectedMachinery, needsTransport, calculateTotalPrice, getDemoProvidersFallback, sanitizeProviders]);
 
@@ -586,7 +571,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
         return;
       }
       try {
-        await fetchProviders();
+        await fetchProviders({ silent: true });
       } catch {
         void 0;
       }
