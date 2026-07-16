@@ -48,20 +48,16 @@ function PrivacyScreen() {
 
         <Section title="1. Qué datos guardamos">
           <p style={{ marginBottom: 12 }}>
-            <strong>Datos de registro:</strong> nombre, RUT, correo electrónico, número de 
-            teléfono y dirección.
+            <strong>Datos de registro:</strong> nombre, RUT, correo electrónico, número de teléfono y dirección.
           </p>
           <p style={{ marginBottom: 12 }}>
-            <strong>Datos de facturación:</strong> razón social, giro tributario y dirección 
-            comercial para clientes y proveedores.
+            <strong>Datos de facturación:</strong> razón social, giro tributario y dirección comercial para clientes y proveedores.
           </p>
           <p style={{ marginBottom: 12 }}>
-            <strong>Datos de ubicación:</strong> coordenadas de la obra para clientes y 
-            ubicación durante servicios activos para operadores.
+            <strong>Datos de ubicación:</strong> coordenadas de la obra para clientes y ubicación durante servicios activos para operadores.
           </p>
           <p>
-            <strong>Datos de uso:</strong> historial de servicios, preferencias de búsqueda 
-            y uso de la aplicación.
+            <strong>Datos de uso:</strong> historial de servicios, preferencias de búsqueda y uso de la aplicación.
           </p>
         </Section>
 
@@ -79,17 +75,13 @@ function PrivacyScreen() {
 
         <Section title="3. Datos compartidos para facturación">
           <p>
-            El proveedor factura a MAQGO (no al cliente) por: neto + IVA menos la tarifa por servicio. 
-            Para ello, le facilitamos los datos tributarios de MAQGO. El cliente proporciona 
-            sus datos para que MAQGO emita su factura. Los datos se comparten únicamente 
-            cuando corresponde para cada facturación.
+            El proveedor factura a MAQGO (no al cliente) por: neto + IVA menos la tarifa por servicio. Para ello, le facilitamos los datos tributarios de MAQGO. El cliente proporciona sus datos para que MAQGO emita su factura. Los datos se comparten únicamente cuando corresponde para cada facturación.
           </p>
         </Section>
 
         <Section title="4. Avisos y registros del servicio">
           <p style={{ marginBottom: 12 }}>
-            Los registros del servicio (avisos y estados) se almacenan para operar el servicio 
-            y resolver eventuales disputas.
+            Los registros del servicio (avisos y estados) se almacenan para operar el servicio y resolver eventuales disputas.
           </p>
           <p>
             Los registros se eliminan automáticamente según la política de retención aplicable.
@@ -98,39 +90,49 @@ function PrivacyScreen() {
 
         <Section title="5. Pagos y datos financieros">
           <p style={{ marginBottom: 12 }}>
-            Los pagos van por Transbank Webpay. Tu tarjeta queda segura con ellos; nosotros 
-            solo vemos que el pago se hizo.
+            Los pagos van por Transbank Webpay. Tu tarjeta queda segura con ellos; nosotros solo vemos que el pago se hizo.
           </p>
           <p>
-            Los datos bancarios de los proveedores (para depósito de pagos) se almacenan 
-            de forma encriptada y son accesibles únicamente para el procesamiento de pagos.
+            Los datos bancarios de los proveedores (para depósito de pagos) se almacenan de forma encriptada y son accesibles únicamente para el procesamiento de pagos.
           </p>
         </Section>
 
         <Section title="6. Ubicación">
           <p style={{ marginBottom: 12 }}>
-            <strong>Clientes:</strong> la ubicación de la obra se utiliza para asignar 
-            proveedores cercanos y calcular tiempos de llegada estimados.
+            <strong>Clientes:</strong> la ubicación de la obra se utiliza para asignar proveedores cercanos y calcular tiempos de llegada estimados.
           </p>
           <p>
-            <strong>Operadores:</strong> usamos tu ubicación solo cuando tienes un servicio 
-            activo, para avisar al cliente cuánto falta para llegar.
+            <strong>Operadores:</strong> usamos tu ubicación solo cuando tienes un servicio activo, para avisar al cliente cuánto falta para llegar.
           </p>
         </Section>
 
         <Section title="7. Seguridad">
           <p>
-            Implementamos medidas técnicas y organizativas para proteger tu información 
-            contra acceso no autorizado, alteración o destrucción. Esto incluye encriptación 
-            de datos sensibles, acceso restringido a información personal y monitoreo 
-            continuo de nuestros sistemas.
+            Implementamos medidas técnicas y organizativas para proteger tu información contra acceso no autorizado, alteración o destrucción. Esto incluye encriptación de datos sensibles, acceso restringido a información personal y monitoreo continuo de nuestros sistemas.
           </p>
         </Section>
 
         <Section title="8. Contacto">
           <p>
-            Para ejercer tus derechos o realizar consultas sobre el tratamiento de tus 
-            datos personales, contáctanos desde Soporte dentro de la app.
+            Para ejercer tus derechos o realizar consultas sobre el tratamiento de tus datos personales, contáctanos desde Soporte dentro de la app.
+          </p>
+        </Section>
+
+        <Section title="9. Conservación de la información">
+          <p>
+            Conservamos tu información por el tiempo que sea necesario para operar la plataforma y cumplir nuestras obligaciones legales y operativas.
+          </p>
+        </Section>
+
+        <Section title="10. Cambios a esta Política">
+          <p>
+            Podremos actualizar esta Política de Privacidad cuando sea necesario para mejorar la plataforma, incorporar nuevas funcionalidades o cumplir cambios legales. Cuando los cambios sean relevantes, los informaremos oportunamente a través de la aplicación o por los medios de contacto registrados.
+          </p>
+        </Section>
+
+        <Section title="11. Legislación aplicable">
+          <p>
+            Esta Política de Privacidad se rige por las leyes de la República de Chile.
           </p>
         </Section>
 
