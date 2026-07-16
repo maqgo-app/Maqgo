@@ -104,15 +104,20 @@ function ProviderChangePhoneScreen() {
         </p>
 
         {step === 'phone' ? (
-          <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              startChange();
+            }}
+            style={{ display: 'contents' }}
+          >
             <LoginPhoneChileInput value={phoneDigits} onChange={setPhoneDigits} />
             {inlineError ? <p style={{ color: '#f44336', fontSize: 12, marginTop: 10 }}>{inlineError}</p> : null}
             <button
-              type="button"
+              type="submit"
               className="maqgo-btn-primary"
               style={{ width: '100%', marginTop: 16 }}
               disabled={loading || !isPhoneValid}
-              onClick={() => startChange()}
             >
               {loading ? 'Enviando…' : 'Enviar código SMS'}
             </button>
@@ -125,17 +130,27 @@ function ProviderChangePhoneScreen() {
             >
               Volver
             </button>
-          </>
+          </form>
         ) : (
-          <>
-            <OtpSixDigitsInput value={otpCode} onChange={setOtpCode} testIdPrefix="provider-change-phone-otp" />
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              verifyChange();
+            }}
+            style={{ display: 'contents' }}
+          >
+            <OtpSixDigitsInput 
+              value={otpCode} 
+              onChange={setOtpCode} 
+              testIdPrefix="provider-change-phone-otp" 
+              name="one-time-code"
+            />
             {inlineError ? <p style={{ color: '#f44336', fontSize: 12, marginTop: 10 }}>{inlineError}</p> : null}
             <button
-              type="button"
+              type="submit"
               className="maqgo-btn-primary"
               style={{ width: '100%', marginTop: 16 }}
               disabled={loading || !isOtpValid}
-              onClick={() => verifyChange()}
             >
               {loading ? 'Verificando…' : 'Confirmar cambio'}
             </button>
@@ -152,7 +167,7 @@ function ProviderChangePhoneScreen() {
             >
               Corregir número
             </button>
-          </>
+          </form>
         )}
       </div>
     </div>

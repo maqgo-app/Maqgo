@@ -160,7 +160,7 @@ function OtpSixDigitsInput({
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
-          autoComplete={i === 0 ? autoComplete : 'off'}
+          autoComplete={autoComplete}
           maxLength={1}
           value={code[i] ?? ''}
           onChange={handleCellChange(i)}

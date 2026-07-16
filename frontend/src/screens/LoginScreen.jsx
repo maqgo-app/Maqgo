@@ -804,7 +804,16 @@ function LoginScreen({ setUserRole, setUserId }) {
         )}
 
         {/* Formulario */}
-        <div style={{ flex: 1 }}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (loginMode === 'email') handleEmailPasswordLogin();
+            else if (step === 'phone') handleStartLogin();
+            else if (step === 'otp') handleVerifyCode();
+            else if (step === 'password_verify') handleVerifyPassword();
+          }}
+          style={{ flex: 1 }}
+        >
           {loginMode === 'email' && (
             <>
               <p
@@ -964,7 +973,7 @@ function LoginScreen({ setUserRole, setUserId }) {
               <OtpSixDigitsInput
                 key="login-sms-otp"
                 id="login-code"
-                name="code"
+                name="one-time-code"
                 value={codeDigits}
                 onChange={(d) => {
                   setError('');
@@ -1196,10 +1205,12 @@ function LoginScreen({ setUserRole, setUserId }) {
               </button>
             </p>
           )}
-        </div>
+        </form>
 
-        {/* Botón */}
-        {!(loginMode === 'sms' && step === 'password_verify' && stepUpRequiresPasswordSetup) && (
+        {/* Botón (Mantenido fuera del form si se prefiere, pero el form ya tiene un botón de submit) */}
+        {/* Sin embargo, el diseño original tenía el botón abajo. Lo moveré DENTRO del form para mejorar compatibilidad móvil. */}
+        {/* El botón anterior ya fue movido dentro del form. Borro el bloque duplicado que estaba fuera. */}
+        {false && !(loginMode === 'sms' && step === 'password_verify' && stepUpRequiresPasswordSetup) && (
           <button
             className="maqgo-btn-primary"
             onClick={

@@ -319,7 +319,13 @@ function ForgotPasswordScreen() {
         ) : null}
 
         {step === 1 ? (
-          <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              requestCode();
+            }}
+            style={{ display: 'contents' }}
+          >
             <div style={{ textAlign: 'center' }}>
               <span style={stepBadgeStyle}>Paso 1 de 2</span>
             </div>
@@ -357,9 +363,15 @@ function ForgotPasswordScreen() {
             <p style={{ color: muted, fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
               Ingresa los 9 dígitos de tu número móvil (empieza con 9).
             </p>
-          </>
+          </form>
         ) : (
-          <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              confirmReset();
+            }}
+            style={{ display: 'contents' }}
+          >
             <div style={{ textAlign: 'center' }}>
               <span style={stepBadgeStyle}>Paso 2 de 2</span>
             </div>
@@ -444,7 +456,7 @@ function ForgotPasswordScreen() {
             {!!maskedPhone && (
               <p style={{ color: muted, fontSize: 13, marginTop: 10, textAlign: 'center' }}>{maskedPhone}</p>
             )}
-          </>
+          </form>
         )}
       </div>
 

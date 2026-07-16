@@ -56,7 +56,14 @@ def _get_webotp_domains() -> list[str]:
 
 
 WEBOTP_DOMAINS = _get_webotp_domains()
-SMS_MESSAGE = "{otp}\n\nMAQGO - Código de verificación. Expira en 5 minutos."
+
+def _build_sms_message(otp: str) -> str:
+    """
+    Construye el mensaje SMS optimizado para auto-lectura en iOS/Android
+    y soporte de Web OTP API (@dominio #codigo).
+    """
+    domain = WEBOTP_DOMAINS[0] if WEBOTP_DOMAINS else "www.maqgo.cl"
+    return f"MAQGO: {otp} es tu código de verificación. No lo compartas.\n\n@{domain} #{otp}"
 
 REDIS_URL = os.environ.get("REDIS_URL", "")
 LABSMOBILE_USERNAME = os.environ.get("LABSMOBILE_USERNAME", "")
@@ -259,7 +266,7 @@ def send_otp(phone_number: str, channel: str = "sms") -> dict:
                 logger.warning("REDIS_RATE_CHECK_ERROR %s", e)
 
             if not recent and count < RATE_LIMIT_MAX:
-                ok, err = send_sms(phone, SMS_MESSAGE.format(otp=existing))
+                ok, err = send_sms(phone, _build_sms_message(existing))
                 logger.info("SMS_RESEND_RESULT ok=%s phone=%s err=%s", ok, _phone_tail(phone), err)
                 if ok:
                     resent = True
@@ -329,7 +336,7 @@ def send_otp(phone_number: str, channel: str = "sms") -> dict:
         }
 
     # Enviar SMS
-    ok, err = send_sms(phone, SMS_MESSAGE.format(otp=otp))
+    ok, err = send_sms(phone, _build_sms_message(otp))
     logger.info("SMS_SEND_RESULT ok=%s phone=%s err=%s", ok, _phone_tail(phone), err)
 
     if not ok:

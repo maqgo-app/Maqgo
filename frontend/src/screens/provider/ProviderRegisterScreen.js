@@ -935,7 +935,13 @@ function ProviderRegisterScreen() {
         <MaqgoLogo size="medium" style={{ marginBottom: step === 'phone' ? 28 : 24 }} />
 
         {step === 'phone' && (
-          <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handlePhoneSubmit(phoneDigits);
+            }}
+            style={{ display: 'contents' }}
+          >
             <h1
               style={{
                 color: '#fff',
@@ -1050,11 +1056,17 @@ function ProviderRegisterScreen() {
               Si tu celular ya está verificado en MAQGO, continúas directo con tu alta de proveedor.
               Si no, te enviaremos un código SMS; empresa, máquina y banco los completas después en el panel.
             </p>
-          </>
+          </form>
         )}
 
         {step === 'otp' && (
-          <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              verifyOtpAndContinue();
+            }}
+            style={{ display: 'contents' }}
+          >
             <h2
               style={{
                 color: '#fff',
@@ -1110,7 +1122,7 @@ function ProviderRegisterScreen() {
             <OtpSixDigitsInput
               key="provider-reg-otp"
               id="provider-reg-otp"
-              name="code"
+              name="one-time-code"
               value={otpDigits}
               onChange={(d) => {
                 setOtpCode(d);
@@ -1139,11 +1151,17 @@ function ProviderRegisterScreen() {
                 {resendCooldown > 0 ? `Reenviar en ${resendCooldown}s` : 'Reenviar código'}
               </button>
             </p>
-          </>
+          </form>
         )}
 
         {step === 'details' && (
-          <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSubmitRegister();
+            }}
+            style={{ display: 'contents' }}
+          >
             <h2
               style={{
                 color: '#fff',
@@ -1272,14 +1290,14 @@ function ProviderRegisterScreen() {
                 <button
                   type="button"
                   className="maqgo-link"
-                  onClick={() => navigate('/privacy')}
+                  onClick={handleBackToWelcome}
                   style={{ padding: 0, border: 'none', background: 'none', font: 'inherit', cursor: 'pointer' }}
                 >
                   Política de Privacidad
                 </button>
               </span>
             </div>
-          </>
+          </form>
         )}
 
         <button
