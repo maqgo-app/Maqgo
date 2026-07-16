@@ -135,15 +135,6 @@ function PrivacyScreen() {
             Esta Política de Privacidad se rige por las leyes de la República de Chile.
           </p>
         </Section>
-
-        <p style={{ 
-          color: 'rgba(255,255,255,0.5)', 
-          fontSize: 12, 
-          textAlign: 'center',
-          marginTop: 32 
-        }}>
-          Última actualización: Enero 2026
-        </p>
       </div>
     </div>
   );
