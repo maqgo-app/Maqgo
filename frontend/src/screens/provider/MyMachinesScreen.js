@@ -453,14 +453,16 @@ function MyMachinesScreen() {
                 const machineMainPrice = machine.pricePerHour ?? machine.pricePerService ?? null;
                 const machineNeedsTransport = needsTransport(machine.machineryType || machine.type);
                 const hasMainPrice = Number(machineMainPrice) > 0;
-                const hasTransport = Number(machine.transportCost) > 0;
+                const hasTransport = Number(machine.transportSameComuna || machine.transportCost) > 0;
                 const isPerHour = !!machine.pricePerHour;
                 const handleEditPricing = () => {
                    vibrate('tap');
                    setEditPricingModal({
                      machine,
                      priceVal: (machine.pricePerHour || machine.pricePerService || 0).toString(),
-                     transportVal: (machine.transportCost || 0).toString(),
+                     transportSameComuna: (machine.transportSameComuna || machine.transportCost || 0).toString(),
+                     transportSameRegion: (machine.transportSameRegion || machine.transportCost || 0).toString(),
+                     transportOtherRegion: (machine.transportOtherRegion || machine.transportSameRegion || machine.transportCost || 0).toString(),
                      isPerHour: !!machine.pricePerHour
                    });
                  };
@@ -485,9 +487,9 @@ function MyMachinesScreen() {
                         onClick={handleEditPricing}
                         style={{ cursor: 'pointer' }}
                       >
-                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '0 0 4px', textTransform: 'uppercase' }}>Traslado</p>
+                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: '0 0 4px', textTransform: 'uppercase' }}>Traslado (m. comuna)</p>
                         <p style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          {hasTransport ? formatPrice(machine.transportCost) : 'Sin definir'}
+                          {hasTransport ? formatPrice(machine.transportSameComuna || machine.transportCost) : 'Sin definir'}
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2">
                             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/>
                           </svg>
@@ -597,7 +599,9 @@ function MyMachinesScreen() {
                 onClick={() => setEditPricingModal({
                   machine,
                   priceVal: (machine.pricePerHour || machine.pricePerService || 0).toString(),
-                  transportVal: (machine.transportCost || 0).toString(),
+                  transportSameComuna: (machine.transportSameComuna || machine.transportCost || 0).toString(),
+                  transportSameRegion: (machine.transportSameRegion || machine.transportCost || 0).toString(),
+                  transportOtherRegion: (machine.transportOtherRegion || machine.transportSameRegion || machine.transportCost || 0).toString(),
                   isPerHour: !!machine.pricePerHour
                 })}
                 style={{
@@ -617,7 +621,9 @@ function MyMachinesScreen() {
         <EditPricingModal
           machine={editPricingModal.machine}
           priceVal={editPricingModal.priceVal}
-          transportVal={editPricingModal.transportVal}
+          transportSameComuna={editPricingModal.transportSameComuna}
+          transportSameRegion={editPricingModal.transportSameRegion}
+          transportOtherRegion={editPricingModal.transportOtherRegion}
           isPerHour={editPricingModal.isPerHour}
           onSave={(updates) => savePricing(editPricingModal.machine.id, updates)}
           onClose={() => setEditPricingModal(null)}
@@ -653,29 +659,55 @@ function MyMachinesScreen() {
   );
 }
 
-function EditPricingModal({ machine, priceVal: initialPrice, transportVal: initialTransport, isPerHour, onSave, onClose }) {
+function EditPricingModal({ machine, priceVal: initialPrice, transportSameComuna: initialSameComuna, transportSameRegion: initialSameRegion, transportOtherRegion: initialOtherRegion, isPerHour, onSave, onClose }) {
   const [priceVal, setPriceVal] = useState(initialPrice);
-  const [transportVal, setTransportVal] = useState(initialTransport);
+  const [transportSameComuna, setTransportSameComuna] = useState(initialSameComuna);
+  const [transportSameRegion, setTransportSameRegion] = useState(initialSameRegion);
+  const [transportOtherRegion, setTransportOtherRegion] = useState(initialOtherRegion);
   const [error, setError] = useState('');
   const machineNeedsTransport = needsTransport(machine.machineryType || machine.type);
   const machineryId = toMachineryId(machine.machineryType || machine.type);
   const refPrice = REFERENCE_PRICES[machineryId] || 80000;
   const maxPrice = Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT);
   const maxTransport = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
+  
   const priceNum = parseInt(priceVal.replace(/\D/g, '')) || 0;
-  const transportNum = parseInt(transportVal.replace(/\D/g, '')) || 0;
+  const sameComunaNum = parseInt(transportSameComuna.replace(/\D/g, '')) || 0;
+  const sameRegionNum = parseInt(transportSameRegion.replace(/\D/g, '')) || 0;
+  const otherRegionNum = parseInt(transportOtherRegion.replace(/\D/g, '')) || 0;
+
   const minPrice = isPerHour ? 20000 : 100000;
   const priceAlert = priceNum >= minPrice ? getPriceAlert(priceNum, refPrice) : null;
-  const transportAlert = machineNeedsTransport && transportNum >= 15000 ? getTransportAlert(transportNum) : null;
+  const transportAlert = machineNeedsTransport && sameComunaNum >= 15000 ? getTransportAlert(sameComunaNum) : null;
 
   const handleSave = () => {
     setError('');
     if (priceNum < 20000) { setError('El valor mínimo es $20.000'); return; }
     if (priceNum > maxPrice) { setError(`El valor máximo es ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(maxPrice)}.`); return; }
-    if (machineNeedsTransport && (transportNum < 0 || transportNum > maxTransport)) { setError(`El traslado máximo es ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(maxTransport)}.`); return; }
+    
+    if (machineNeedsTransport) {
+      if (sameComunaNum < 0 || sameComunaNum > maxTransport) { setError(`El traslado máximo es ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(maxTransport)}.`); return; }
+      if (sameRegionNum < 0 || sameRegionNum > maxTransport) { setError(`El traslado máximo es ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(maxTransport)}.`); return; }
+      if (otherRegionNum < 0 || otherRegionNum > maxTransport) { setError(`El traslado máximo es ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(maxTransport)}.`); return; }
+    }
+
     const updates = isPerHour
-      ? { pricePerHour: priceNum, pricePerService: null, transportCost: machineNeedsTransport ? transportNum : 0 }
-      : { pricePerHour: null, pricePerService: priceNum, transportCost: machineNeedsTransport ? transportNum : 0 };
+      ? { 
+          pricePerHour: priceNum, 
+          pricePerService: null, 
+          transportCost: sameComunaNum,
+          transportSameComuna: sameComunaNum,
+          transportSameRegion: sameRegionNum,
+          transportOtherRegion: otherRegionNum
+        }
+      : { 
+          pricePerHour: null, 
+          pricePerService: priceNum, 
+          transportCost: sameComunaNum,
+          transportSameComuna: sameComunaNum,
+          transportSameRegion: sameRegionNum,
+          transportOtherRegion: otherRegionNum
+        };
     onSave(updates);
   };
 
@@ -684,7 +716,7 @@ function EditPricingModal({ machine, priceVal: initialPrice, transportVal: initi
       <div style={modalStyle} onClick={e => e.stopPropagation()}>
         <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: '0 0 6px' }}>Editar precios netos</h3>
         <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: '0 0 8px' }}>{machine.type} · {machine.brand}</p>
-              {/* Mensaje de tracción general eliminado; se usan solo alertas de precio contextuales */}
+        
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>
             {isPerHour ? 'Valor por hora neto (CLP, sin IVA)' : 'Precio por servicio neto (CLP, sin IVA)'}
@@ -696,17 +728,29 @@ function EditPricingModal({ machine, priceVal: initialPrice, transportVal: initi
             </div>
           )}
         </div>
+
         {machineNeedsTransport && (
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 6 }}>Costo de traslado neto (CLP, sin IVA)</label>
-            <input type="number" placeholder="25000" value={transportVal} onChange={e => setTransportVal(e.target.value.replace(/\D/g, ''))} className="maqgo-input" style={{ width: '100%' }} />
-            {transportAlert && (
-              <div style={{ marginTop: 8, padding: 8, borderRadius: 8, minHeight: 36, background: `${transportAlert.color}20`, border: `1px solid ${transportAlert.color}60`, display: 'flex', alignItems: 'center' }}>
-                <p style={{ color: transportAlert.color, fontSize: 13, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>{transportAlert.msg}</p>
-              </div>
-            )}
-          </div>
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4 }}>Misma comuna (CLP neto)</label>
+              <input type="number" placeholder="25000" value={transportSameComuna} onChange={e => setTransportSameComuna(e.target.value.replace(/\D/g, ''))} className="maqgo-input" style={{ width: '100%' }} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4 }}>Distinta comuna (CLP neto)</label>
+              <input type="number" placeholder="35000" value={transportSameRegion} onChange={e => setTransportSameRegion(e.target.value.replace(/\D/g, ''))} className="maqgo-input" style={{ width: '100%' }} />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4 }}>Región colindante máx 150km (CLP neto)</label>
+              <input type="number" placeholder="50000" value={transportOtherRegion} onChange={e => setTransportOtherRegion(e.target.value.replace(/\D/g, ''))} className="maqgo-input" style={{ width: '100%' }} />
+              {transportAlert && (
+                <div style={{ marginTop: 8, padding: 8, borderRadius: 8, minHeight: 36, background: `${transportAlert.color}20`, border: `1px solid ${transportAlert.color}60`, display: 'flex', alignItems: 'center' }}>
+                  <p style={{ color: transportAlert.color, fontSize: 13, fontWeight: 600, margin: 0, lineHeight: 1.4 }}>{transportAlert.msg}</p>
+                </div>
+              )}
+            </div>
+          </>
         )}
+
         {error && <p style={{ color: '#F44336', fontSize: 12, margin: '0 0 12px' }}>{error}</p>}
         <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
           <button type="button" className="maqgo-btn-secondary" onClick={onClose} style={{ flex: 1 }}>Cancelar</button>

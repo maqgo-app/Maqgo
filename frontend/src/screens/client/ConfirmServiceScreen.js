@@ -899,9 +899,34 @@ function ConfirmServiceScreen() {
 
               {/* Traslado: solo si la maquinaria lleva traslado (no camión tolva/pluma/aljibe) */}
               {!isPerTrip && (displayPricing?.transport_cost || displayPricing?.breakdown?.transport_cost || 0) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 }}>
-                  <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>Traslado</span>
-                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(displayPricing?.transport_cost || displayPricing?.breakdown?.transport_cost || 0)}</span>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, gap: 8 }}>
+                    <span style={{ color: '#fff', fontSize: 13, minWidth: 0 }}>Traslado</span>
+                    <span style={{ color: '#fff', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>{formatPriceLocal(displayPricing?.transport_cost || displayPricing?.breakdown?.transport_cost || 0)}</span>
+                  </div>
+                  
+                  {/* Detalle de tramos MAQGO */}
+                  <div style={{ 
+                    padding: '6px 8px', 
+                    background: 'rgba(255,255,255,0.03)', 
+                    borderRadius: 6, 
+                    border: '1px solid rgba(255,255,255,0.05)' 
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 9, margin: '0 0 2px' }}>Misma comuna</p>
+                        <p style={{ color: '#fff', fontSize: 11, fontWeight: 600, margin: 0 }}>{formatPriceLocal(effectiveProvider?.transport_same_comuna || effectiveProvider?.transport_fee)}</p>
+                      </div>
+                      <div style={{ flex: 1, borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: 6 }}>
+                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 9, margin: '0 0 2px' }}>Distinta comuna</p>
+                        <p style={{ color: '#fff', fontSize: 11, fontWeight: 600, margin: 0 }}>{formatPriceLocal(effectiveProvider?.transport_same_region || effectiveProvider?.transport_fee)}</p>
+                      </div>
+                      <div style={{ flex: 1, borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: 6 }}>
+                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 9, margin: '0 0 2px' }}>Región colindante</p>
+                        <p style={{ color: '#fff', fontSize: 11, fontWeight: 600, margin: 0 }}>{formatPriceLocal(effectiveProvider?.transport_other_region || effectiveProvider?.transport_same_region || effectiveProvider?.transport_fee)}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 

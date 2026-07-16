@@ -387,8 +387,22 @@ async def match_providers(
             price = int(price)
 
             needs_transport = machinery_type not in MACHINERY_NO_TRANSPORT
-            transport_configured = machine.get('transportCost')
-            transport_fee = int(transport_configured) if needs_transport and transport_configured else (int(distance * 2000) if needs_transport else 0)
+            
+            # Costos de traslado estructurados MAQGO
+            t_same_comuna = int(machine.get('transportSameComuna') or machine.get('transportCost') or 0)
+            t_same_region = int(machine.get('transportSameRegion') or machine.get('transportCost') or 0)
+            t_other_region = int(machine.get('transportOtherRegion') or machine.get('transportSameRegion') or machine.get('transportCost') or 0)
+
+            # Cálculo de tarifa efectiva para el matching según distancia
+            if not needs_transport:
+                transport_fee = 0
+            else:
+                if distance <= 2: # Misma comuna (estimado por cercanía)
+                    transport_fee = t_same_comuna
+                elif distance <= 50: # Misma región
+                    transport_fee = t_same_region
+                else: # Región colindante
+                    transport_fee = t_other_region
 
             accepted_services = int(provider.get('acceptedServices', 0) or 0)
             rejected_services = int(provider.get('rejectedServices', 0) or 0)
@@ -405,6 +419,9 @@ async def match_providers(
                 "emits_invoice": emits_invoice,
                 "price_per_hour": price,
                 "transport_fee": transport_fee,
+                "transport_same_comuna": t_same_comuna,
+                "transport_same_region": t_same_region,
+                "transport_other_region": t_other_region,
                 "distance": round(distance, 1),
                 "eta_minutes": get_eta_minutes(distance, machinery_type),
                 "rating": provider.get('rating', 4.5),
@@ -611,6 +628,9 @@ def get_demo_providers(machinery_type: str, client_lat: float, client_lng: float
             "emits_invoice": True,
             "price_per_hour": prices[0],
             "transport_fee": 25000 if needs_transport else 0,
+            "transport_same_comuna": 25000 if needs_transport else 0,
+            "transport_same_region": 35000 if needs_transport else 0,
+            "transport_other_region": 50000 if needs_transport else 0,
             **_spec_extra(0),
             "distance": 5.2,
             "eta_minutes": get_eta_minutes(5.2, machinery_type),
@@ -628,6 +648,9 @@ def get_demo_providers(machinery_type: str, client_lat: float, client_lng: float
             "emits_invoice": True,
             "price_per_hour": prices[1],
             "transport_fee": 30000 if needs_transport else 0,
+            "transport_same_comuna": 30000 if needs_transport else 0,
+            "transport_same_region": 40000 if needs_transport else 0,
+            "transport_other_region": 60000 if needs_transport else 0,
             **_spec_extra(1),
             "distance": 8.1,
             "eta_minutes": get_eta_minutes(8.1, machinery_type),
@@ -645,6 +668,9 @@ def get_demo_providers(machinery_type: str, client_lat: float, client_lng: float
             "emits_invoice": True,
             "price_per_hour": prices[2],
             "transport_fee": 22000 if needs_transport else 0,
+            "transport_same_comuna": 22000 if needs_transport else 0,
+            "transport_same_region": 32000 if needs_transport else 0,
+            "transport_other_region": 45000 if needs_transport else 0,
             **_spec_extra(2),
             "distance": 12.5,
             "eta_minutes": get_eta_minutes(12.5, machinery_type),
@@ -662,6 +688,9 @@ def get_demo_providers(machinery_type: str, client_lat: float, client_lng: float
             "emits_invoice": False,
             "price_per_hour": prices[3],
             "transport_fee": 35000 if needs_transport else 0,
+            "transport_same_comuna": 35000 if needs_transport else 0,
+            "transport_same_region": 45000 if needs_transport else 0,
+            "transport_other_region": 70000 if needs_transport else 0,
             **_spec_extra(3),
             "distance": 15.3,
             "eta_minutes": get_eta_minutes(15.3, machinery_type),
@@ -679,6 +708,9 @@ def get_demo_providers(machinery_type: str, client_lat: float, client_lng: float
             "emits_invoice": True,
             "price_per_hour": prices[4],
             "transport_fee": 20000 if needs_transport else 0,
+            "transport_same_comuna": 20000 if needs_transport else 0,
+            "transport_same_region": 28000 if needs_transport else 0,
+            "transport_other_region": 40000 if needs_transport else 0,
             **_spec_extra(4),
             "distance": 6.8,
             "eta_minutes": get_eta_minutes(6.8, machinery_type),

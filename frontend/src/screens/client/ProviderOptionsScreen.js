@@ -1380,6 +1380,38 @@ function ProviderOptionsScreen({ previewPublic = false }) {
                       Disponible aprox. en {provider.eta_minutes} min · {formatDistanceKmLabel(provider.distance)}
                     </span>
                   </div>
+
+                  {/* Detalle de traslado MAQGO */}
+                  {provider.has_transport && (
+                    <div style={{
+                      marginTop: 8,
+                      padding: '8px 10px',
+                      background: 'rgba(255,255,255,0.04)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(255,255,255,0.06)'
+                    }}>
+                      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Costos de traslado neto
+                      </p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, margin: '0 0 2px' }}>Misma comuna</p>
+                          <p style={{ color: '#fff', fontSize: 12, fontWeight: 600, margin: 0 }}>{formatPrice(provider.transport_same_comuna || provider.transport_fee)}</p>
+                        </div>
+                        <div style={{ flex: 1, borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 8 }}>
+                          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, margin: '0 0 2px' }}>Distinta comuna</p>
+                          <p style={{ color: '#fff', fontSize: 12, fontWeight: 600, margin: 0 }}>{formatPrice(provider.transport_same_region || provider.transport_fee)}</p>
+                        </div>
+                        <div style={{ flex: 1, borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 8 }}>
+                          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, margin: '0 0 2px' }}>Región colindante</p>
+                          <p style={{ color: '#fff', fontSize: 12, fontWeight: 600, margin: 0 }}>{formatPrice(provider.transport_other_region || provider.transport_same_region || provider.transport_fee)}</p>
+                        </div>
+                      </div>
+                      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, margin: '6px 0 0', fontStyle: 'italic' }}>
+                        * Máx. 150 km para región colindante.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
