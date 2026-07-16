@@ -8,6 +8,7 @@
 import { MACHINERY_NO_TRANSPORT, MACHINERY_PER_SERVICE } from './pricing';
 import { getObject } from './safeStorage';
 import BACKEND_URL, { fetchWithAuth } from './api';
+import { normalizeMachineryKey, getMachineryId } from './machineryNames';
 
 const LEGACY_STORAGE_KEY = 'providerMachines';
 
@@ -24,8 +25,7 @@ const MACHINERY_TYPES = [
   { id: 'minicargador', name: 'Minicargador' }
 ];
 
-const NO_TRANSPORT_IDS = MACHINERY_NO_TRANSPORT;
-const PER_SERVICE_IDS = MACHINERY_PER_SERVICE;
+
 
 const DEFAULT_MACHINES = [
   {
@@ -264,7 +264,7 @@ export function addMachine(machine) {
   const machines = getMachines();
   const machineryType = machine.machineryType || 'retroexcavadora';
   const typeName = MACHINERY_TYPES.find(m => m.id === machineryType)?.name || 'Retroexcavadora';
-  const isPerSvc = PER_SERVICE_IDS.includes(machineryType);
+  const isPerSvc = MACHINERY_PER_SERVICE.includes(machineryType);
   const newMachine = {
     id: machine.id || `mach_${Date.now()}`,
     machineryType,
@@ -313,7 +313,7 @@ export function upsertOnboardingMachine(machineData = {}, machinePricing = {}, o
   const machineryType = machineData?.machineryType;
   if (!machineryType) return getMachines();
 
-  const isPerSvc = PER_SERVICE_IDS.includes(machineryType);
+  const isPerSvc = MACHINERY_PER_SERVICE.includes(machineryType);
   const typeName = MACHINERY_TYPES.find(m => m.id === machineryType)?.name || machineData.type || 'Retroexcavadora';
   const brandModel = [machineData.brand, machineData.model].filter(Boolean).join(' ').trim();
   const normalizedLicense = String(machineData.licensePlate || '').trim().toUpperCase();
@@ -449,14 +449,19 @@ export function removeMachine(machineId) {
   return machines;
 }
 
+/** true si la maquinaria requiere traslado (lowboy) según política MAQGO */
 export function needsTransport(machineryType) {
-  const t = (machineryType || '').toLowerCase().replace(/\s+/g, '_');
-  return !NO_TRANSPORT_IDS.some(id => t.includes(id));
+  const key = getMachineryId(machineryType);
+  if (!key) return true; // Por defecto requiere si no se reconoce
+  // Si está en la lista de NO_TRANSPORT, entonces no requiere
+  return !MACHINERY_NO_TRANSPORT.includes(key);
 }
 
+/** true si la maquinaria se cobra por servicio/viaje (flat rate) */
 export function isPerService(machineryType) {
-  const t = (machineryType || '').toLowerCase().replace(/\s+/g, '_');
-  return PER_SERVICE_IDS.some(id => t.includes(id));
+  const key = getMachineryId(machineryType);
+  if (!key) return false;
+  return MACHINERY_PER_SERVICE.includes(key);
 }
 
 export { MACHINERY_TYPES, DEFAULT_MACHINES };

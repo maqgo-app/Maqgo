@@ -6,7 +6,7 @@ import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgr
 import { useToast } from '../../components/Toast';
 import ComunaAutocomplete from '../../components/ComunaAutocomplete';
 import { useAuth } from '../../context/authHooks';
-import { createMachineInApi, updateMachine, updateMachineInApi, getMachineById, getMachines } from '../../utils/providerMachines';
+import { createMachineInApi, updateMachine, updateMachineInApi, getMachineById, getMachines, needsTransport } from '../../utils/providerMachines';
 import { getMachineryCapacityOptions, getProviderSpecLabel } from '../../utils/machineryNames';
 import { getObject } from '../../utils/safeStorage';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
@@ -1058,7 +1058,7 @@ function MachineDataScreen() {
 
     const priceBaseNum = parseInt(String(priceBaseWizard).replace(/\D/g, ''), 10) || 0;
     const isPerHour = MACHINERY_PER_HOUR.includes(machineryType);
-    const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machineryType);
+    const isTransportNeeded = needsTransport(machineryType);
     const refPrice = REFERENCE_PRICES[machineryType] || 80000;
     const maxPrice = Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT);
     const minPrice = isPerHour ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE;
@@ -1068,13 +1068,13 @@ function MachineDataScreen() {
     }
 
     const maxTransport = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
-    const sameComunaTransport = needsTransport
+    const sameComunaTransport = isTransportNeeded
       ? parseInt(String(transportSameComunaWizard).replace(/\D/g, ''), 10) || 0
       : 0;
-    const sameRegionTransport = needsTransport
+    const sameRegionTransport = isTransportNeeded
       ? parseInt(String(transportSameRegionWizard).replace(/\D/g, ''), 10) || 0
       : 0;
-    const otherRegionTransport = needsTransport
+    const otherRegionTransport = isTransportNeeded
       ? parseInt(String(transportOtherRegionWizard).replace(/\D/g, ''), 10) || 0
       : 0;
     if (needsTransport) {
@@ -1275,7 +1275,7 @@ function MachineDataScreen() {
         setStepHint(tariffBaseRangeMessage(isPerHour, minPrice, maxPrice));
         return;
       }
-      const needsT = !MACHINERY_NO_TRANSPORT.includes(machineryType);
+      const needsT = needsTransport(machineryType);
       if (needsT) {
         const sameComunaTransport = parseInt(String(transportSameComunaWizard).replace(/\D/g, ''), 10) || 0;
         const sameRegionTransport = parseInt(String(transportSameRegionWizard).replace(/\D/g, ''), 10) || 0;
@@ -1414,8 +1414,7 @@ function MachineDataScreen() {
   const transportSameComunaNumW = parseInt(String(transportSameComunaWizard).replace(/\D/g, ''), 10) || 0;
   const transportSameRegionNumW = parseInt(String(transportSameRegionWizard).replace(/\D/g, ''), 10) || 0;
   const transportOtherRegionNumW = parseInt(String(transportOtherRegionWizard).replace(/\D/g, ''), 10) || 0;
-  const needsTransportW =
-    Boolean(form.machineryType) && !MACHINERY_NO_TRANSPORT.includes(form.machineryType);
+  const needsTransportW = needsTransport(form.machineryType);
   const maxTransportW = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
   const transportSameComunaAlertW =
     mfStep === 2 && needsTransportW ? getTransportFieldAlert(transportSameComunaNumW) : null;

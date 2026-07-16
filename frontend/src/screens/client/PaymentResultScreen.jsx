@@ -15,7 +15,8 @@ import {
 
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
-import { getClientBreakdown, MACHINERY_NO_TRANSPORT } from '../../utils/pricing';
+import { getClientBreakdown } from '../../utils/pricing';
+import { needsTransport as checkNeedsTransport } from '../../utils/providerMachines';
 import { formatPrice, formatDateShort } from '../../utils/format';
 import { getBookingLocationP5 } from '../../utils/mapPlaceToAddress';
 import { useCheckoutState } from '../../context/CheckoutContext';
@@ -117,7 +118,7 @@ function PaymentResultScreen() {
                 const hours = Math.max(MIN_HOURS_IMMEDIATE, Math.min(MAX_HOURS_IMMEDIATE, rawHours));
                 const reservationType = localStorage.getItem('reservationType') || 'immediate';
                 const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
-                const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machinery);
+                const needsTransport = checkNeedsTransport(machinery);
                 const transportCost = needsTransport ? (savedProvider.transport_fee || 0) : 0;
                 let pricingToShow = null;
                 try {
@@ -175,7 +176,7 @@ function PaymentResultScreen() {
       const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
 
       // Determinar si necesita traslado según tipo de maquinaria
-      const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machinery);
+      const needsTransport = checkNeedsTransport(machinery);
       const transportCost = needsTransport ? (savedProvider.transport_fee || 0) : 0;
 
       // Multiplicadores por hora (igual que backend)
@@ -296,7 +297,7 @@ function PaymentResultScreen() {
         const reservationType = localStorage.getItem('reservationType') || 'immediate';
         const machinery = localStorage.getItem('selectedMachinery') || 'retroexcavadora';
 
-        const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machinery);
+        const needsTransport = checkNeedsTransport(machinery);
         const transportCost = needsTransport ? (savedProvider.transport_fee || 0) : 0;
 
         const IMMEDIATE_MULTIPLIERS = { 4: 1.20, 5: 1.175, 6: 1.15, 7: 1.125, 8: 1.10 };

@@ -8,6 +8,7 @@ import BookingProgress from '../../components/BookingProgress';
 import { getObject, getArray } from '../../utils/safeStorage';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
 import { buildPricingFallback, calculateClientPrice, MACHINERY_NO_TRANSPORT, totalConFactura, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, REFERENCE_PRICES } from '../../utils/pricing';
+import { needsTransport as checkNeedsTransport } from '../../utils/providerMachines';
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getDateRangeShort as getDateRangeShortUtil } from '../../utils/bookingDates';
@@ -97,7 +98,7 @@ function ConfirmServiceScreen() {
 
   const machineryKey = (machinery || '').toLowerCase().replace(/\s+/g, '_');
   const isPerTrip = isPerTripMachineryType(machinery);
-  const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machineryKey) && !MACHINERY_NO_TRANSPORT.includes(machinery);
+  const needsTransport = checkNeedsTransport(machineryKey || machinery);
 
   const refTrip = isPerTrip ? (REFERENCE_PRICES[machineryKey] ?? REFERENCE_PRICES[machinery]) : null;
   const hoursForPricing = reservationType === 'scheduled' ? 8 : hoursToday;

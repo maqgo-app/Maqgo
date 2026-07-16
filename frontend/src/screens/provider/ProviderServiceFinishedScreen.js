@@ -8,6 +8,7 @@ import { IMMEDIATE_MULTIPLIERS, MACHINERY_PER_HOUR, MACHINERY_NO_TRANSPORT } fro
 import { MACHINERY_NAMES, getMachineryId, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getObject, getObjectFirst } from '../../utils/safeStorage';
 import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
+import { needsTransport as checkNeedsTransport } from '../../utils/providerMachines';
 
 /**
  * Pantalla: Servicio Finalizado (PROVEEDOR)
@@ -39,7 +40,7 @@ function ProviderServiceFinishedScreen() {
     const basePrice = request.base_price_hr || request.basePrice || savedProvider.price_per_hour || 80000;
     
     // Determinar si necesita traslado
-    const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machineryId);
+    const needsTransport = checkNeedsTransport(machineryId || machinery);
     const transportCost = needsTransport
       ? (request.transport_cost ?? request.transportFee ?? savedProvider.transport_fee ?? 35000)
       : 0;

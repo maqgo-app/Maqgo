@@ -12,6 +12,7 @@ import BookingProgress from '../../components/BookingProgress';
 import { ProviderOptionsSkeleton } from '../../components/ListSkeleton';
 import MaqgoTitleCard from '../../components/MaqgoTitleCard';
 
+import { needsTransport as checkNeedsTransport } from '../../utils/providerMachines';
 import BACKEND_URL from '../../utils/api';
 
 /**
@@ -148,7 +149,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
     const serviceComuna = String(localStorage.getItem('serviceComuna') || '').trim();
     const serviceLat = parseFloat(localStorage.getItem('serviceLat') || '');
     const serviceLng = parseFloat(localStorage.getItem('serviceLng') || '');
-    const hasTransport = !MACHINERY_NO_TRANSPORT.includes(selectedMachinery);
+    const hasTransport = checkNeedsTransport(selectedMachinery);
     return items
       .filter((p) => p && typeof p === 'object')
       .map((p, idx) => {
@@ -175,7 +176,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
       .filter((p) => !hasTransport || p.transport_quote_eligible !== false);
   }, [selectedMachinery]);
 
-  const needsTransport = useCallback(() => !MACHINERY_NO_TRANSPORT.includes(selectedMachinery), [selectedMachinery]);
+  const needsTransport = useCallback(() => checkNeedsTransport(selectedMachinery), [selectedMachinery]);
 
   useEffect(() => {
     if (!previewPublic) return;
