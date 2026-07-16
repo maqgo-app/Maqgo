@@ -73,7 +73,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Cómo invito operadores?',
-        a: 'Desde Máquinas, selecciona una maquinaria y usa "Agregar operador". Ingresa nombre y teléfono. El operador recibe un código de 6 dígitos por SMS. Cuando ingresa el código, queda activo y asociado a la maquinaria.'
+        a: 'Desde Máquinas, selecciona una maquinaria y usa "Agregar operador". Ingresa nombre y RUT del operador para generar un código de invitación. Compártelo con tu operador para que lo ingrese en "Soy operador (tengo código)" y active su cuenta.'
       },
       {
         q: '¿Qué ve cada rol en la app?',
@@ -107,11 +107,11 @@ const FAQ_DATA = [
     questions: [
       {
         q: '¿Qué es "Soy operador (tengo código)"?',
-        a: 'Cuando una empresa te asocia como operador de una maquinaria, recibes un código de 6 dígitos por SMS. Usa esta opción para ingresar el código y activar tu cuenta.'
+        a: 'Cuando una empresa te asocia como operador, genera un código de invitación y te lo comparte. Usa esta opción para ingresar el código y activar tu cuenta.'
       },
       {
         q: '¿Cómo me uno con mi código?',
-        a: 'En la pantalla de inicio, selecciona "Soy operador (tengo código)", ingresa el código de 6 dígitos y quedarás activo y asociado a la maquinaria. La empresa recibirá confirmación.'
+        a: 'En la pantalla de inicio, selecciona "Soy operador (tengo código)", ingresa el código de invitación y quedarás activo y asociado a la empresa. Luego iniciarás sesión con tu código SMS de MAQGO.'
       },
       {
         q: '¿Qué puedo hacer como operador?',
