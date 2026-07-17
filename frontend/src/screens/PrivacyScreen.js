@@ -102,7 +102,7 @@ function PrivacyScreen() {
             <strong>Clientes:</strong> la ubicación de la obra se utiliza para asignar proveedores cercanos y calcular tiempos de llegada estimados.
           </p>
           <p>
-            <strong>Operadores:</strong> usamos tu ubicación solo cuando tienes un servicio activo, para avisar al cliente cuánto falta para llegar.
+            <strong>Operadores:</strong> usamos tu ubicación solo cuando tienes un servicio en curso, para avisar al cliente cuánto falta para llegar.
           </p>
         </Section>
 

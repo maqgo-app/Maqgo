@@ -84,7 +84,7 @@ function ProviderServiceActiveScreen() {
             borderRadius: 20,
             letterSpacing: 1
           }}>
-            SERVICIO ACTIVO
+            Servicio en curso
           </span>
         </div>
 

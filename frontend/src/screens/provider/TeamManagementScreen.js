@@ -143,7 +143,7 @@ function TeamManagementScreen() {
   const getOperatorGpsBadge = (op) => {
     const isActive = Boolean(op?.isAvailable);
     if (!isActive) {
-      return { color: '#F44336', title: 'GPS apagado o servicio activo desactivado' };
+      return { color: '#F44336', title: 'GPS apagado o disponibilidad desactivada' };
     }
     const loc = op?.location;
     const hasCoords = Boolean(loc && typeof loc === 'object' && loc.lat != null && loc.lng != null);
@@ -265,7 +265,7 @@ function TeamManagementScreen() {
     const c = String(code || '').trim().toUpperCase();
     if (type === 'master') {
       const link = buildMasterJoinLink(c);
-      return `Tu código de activación MAQGO para GERENTE es: ${c}\n\nEste usuario debe ingresar su código de activación desde el link directo de invitación:\n${link}\n\nAhí completará su identidad y quedará activado con los permisos definidos por el TITULAR.\n\nLuego iniciará sesión con su celular usando un código SMS (MAQGO).\n\nVálido por 7 días.\nUso único (1 persona).`;
+      return `Tu código de activación MAQGO para Gerente es: ${c}\n\nEste usuario debe ingresar su código de activación desde el link directo de invitación:\n${link}\n\nAhí completará su identidad y quedará activado con los permisos definidos por el Titular.\n\nLuego iniciará sesión con su celular usando un código SMS (MAQGO).\n\nVálido por 7 días.\nUso único (1 persona).`;
     }
     const link = buildOperatorJoinLink(c);
     return `Tu código MAQGO para agregar operador es: ${c}\n\nEl operador se enrola desde la portada de MAQGO:\n1) Toca “Soy operador”\n2) Toca “Unirme con código de equipo”\n3) Ingresa el código\n\nO puede entrar directo aquí:\n${link}\n\nVálido por 7 días.`;
@@ -295,7 +295,7 @@ function TeamManagementScreen() {
       toast.error('No pudimos identificar la empresa.');
       return;
     }
-    const memberLabel = editMemberType === 'master' ? 'GERENTE' : 'OPERADOR';
+    const memberLabel = editMemberType === 'master' ? 'Gerente' : 'Operador';
     if (!editName.trim()) {
       toast.warning(`Ingresa el nombre del ${memberLabel}.`);
       return;
@@ -306,7 +306,7 @@ function TeamManagementScreen() {
     }
     const normalizedPhone = normalizeChileanMobileE164(editPhone);
     if (editMemberType === 'master' && !normalizedPhone) {
-      toast.warning('Completa un celular válido para el GERENTE.');
+      toast.warning('Completa un celular válido para el Gerente.');
       return;
     }
     if (editMemberType !== 'master' && editPhone.trim() && !normalizedPhone) {
@@ -340,7 +340,7 @@ function TeamManagementScreen() {
         }
         throw new Error(detail || `No pudimos actualizar el ${memberLabel}.`);
       }
-      toast.success(`${editMemberType === 'master' ? 'GERENTE' : 'OPERADOR'} actualizado`);
+      toast.success(`${editMemberType === 'master' ? 'Gerente' : 'Operador'} actualizado`);
       closeEditMember();
       loadTeam();
     } catch (e) {
@@ -432,13 +432,13 @@ function TeamManagementScreen() {
       } else if (inviteType === 'master') {
         const fullName = joinDisplayName(masterFirstName, masterLastName);
         if (!validatePersonRut(masterRut)) {
-          toast.warning('Ingresa un RUT de persona válido para el GERENTE. No se acepta RUT empresa.');
+          toast.warning('Ingresa un RUT de persona válido para el Gerente. No se acepta RUT empresa.');
           setInviting(false);
           return;
         }
         const normalizedPhone = normalizeChileanMobileE164(masterPhone);
         if (!masterFirstName.trim() || !masterLastName.trim() || !masterRut.trim() || !normalizedPhone) {
-          toast.warning('Completa nombre, apellido, RUT y celular del GERENTE antes de generar el código.');
+          toast.warning('Completa nombre, apellido, RUT y celular del Gerente antes de generar el código.');
           setInviting(false);
           return;
         }
@@ -535,7 +535,7 @@ function TeamManagementScreen() {
       toast.error('No pudimos identificar la empresa.');
       return;
     }
-    const memberLabel = confirmAction.memberType === 'master' ? 'GERENTE' : 'OPERADOR';
+    const memberLabel = confirmAction.memberType === 'master' ? 'Gerente' : 'Operador';
     try {
       const res = await fetchWithAuth(
         getTeamMemberEndpoint(ownerId, confirmAction.memberType, confirmAction.memberId),
@@ -565,8 +565,8 @@ function TeamManagementScreen() {
       }
       toast.success(
         confirmAction.action === 'deactivate'
-          ? `${confirmAction.memberType === 'master' ? 'GERENTE' : 'OPERADOR'} desactivado`
-          : `${confirmAction.memberType === 'master' ? 'GERENTE' : 'OPERADOR'} eliminado`
+          ? `${confirmAction.memberType === 'master' ? 'Gerente' : 'Operador'} desactivado`
+          : `${confirmAction.memberType === 'master' ? 'Gerente' : 'Operador'} eliminado`
       );
       setConfirmAction(null);
       loadTeam();
@@ -617,8 +617,8 @@ function TeamManagementScreen() {
   );
   const currentMembers = inviteType === 'master' ? (team.masters || []) : (team.operators || []);
   const currentCount = currentMembers.length;
-  const createLabel = inviteType === 'master' ? 'Crear GERENTE' : 'Crear OPERADOR';
-  const listTitle = inviteType === 'master' ? 'GERENTES creados' : 'OPERADORES creados';
+  const createLabel = inviteType === 'master' ? 'Crear Gerente' : 'Crear Operador';
+  const listTitle = inviteType === 'master' ? 'Gerentes creados' : 'Operadores creados';
   const inviteView =
     activeTab === 'invite'
       ? (requestedInviteView === 'codes' ? 'codes' : 'create')
@@ -669,8 +669,8 @@ function TeamManagementScreen() {
         },
         {
           k: 'can_delete_master',
-          label: 'Puede desactivar o eliminar GERENTE',
-          help: 'Permite quitar acceso a otros GERENTES.',
+          label: 'Puede desactivar o eliminar Gerentes',
+          help: 'Permite quitar acceso a otros Gerentes.',
         },
       ],
     },
@@ -728,8 +728,8 @@ function TeamManagementScreen() {
               ? inviteView === 'codes'
                 ? 'Códigos de activación'
                 : inviteType === 'master'
-                  ? 'Crear GERENTE'
-                  : 'Crear OPERADOR'
+                  ? 'Crear Gerente'
+                  : 'Crear Operador'
               : 'Usuarios y accesos'}
         </h1>
 
@@ -777,7 +777,7 @@ function TeamManagementScreen() {
                 cursor: 'pointer',
               }}
             >
-              GERENTE
+              Gerente
             </button>
             </div>
           </div>
@@ -931,7 +931,7 @@ function TeamManagementScreen() {
                                 fontWeight: 600,
                               }}
                             >
-                              GERENTE
+                              Gerente
                             </span>
                             <span style={{
                               padding: '4px 10px',
@@ -997,10 +997,10 @@ function TeamManagementScreen() {
                     ) : (
                       <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 18 }}>
                         <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: 0 }}>
-                          Aún no tienes GERENTES creados.
+                          Aún no tienes Gerentes creados.
                         </p>
                         <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
-                          El TITULAR no aparece aquí.
+                          El Titular no aparece aquí.
                         </p>
                       </div>
                     )}
@@ -1197,7 +1197,7 @@ function TeamManagementScreen() {
                               {inv.code}
                             </p>
                             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
-                              {inv.invite_type === 'master' ? 'Para GERENTE' : 'Para OPERADOR'}
+                              {inv.invite_type === 'master' ? 'Para Gerente' : 'Para Operador'}
                             </p>
                             {inv.invite_type === 'master' && inv.master_name && (
                               <div style={{ marginTop: 6 }}>
@@ -1382,7 +1382,7 @@ function TeamManagementScreen() {
                               {inv.code}
                             </p>
                             <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
-                              {inv.invite_type === 'master' ? 'Para GERENTE' : 'Para OPERADOR'}
+                              {inv.invite_type === 'master' ? 'Para Gerente' : 'Para Operador'}
                             </p>
                             {inv.invite_type === 'master' && inv.master_name && (
                               <div style={{ marginTop: 6 }}>
@@ -1488,7 +1488,7 @@ function TeamManagementScreen() {
                     No tienes códigos pendientes.
                   </p>
                   <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
-                    Cuando generes un código para OPERADOR o GERENTE, lo verás aquí.
+                    Cuando generes un código para Operador o Gerente, lo verás aquí.
                   </p>
                 </div>
               )
@@ -1769,7 +1769,7 @@ function TeamManagementScreen() {
                   fontSize: 13, 
                   margin: '0 0 25px'
                 }}>
-                  {inviteType === 'master' ? 'Código de activación para GERENTE' : 'Código de activación para OPERADOR'}
+                  {inviteType === 'master' ? 'Código de activación para Gerente' : 'Código de activación para Operador'}
                 </p>
 
                 {Array.isArray(batchInvites) && batchInvites.length > 1 && (
@@ -1869,7 +1869,7 @@ function TeamManagementScreen() {
                   </p>
                   <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '8px 0 10px', lineHeight: 1.45 }}>
                     {inviteType === 'master'
-                      ? 'Este link abre el enrolamiento del GERENTE y conserva los permisos definidos por el TITULAR.'
+                      ? 'Este link abre el enrolamiento del Gerente y conserva los permisos definidos por el Titular.'
                       : 'Este link abre el enrolamiento del operador. También puede entrar desde la portada de MAQGO con su código.'}
                   </p>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1973,7 +1973,7 @@ function TeamManagementScreen() {
                   </p>
                   <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '6px 0 0' }}>
                     {inviteType === 'master'
-                      ? 'El GERENTE se enrola en este link y queda creado con los permisos otorgados por el TITULAR. El SMS aparece después, al iniciar sesión con su celular.'
+                      ? 'El Gerente se enrola en este link y queda creado con los permisos otorgados por el Titular. El SMS aparece después, al iniciar sesión con su celular.'
                       : 'El operador se enrola en MAQGO desde la portada o con este link directo para quedar vinculado a tu empresa.'}
                   </p>
                 </div>
@@ -2010,7 +2010,7 @@ function TeamManagementScreen() {
               onClick={(e) => e.stopPropagation()}
             >
               <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 800, margin: '0 0 14px' }}>
-                {editMemberType === 'master' ? 'Editar GERENTE' : 'Editar OPERADOR'}
+                {editMemberType === 'master' ? 'Editar Gerente' : 'Editar Operador'}
               </h3>
               <div style={{ display: 'grid', gap: 12 }}>
                 <label style={{ display: 'grid', gap: 6 }}>
@@ -2088,8 +2088,8 @@ function TeamManagementScreen() {
           onClose={() => setConfirmAction(null)}
           title={
             confirmAction?.action === 'deactivate'
-              ? `Desactivar ${confirmAction?.memberType === 'master' ? 'GERENTE' : 'OPERADOR'}`
-              : `Eliminar ${confirmAction?.memberType === 'master' ? 'GERENTE' : 'OPERADOR'}`
+              ? `Desactivar ${confirmAction?.memberType === 'master' ? 'Gerente' : 'Operador'}`
+              : `Eliminar ${confirmAction?.memberType === 'master' ? 'Gerente' : 'Operador'}`
           }
           message={
             confirmAction?.action === 'deactivate'

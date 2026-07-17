@@ -231,7 +231,7 @@ function EnRouteScreen() {
               <div>
                 <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, letterSpacing: 0.2 }}>En ruta</div>
                 <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, marginTop: 6, lineHeight: 1.25 }}>
-                  {isOperator ? 'Camino al sitio del servicio' : 'Camino a la obra'}
+                  {isOperator ? 'En ruta al sitio del servicio' : 'En ruta a la obra'}
                 </div>
               </div>
             </div>

@@ -41,7 +41,7 @@ class AccessPolicy:
             return
         actor_company = cls.company_owner_id(actor)
         if not cls.is_owner_like(actor) or actor_company != owner_id:
-            raise HTTPException(status_code=403, detail="No autorizado para este owner")
+            raise HTTPException(status_code=403, detail="No autorizado para esta empresa")
 
     @classmethod
     def company_owner_id(cls, user: dict) -> str | None:

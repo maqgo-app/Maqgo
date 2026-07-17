@@ -68,7 +68,7 @@ function MasterJoinScreen() {
             fontFamily: "'Space Grotesk', sans-serif",
           }}
         >
-          Activación de GERENTE
+          Activación de Gerente
         </h1>
         <p
           style={{

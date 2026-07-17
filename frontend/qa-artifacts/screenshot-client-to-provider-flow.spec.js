@@ -65,7 +65,7 @@ test.describe('Capturas: flujo cliente → solicitud → proveedor', () => {
     await page.getByText('Enviar solicitud').click();
 
     await expect(page).toHaveURL(/\/client\/confirm/);
-    await expect(page.getByText('Revisa tu solicitud')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Revisa tu solicitud' })).toBeVisible();
     await page.screenshot({ path: 'qa-artifacts/out/flow-05-cliente-confirmar.png', fullPage: true });
 
     await page.getByTestId('confirm-btn').click();

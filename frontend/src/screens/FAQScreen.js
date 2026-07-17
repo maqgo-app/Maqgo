@@ -69,7 +69,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Qué roles existen en mi cuenta?',
-        a: 'Existen tres roles: Titular (dueño de la empresa, acceso completo), Gerente (gestiona servicios y operadores, sin acceso a datos bancarios) y Operador (solo ve y ejecuta los servicios asignados a él).'
+        a: 'Existen tres roles: Titular (acceso completo), Gerente (gestiona servicios y operadores, sin acceso a datos bancarios) y Operador (solo ve y ejecuta los servicios asignados a él).'
       },
       {
         q: '¿Cómo invito operadores?',

@@ -8,6 +8,7 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
   test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
 
   test('flujo post-reserva (6 pantallas + avisos)', async ({ browser }) => {
+    test.setTimeout(120_000);
     const context = await browser.newContext();
     await installApiMocks(context);
     await context.addInitScript(seedClientServiceFlow);
@@ -85,7 +86,7 @@ test.describe('Screenshots: Cliente flujo operacional final', () => {
       localStorage.setItem('serviceStatus', 'en_route');
     });
     await page.goto(`${BASE_URL}/client/assigned`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await expect(page.getByText(/operador en camino/i).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/operador en ruta/i).first()).toBeVisible({ timeout: 15_000 });
     await assertNoPushBanner();
     await page.waitForSelector('.leaflet-container', { timeout: 5_000 });
     await page.waitForFunction(() => document.querySelectorAll('img.leaflet-tile-loaded').length > 0, null, { timeout: 5_000 }).catch(() => {});

@@ -284,7 +284,7 @@ function MyMachinesScreen() {
 
   const handleDeleteMachine = async (machineId) => {
     if (!canDeleteMachines) {
-      toast.error('Solo el TITULAR puede eliminar máquinas.');
+      toast.error('Solo el Titular puede eliminar máquinas.');
       setDeleteMachineConfirm(null);
       return;
     }

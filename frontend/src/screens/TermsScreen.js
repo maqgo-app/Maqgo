@@ -200,7 +200,7 @@ function TermsScreen() {
             Las cuentas de proveedor tienen tres niveles de acceso:
           </p>
           <p style={{ marginBottom: 8 }}>
-            <strong>Titular:</strong> Dueño de la empresa con acceso completo. Puede ver y administrar máquinas, operadores, cobros, datos bancarios y toda la configuración.
+            <strong>Titular:</strong> Persona responsable de la empresa con acceso completo. Puede ver y administrar máquinas, operadores, cobros, datos bancarios y toda la configuración.
           </p>
           <p style={{ marginBottom: 8 }}>
             <strong>Gerente:</strong> Puede gestionar servicios, ver cobros y administrar operadores. No puede modificar datos bancarios ni información crítica de la empresa.

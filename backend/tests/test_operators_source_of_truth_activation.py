@@ -170,7 +170,7 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
             _run(operators.use_master_invitation(operators.MasterInvitationUse(code="OPR111")))
 
         self.assertEqual(ctx.exception.status_code, 404)
-        self.assertEqual(ctx.exception.detail, "Este código no es para Masters")
+        self.assertEqual(ctx.exception.detail, "Este código no es para Gerentes")
 
     def test_master_join_codigo_expirado(self):
         mock_db = MagicMock()

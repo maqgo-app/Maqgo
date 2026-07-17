@@ -21,7 +21,7 @@ import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNa
 const STATUS_CONFIG = {
   pending: { label: 'Pendiente', color: '#FFA726', icon: '⏳' },
   accepted: { label: 'Aceptado', color: '#90BDD3', icon: '✓' },
-  en_route: { label: 'En camino', color: '#2196F3', icon: '🚛' },
+  en_route: { label: 'En ruta', color: '#2196F3', icon: '🚛' },
   arrived: { label: 'En sitio', color: '#9C27B0', icon: '📍' },
   in_progress: { label: 'Trabajando', color: '#4CAF50', icon: '⚙️' },
   completed: { label: 'Completado', color: '#4CAF50', icon: '✓' },

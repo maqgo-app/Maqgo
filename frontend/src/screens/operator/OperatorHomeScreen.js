@@ -800,7 +800,7 @@ function OperatorHomeScreen() {
             data-testid="back-to-owner-btn"
           >
             <BackArrowIcon size={14} />
-            Cambiar a vista Dueño
+            Cambiar a vista Titular
           </button>
         )}
       </div>

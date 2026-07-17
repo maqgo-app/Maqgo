@@ -416,12 +416,14 @@ test.describe('Operacional: identidad + tenancy + permisos', () => {
 
     const page = await context.newPage();
     await page.goto(`${BASE_URL}/master/join?code=MABCD`, { waitUntil: 'domcontentloaded' });
-    await page.getByPlaceholder('Tu nombre').fill('Gerente Uno');
-    await page.getByPlaceholder('+56 9 1234 5678').fill('+56 9 9999 0000');
-    await page.getByRole('button', { name: /continuar/i }).click();
+    await expect(page.getByRole('heading', { name: /activaci[oó]n de gerente/i })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'CÓDIGO' })).toHaveValue('MABCD');
+    await page.getByRole('button', { name: /^Activar$/i }).click();
     await page.waitForLoadState('domcontentloaded');
     await expect(page).toHaveURL(/\/login/);
     expect(api.invitations.get('MABCD')?.status).toBe('used');
+    const token = await page.evaluate(() => localStorage.getItem('token') || localStorage.getItem('authToken'));
+    expect(token).toBeFalsy();
     await context.close();
   });
 
@@ -435,9 +437,11 @@ test.describe('Operacional: identidad + tenancy + permisos', () => {
     await page.goto(`${BASE_URL}/operator/join`, { waitUntil: 'domcontentloaded' });
     await page.getByTestId('invite-code-input').fill('OABCD');
     await page.getByTestId('validate-code-btn').click();
-    await page.waitForTimeout(500);
+    await page.waitForLoadState('domcontentloaded');
+    await expect(page).toHaveURL(/\/login/);
+    expect(api.invitations.get('OABCD')?.status).toBe('used');
     const token = await page.evaluate(() => localStorage.getItem('token') || localStorage.getItem('authToken'));
-    expect(token).toBeTruthy();
+    expect(token).toBeFalsy();
     await context.close();
   });
 

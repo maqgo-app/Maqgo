@@ -692,7 +692,7 @@ async def create_operator(
     # Verificar que el owner existe y es dueño
     owner = await db.users.find_one({'id': owner_id}, {'_id': 0})
     if not owner:
-        raise HTTPException(status_code=404, detail="Dueño no encontrado")
+        raise HTTPException(status_code=404, detail="Titular no encontrado")
     
     if owner.get('provider_role') == 'operator':
         raise HTTPException(status_code=403, detail="Los operadores no pueden crear otros operadores")
@@ -870,12 +870,12 @@ async def patch_master(
         {"_id": 0, "id": 1},
     )
     if not master:
-        raise HTTPException(status_code=404, detail="Usuario master no encontrado o no te pertenece")
+        raise HTTPException(status_code=404, detail="Gerente no encontrado o no te pertenece")
 
-    update_data = _team_member_update_fields(body, role_label="usuario master")
+    update_data = _team_member_update_fields(body, role_label="Gerente")
     update_data["updatedAt"] = datetime.now(timezone.utc).isoformat()
     await db.users.update_one({"id": master_id}, {"$set": update_data})
-    return {"success": True, "message": "Usuario master actualizado"}
+    return {"success": True, "message": "Gerente actualizado"}
 
 
 @router.delete("/{owner_id}/masters/{master_id}", response_model=dict)
@@ -894,7 +894,7 @@ async def delete_master(
         {"_id": 0, "id": 1},
     )
     if not master:
-        raise HTTPException(status_code=404, detail="Usuario master no encontrado o no te pertenece")
+        raise HTTPException(status_code=404, detail="Gerente no encontrado o no te pertenece")
 
     now = datetime.now(timezone.utc).isoformat()
     await db.users.update_one(
@@ -910,7 +910,7 @@ async def delete_master(
             }
         },
     )
-    return {"success": True, "message": "Usuario master eliminado"}
+    return {"success": True, "message": "Gerente eliminado"}
 
 
 @router.get("/{user_id}/role", response_model=dict)

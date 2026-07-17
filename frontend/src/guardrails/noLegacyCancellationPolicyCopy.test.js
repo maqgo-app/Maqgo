@@ -10,7 +10,7 @@ const runProdUiGuard =
 
 const FORBIDDEN = [
   /Operador en obra:\s*60%/i,
-  /Operador en camino:\s*40%/i,
+  /Operador en ruta:\s*40%/i,
   /Despu[eé]s de asignad[oa]:\s*20%/i,
   /60%\s+del\s+servicio/i,
 ];
@@ -37,4 +37,3 @@ describe.skipIf(!runProdUiGuard)('producción: sin copys legacy de cancelación'
     }
   });
 });
-

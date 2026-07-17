@@ -1,5 +1,15 @@
 import { test, expect } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/public-config', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ googleMapsApiKey: '' }),
+    });
+  });
+});
+
 function mockRoleRoute(page, { userId, providerRole, permissions, ownerId = 'owner-001', ownerName = 'Empresa MAQGO' }) {
   const safeUserId = String(userId || '').trim() || 'user-001';
   const role = String(providerRole || 'super_master').trim() || 'super_master';
@@ -76,17 +86,19 @@ function mockInviteRoutes(page, { masterCode = 'M4QG01' }) {
   });
 }
 
-async function seedSession(page, { userId, providerRole, token = 'test-token', userRole = 'provider' }) {
+async function seedSession(page, { userId, providerRole, token = 'test-token', userRole = 'provider', ownerId = 'owner-001' }) {
   const uid = String(userId || '').trim() || 'user-001';
   const role = String(providerRole || '').trim() || 'super_master';
-  await page.addInitScript(({ uid, role, token, userRole }) => {
+  const oid = String(ownerId || '').trim() || 'owner-001';
+  await page.context().addInitScript(({ uid, role, token, userRole, oid }) => {
     window.localStorage.setItem('userId', uid);
     window.localStorage.setItem('userRole', userRole);
     window.localStorage.setItem('providerRole', role);
+    window.localStorage.setItem('ownerId', oid);
     window.localStorage.setItem('token', token);
     window.localStorage.setItem('authToken', token);
     window.localStorage.setItem('legalAcceptedAt', new Date().toISOString());
-  }, { uid, role, token, userRole });
+  }, { uid, role, token, userRole, oid });
 }
 
 function mockAuthMeRoute(
@@ -121,7 +133,7 @@ async function seedMasterPermissions(page, { userId, permissions }) {
   const uid = String(userId || '').trim();
   const perms = permissions && typeof permissions === 'object' ? permissions : {};
   if (!uid) return;
-  await page.addInitScript(({ uid, perms }) => {
+  await page.context().addInitScript(({ uid, perms }) => {
     try {
       const raw = window.localStorage.getItem('masterPermissionsByUserId') || '{}';
       const map = JSON.parse(raw);
@@ -134,7 +146,7 @@ async function seedMasterPermissions(page, { userId, permissions }) {
 }
 
 test.describe('Capturas: activación master y permisos de borrado', () => {
-  test('Invitación master (supermaster) muestra permisos de maquinaria', async ({ page, baseURL }) => {
+  test('Invitación GERENTE (TITULAR) muestra permisos de maquinaria', async ({ page, baseURL }) => {
     const userId = 'super-000';
 
     await seedSession(page, { userId, providerRole: 'super_master' });
@@ -152,7 +164,7 @@ test.describe('Capturas: activación master y permisos de borrado', () => {
     await mockInviteRoutes(page, { masterCode: 'MAS777' });
 
     await page.goto(`${baseURL}/provider/team?mode=master&tab=invite&view=create`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText('Crear usuario master')).toBeVisible();
+    await expect(page.getByText('Crear GERENTE')).toBeVisible();
     await expect(page.getByText('Permisos')).toBeVisible();
 
     await expect(page.getByText('Puede editar máquinas y operadores por máquina')).toBeVisible();
@@ -164,7 +176,7 @@ test.describe('Capturas: activación master y permisos de borrado', () => {
     });
   });
 
-  test('Activación master (supermaster) muestra copy de activación', async ({ page, baseURL }) => {
+  test('Activación GERENTE (TITULAR) muestra copy de activación', async ({ page, baseURL }) => {
     const userId = 'super-001';
 
     await seedSession(page, { userId, providerRole: 'super_master' });
@@ -183,7 +195,7 @@ test.describe('Capturas: activación master y permisos de borrado', () => {
 
     await page.goto(`${baseURL}/provider/team?mode=master&tab=invite&view=create`, { waitUntil: 'domcontentloaded' });
 
-    await expect(page.getByText('Crear usuario master')).toBeVisible();
+    await expect(page.getByText('Crear GERENTE')).toBeVisible();
 
     await page.getByPlaceholder('Ej: María').fill('Tomás');
     await page.getByPlaceholder('Ej: Soto').fill('Villalta');
@@ -194,7 +206,7 @@ test.describe('Capturas: activación master y permisos de borrado', () => {
 
     await expect(page.getByText('Activación lista')).toBeVisible();
     await expect(page.getByText('Código de activación listo')).toBeVisible();
-    await expect(page.getByText('Código de activación para usuario master')).toBeVisible();
+    await expect(page.getByText('Código de activación para GERENTE')).toBeVisible();
 
     await page.screenshot({
       path: 'qa-artifacts/out/activation-master.png',
@@ -202,7 +214,7 @@ test.describe('Capturas: activación master y permisos de borrado', () => {
     });
   });
 
-  test('Mis Máquinas: supermaster ve eliminar máquina', async ({ page, baseURL }) => {
+  test('Mis Máquinas: TITULAR ve eliminar máquina', async ({ page, baseURL }) => {
     const userId = 'super-002';
     await seedSession(page, { userId, providerRole: 'super_master' });
     await mockAuthMeRoute(page, { userId, providerRole: 'super_master' });
@@ -243,6 +255,7 @@ test.describe('Capturas: activación master y permisos de borrado', () => {
 
   test('Mis Máquinas: master puede gestionar pero NO ve eliminar', async ({ page, baseURL }) => {
     const userId = 'master-001';
+    const ownerId = 'owner-001';
     await seedMasterPermissions(page, {
       userId,
       permissions: {
@@ -250,8 +263,15 @@ test.describe('Capturas: activación master y permisos de borrado', () => {
         can_delete_machines: false,
       },
     });
-    await seedSession(page, { userId, providerRole: 'master' });
-    await mockAuthMeRoute(page, { userId, providerRole: 'master' });
+    await seedSession(page, { userId, providerRole: 'master', ownerId });
+    await mockAuthMeRoute(page, { userId, providerRole: 'master', ownerId });
+    await mockRoleRoute(page, {
+      userId,
+      providerRole: 'master',
+      ownerId,
+      permissions: { can_manage_machines: true, can_delete_machines: false },
+    });
+    await mockTeamRoute(page, { pendingInvitations: [], operators: [], masters: [] });
     await mockMachinesRoute(page, {
       machines: [
         {
@@ -281,6 +301,7 @@ test.describe('Capturas: activación master y permisos de borrado', () => {
 
   test('Mis Máquinas: master con permiso ve eliminar máquina', async ({ page, baseURL }) => {
     const userId = 'master-002';
+    const ownerId = 'owner-001';
     await seedMasterPermissions(page, {
       userId,
       permissions: {
@@ -288,8 +309,15 @@ test.describe('Capturas: activación master y permisos de borrado', () => {
         can_delete_machines: true,
       },
     });
-    await seedSession(page, { userId, providerRole: 'master' });
-    await mockAuthMeRoute(page, { userId, providerRole: 'master' });
+    await seedSession(page, { userId, providerRole: 'master', ownerId });
+    await mockAuthMeRoute(page, { userId, providerRole: 'master', ownerId });
+    await mockRoleRoute(page, {
+      userId,
+      providerRole: 'master',
+      ownerId,
+      permissions: { can_manage_machines: true, can_delete_machines: true },
+    });
+    await mockTeamRoute(page, { pendingInvitations: [], operators: [], masters: [] });
     await mockMachinesRoute(page, {
       machines: [
         {

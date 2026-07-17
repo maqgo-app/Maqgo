@@ -730,7 +730,7 @@ function SearchingProviderScreen() {
               textAlign: 'center',
               marginTop: 10
             }}>
-              Tu servicio está en camino
+              Tu servicio está en ruta
             </p>
 
 

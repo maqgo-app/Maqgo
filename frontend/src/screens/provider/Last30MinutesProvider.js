@@ -99,7 +99,7 @@ function Last30MinutesProvider() {
 
           {!serviceId ? (
             <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center', marginTop: -6, marginBottom: 10 }}>
-              No hay un servicio activo asociado.
+              No hay un servicio en curso asociado.
             </div>
           ) : null}
 
