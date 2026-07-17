@@ -7,7 +7,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
-import toIco from 'to-ico';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
@@ -76,12 +75,7 @@ async function main() {
     .png({ compressionLevel: 9 })
     .toFile(path.join(publicDir, 'og-image.png'));
 
-  const buf16 = await sharp(source).resize(16, 16, { fit: 'contain', background: BG }).png().toBuffer();
-  const buf32 = await sharp(source).resize(32, 32, { fit: 'contain', background: BG }).png().toBuffer();
-  const ico = await toIco([buf32, buf16]);
-  fs.writeFileSync(path.join(publicDir, 'favicon.ico'), ico);
-
-  console.log('OK: icons/icon-192.png, icons/icon-512.png, icons/icon-32.png, og-image.png, favicon.ico');
+  console.log('OK: icons/icon-192.png, icons/icon-512.png, icons/icon-32.png, og-image.png');
 }
 
 main().catch((e) => {
