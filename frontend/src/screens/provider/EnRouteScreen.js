@@ -201,7 +201,7 @@ function EnRouteScreen() {
             animation: 'pulse 1.5s infinite'
           }} />
           <span style={{ color: '#90BDD3', fontSize: 14, fontWeight: 600 }}>
-            {isOperator ? 'EN CAMINO AL SITIO' : 'EN CAMINO A LA OBRA'}
+            {isOperator ? 'En ruta al sitio del servicio' : 'En ruta a la obra'}
           </span>
           <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
         </div>
