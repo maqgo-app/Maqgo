@@ -100,7 +100,7 @@ function ProviderChangePhoneScreen() {
           Cambiar celular
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, textAlign: 'center', marginBottom: 22, lineHeight: 1.45 }}>
-          Este cambio lo puede hacer solo el titular (supermaster). MAQGO enviará un código SMS al nuevo número.
+          Este cambio lo puede hacer solo el TITULAR. MAQGO enviará un código SMS al nuevo número.
         </p>
 
         {step === 'phone' ? (
