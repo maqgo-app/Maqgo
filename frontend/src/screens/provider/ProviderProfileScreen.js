@@ -191,7 +191,7 @@ function ProviderProfileScreen() {
             {showTeam && (
               <MenuItem 
                 label="Usuarios y accesos"
-                sublabel="Operadores y usuario master"
+                sublabel="OPERADORES y GERENTES"
                 onClick={() => navigate('/provider/team')}
               />
             )}

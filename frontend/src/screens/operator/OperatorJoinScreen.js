@@ -152,7 +152,7 @@ function OperatorJoinScreen() {
 
         <div style={{ marginTop: 30, textAlign: 'center' }}>
           <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: 0 }}>
-            ¿No tienes código? Pídelo al titular (supermaster) de la empresa
+            ¿No tienes código? Pídelo al TITULAR de la empresa
           </p>
         </div>
       </div>
