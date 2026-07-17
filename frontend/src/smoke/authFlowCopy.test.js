@@ -1,8 +1,4 @@
-/**
- * Smoke tests: aseguran que los arreglos de auth/registro sigan en el código fuente.
- * (Sin React Testing Library; leen archivos para CI rápido.)
- */
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
@@ -15,15 +11,10 @@ function read(rel) {
 }
 
 describe('Recuperación / registro / rol', () => {
-  it('ForgotPasswordScreen: existe flujo real con envío de código y nueva contraseña', () => {
+  it('No existe flujo de recuperación de contraseña en el frontend público', () => {
     const app = read('App.jsx');
-    const forgot = read('screens/ForgotPasswordScreen.jsx');
-    expect(app).toMatch(/\/forgot-password/);
-    expect(forgot).toContain('password-reset/request');
-    expect(forgot).toContain('password-reset/confirm');
-    expect(forgot).toContain('Restablecer contraseña');
-    expect(forgot).toContain('Cambiar contraseña');
-    expect(forgot).not.toMatch(/pr[oó]ximamente/i);
+    expect(app).not.toMatch(/\/forgot-password/);
+    expect(existsSync(join(root, 'screens/ForgotPasswordScreen.jsx'))).toBe(false);
   });
 
   it('Entrada cliente: /register redirige a login (OTP); sin RegisterScreen', () => {
@@ -42,9 +33,9 @@ describe('Recuperación / registro / rol', () => {
     expect(read('../vercel.json')).toMatch(/"source": "\/select-channel"/);
   });
 
-  it('RoleSelection: fusiona cuenta por teléfono y password opcional', () => {
+  it('RoleSelection: crea cuenta por teléfono (sin password)', () => {
     const src = read('screens/RoleSelection.js');
-    expect(src).toMatch(/\.\.\.\(pwd && \{ password: pwd \}\)/);
+    expect(src).not.toMatch(/password:\s*pwd/);
     expect(src).toMatch(/navigate\('\/login'/);
   });
 

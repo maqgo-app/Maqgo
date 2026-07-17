@@ -8,7 +8,6 @@ import BACKEND_URL from '../utils/api';
 import { clearPersistedCheckoutState } from '../domain/checkout/checkoutPersistence';
 import { getObject } from '../utils/safeStorage';
 import { rememberLoginEmail } from '../utils/loginHints';
-import { PASSWORD_RULES } from '../utils/passwordValidation';
 import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
 import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
 
@@ -119,18 +118,12 @@ function RoleSelection({ setUserRole, setUserId }) {
         ? String(data.celular).replace(/\D/g, '').slice(-9)
         : String(localStorage.getItem('userPhone') || '').replace(/\D/g, '').slice(-9);
       const phone = celDigits.length >= 9 ? `+56${celDigits}` : undefined;
-      const rawPwd = data.password ? String(data.password) : '';
-      const pwd =
-        rawPwd.length >= PASSWORD_RULES.minLength && rawPwd.length <= PASSWORD_RULES.maxLength
-          ? rawPwd
-          : undefined;
       const emailFromForm = (data.email || '').trim();
       // Perfil progresivo: no enviar nombre/RUT desde registerData (OTP); nombre y facturación en P6 o perfil.
       const payload = {
         role: roleToUse,
         ...(emailFromForm ? { email: emailFromForm } : {}),
         ...(phone && { phone }),
-        ...(pwd && { password: pwd }),
       };
       if (!payload.phone && !payload.email) {
         setError('Inicia sesión con tu celular para continuar.');
@@ -175,8 +168,6 @@ function RoleSelection({ setUserRole, setUserId }) {
         navigate(getProviderLandingPath());
       }
     } catch (e) {
-      // Evitar "usuarios fantasma" sin password real: si falla /api/users,
-      // el usuario después no podrá loguearse y terminará en recuperación.
       const detail =
         e?.response?.data?.detail ||
         e?.response?.data?.error ||

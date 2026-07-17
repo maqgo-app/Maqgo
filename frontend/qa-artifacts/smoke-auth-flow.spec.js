@@ -85,7 +85,7 @@ test.describe('Smoke: auth + OTP + recovery', () => {
     await context.close();
   });
 
-  test('forgot password screen renders', async ({ browser }) => {
+  test('forgot password route redirects to welcome', async ({ browser }) => {
     const context = await browser.newContext();
     await installApiMocks(context);
     const page = await context.newPage();
@@ -99,7 +99,8 @@ test.describe('Smoke: auth + OTP + recovery', () => {
     await page.goto(`${BASE_URL}/forgot-password`, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForLoadState('load');
     await expect(page.getByRole('alert')).toHaveCount(0);
-    await expect(page.getByTestId('forgot-request-code')).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByTestId('start-client-btn')).toBeVisible();
 
     await context.close();
   });

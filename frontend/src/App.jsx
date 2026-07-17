@@ -11,7 +11,6 @@ import { hasPersistedSessionCredentials } from './utils/api';
 import { getProviderLandingPath } from './utils/providerOnboardingStatus';
 import BookingFlowEntry from './screens/client/BookingFlowEntry.jsx';
 import MachinerySelection from './screens/client/MachinerySelection'; // Eager: entrada típica al embudo de reserva
-import ForgotPasswordScreen from './screens/ForgotPasswordScreen.jsx'; // Import directo: evita pantalla legacy de recuperación
 import AuthContext, { AuthProvider } from './context/AuthContext';
 import ToastProvider from './components/Toast';
 import BottomNavigation from './components/BottomNavigation';
@@ -382,7 +381,6 @@ function AppContent() {
         <Route path="/" element={<WelcomeScreen />} />
         <Route path="/welcome" element={<WelcomeScreen />} />
         <Route path="/login" element={<LoginScreen setUserRole={setUserRole} setUserId={setUserId} />} />
-        <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
         <Route path="/support/access" element={<SupportAccessScreen />} />
         <Route path="/select-role" element={<Navigate to="/" replace />} />
         

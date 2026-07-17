@@ -73,33 +73,6 @@ function ProviderVerifiedScreen({ setUserRole, setUserId }) {
       const existingId = localStorage.getItem('userId');
       const otpToken = localStorage.getItem('token') || localStorage.getItem('authToken');
 
-      if (existingId && String(existingId).startsWith('user_') && data.email && data.password) {
-        try {
-          const res = await axios.post(
-            `${BACKEND_URL}/api/auth/login`,
-            {
-              identifier: String(data.email).trim(),
-              password: data.password,
-            },
-            JSON_POST_TIMEOUT
-          );
-          const roles = Array.isArray(res.data?.roles) ? res.data.roles : [];
-          const effective = roles.includes('provider') ? 'provider' : res.data?.role || 'provider';
-          applyProviderSession({
-            id: res.data.id,
-            token: res.data.token,
-            roles,
-            effectiveRole: effective,
-            provider_role: res.data.provider_role,
-            owner_id: res.data.owner_id,
-            phone: res.data.phone,
-          });
-          return true;
-        } catch {
-          /* intentar /api/users o sesión OTP */
-        }
-      }
-
       try {
         const res = await axios.post(
           `${BACKEND_URL}/api/users`,
@@ -165,7 +138,7 @@ function ProviderVerifiedScreen({ setUserRole, setUserId }) {
             if (!cancelled) {
               setPhase('error');
               setErrorMsg(
-                'La activación de tu cuenta tardó demasiado (sin respuesta del servidor). Revisa tu conexión, recarga la página o inicia sesión con tu correo y contraseña.'
+              'La activación de tu cuenta tardó demasiado (sin respuesta del servidor). Revisa tu conexión y recarga la página.'
               );
             }
             return;
@@ -176,7 +149,7 @@ function ProviderVerifiedScreen({ setUserRole, setUserId }) {
         if (!ok || !hasPersistedSessionCredentials()) {
           setPhase('error');
           setErrorMsg(
-            'No pudimos activar tu sesión. Inicia sesión con tu correo y contraseña para continuar el registro.'
+          'No pudimos activar tu sesión. Vuelve a intentar el registro.'
           );
           return;
         }

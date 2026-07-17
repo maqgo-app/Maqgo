@@ -1137,41 +1137,6 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
             phone9, req_role, roles
         )
 
-        is_step_up_flow = req_role == "admin"
-        has_password_protected_role = "admin" in roles
-        
-        if is_step_up_flow and has_password_protected_role:
-            if not str(user.get("password") or "").strip():
-                logger.info("LOGIN_SMS_VERIFY step_up_password_missing userId=%s", user["id"])
-                return {
-                    "requires_password": True,
-                    "requires_password_setup": True,
-                    "user_id": user["id"],
-                    "phone": raw_phone,
-                    "email_masked": _mask_email_for_display(user.get("email", "")),
-                    "message": "Por seguridad, tu cuenta requiere una clave para acceder desde este dispositivo.",
-                }
-            trusted = await find_trusted_device(
-                db, user_id=user["id"], phone_e164=raw_phone, device_id=device_norm
-            )
-            # Si el dispositivo NO es de confianza o hay riesgo, exigir clave.
-            if not trusted or is_risky_login(
-                trusted_row=trusted,
-                device_id_valid=True,
-                current_country=country,
-                too_many_failed=False,
-                current_ip=ip,
-                current_user_agent=ua_hdr,
-            ):
-                logger.info("LOGIN_SMS_VERIFY step_up_required userId=%s", user["id"])
-                return {
-                    "requires_password": True,
-                    "user_id": user["id"],
-                    "phone": raw_phone,
-                    "email_masked": _mask_email_for_display(user.get("email", "")),
-                    "message": "Cuenta Maqgo detectada. Por seguridad en este nuevo dispositivo, ingresa tu contraseña para acceder.",
-                }
-
         token = generate_token()
         if recoverable_deleted:
             await _reactivate_recoverable_user(user["id"])
@@ -1237,63 +1202,10 @@ class StepUpVerifyRequest(BaseModel):
 @router.post("/login-sms/verify-password")
 @limiter.limit("5/minute")
 async def verify_sms_password(request: Request, body: StepUpVerifyRequest):
-    """
-    Paso 3 del login SMS (Step-Up): Verifica la contraseña del proveedor tras un OTP exitoso.
-    """
-    user = await db.users.find_one({"id": body.user_id}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    roles = _user_roles(user)
-    is_admin = "admin" in roles
-    if not is_admin:
-        if not _is_active_user_doc(user):
-            raise HTTPException(status_code=403, detail="Usuario inactivo")
-
-    if not verify_password(body.password, user.get("password", "")):
-        log_ops_event(
-            logger,
-            event="login_stepup_failed",
-            user_id=body.user_id,
-            success=False,
-            reason="invalid_password",
-        )
-        raise HTTPException(status_code=401, detail="Contraseña incorrecta")
-
-    device_norm = normalize_device_id(body.device_id)
-    ip = get_client_ip(request)
-    country = get_client_country(request)
-    ua_hdr = get_client_user_agent(request)
-
-    token = generate_token()
-    await db.sessions.insert_one(
-        {
-            "userId": user["id"],
-            "token": token,
-            "createdAt": datetime.now(timezone.utc).isoformat(),
-        }
+    raise HTTPException(
+        status_code=410,
+        detail="Este endpoint fue deshabilitado. El acceso es solo por código SMS.",
     )
-
-    if device_norm:
-        await upsert_trusted_device(
-            db,
-            user_id=user["id"],
-            phone_e164=body.phone,
-            device_id=device_norm,
-            last_ip=ip,
-            last_country=country,
-            user_agent=ua_hdr,
-        )
-
-    logger.info("LOGIN_STEPUP success userId=%s", user["id"])
-    log_ops_event(
-        logger,
-        event="login_stepup_verified",
-        user_id=user["id"],
-        success=True,
-    )
-
-    return _build_login_sms_session_payload(user, token, requires_otp=False)
 
 
 @router.post("/check-device")
@@ -2556,8 +2468,7 @@ async def login(request: Request, body: LoginRequest):
     roles = _user_roles(user)
     is_admin = "admin" in roles
     if not is_admin:
-        if not _is_active_user_doc(user):
-            raise HTTPException(status_code=403, detail="Usuario inactivo")
+        raise HTTPException(status_code=403, detail="Acceso solo para administración")
 
     # Migración: si el hash es SHA256 legacy, actualizar a bcrypt
     stored = user.get("password", "")
