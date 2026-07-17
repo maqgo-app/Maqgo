@@ -139,7 +139,7 @@ async def create_invitation(
     # Verificar que el dueño existe
     owner = await db.users.find_one({"id": data.owner_id}, {"_id": 0})
     if not owner:
-        raise HTTPException(status_code=404, detail="Dueño no encontrado")
+        raise HTTPException(status_code=404, detail="Titular no encontrado")
     
     if owner.get("role") != "provider":
         raise HTTPException(status_code=400, detail="Solo proveedores pueden invitar operadores")
@@ -189,7 +189,7 @@ async def create_invitations_batch(
     AccessPolicy.assert_owner_scope(current_user, data.owner_id)
     owner = await db.users.find_one({"id": data.owner_id}, {"_id": 0})
     if not owner:
-        raise HTTPException(status_code=404, detail="Dueño no encontrado")
+        raise HTTPException(status_code=404, detail="Titular no encontrado")
     if owner.get("role") != "provider":
         raise HTTPException(status_code=400, detail="Solo proveedores pueden invitar operadores")
     if not isinstance(data.operators, list) or len(data.operators) == 0:
@@ -543,13 +543,13 @@ async def create_master_invitation(
     # Verificar que es Super Master (o owner para compatibilidad)
     provider_role = owner.get("provider_role", "owner")
     if provider_role not in ["super_master", "owner"]:
-        raise HTTPException(status_code=403, detail="Solo el dueño de la empresa puede invitar Masters")
+        raise HTTPException(status_code=403, detail="Solo el Titular de la empresa puede invitar Gerentes")
     if not data.master_name or not data.master_last_name or not data.master_rut or not data.master_phone:
         raise HTTPException(
             status_code=400,
-            detail="Completa nombre, apellido, RUT y celular del usuario master para generar el código.",
+            detail="Completa nombre, apellido, RUT y celular del Gerente para generar el código.",
         )
-    master_rut = _ensure_person_rut(data.master_rut, label="RUT del usuario master")
+    master_rut = _ensure_person_rut(data.master_rut, label="RUT del Gerente")
 
     raw_perms = data.permissions if isinstance(data.permissions, dict) else {}
     allowed_keys = {
@@ -595,7 +595,7 @@ async def create_master_invitation(
         "code": code,
         "invite_type": "master",
         "expires_in_days": 7,
-        "message": f"Código generado: {code}. Compártelo con tu nuevo Master/Gerente."
+        "message": f"Código generado: {code}. Compártelo con tu nuevo Gerente."
     }
 
 
@@ -621,7 +621,7 @@ async def use_master_invitation(data: MasterInvitationUse):
             if not any_invitation:
                 raise HTTPException(status_code=404, detail="Código inexistente")
             if any_invitation.get("invite_type") and any_invitation.get("invite_type") != "master":
-                raise HTTPException(status_code=404, detail="Este código no es para Masters")
+                raise HTTPException(status_code=404, detail="Este código no es para Gerentes")
             st = str(any_invitation.get("status") or "").strip().lower()
             if st == "used":
                 raise HTTPException(status_code=404, detail="Código ya utilizado")
@@ -657,13 +657,13 @@ async def use_master_invitation(data: MasterInvitationUse):
         phone = str(data.master_phone or invitation.get("master_phone") or "").strip()
         rut = str(data.master_rut or invitation.get("master_rut") or "").strip()
         if not rut:
-            raise HTTPException(status_code=400, detail="Falta el RUT del usuario master")
-        rut = _ensure_person_rut(rut, label="RUT del usuario master")
+            raise HTTPException(status_code=400, detail="Falta el RUT del Gerente")
+        rut = _ensure_person_rut(rut, label="RUT del Gerente")
 
         if not full_name:
-            raise HTTPException(status_code=400, detail="Falta el nombre del usuario master")
+            raise HTTPException(status_code=400, detail="Falta el nombre del Gerente")
         if not phone:
-            raise HTTPException(status_code=400, detail="Falta el celular del usuario master")
+            raise HTTPException(status_code=400, detail="Falta el celular del Gerente")
 
         import uuid
 
@@ -719,7 +719,7 @@ async def use_master_invitation(data: MasterInvitationUse):
             "master_id": master_id,
             "owner_id": invitation["owner_id"],
             "owner_name": owner.get("name", "Tu empresa") if owner else "Tu empresa",
-            "message": f"¡Bienvenido Master! Ya estás vinculado a {owner.get('name', 'tu empresa') if owner else 'tu empresa'}",
+            "message": f"¡Bienvenido! Ya estás vinculado a {owner.get('name', 'tu empresa') if owner else 'tu empresa'}",
         }
     except HTTPException:
         raise

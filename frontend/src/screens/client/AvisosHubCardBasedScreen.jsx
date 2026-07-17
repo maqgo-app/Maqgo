@@ -60,7 +60,7 @@ function buildMockAlerts() {
     {
       id: 'a-4',
       tone: 'info',
-      title: 'Operador en camino',
+      title: 'Operador en ruta',
       description: 'Revisa el seguimiento en la pantalla del servicio.',
       at: new Date(now - 2 * 60 * 1000).toISOString(),
       actor: 'Sistema',

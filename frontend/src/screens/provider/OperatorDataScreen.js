@@ -349,7 +349,7 @@ function OperatorDataScreen() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <span style={{ color: '#EC6819', fontSize: 14, fontWeight: 600 }}>
-                    OPERADOR {index + 1}
+                    Operador {index + 1}
                   </span>
                   {operators.length > 1 && (
                     <button 

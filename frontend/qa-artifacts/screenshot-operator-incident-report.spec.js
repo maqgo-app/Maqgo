@@ -41,8 +41,9 @@ test.describe('Screenshots: Operador reportar incidente', () => {
     });
 
     const page = await context.newPage();
-    await page.goto(`${BASE_URL}/provider/en-route`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await expect(page.getByText(/en camino a la obra/i)).toBeVisible({ timeout: 15_000 });
+    await page.goto(`${BASE_URL}/operator/en-route`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await expect(page.getByText('En ruta', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/en ruta al sitio del servicio/i)).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(600);
     await page.screenshot({ path: '../archive/qa-screenshots/qa-screenshots-final/operator-en-route.png', fullPage: true });
 

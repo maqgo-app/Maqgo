@@ -425,7 +425,7 @@ function AdminRoute() {
       >
         <p style={{ fontSize: 24, fontWeight: 700, margin: '0 0 12px', color: '#E57373' }}>Acceso restringido</p>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 15, margin: 0, textAlign: 'center' }}>
-          Este panel es solo para el dueño / equipo interno MAQGO.
+          Este panel es solo para el equipo interno de MAQGO.
         </p>
         <button
           type="button"

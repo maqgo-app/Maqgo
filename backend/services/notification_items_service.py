@@ -100,10 +100,10 @@ def _title_body_for_kind(kind: str, extra: Optional[dict] = None, audience_role:
         return 'Operador asignado', 'Se asignó un operador a tu servicio.'
     if k == 'en_route':
         if ar == 'operator':
-            return 'En camino', 'Estás en camino al servicio.'
+            return 'En ruta', 'Estás en ruta al servicio.'
         if ar == 'provider':
-            return 'Operador en camino', 'El operador va en camino al servicio.'
-        return 'Operador en camino', 'El operador está en camino a tu ubicación.'
+            return 'Operador en ruta', 'El Operador va en ruta al servicio.'
+        return 'Operador en ruta', 'El Operador está en ruta a tu ubicación.'
     if k == 'arrival':
         if ar == 'operator':
             return 'Llegada registrada', 'Se registró llegada al servicio.'

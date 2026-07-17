@@ -30,7 +30,7 @@ function CancelServiceScreen() {
     switch (serviceStatus) {
       case 'pending': return 'Tu solicitud aún no ha sido asignada';
       case 'assigned': return 'Un operador ya fue asignado a tu reserva';
-      case 'en_route': return 'El operador está en camino a la obra';
+      case 'en_route': return 'El Operador está en ruta al servicio';
       case 'arrived': return 'El operador ya llegó a la obra';
       case 'started':
       case 'in_progress': return 'El servicio ya está en curso';

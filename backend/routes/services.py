@@ -1002,7 +1002,7 @@ async def get_available_services_for_operator(
         raise HTTPException(status_code=400, detail="El usuario no es un operador")
     owner_id = operator.get('owner_id')
     if not owner_id:
-        raise HTTPException(status_code=400, detail="Operador sin dueño asignado")
+        raise HTTPException(status_code=400, detail="Operador sin Titular asignado")
 
     # service_requests confirmados del dueño sin operador asignado
     pending = await _run_sync_call(
@@ -1039,7 +1039,7 @@ async def operator_accept_service(
         raise HTTPException(status_code=403, detail="No tienes permiso para aceptar servicios")
     owner_id = operator.get('owner_id')
     if not owner_id:
-        raise HTTPException(status_code=403, detail="Operador sin dueño asignado")
+        raise HTTPException(status_code=403, detail="Operador sin Titular asignado")
 
     # Asignar operador en service_request (id es string uuid)
     now_iso = datetime.utcnow().isoformat()
@@ -1094,7 +1094,7 @@ async def get_team_services(
     owner = await _run_sync(users_collection.find_one, {"id": owner_id}, {"_id": 0})
     
     if not owner or owner.get('provider_role') not in ['owner', None]:
-        raise HTTPException(status_code=403, detail="Solo el dueño puede ver servicios del equipo")
+        raise HTTPException(status_code=403, detail="Solo el Titular puede ver servicios del equipo")
     
     # Obtener IDs de todos los operadores
     operators = await _run_sync_call(
