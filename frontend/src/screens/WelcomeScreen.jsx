@@ -387,7 +387,7 @@ function WelcomeScreen() {
       <span className="welcome-legal-sep" aria-hidden>|</span>
         <Link className="welcome-legal-link" to="/privacy">Políticas</Link>
       <span className="welcome-legal-sep" aria-hidden>|</span>
-      <Link className="welcome-legal-link" to="/support/access">Ayuda y Soporte</Link>
+      <Link className="welcome-legal-link" to="/faq">Ayuda y Soporte</Link>
     </div>
     <div className="welcome-legal-copy">© <strong>2026 MAQGO</strong>. <strong>Todos los derechos reservados</strong>.</div>
   </div>
