@@ -55,6 +55,8 @@ export default function AdminGrowthAIComunasScreen() {
   const [bootstrapping, setBootstrapping] = useState(false);
   const [drawerId, setDrawerId] = useState('');
   const [posting, setPosting] = useState(false);
+  const [drawerLoading, setDrawerLoading] = useState(false);
+  const [drawerData, setDrawerData] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,6 +113,39 @@ export default function AdminGrowthAIComunasScreen() {
     if (!drawerId) return null;
     return (Array.isArray(items) ? items : []).find((x) => String(x?.id || '') === String(drawerId)) || null;
   }, [items, drawerId]);
+
+  useEffect(() => {
+    let mounted = true;
+    const nodeId = selected?.id ? String(selected.id) : '';
+    if (!nodeId) {
+      setDrawerData(null);
+      setDrawerLoading(false);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const loadDrawer = async () => {
+      setDrawerLoading(true);
+      try {
+        const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/nodes/${encodeURIComponent(nodeId)}/drawer`, { method: 'GET' }, 15000);
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload?.detail || `No se pudo cargar drawer (${res.status})`);
+        if (!mounted) return;
+        setDrawerData(payload);
+      } catch (e) {
+        if (!mounted) return;
+        setDrawerData({ error: friendlyFetchError(e, 'No se pudo cargar auditoría/leads.') });
+      } finally {
+        if (mounted) setDrawerLoading(false);
+      }
+    };
+
+    void loadDrawer();
+    return () => {
+      mounted = false;
+    };
+  }, [selected?.id]);
 
   const openDrawer = (id) => setDrawerId(String(id || ''));
   const closeDrawer = () => setDrawerId('');
@@ -273,6 +308,8 @@ export default function AdminGrowthAIComunasScreen() {
         theme={THEME}
         item={selected}
         busy={posting}
+        drawerLoading={drawerLoading}
+        drawerData={drawerData}
         onClose={closeDrawer}
         onOpenNode={() => {
           if (!selected?.id) return;

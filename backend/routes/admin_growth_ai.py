@@ -815,6 +815,52 @@ async def node_detail(node_id: str, _: dict = Depends(get_current_admin_strict))
     }
 
 
+@router.get("/nodes/{node_id}/drawer")
+async def node_drawer(node_id: str, _: dict = Depends(get_current_admin_strict)):
+    node = await db.growth_nodes.find_one({"id": node_id}, {"_id": 0, "id": 1, "region": 1, "comuna": 1, "name": 1})
+    if not node:
+        raise HTTPException(status_code=404, detail="Nodo no encontrado")
+
+    audit = (
+        await db.growth_audit.find({"node_id": node_id}, {"_id": 0, "id": 1, "at": 1, "title": 1, "detail": 1, "event_type": 1, "severity": 1})
+        .sort("at", -1)
+        .to_list(length=12)
+    )
+
+    leads = (
+        await db.growth_opportunity_items.find(
+            {"node_id": node_id},
+            {
+                "_id": 0,
+                "id": 1,
+                "createdAt": 1,
+                "kind": 1,
+                "status": 1,
+                "category": 1,
+                "title": 1,
+                "link": 1,
+                "source": 1,
+                "source_type": 1,
+                "score": 1,
+                "contact": 1,
+            },
+        )
+        .sort("createdAt", -1)
+        .to_list(length=5)
+    )
+
+    return {
+        "node": {
+            "id": node.get("id"),
+            "name": node.get("name") or node.get("comuna") or "Nodo",
+            "region": node.get("region") or "",
+            "comuna": node.get("comuna") or "",
+        },
+        "recent_audit": audit,
+        "top_leads": leads,
+    }
+
+
 @router.post("/nodes/{node_id}/decisions")
 async def node_decision(node_id: str, payload: NodeDecision, _: dict = Depends(get_current_admin_strict)):
     node = await db.growth_nodes.find_one({"id": node_id}, {"_id": 0})

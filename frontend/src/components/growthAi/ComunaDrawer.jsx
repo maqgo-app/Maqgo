@@ -29,7 +29,18 @@ function Pill({ theme, label, tone }) {
   );
 }
 
-export default function ComunaDrawer({ open, theme, item, busy, onClose, onOpenNode, onSetStage, onApproveGoLiveBulk }) {
+export default function ComunaDrawer({
+  open,
+  theme,
+  item,
+  busy,
+  drawerLoading,
+  drawerData,
+  onClose,
+  onOpenNode,
+  onSetStage,
+  onApproveGoLiveBulk,
+}) {
   const [stageTarget, setStageTarget] = useState('');
   const [stageReason, setStageReason] = useState('');
   const [bulkReason, setBulkReason] = useState('');
@@ -40,6 +51,16 @@ export default function ComunaDrawer({ open, theme, item, busy, onClose, onOpenN
     const all = Array.isArray(item?.ready_not_live_all) ? item.ready_not_live_all : [];
     return all.slice(0, 40);
   }, [item]);
+
+  const recentAudit = useMemo(() => {
+    const rows = drawerData && typeof drawerData === 'object' ? drawerData.recent_audit : null;
+    return Array.isArray(rows) ? rows : [];
+  }, [drawerData]);
+
+  const topLeads = useMemo(() => {
+    const rows = drawerData && typeof drawerData === 'object' ? drawerData.top_leads : null;
+    return Array.isArray(rows) ? rows : [];
+  }, [drawerData]);
 
   useEffect(() => {
     if (!open) return;
@@ -124,6 +145,89 @@ export default function ComunaDrawer({ open, theme, item, busy, onClose, onOpenN
         </div>
 
         <div style={{ marginTop: 14, borderTop: `1px solid ${theme.border}`, paddingTop: 14, display: 'grid', gap: 12 }}>
+          <details style={{ border: `1px solid ${theme.border}`, borderRadius: 14, padding: 12, background: theme.panelBgSoft }}>
+            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 900, color: 'rgba(255,255,255,0.9)' }}>Auditoría reciente</summary>
+            <div style={{ marginTop: 10 }}>
+              {drawerLoading ? (
+                <div style={{ height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.06)' }} />
+              ) : drawerData && drawerData.error ? (
+                <div style={{ color: '#E57373', fontSize: 12, lineHeight: 1.35 }}>{drawerData.error}</div>
+              ) : recentAudit.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>Sin eventos recientes.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {recentAudit.slice(0, 8).map((a) => (
+                    <div key={a.id || a.at || a.title} style={{ border: `1px solid ${theme.border}`, borderRadius: 14, padding: 12, background: 'rgba(255,255,255,0.04)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 900 }}>{a.title || 'Evento'}</div>
+                        {a.at ? <Pill theme={theme} label={String(a.at).slice(0, 19).replace('T', ' ')} tone="neutral" /> : null}
+                      </div>
+                      {a.detail ? (
+                        <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>{a.detail}</div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </details>
+
+          <details style={{ border: `1px solid ${theme.border}`, borderRadius: 14, padding: 12, background: theme.panelBgSoft }}>
+            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 900, color: 'rgba(255,255,255,0.9)' }}>Leads recientes (top 5)</summary>
+            <div style={{ marginTop: 10 }}>
+              {drawerLoading ? (
+                <div style={{ height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.06)' }} />
+              ) : drawerData && drawerData.error ? (
+                <div style={{ color: '#E57373', fontSize: 12, lineHeight: 1.35 }}>{drawerData.error}</div>
+              ) : topLeads.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>Sin leads aún.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {topLeads.map((l) => {
+                    const kind = String(l.kind || '').toLowerCase();
+                    const contact = l.contact && typeof l.contact === 'object' ? l.contact : {};
+                    const emails = Array.isArray(contact.emails) ? contact.emails : [];
+                    const phones = Array.isArray(contact.phones) ? contact.phones : [];
+                    const link = String(l.link || '').trim();
+                    return (
+                      <div key={l.id || l.createdAt || l.title} style={{ border: `1px solid ${theme.border}`, borderRadius: 14, padding: 12, background: 'rgba(255,255,255,0.04)' }}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 900, lineHeight: 1.25 }}>{l.title || 'Lead'}</div>
+                            <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              <Pill theme={theme} label={kind === 'demand' ? 'Cliente' : 'Proveedor'} tone={kind === 'demand' ? 'amber' : 'neutral'} />
+                              {l.source ? <Pill theme={theme} label={String(l.source)} tone="neutral" /> : null}
+                              {typeof l.score === 'number' ? <Pill theme={theme} label={`Score ${l.score}`} tone="neutral" /> : null}
+                            </div>
+                          </div>
+                          {link ? (
+                            <a
+                              href={link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="maqgo-btn-secondary"
+                              style={{ padding: '8px 10px', borderRadius: 10, fontWeight: 800, fontSize: 12, textDecoration: 'none' }}
+                            >
+                              Abrir
+                            </a>
+                          ) : null}
+                        </div>
+
+                        {emails.length || phones.length ? (
+                          <div style={{ marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>
+                            {emails.length ? `Email: ${emails[0]}` : ''}
+                            {emails.length && phones.length ? ' · ' : ''}
+                            {phones.length ? `Tel: ${phones[0]}` : ''}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </details>
+
           <details style={{ border: `1px solid ${theme.border}`, borderRadius: 14, padding: 12, background: theme.panelBgSoft }}>
             <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 900, color: 'rgba(255,255,255,0.9)' }}>GO LIVE</summary>
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
@@ -282,4 +386,3 @@ export default function ComunaDrawer({ open, theme, item, busy, onClose, onOpenN
     </div>
   );
 }
-
