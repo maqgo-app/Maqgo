@@ -1343,6 +1343,24 @@ function AdminDashboard() {
             </button>
             <button
               type="button"
+              disabled={actionsLocked}
+              title={actionsLocked ? 'Requiere conexión al API' : 'Cerebro comercial MAQGO'}
+              onClick={() => !actionsLocked && navigate('/admin/growth-ai')}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid rgba(236, 104, 25, 0.45)',
+                borderRadius: 8,
+                color: ADMIN_PALETTE.brand,
+                cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                opacity: actionsLocked ? 0.45 : 1,
+              }}
+            >
+              Growth AI
+            </button>
+            <button
+              type="button"
               onClick={downloadPlanillaGuarded}
               disabled={actionsLocked}
               title={actionsLocked ? 'Sin conexión al servidor' : undefined}

@@ -87,8 +87,10 @@ export default function AdminGrowthAIFrame() {
           <Tab to="map" label="Mapa" />
           <Tab to="programs" label="Programas" />
           <Tab to="opportunities" label="Oportunidades" />
+          <Tab to="discovery" label="Discovery" />
           <Tab to="automations" label="Automatizaciones" />
           <Tab to="actions" label="Acciones" />
+          <Tab to="contacts" label="Contactos" />
           <Tab to="config" label="Config" />
           <Tab to="audit" label="Auditoría" />
         </div>

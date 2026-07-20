@@ -137,6 +137,11 @@ export default function AdminGrowthAIMapScreen() {
               >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 900 }}>{n.name || n.comuna || 'Nodo'}</div>
+                  {n.region || n.comuna ? (
+                    <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
+                      {(n.region ? `${n.region} · ` : '') + (n.comuna || '')}
+                    </div>
+                  ) : null}
                   <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
                     {n.subtitle || n.primary_gap || '—'}
                   </div>
@@ -150,4 +155,3 @@ export default function AdminGrowthAIMapScreen() {
     </div>
   );
 }
-

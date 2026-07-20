@@ -743,6 +743,7 @@ async def get_pending_requests_for_provider(
 @router.get("/operator/assigned", response_model=List[dict])
 @limiter.limit("60/minute")
 async def get_assigned_requests_for_operator(
+    request: Request,
     activeOnly: bool = True,
     current_user: dict = Depends(get_current_user),
 ):

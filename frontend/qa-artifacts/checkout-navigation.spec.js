@@ -180,6 +180,31 @@ test.describe('Checkout navigation (guard + recovery)', () => {
     await expect(page.getByRole('heading', { name: /¡Reserva confirmada!/i })).toBeVisible({ timeout: 22_000 });
     await assertUrlStable(page);
 
+    await page.evaluate(() => {
+      localStorage.setItem('maqgo_simulation_enabled', 'true');
+    });
+
+    await page.goto(`${BASE_URL}/client/payment-result?simulate=payment_failed&response_code=-2`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 45_000,
+    });
+    await expect(page.getByRole('heading', { name: 'Error al procesar el pago' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Reintentar pago' })).toBeVisible();
+
+    await page.goto(`${BASE_URL}/client/payment-result?simulate=rejected`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 45_000,
+    });
+    await expect(page.getByRole('heading', { name: 'Esta opción ya no está disponible' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Seleccionar otro proveedor' })).toBeVisible();
+
+    await page.goto(`${BASE_URL}/client/payment-result?simulate=expired`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 45_000,
+    });
+    await expect(page.getByRole('heading', { name: 'No se confirmó a tiempo' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Ver otros proveedores' })).toBeVisible();
+
     await context.close();
   });
 

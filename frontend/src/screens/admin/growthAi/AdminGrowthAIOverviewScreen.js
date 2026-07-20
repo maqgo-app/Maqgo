@@ -148,6 +148,11 @@ export default function AdminGrowthAIOverviewScreen() {
                     <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: '-0.01em' }}>
                       {n.name || n.comuna || 'Nodo'}
                     </div>
+                    {n.region || n.comuna ? (
+                      <div style={{ marginTop: 2, fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>
+                        {(n.region ? `${n.region} · ` : '') + (n.comuna || '')}
+                      </div>
+                    ) : null}
                     <div style={{ marginTop: 2, fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>
                       {n.primary_gap || 'Sin brecha principal'}
                     </div>
@@ -276,4 +281,3 @@ export default function AdminGrowthAIOverviewScreen() {
     </div>
   );
 }
-

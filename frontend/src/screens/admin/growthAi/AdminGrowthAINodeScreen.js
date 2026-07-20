@@ -183,6 +183,11 @@ export default function AdminGrowthAINodeScreen() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
+              {node?.region || node?.comuna ? (
+                <div style={{ marginBottom: 10, color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>
+                  {(node?.region ? `${node.region} · ` : '') + (node?.comuna || '')}
+                </div>
+              ) : null}
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>Estado</div>
               <div style={{ marginTop: 4, fontSize: 14, fontWeight: 900 }}>{node?.status || '—'}</div>
               <div style={{ marginTop: 8, color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>ZOC</div>

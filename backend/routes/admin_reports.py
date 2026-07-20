@@ -161,6 +161,43 @@ async def _get_monthly_recipients_from_config_or_env() -> list[str]:
     return _normalize_email_list(raw)
 
 
+async def _build_growth_ai_period_stats(*, start_iso: str, end_iso: str) -> dict:
+    try:
+        start = str(start_iso or "").strip()
+        end = str(end_iso or "").strip()
+        if not start or not end:
+            return {"ok": True, "new_supply_leads": 0, "new_demand_leads": 0, "contacts": {"email": {"sent": 0, "failed": 0}, "sms": {"sent": 0, "failed": 0}}}
+
+        supply = await db.growth_opportunity_items.count_documents({"kind": "supply", "createdAt": {"$gte": start, "$lt": end}})
+        demand = await db.growth_opportunity_items.count_documents({"kind": "demand", "createdAt": {"$gte": start, "$lt": end}})
+
+        runs = await db.growth_discovery_runs.find({"at": {"$gte": start, "$lt": end}}, {"_id": 0, "items_created": 1}).to_list(2000)
+        run_count = len(runs or [])
+        items_created = sum(int(r.get("items_created") or 0) for r in (runs or []))
+
+        email_sent = await db.growth_contact_attempts.count_documents({"channel": "email", "status": "sent", "at": {"$gte": start, "$lt": end}})
+        email_failed = await db.growth_contact_attempts.count_documents({"channel": "email", "status": "failed", "at": {"$gte": start, "$lt": end}})
+        sms_sent = await db.growth_contact_attempts.count_documents({"channel": "sms", "status": "sent", "at": {"$gte": start, "$lt": end}})
+        sms_failed = await db.growth_contact_attempts.count_documents({"channel": "sms", "status": "failed", "at": {"$gte": start, "$lt": end}})
+
+        contact_actions_provider = await db.growth_contact_actions.count_documents({"persona": {"$regex": r"^proveedor$", "$options": "i"}, "createdAt": {"$gte": start, "$lt": end}})
+        contact_actions_client = await db.growth_contact_actions.count_documents({"persona": {"$regex": r"^cliente$", "$options": "i"}, "createdAt": {"$gte": start, "$lt": end}})
+
+        return {
+            "ok": True,
+            "discovery": {"runs": int(run_count), "items_created": int(items_created)},
+            "new_supply_leads": int(supply),
+            "new_demand_leads": int(demand),
+            "contact_actions_created": {"proveedor": int(contact_actions_provider), "cliente": int(contact_actions_client)},
+            "contacts": {
+                "email": {"sent": int(email_sent), "failed": int(email_failed)},
+                "sms": {"sent": int(sms_sent), "failed": int(sms_failed)},
+            },
+        }
+    except Exception:
+        return {"ok": False}
+
+
 class AdminReportSubscriptionsUpdate(BaseModel):
     weekly_emails: list[str] = Field(default_factory=list)
     monthly_emails: list[str] = Field(default_factory=list)
@@ -640,6 +677,7 @@ def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: s
     business = report.get("business", {}) or {}
     ops = report.get("ops", {}) or {}
     growth = report.get("growth", {}) or {}
+    growth_ai = report.get("growth_ai", {}) or {}
     demand = report.get("demand", {}) or {}
     integrations = report.get("integrations", {}) or {}
 
@@ -752,6 +790,16 @@ def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: s
         f"Nuevos proveedores: {growth.get('new_providers') or resumen.get('nuevos_proveedores_semana') or 0}",
         f"Nuevas maquinarias: {growth.get('new_machines') or resumen.get('nuevas_maquinarias_semana') or 0}",
     ]
+
+    try:
+        ga_supply = int(growth_ai.get("new_supply_leads") or 0)
+        ga_demand = int(growth_ai.get("new_demand_leads") or 0)
+        ga_email = int(((growth_ai.get("contacts") or {}).get("email") or {}).get("sent") or 0)
+        ga_sms = int(((growth_ai.get("contacts") or {}).get("sms") or {}).get("sent") or 0)
+        c_items.append(f"Growth Hacking (IA): leads proveedores {ga_supply} · leads clientes {ga_demand}")
+        c_items.append(f"Growth Hacking (IA): contactos enviados email {ga_email} · sms {ga_sms}")
+    except Exception:
+        c_items.append("Growth Hacking (IA): —")
 
     mk = report.get("marketing") or {}
     mk_funnel = (mk.get("funnel") or {}) if isinstance(mk, dict) else {}
@@ -940,6 +988,7 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
     demand = report.get("demand", {}) or {}
     marketing = report.get("marketing") or {}
     integrations = report.get("integrations", {}) or {}
+    growth_ai = report.get("growth_ai", {}) or {}
 
     label = str(periodo.get("label") or "").strip() or "Mes"
     title = "Resumen Mensual"
@@ -1027,6 +1076,24 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
         if ltv_value != "—"
         else ""
     )
+
+    growth_ai_hint = ""
+    try:
+        supply = int(growth_ai.get("new_supply_leads") or 0)
+        demand_leads = int(growth_ai.get("new_demand_leads") or 0)
+        email_sent = int((((growth_ai.get("contacts") or {}).get("email") or {}).get("sent") or 0))
+        sms_sent = int((((growth_ai.get("contacts") or {}).get("sms") or {}).get("sent") or 0))
+        growth_ai_hint = (
+            '<div style="margin-top:6px;font-size:12px;line-height:16px;color:#64748B;">'
+            f"Growth Hacking (IA) del mes: leads proveedores {supply} · leads clientes {demand_leads} · contactos email {email_sent} · sms {sms_sent}"
+            "</div>"
+        )
+    except Exception:
+        growth_ai_hint = (
+            '<div style="margin-top:6px;font-size:12px;line-height:16px;color:#64748B;">'
+            "Growth Hacking (IA) del mes: —"
+            "</div>"
+        )
 
     insights = (report.get("insights") or []) if isinstance(report.get("insights"), list) else []
     if take_rate_label != "—":
@@ -1153,6 +1220,7 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
                   </div>
 
                   {growth_hint}
+                  {growth_ai_hint}
 
                   {_render_section_header("Claves")}
                   <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FAFBFE;">
@@ -2213,6 +2281,8 @@ async def _build_monthly_finance(*, year: int, month: int, include_prev: bool = 
     komatsu = await _compute_komatsu_integration_snapshot()
     integrations = {"komatsu": komatsu}
 
+    growth_ai = await _build_growth_ai_period_stats(start_iso=start_iso, end_iso=end_iso)
+
     top_machinery_gmv = []
     for k, v in sorted(gmv_by_type.items(), key=lambda kv: float(kv[1] or 0), reverse=True)[:5]:
         if not k or k == "—":
@@ -2302,6 +2372,7 @@ async def _build_monthly_finance(*, year: int, month: int, include_prev: bool = 
         "market": {
             "top_machinery_by_gmv": top_machinery_gmv,
         },
+        "growth_ai": growth_ai,
         "generated_at": datetime.utcnow().isoformat(),
     }
 
@@ -2995,6 +3066,8 @@ async def _build_weekly_report(weeks_ago: int = 0):
 
     demand = {"requests_created": len(reqs_week), "top_zones": top_zones}
     growth = {"new_clients": nuevos_clientes, "new_providers": nuevos_proveedores, "new_machines": nuevas_maquinarias}
+
+    growth_ai = await _build_growth_ai_period_stats(start_iso=start_iso, end_iso=end_iso)
     ops = {
         "health_score": int(round(health_score, 0)),
         "review_avg_min": tiempo_promedio_revision_min,
@@ -3112,6 +3185,7 @@ async def _build_weekly_report(weeks_ago: int = 0):
         "business": business,
         "ops": ops,
         "growth": growth,
+        "growth_ai": growth_ai,
         "demand": demand,
         "integrations": integrations,
         "insights": insights,
@@ -3549,6 +3623,18 @@ def format_report_as_text(report: dict) -> str:
     lines.append((lineas_estado or "").rstrip("\n"))
     lines.append("Top maquinaria (creados esta semana):")
     lines.append((lineas_maq or "").rstrip("\n"))
+    ga = report.get("growth_ai") or {}
+    if isinstance(ga, dict):
+        supply = int(ga.get("new_supply_leads") or 0)
+        demand = int(ga.get("new_demand_leads") or 0)
+        email_sent = int((((ga.get("contacts") or {}).get("email") or {}).get("sent") or 0))
+        sms_sent = int((((ga.get("contacts") or {}).get("sms") or {}).get("sent") or 0))
+        if supply or demand or email_sent or sms_sent:
+            lines.append("")
+            lines.append("Growth IA (semana):")
+            lines.append(f"  - Leads proveedores (supply): {supply}")
+            lines.append(f"  - Leads clientes (demand): {demand}")
+            lines.append(f"  - Contactos enviados: email {email_sent} · sms {sms_sent}")
     lines.append("----------------------------------------------------------------")
     lines.append("                        ALERTAS")
     lines.append("----------------------------------------------------------------")
@@ -3603,6 +3689,22 @@ def format_monthly_finance_as_text(report: dict) -> str:
     lines.append(f"Servicios pagados en el mes: {vol.get('services_paid', 0)}")
     lines.append(f"Con factura proveedor: {vol.get('with_provider_invoice', 0)}")
     lines.append(f"Pagado sin factura: {vol.get('paid_without_invoice', 0)}")
+    lines.append(f"Nuevos clientes en el mes: {vol.get('new_clients', 0)}")
+    lines.append(f"Nuevos proveedores en el mes: {vol.get('new_providers', 0)}")
+    lines.append(f"Nuevas maquinarias en el mes: {vol.get('new_machines', 0)}")
+
+    ga = report.get("growth_ai") or {}
+    if isinstance(ga, dict):
+        supply = int(ga.get("new_supply_leads") or 0)
+        demand_leads = int(ga.get("new_demand_leads") or 0)
+        email_sent = int((((ga.get("contacts") or {}).get("email") or {}).get("sent") or 0))
+        sms_sent = int((((ga.get("contacts") or {}).get("sms") or {}).get("sent") or 0))
+        if supply or demand_leads or email_sent or sms_sent:
+            lines.append("")
+            lines.append("Growth IA (mes):")
+            lines.append(f"  - Leads proveedores (supply): {supply}")
+            lines.append(f"  - Leads clientes (demand): {demand_leads}")
+            lines.append(f"  - Contactos enviados: email {email_sent} · sms {sms_sent}")
     lines.append("")
     lines.append("Ventas (CLP):")
     lines.append(f"  - Neto:  {_fmt_money(sales.get('net'))}")

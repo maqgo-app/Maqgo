@@ -110,3 +110,7 @@ export function HistoryListSkeleton({ count = 4 }) {
     </>
   );
 }
+
+export default function ListSkeleton({ count = 4 }) {
+  return <HistoryListSkeleton count={count} />;
+}

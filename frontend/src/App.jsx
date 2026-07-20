@@ -168,6 +168,18 @@ const AdminPricingScreen = lazy(() => import('./screens/admin/AdminPricingScreen
 const AdminUsersScreen = lazy(() => import('./screens/admin/AdminUsersScreen'));
 const AdminMarketingScreen = lazy(() => import('./screens/admin/AdminMarketingScreen'));
 const AdminChangePasswordScreen = lazy(() => import('./screens/admin/AdminChangePasswordScreen'));
+const AdminGrowthAIFrame = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIFrame'));
+const AdminGrowthAIOverviewScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIOverviewScreen'));
+const AdminGrowthAIMapScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIMapScreen'));
+const AdminGrowthAINodeScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAINodeScreen'));
+const AdminGrowthAIProgramsScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIProgramsScreen'));
+const AdminGrowthAIOpportunitiesScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIOpportunitiesScreen'));
+const AdminGrowthAIDiscoveryScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIDiscoveryScreen'));
+const AdminGrowthAIAutomationsScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIAutomationsScreen'));
+const AdminGrowthAIActionsScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIActionsScreen'));
+const AdminGrowthAIContactsScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIContactsScreen'));
+const AdminGrowthAIConfigScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIConfigScreen'));
+const AdminGrowthAIAuditScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIAuditScreen'));
 
 // Perfil y legales
 const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
@@ -343,6 +355,19 @@ function AppContent() {
           <Route path="pricing" element={<AdminPricingScreen />} />
           <Route path="users" element={<AdminUsersScreen />} />
           <Route path="marketing" element={<AdminMarketingScreen />} />
+          <Route path="growth-ai" element={<AdminGrowthAIFrame />}>
+            <Route index element={<AdminGrowthAIOverviewScreen />} />
+            <Route path="map" element={<AdminGrowthAIMapScreen />} />
+            <Route path="nodes/:nodeId" element={<AdminGrowthAINodeScreen />} />
+            <Route path="programs" element={<AdminGrowthAIProgramsScreen />} />
+            <Route path="opportunities" element={<AdminGrowthAIOpportunitiesScreen />} />
+            <Route path="discovery" element={<AdminGrowthAIDiscoveryScreen />} />
+            <Route path="automations" element={<AdminGrowthAIAutomationsScreen />} />
+            <Route path="actions" element={<AdminGrowthAIActionsScreen />} />
+          <Route path="contacts" element={<AdminGrowthAIContactsScreen />} />
+            <Route path="config" element={<AdminGrowthAIConfigScreen />} />
+            <Route path="audit" element={<AdminGrowthAIAuditScreen />} />
+          </Route>
         </Route>
 
         <Route element={<ProtectedRoute />}>

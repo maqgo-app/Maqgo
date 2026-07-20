@@ -24,7 +24,7 @@ from contextvars import ContextVar
 from rate_limit import limiter
 from db_config import get_db_name, get_mongo_url
 
-from auth_dependency import create_session_for_user, get_current_user
+from auth_dependency import create_session_for_user, get_current_user, get_current_admin_strict
 from communications import (
     send_sms_otp,
     verify_sms_otp,
@@ -2595,7 +2595,7 @@ async def login(request: Request, body: LoginRequest):
 
 @router.post("/debug/test-sms")
 @limiter.limit("5/minute")
-async def debug_test_sms(request: Request, body: dict = Body(...)):
+async def debug_test_sms(request: Request, body: dict = Body(...), _: dict = Depends(get_current_admin_strict)):
     """
     Endpoint temporal SOLO ADMIN para test directo de SMS.
     Permite diagnosticar problemas de envío sin flujo OTP.

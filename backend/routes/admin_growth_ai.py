@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import os
 from typing import Any, Optional
 from uuid import uuid4
+
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -10,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from auth_dependency import get_current_admin_strict
 from db_config import get_db_name, get_mongo_url
+from services.growth_ai_scheduler import run_growth_ai_cycle
 
 
 router = APIRouter(prefix="/admin/growth-ai", tags=["admin-growth-ai"])
@@ -51,6 +55,7 @@ class NodeUpsert(BaseModel):
     id: str = Field(min_length=2)
     name: str = Field(default="")
     comuna: str = Field(default="")
+    region: str = Field(default="")
     sequence: int = Field(default=0)
     status: str = Field(default="planned")
     traffic_light: str = Field(default="—")
@@ -91,6 +96,55 @@ class ConfigUpdate(BaseModel):
     config: dict = Field(default_factory=dict)
 
 
+class DraftOutreachRequest(BaseModel):
+    persona: str = Field(min_length=2)
+    context: dict = Field(default_factory=dict)
+
+
+class ContactActionCreate(BaseModel):
+    node_id: str = Field(default="")
+    persona: str = Field(min_length=2)
+    channel: str = Field(min_length=2)
+    to: str = Field(min_length=2)
+    subject: str = Field(default="")
+    message: str = Field(min_length=2)
+    reason: str = Field(default="")
+    execution_mode: str = Field(default="manual")
+    meta: dict = Field(default_factory=dict)
+
+
+class ContactActionApprove(BaseModel):
+    reason: str = Field(default="")
+    allow_auto_execute: bool = Field(default=False)
+
+
+class SmsSuppressionCreate(BaseModel):
+    phone: str = Field(min_length=2)
+    reason: str = Field(default="")
+
+
+class OpportunityItemCreate(BaseModel):
+    node_id: str = Field(default="")
+    category: str = Field(default="")
+    title: str = Field(min_length=2)
+    detail: str = Field(default="")
+    source: str = Field(default="manual")
+    kind: str = Field(default="supply")
+    contact: dict = Field(default_factory=dict)
+    meta: dict = Field(default_factory=dict)
+
+
+class DiscoverySourceUpsert(BaseModel):
+    id: str = Field(min_length=2)
+    url: str = Field(min_length=4)
+    type: str = Field(default="rss")
+    kind: str = Field(default="supply")
+    node_id: str = Field(default="")
+    category: str = Field(default="")
+    enabled: bool = Field(default=True)
+    max_items: int = Field(default=25)
+
+
 @router.get("/overview")
 async def overview(_: dict = Depends(get_current_admin_strict)):
     nodes = await db.growth_nodes.find({}, {"_id": 0}).sort("sequence", 1).to_list(length=200)
@@ -100,6 +154,7 @@ async def overview(_: dict = Depends(get_current_admin_strict)):
             {
                 "id": n.get("id"),
                 "name": n.get("name") or n.get("comuna") or "Nodo",
+                "region": n.get("region") or "",
                 "comuna": n.get("comuna") or "",
                 "primary_gap": n.get("primary_gap") or "",
                 "traffic_light": n.get("traffic_light") or "—",
@@ -163,6 +218,8 @@ async def map_view(_: dict = Depends(get_current_admin_strict)):
             {
                 "id": n.get("id"),
                 "name": n.get("name") or n.get("comuna") or "Nodo",
+                "region": n.get("region") or "",
+                "comuna": n.get("comuna") or "",
                 "subtitle": n.get("primary_gap") or n.get("status") or "—",
                 "traffic_light": n.get("traffic_light") or "—",
                 "traffic_tone": n.get("traffic_tone") or "neutral",
@@ -227,6 +284,8 @@ async def node_detail(node_id: str, _: dict = Depends(get_current_admin_strict))
         "node": {
             "id": node.get("id"),
             "name": node.get("name") or node.get("comuna") or "Nodo",
+            "region": node.get("region") or "",
+            "comuna": node.get("comuna") or "",
             "status": node.get("status") or "—",
             "traffic_light": node.get("traffic_light") or "—",
             "traffic_tone": node.get("traffic_tone") or "neutral",
@@ -346,6 +405,122 @@ async def list_opportunities(_: dict = Depends(get_current_admin_strict)):
     return {"items": items}
 
 
+@router.get("/opportunity-items")
+async def list_opportunity_items(status: Optional[str] = Query(default=None), _: dict = Depends(get_current_admin_strict)):
+    q: dict[str, Any] = {}
+    if status:
+        q["status"] = status.strip().lower()
+    items = await db.growth_opportunity_items.find(q, {"_id": 0}).sort("createdAt", -1).to_list(length=500)
+    return {"items": items}
+
+
+@router.post("/opportunity-items/{item_id}/triage")
+async def triage_opportunity_item(item_id: str, payload: OpportunityTriage, _: dict = Depends(get_current_admin_strict)):
+    it = await db.growth_opportunity_items.find_one({"id": item_id}, {"_id": 0})
+    if not it:
+        raise HTTPException(status_code=404, detail="Opportunity item no encontrado")
+
+    status = payload.status.strip().lower()
+    reason = payload.reason.strip()
+    await db.growth_opportunity_items.update_one(
+        {"id": item_id},
+        {"$set": {"status": status, "triageReason": reason, "updatedAt": _now_iso()}},
+    )
+    await _audit("Opportunity item triage", f"status={status} reason={reason}", node_id=it.get("node_id"), event_type="triage")
+    return {"ok": True}
+
+
+@router.post("/opportunity-items")
+async def create_opportunity_item(payload: OpportunityItemCreate, _: dict = Depends(get_current_admin_strict)):
+    item_id = str(uuid4())
+    now = _now_iso()
+    doc = {
+        "id": item_id,
+        "status": "new",
+        "node_id": payload.node_id.strip() or None,
+        "category": payload.category.strip(),
+        "title": payload.title.strip(),
+        "detail": payload.detail.strip(),
+        "source": payload.source.strip() or "manual",
+        "kind": payload.kind.strip() or "supply",
+        "contact": payload.contact if isinstance(payload.contact, dict) else {},
+        "meta": payload.meta if isinstance(payload.meta, dict) else {},
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    await db.growth_opportunity_items.insert_one(doc)
+    await db.growth_discovery_runs.insert_one(
+        {
+            "id": str(uuid4()),
+            "source": doc["source"],
+            "status": "recorded",
+            "items_created": 1,
+            "at": now,
+        }
+    )
+    await _audit("Opportunity item creado", doc["title"], node_id=doc.get("node_id"), event_type="discovery")
+    return {"id": item_id}
+
+
+@router.get("/discovery/sources")
+async def get_discovery_sources(_: dict = Depends(get_current_admin_strict)):
+    conf = await db.config.find_one({"_id": "growth_ai_config"}, {"_id": 0})
+    cfg = (conf or {}).get("config") if isinstance(conf, dict) else {}
+    if not isinstance(cfg, dict):
+        cfg = {}
+    sources = cfg.get("discovery_sources")
+    if not isinstance(sources, list):
+        sources = []
+    return {"items": sources}
+
+
+@router.put("/discovery/sources")
+async def put_discovery_sources(payload: list[DiscoverySourceUpsert], _: dict = Depends(get_current_admin_strict)):
+    items: list[dict[str, Any]] = []
+    for s in payload:
+        items.append(
+            {
+                "id": s.id.strip(),
+                "url": s.url.strip(),
+                "type": s.type.strip().lower() or "rss",
+                "kind": s.kind.strip().lower() or "supply",
+                "node_id": s.node_id.strip(),
+                "category": s.category.strip(),
+                "enabled": bool(s.enabled),
+                "max_items": int(s.max_items or 25),
+            }
+        )
+    await db.config.update_one(
+        {"_id": "growth_ai_config"},
+        {
+            "$set": {"config.discovery_sources": items, "updatedAt": _now_iso()},
+            "$setOnInsert": {"createdAt": _now_iso()},
+        },
+        upsert=True,
+    )
+    await _audit("Discovery sources updated", f"count={len(items)}", event_type="discovery")
+    return {"ok": True, "count": len(items)}
+
+
+@router.post("/discovery/run")
+async def discovery_run(_: dict = Depends(get_current_admin_strict)):
+    conf = await db.config.find_one({"_id": "growth_ai_config"}, {"_id": 0})
+    cfg = (conf or {}).get("config") if isinstance(conf, dict) else {}
+    if not isinstance(cfg, dict):
+        cfg = {}
+    from services.growth_ai_discovery import run_discovery_once
+
+    res = await run_discovery_once(db=db, config=cfg)
+    await _audit("Discovery run", f"created={res.get('items_created')}", event_type="discovery")
+    return res
+
+
+@router.get("/discovery/runs")
+async def discovery_runs(_: dict = Depends(get_current_admin_strict)):
+    items = await db.growth_discovery_runs.find({}, {"_id": 0}).sort("at", -1).to_list(length=200)
+    return {"items": items}
+
+
 @router.post("/opportunities/{opportunity_id}/triage")
 async def triage_opportunity(opportunity_id: str, payload: OpportunityTriage, _: dict = Depends(get_current_admin_strict)):
     opp = await db.growth_opportunities.find_one({"id": opportunity_id}, {"_id": 0})
@@ -383,6 +558,261 @@ async def automations_status(_: dict = Depends(get_current_admin_strict)):
     state = await db.config.find_one({"_id": "growth_ai_state"}, {"_id": 0})
     last_tick = (state or {}).get("last_tick_at") or "—"
     return {"summary": f"Cerebro last tick: {last_tick}"}
+
+
+@router.post("/brain/tick")
+async def brain_tick(_: dict = Depends(get_current_admin_strict)):
+    await run_growth_ai_cycle(db)
+    state = await db.config.find_one({"_id": "growth_ai_state"}, {"_id": 0})
+    last_tick = (state or {}).get("last_tick_at") or "—"
+    await _audit("Brain tick", f"Tick ejecutado; last_tick_at={last_tick}", event_type="brain_tick")
+    return {"ok": True, "last_tick_at": last_tick}
+
+
+@router.get("/engine/status")
+async def engine_status(_: dict = Depends(get_current_admin_strict)):
+    return {
+        "engine": "maqgo_internal",
+        "configured": True,
+        "notes": "Copy generator interno (sin proveedores externos).",
+    }
+
+
+@router.post("/engine/draft-outreach")
+async def engine_draft_outreach(payload: DraftOutreachRequest, _: dict = Depends(get_current_admin_strict)):
+    from services.growth_ai_copy_engine import draft_outreach_message
+
+    res = await draft_outreach_message(persona=payload.persona, context=payload.context)
+    await _audit("Outreach draft", payload.persona, event_type="draft")
+    return res
+
+
+@router.post("/llm/draft-outreach")
+async def llm_draft_outreach(payload: DraftOutreachRequest, _: dict = Depends(get_current_admin_strict)):
+    return await engine_draft_outreach(payload, _)
+
+
+@router.post("/contact-actions")
+async def create_contact_action(payload: ContactActionCreate, _: dict = Depends(get_current_admin_strict)):
+    action_id = str(uuid4())
+    now = _now_iso()
+    exec_mode = payload.execution_mode.strip().lower() or "manual"
+    if exec_mode not in {"manual", "auto"}:
+        raise HTTPException(status_code=400, detail="execution_mode inválido")
+    doc = {
+        "id": action_id,
+        "status": "draft",
+        "node_id": payload.node_id.strip() or None,
+        "persona": payload.persona.strip(),
+        "channel": payload.channel.strip().lower(),
+        "to": payload.to.strip(),
+        "subject": payload.subject.strip(),
+        "message": payload.message.strip(),
+        "reason": payload.reason.strip(),
+        "execution_mode": exec_mode,
+        "meta": payload.meta if isinstance(payload.meta, dict) else {},
+        "createdAt": now,
+        "updatedAt": now,
+        "approvedAt": None,
+        "executedAt": None,
+        "lastError": None,
+    }
+    await db.growth_contact_actions.insert_one(doc)
+    await _audit("Contacto creado", f"channel={doc['channel']} to={doc['to']}", node_id=doc.get("node_id"), event_type="contact")
+    return {"id": action_id}
+
+
+@router.get("/contact-actions")
+async def list_contact_actions(status: Optional[str] = Query(default=None), _: dict = Depends(get_current_admin_strict)):
+    q: dict[str, Any] = {}
+    if status:
+        q["status"] = status.strip().lower()
+    items = await db.growth_contact_actions.find(q, {"_id": 0}).sort("createdAt", -1).to_list(length=500)
+    return {"items": items}
+
+
+@router.post("/contact-actions/{action_id}/approve")
+async def approve_contact_action(action_id: str, payload: ContactActionApprove, _: dict = Depends(get_current_admin_strict)):
+    a = await db.growth_contact_actions.find_one({"id": action_id}, {"_id": 0})
+    if not a:
+        raise HTTPException(status_code=404, detail="Acción de contacto no encontrada")
+    if str(a.get("status") or "").lower() not in {"draft", "failed", "manual_required"}:
+        raise HTTPException(status_code=400, detail="Acción no aprobable en el estado actual")
+
+    exec_mode = "auto" if bool(payload.allow_auto_execute) else str(a.get("execution_mode") or "manual")
+    await db.growth_contact_actions.update_one(
+        {"id": action_id},
+        {
+            "$set": {
+                "status": "approved",
+                "approvedAt": _now_iso(),
+                "updatedAt": _now_iso(),
+                "approvalReason": payload.reason.strip(),
+                "execution_mode": exec_mode,
+            }
+        },
+    )
+    await _audit("Contacto aprobado", payload.reason.strip() or "approved", node_id=a.get("node_id"), event_type="contact")
+    return {"ok": True}
+
+
+@router.post("/contact-actions/{action_id}/execute")
+async def execute_contact_action(action_id: str, _: dict = Depends(get_current_admin_strict)):
+    a = await db.growth_contact_actions.find_one({"id": action_id}, {"_id": 0})
+    if not a:
+        raise HTTPException(status_code=404, detail="Acción de contacto no encontrada")
+    if str(a.get("status") or "").lower() != "approved":
+        raise HTTPException(status_code=400, detail="Acción debe estar aprobada")
+
+    from services.growth_ai_contact_executor import execute_contact_action as _exec
+
+    def _scl_now() -> datetime:
+        return datetime.now(ZoneInfo("America/Santiago"))
+
+    async def _sms_guardrails(phone: str) -> None:
+        enabled = str(os.environ.get("MAQGO_GROWTH_SMS_ENABLED", "false")).strip().lower() in {"1", "true", "yes", "on"}
+        if not enabled:
+            raise HTTPException(status_code=400, detail="SMS Growth deshabilitado")
+
+        s = await db.growth_sms_suppressions.find_one({"phone": phone}, {"_id": 0})
+        if s:
+            raise HTTPException(status_code=400, detail="Teléfono suprimido")
+
+        now = _scl_now()
+        start_h = int(str(os.environ.get("MAQGO_GROWTH_SMS_ALLOWED_HOUR_START", "9")).strip() or "9")
+        end_h = int(str(os.environ.get("MAQGO_GROWTH_SMS_ALLOWED_HOUR_END", "19")).strip() or "19")
+        if now.hour < start_h or now.hour >= end_h:
+            raise HTTPException(status_code=400, detail="Fuera de ventana horaria")
+
+        per_phone = int(str(os.environ.get("MAQGO_GROWTH_SMS_PER_PHONE_PER_DAY", "1")).strip() or "1")
+        per_day = int(str(os.environ.get("MAQGO_GROWTH_SMS_DAILY_LIMIT", "150")).strip() or "150")
+
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_start_utc = day_start.astimezone(timezone.utc)
+
+        phone_count = await db.growth_contact_attempts.count_documents(
+            {"channel": "sms", "to": phone, "at": {"$gte": day_start_utc.isoformat()}},
+            limit=10000,
+        )
+        if phone_count >= per_phone:
+            raise HTTPException(status_code=400, detail="Límite diario por teléfono")
+
+        global_count = await db.growth_contact_attempts.count_documents(
+            {"channel": "sms", "at": {"$gte": day_start_utc.isoformat()}},
+            limit=100000,
+        )
+        if global_count >= per_day:
+            raise HTTPException(status_code=400, detail="Límite diario global SMS")
+
+    channel = str(a.get("channel") or "").strip().lower()
+    to = str(a.get("to") or "").strip()
+    subject = str(a.get("subject") or "").strip()
+    message = str(a.get("message") or "").strip()
+
+    if channel == "sms":
+        await _sms_guardrails(to)
+        if "stop" not in message.lower():
+            suffix = " Responde STOP para no recibir más mensajes."
+            if len(message) + len(suffix) <= 480:
+                message = message + suffix
+
+    res = await _exec(channel=channel, to=to, subject=subject, message=message)
+    attempt_id = str(uuid4())
+    await db.growth_contact_attempts.insert_one(
+        {
+            "id": attempt_id,
+            "action_id": action_id,
+            "channel": channel,
+            "to": to,
+            "status": str(res.get("status") or "").strip().lower(),
+            "provider": res.get("provider"),
+            "provider_id": res.get("id") or res.get("provider_id"),
+            "url": res.get("url"),
+            "error": res.get("error"),
+            "at": _now_iso(),
+        }
+    )
+
+    new_status = str(res.get("status") or "").strip().lower() or "failed"
+    if new_status == "sent":
+        await db.growth_contact_actions.update_one(
+            {"id": action_id},
+            {"$set": {"status": "executed", "executedAt": _now_iso(), "updatedAt": _now_iso(), "lastError": None}},
+        )
+        await _audit("Contacto ejecutado", f"channel={channel}", node_id=a.get("node_id"), event_type="contact")
+    elif new_status == "manual_required":
+        await db.growth_contact_actions.update_one(
+            {"id": action_id},
+            {"$set": {"status": "manual_required", "updatedAt": _now_iso(), "manualUrl": res.get("url") or ""}},
+        )
+        await _audit("Contacto requiere ejecución manual", f"channel={channel}", node_id=a.get("node_id"), event_type="contact")
+    else:
+        await db.growth_contact_actions.update_one(
+            {"id": action_id},
+            {"$set": {"status": "failed", "updatedAt": _now_iso(), "lastError": res.get("error")}},
+        )
+        await _audit("Contacto falló", f"channel={channel} err={res.get('error')}", node_id=a.get("node_id"), severity="P0", event_type="contact")
+    return {"ok": True, "attempt_id": attempt_id, "result": res}
+
+
+@router.get("/sms/suppressions")
+async def list_sms_suppressions(_: dict = Depends(get_current_admin_strict)):
+    items = await db.growth_sms_suppressions.find({}, {"_id": 0}).sort("createdAt", -1).to_list(length=500)
+    return {"items": items}
+
+
+@router.get("/learning/stats")
+async def list_learning_stats(
+    node_id: Optional[str] = Query(default=None),
+    persona: Optional[str] = Query(default=None),
+    channel: Optional[str] = Query(default=None),
+    _: dict = Depends(get_current_admin_strict),
+):
+    q: dict[str, Any] = {}
+    if node_id:
+        q["node_id"] = node_id.strip()
+    if persona:
+        q["persona"] = persona.strip().lower()
+    if channel:
+        q["channel"] = channel.strip().lower()
+    items = await db.growth_learning_stats.find(q, {"_id": 0}).sort("updatedAt", -1).to_list(length=200)
+    return {"items": items}
+
+
+@router.post("/sms/suppressions")
+async def add_sms_suppression(payload: SmsSuppressionCreate, _: dict = Depends(get_current_admin_strict)):
+    phone = payload.phone.strip()
+    _id = str(uuid4())
+    now = _now_iso()
+    await db.growth_sms_suppressions.update_one(
+        {"phone": phone},
+        {
+            "$set": {
+                "id": _id,
+                "phone": phone,
+                "reason": payload.reason.strip(),
+                "updatedAt": now,
+            },
+            "$setOnInsert": {"createdAt": now},
+        },
+        upsert=True,
+    )
+    await _audit("SMS suppression", phone, event_type="sms")
+    return {"ok": True}
+
+
+@router.delete("/sms/suppressions/{phone}")
+async def remove_sms_suppression(phone: str, _: dict = Depends(get_current_admin_strict)):
+    p = phone.strip()
+    await db.growth_sms_suppressions.delete_one({"phone": p})
+    await _audit("SMS suppression removed", p, event_type="sms")
+    return {"ok": True}
+
+
+@router.get("/contact-actions/{action_id}/attempts")
+async def list_contact_attempts(action_id: str, _: dict = Depends(get_current_admin_strict)):
+    items = await db.growth_contact_attempts.find({"action_id": action_id}, {"_id": 0}).sort("at", -1).to_list(length=200)
+    return {"items": items}
 
 
 @router.get("/actions")
@@ -455,4 +885,3 @@ async def update_config(payload: ConfigUpdate, _: dict = Depends(get_current_adm
     )
     await _audit("Config actualizada", "growth_ai_config actualizada", event_type="config")
     return {"ok": True}
-
