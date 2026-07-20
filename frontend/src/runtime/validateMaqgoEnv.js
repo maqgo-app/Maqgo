@@ -18,4 +18,13 @@ export function validateMaqgoEnvAtStartup() {
       '— Revisa .env / Vercel Environment Variables y vuelve a desplegar.'
     );
   }
+
+  const isProdBuild = import.meta.env.VITE_IS_PRODUCTION === 'true';
+  const maqgoEnv = String(import.meta.env.VITE_MAQGO_ENV || '').trim();
+  const demoMode = import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
+  if (isProdBuild && maqgoEnv === 'production' && demoMode) {
+    console.warn(
+      '[Maqgo] VITE_ENABLE_DEMO_MODE=true en producción (modo pruebas). Desactívalo al terminar la validación final.'
+    );
+  }
 }

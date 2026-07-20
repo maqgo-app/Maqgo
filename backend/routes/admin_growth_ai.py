@@ -80,6 +80,12 @@ class NodePipelineStageUpdate(BaseModel):
     reason: str = Field(min_length=2)
 
 
+class NodeGoLiveMachinesBulk(BaseModel):
+    machine_keys: list[str] = Field(default_factory=list)
+    enable: bool = Field(default=True)
+    reason: str = Field(default="")
+
+
 class ProgramCreate(BaseModel):
     title: str = Field(min_length=3)
     objective: str = Field(default="")
@@ -220,6 +226,16 @@ async def overview(_: dict = Depends(get_current_admin_strict)):
             return "pausada"
         return "captando"
 
+    def _comuna_signal(stage: str, live_total: int, ready_total: int, ready_not_live: int) -> dict:
+        st = str(stage or "").strip().lower()
+        if st == "pausada":
+            return {"label": "Pausada", "tone": "red", "key": "pausada"}
+        if live_total > 0:
+            return {"label": "LIVE", "tone": "green", "key": "live"}
+        if ready_not_live > 0 or ready_total > 0:
+            return {"label": "LISTA", "tone": "amber", "key": "lista"}
+        return {"label": "Captando", "tone": "neutral", "key": "captando"}
+
     pipeline_items = []
     total_ready_machines = 0
     total_live_machines = 0
@@ -229,10 +245,13 @@ async def overview(_: dict = Depends(get_current_admin_strict)):
         live_machines = n.get("live_machines") if isinstance(n.get("live_machines"), dict) else {}
         ready_keys = [str(k) for k in open_machines.keys()]
         live_keys = [str(k) for k in live_machines.keys() if bool(live_machines.get(k))]
-        ready_not_live = [k for k in ready_keys if not bool(live_machines.get(k))]
+        ready_not_live_all = [k for k in ready_keys if not bool(live_machines.get(k))]
+        ready_not_live_preview = ready_not_live_all[:6]
         total_ready_machines += len(ready_keys)
         total_live_machines += len(live_keys)
-        total_ready_not_live += len(ready_not_live)
+        total_ready_not_live += len(ready_not_live_all)
+        stage = _pipeline_stage(n)
+        signal = _comuna_signal(stage, len(live_keys), len(ready_keys), len(ready_not_live_all))
         pipeline_items.append(
             {
                 "id": n.get("id"),
@@ -240,13 +259,16 @@ async def overview(_: dict = Depends(get_current_admin_strict)):
                 "region": n.get("region") or "",
                 "comuna": n.get("comuna") or "",
                 "sequence": int(n.get("sequence") or 0),
-                "stage": _pipeline_stage(n),
+                "stage": stage,
                 "status": n.get("status") or "",
                 "traffic_light": n.get("traffic_light") or "—",
                 "traffic_tone": n.get("traffic_tone") or "neutral",
-                "ready_machines": {"total": len(ready_keys), "not_live": len(ready_not_live)},
+                "comuna_signal": signal,
+                "ready_machines": {"total": len(ready_keys), "not_live": len(ready_not_live_all)},
                 "live_machines": {"total": len(live_keys)},
-                "ready_not_live": ready_not_live[:6],
+                "ready_not_live": ready_not_live_preview,
+                "ready_not_live_all": ready_not_live_all[:40],
+                "ready_not_live_total": len(ready_not_live_all),
             }
         )
 
@@ -313,6 +335,17 @@ async def overview(_: dict = Depends(get_current_admin_strict)):
 async def list_comunas(_: dict = Depends(get_current_admin_strict)):
     nodes = await db.growth_nodes.find({}, {"_id": 0}).sort("sequence", 1).to_list(length=500)
     items = []
+
+    def _comuna_signal(stage: str, live_total: int, ready_total: int, ready_not_live: int) -> dict:
+        st = str(stage or "").strip().lower()
+        if st == "pausada":
+            return {"label": "Pausada", "tone": "red", "key": "pausada"}
+        if live_total > 0:
+            return {"label": "LIVE", "tone": "green", "key": "live"}
+        if ready_not_live > 0 or ready_total > 0:
+            return {"label": "LISTA", "tone": "amber", "key": "lista"}
+        return {"label": "Captando", "tone": "neutral", "key": "captando"}
+
     for n in nodes:
         status = str(n.get("status") or "").strip().lower()
         stage = str(n.get("pipeline_stage") or "").strip().lower()
@@ -328,8 +361,10 @@ async def list_comunas(_: dict = Depends(get_current_admin_strict)):
         open_machines = n.get("open_machines") if isinstance(n.get("open_machines"), dict) else {}
         live_machines = n.get("live_machines") if isinstance(n.get("live_machines"), dict) else {}
         ready_keys = [str(k) for k in open_machines.keys()]
-        ready_not_live = [k for k in ready_keys if not bool(live_machines.get(k))]
+        ready_not_live_all = [k for k in ready_keys if not bool(live_machines.get(k))]
+        ready_not_live_preview = ready_not_live_all[:6]
         live_keys = [str(k) for k in live_machines.keys() if bool(live_machines.get(k))]
+        signal = _comuna_signal(stage, len(live_keys), len(ready_keys), len(ready_not_live_all))
         items.append(
             {
                 "id": n.get("id"),
@@ -341,13 +376,59 @@ async def list_comunas(_: dict = Depends(get_current_admin_strict)):
                 "status": n.get("status") or "",
                 "traffic_light": n.get("traffic_light") or "—",
                 "traffic_tone": n.get("traffic_tone") or "neutral",
+                "comuna_signal": signal,
                 "min_supply_per_machine": int(n.get("min_supply_per_machine") or 0) or 0,
-                "ready_machines": {"total": len(ready_keys), "not_live": len(ready_not_live)},
+                "ready_machines": {"total": len(ready_keys), "not_live": len(ready_not_live_all)},
                 "live_machines": {"total": len(live_keys)},
-                "ready_not_live": ready_not_live[:6],
+                "ready_not_live": ready_not_live_preview,
+                "ready_not_live_all": ready_not_live_all[:40],
+                "ready_not_live_total": len(ready_not_live_all),
             }
         )
     return {"items": items}
+
+
+@router.post("/nodes/{node_id}/go-live-machines")
+async def node_go_live_machines(node_id: str, payload: NodeGoLiveMachinesBulk, _: dict = Depends(get_current_admin_strict)):
+    node = await db.growth_nodes.find_one({"id": node_id}, {"_id": 0})
+    if not node:
+        raise HTTPException(status_code=404, detail="Nodo no encontrado")
+
+    keys = [str(k).strip().lower() for k in (payload.machine_keys or []) if str(k).strip()]
+    uniq = []
+    seen = set()
+    for k in keys:
+        if k in seen:
+            continue
+        seen.add(k)
+        uniq.append(k)
+    if not uniq:
+        raise HTTPException(status_code=400, detail="machine_keys requerido")
+
+    now = _now_iso()
+    if payload.enable:
+        set_doc = {f"live_machines.{k}": True for k in uniq}
+        set_doc["updatedAt"] = now
+        await db.growth_nodes.update_one({"id": node_id}, {"$set": set_doc})
+        await _audit(
+            "GO LIVE aprobado (bulk)",
+            (payload.reason or "").strip() or f"machine_keys={','.join(uniq)}",
+            node_id=node_id,
+            severity="INFO",
+            event_type="go_live_machine_bulk",
+        )
+    else:
+        unset_doc = {f"live_machines.{k}": "" for k in uniq}
+        await db.growth_nodes.update_one({"id": node_id}, {"$unset": unset_doc, "$set": {"updatedAt": now}})
+        await _audit(
+            "GO LIVE removido (bulk)",
+            (payload.reason or "").strip() or f"machine_keys={','.join(uniq)}",
+            node_id=node_id,
+            severity="INFO",
+            event_type="go_live_machine_bulk_off",
+        )
+
+    return {"ok": True, "count": len(uniq)}
 
 
 @router.post("/nodes/{node_id}/pipeline-stage")

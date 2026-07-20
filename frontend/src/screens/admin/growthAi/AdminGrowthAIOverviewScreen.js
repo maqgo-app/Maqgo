@@ -285,7 +285,11 @@ export default function AdminGrowthAIOverviewScreen() {
                             {(n.region ? `${n.region} · ` : '') + (n.comuna || '')}
                           </div>
                         </div>
-                        <Pill theme={THEME} label="Captando" tone="neutral" />
+                        <Pill
+                          theme={THEME}
+                          label={n?.comuna_signal?.label || 'Captando'}
+                          tone={n?.comuna_signal?.tone || 'neutral'}
+                        />
                       </button>
                     ))}
                   </div>
@@ -330,7 +334,11 @@ export default function AdminGrowthAIOverviewScreen() {
                             </div>
                           ) : null}
                         </div>
-                        <Pill theme={THEME} label="Por abrir" tone="amber" />
+                        <Pill
+                          theme={THEME}
+                          label={n?.comuna_signal?.label || 'Por abrir'}
+                          tone={n?.comuna_signal?.tone || 'amber'}
+                        />
                       </button>
                     ))}
                   </div>
