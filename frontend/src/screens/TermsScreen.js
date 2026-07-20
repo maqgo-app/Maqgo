@@ -260,9 +260,9 @@ function TermsScreen() {
 
         <Section title="10. Contacto">
           <p>
-            Para consultas, reclamos o sugerencias, contáctanos desde Ayuda y Soporte dentro de la app.
+            Para consultas o sugerencias, contáctanos desde Ayuda y Soporte dentro de la app.
           </p>
-          <p>Los reclamos deben ingresarse dentro de las primeras 24 horas desde finalizado el servicio.</p>
+          <p>Las disputas deben ingresarse dentro de las primeras 24 horas desde finalizado el servicio.</p>
         </Section>
 
         <p style={{ 
