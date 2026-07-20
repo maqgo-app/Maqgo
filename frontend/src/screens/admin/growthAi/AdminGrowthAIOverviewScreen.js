@@ -122,6 +122,18 @@ export default function AdminGrowthAIOverviewScreen() {
 
   const goLive = useMemo(() => data?.weekly?.go_live || null, [data]);
   const pipeline = useMemo(() => data?.pipeline || null, [data]);
+
+  const startingComunas = useMemo(() => {
+    const rows = Array.isArray(pipeline?.next_captando)
+      ? pipeline.next_captando
+      : Array.isArray(pipeline?.captando)
+        ? pipeline.captando
+        : [];
+    return rows
+      .map((r) => String(r?.comuna || r?.name || '').trim())
+      .filter(Boolean)
+      .slice(0, 3);
+  }, [pipeline]);
   const startSearch = async () => {
     if (starting) return;
     setStarting(true);
@@ -226,20 +238,20 @@ export default function AdminGrowthAIOverviewScreen() {
           )}
         </Card>
 
-        <Card theme={THEME} title="Acción #1">
+        <Card theme={THEME} title="Siguiente acción">
           {loading ? (
             <div style={{ height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.06)' }} />
           ) : data?.top_action ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ fontSize: 14, fontWeight: 900 }}>{data.top_action.title}</div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 1.45 }}>
-                {data.top_action.reason}
-              </div>
+              {data.top_action.reason ? (
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.70)', lineHeight: 1.35 }}>{data.top_action.reason}</div>
+              ) : null}
               {data.top_action.node_id ? (
                 <div style={{ marginTop: 8 }}>
                   <button
                     type="button"
-                    className="maqgo-btn-primary"
+                    className="maqgo-btn-secondary"
                     style={{ padding: '10px 14px', borderRadius: 12, fontWeight: 900 }}
                     onClick={() => navigate(`/admin/growth-ai/nodes/${encodeURIComponent(data.top_action.node_id)}`)}
                   >
@@ -268,9 +280,9 @@ export default function AdminGrowthAIOverviewScreen() {
             <ListSkeleton rows={2} />
           ) : goLive ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.78)', lineHeight: 1.45 }}>
-                {goLive.reason || '—'}
-              </div>
+              {goLive.reason ? (
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>{goLive.reason}</div>
+              ) : null}
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <Pill theme={THEME} label={`LIVE: ${goLive.live_machines ?? 0}`} tone={goLive.live_machines > 0 ? 'green' : 'neutral'} />
                 <Pill theme={THEME} label={`LISTA: ${goLive.ready_not_live ?? 0}`} tone={goLive.ready_not_live > 0 ? 'amber' : 'neutral'} />
@@ -302,8 +314,16 @@ export default function AdminGrowthAIOverviewScreen() {
           right={<Pill theme={THEME} label={starting ? 'Buscando…' : 'Listo'} tone={starting ? 'amber' : 'neutral'} />}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.78)', lineHeight: 1.45 }}>
-              Ejecuta una búsqueda inicial en las comunas RM y crea leads. No envía mensajes.
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>
+              Crea leads y registra el run. No envía mensajes.
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Pill theme={THEME} label="Región: RM" tone="neutral" />
+              <Pill
+                theme={THEME}
+                label={startingComunas.length ? `Comunas: ${startingComunas.join(', ')}` : 'Comunas: (sin datos)'}
+                tone={startingComunas.length ? 'neutral' : 'amber'}
+              />
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button
@@ -442,25 +462,22 @@ export default function AdminGrowthAIOverviewScreen() {
           )}
         </Card>
 
-        <Card theme={THEME} title="Readiness marketplace">
+        <Card theme={THEME} title="Marketplace">
           {loading ? (
             <ListSkeleton rows={3} />
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.75)' }}>Estado</div>
-                <Pill theme={THEME} label={data?.marketplace?.status || '—'} tone={data?.marketplace?.tone || 'neutral'} />
-              </div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 1.45 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>
                 {data?.marketplace?.summary || '—'}
               </div>
+              <Pill theme={THEME} label={data?.marketplace?.status || '—'} tone={data?.marketplace?.tone || 'neutral'} />
             </div>
           )}
         </Card>
 
         <Card
           theme={THEME}
-          title="Riesgos P0"
+          title="Auditoría"
           right={
             <button
               type="button"
@@ -468,59 +485,59 @@ export default function AdminGrowthAIOverviewScreen() {
               style={{ padding: '8px 10px', borderRadius: 10, fontWeight: 800, fontSize: 12 }}
               onClick={() => navigate('/admin/growth-ai/audit')}
             >
-              Ver auditoría
+              Ver
             </button>
           }
         >
           {loading ? (
-            <ListSkeleton rows={4} />
-          ) : risks.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>Sin riesgos P0 activos.</div>
+            <ListSkeleton rows={2} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {risks.map((r) => (
-                <div
-                  key={r.id}
-                  style={{
-                    border: `1px solid rgba(229,115,115,0.25)`,
-                    background: 'rgba(229,115,115,0.10)',
-                    borderRadius: 14,
-                    padding: 12,
-                  }}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 900 }}>{r.title}</div>
-                  <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.78)', lineHeight: 1.45 }}>
-                    {r.detail}
-                  </div>
+              <details style={{ border: `1px solid ${THEME.border}`, borderRadius: 14, padding: 12, background: 'rgba(255,255,255,0.04)' }}>
+                <summary style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 900 }}>Riesgos P0</div>
+                  <Pill theme={THEME} label={`${risks.length}`} tone={risks.length ? 'red' : 'neutral'} />
+                </summary>
+                <div style={{ marginTop: 10 }}>
+                  {risks.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>Sin riesgos P0 activos.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {risks.map((r) => (
+                        <div key={r.id} style={{ border: `1px solid rgba(229,115,115,0.25)`, background: 'rgba(229,115,115,0.10)', borderRadius: 14, padding: 12 }}>
+                          <div style={{ fontSize: 13, fontWeight: 900 }}>{r.title}</div>
+                          {r.detail ? (
+                            <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.78)', lineHeight: 1.35 }}>{r.detail}</div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
+              </details>
 
-        <Card theme={THEME} title="Trabajando ahora">
-          {loading ? (
-            <ListSkeleton rows={4} />
-          ) : workingNow.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>
-              No hay ejecuciones recientes registradas.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {workingNow.map((w) => (
-                <div
-                  key={w.id}
-                  style={{
-                    border: `1px solid ${THEME.border}`,
-                    background: 'rgba(255,255,255,0.04)',
-                    borderRadius: 14,
-                    padding: 12,
-                  }}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 900 }}>{w.title}</div>
-                  <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>{w.meta}</div>
+              <details style={{ border: `1px solid ${THEME.border}`, borderRadius: 14, padding: 12, background: 'rgba(255,255,255,0.04)' }}>
+                <summary style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 900 }}>Últimos runs</div>
+                  <Pill theme={THEME} label={`${workingNow.length}`} tone={workingNow.length ? 'neutral' : 'neutral'} />
+                </summary>
+                <div style={{ marginTop: 10 }}>
+                  {workingNow.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>No hay ejecuciones recientes.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {workingNow.map((w) => (
+                        <div key={w.id} style={{ border: `1px solid ${THEME.border}`, background: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: 12 }}>
+                          <div style={{ fontSize: 13, fontWeight: 900 }}>{w.title}</div>
+                          {w.meta ? (
+                            <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>{w.meta}</div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ))}
+              </details>
             </div>
           )}
         </Card>

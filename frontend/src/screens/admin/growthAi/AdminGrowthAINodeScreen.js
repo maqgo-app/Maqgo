@@ -97,6 +97,102 @@ function ReasonModal({ open, theme, title, confirmLabel, onCancel, onConfirm }) 
   );
 }
 
+function BulkGoLiveModal({ open, theme, title, machineKeys, onCancel, onConfirm }) {
+  const [reason, setReason] = useState('');
+  const [selected, setSelected] = useState({});
+
+  useEffect(() => {
+    if (!open) {
+      setReason('');
+      setSelected({});
+      return;
+    }
+    const next = {};
+    for (const k of machineKeys || []) next[k] = true;
+    setSelected(next);
+  }, [open, machineKeys]);
+
+  if (!open) return null;
+
+  const keys = Array.isArray(machineKeys) ? machineKeys : [];
+  const selectedKeys = keys.filter((k) => Boolean(selected[k]));
+
+  return (
+    <div className="maqgo-modal-overlay" role="dialog" aria-modal="true">
+      <div className="maqgo-modal-dialog" style={{ width: 'min(92vw, 660px)' }}>
+        <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, margin: '0 0 10px' }}>{title}</div>
+        <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.45, marginBottom: 12 }}>
+          Selecciona qué maquinarias pasan a <span style={{ color: '#CFF3D1', fontWeight: 900 }}>LIVE</span>.
+        </div>
+
+        <div
+          style={{
+            border: `1px solid ${theme.border}`,
+            background: 'rgba(255,255,255,0.04)',
+            borderRadius: 12,
+            padding: 10,
+            maxHeight: 260,
+            overflowY: 'auto',
+          }}
+        >
+          {keys.length === 0 ? (
+            <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>No hay maquinarias LISTA.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {keys.map((k) => (
+                <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(selected[k])}
+                    onChange={(e) => setSelected((prev) => ({ ...prev, [k]: e.target.checked }))}
+                  />
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 900 }}>{k}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 12, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.45 }}>Motivo:</div>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Motivo (obligatorio)…"
+          rows={3}
+          style={{
+            width: '100%',
+            borderRadius: 12,
+            border: `1px solid ${theme.borderStrong}`,
+            background: 'rgba(255,255,255,0.06)',
+            color: '#fff',
+            padding: 12,
+            outline: 'none',
+            fontSize: 13,
+            lineHeight: 1.45,
+            resize: 'vertical',
+            marginTop: 8,
+          }}
+        />
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <button type="button" className="maqgo-btn-secondary" style={{ flex: 1, padding: '12px 14px', borderRadius: 12 }} onClick={onCancel}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="maqgo-btn-primary"
+            style={{ flex: 1, padding: '12px 14px', borderRadius: 12, fontWeight: 900 }}
+            onClick={() => onConfirm({ reason, machine_keys: selectedKeys })}
+            disabled={!String(reason || '').trim() || selectedKeys.length === 0}
+          >
+            Aprobar {selectedKeys.length}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminGrowthAINodeScreen() {
   const { THEME } = useOutletContext();
   const { nodeId } = useParams();
@@ -106,6 +202,7 @@ export default function AdminGrowthAINodeScreen() {
   const [data, setData] = useState(null);
   const [posting, setPosting] = useState(false);
   const [reasonModal, setReasonModal] = useState(null);
+  const [bulkModal, setBulkModal] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,6 +230,15 @@ export default function AdminGrowthAINodeScreen() {
   const risks = useMemo(() => (Array.isArray(data?.risks) ? data.risks : []), [data]);
   const readyByMachine = useMemo(() => (Array.isArray(data?.node?.ready_by_machine) ? data.node.ready_by_machine : []), [data]);
   const minSupplyPerMachine = useMemo(() => Number(data?.node?.min_supply_per_machine || 0) || 0, [data]);
+
+  const listMachineKeys = useMemo(() => {
+    return readyByMachine
+      .filter((m) => !Boolean(m?.is_live))
+      .map((m) => String(m?.machine_key || '').trim())
+      .filter(Boolean);
+  }, [readyByMachine]);
+
+  const liveMachineCount = useMemo(() => readyByMachine.filter((m) => Boolean(m?.is_live)).length, [readyByMachine]);
 
   const postDecision = async (kind, reason) => {
     if (posting) return;
@@ -180,6 +286,30 @@ export default function AdminGrowthAINodeScreen() {
     }
   };
 
+  const approveBulk = async ({ machine_keys, reason }) => {
+    if (posting) return;
+    setPosting(true);
+    setError('');
+    try {
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/admin/growth-ai/nodes/${encodeURIComponent(nodeId)}/go-live-machines`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ machine_keys, enable: true, reason }),
+        },
+        20000
+      );
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.detail || `No se pudo aprobar GO LIVE (${res.status})`);
+      await load();
+    } catch (e) {
+      setError(friendlyFetchError(e, 'No se pudo aprobar GO LIVE.'));
+    } finally {
+      setPosting(false);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -215,45 +345,54 @@ export default function AdminGrowthAINodeScreen() {
               ) : null}
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>Estado</div>
               <div style={{ marginTop: 4, fontSize: 14, fontWeight: 900 }}>{node?.status || '—'}</div>
-              <div style={{ marginTop: 8, color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>ZOC</div>
-              <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(255,255,255,0.82)', lineHeight: 1.45 }}>
-                {node?.zoc_summary || 'Sin ZOC definida'}
-              </div>
+              <details style={{ marginTop: 10 }}>
+                <summary style={{ cursor: 'pointer', color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>
+                  ZOC
+                </summary>
+                <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,0.78)', lineHeight: 1.35 }}>
+                  {node?.zoc_summary || 'Sin ZOC definida'}
+                </div>
+              </details>
             </div>
             <div>
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>Decisión</div>
-              <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <button
-                  type="button"
-                  className="maqgo-btn-primary"
-                  style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
-                  disabled={posting}
-                  onClick={() => setReasonModal({ kind: 'pilot', title: 'Habilitar piloto', label: 'Registrar piloto' })}
-                >
-                  Habilitar piloto
-                </button>
-                <button
-                  type="button"
-                  className="maqgo-btn-primary"
-                  style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
-                  disabled={posting}
-                  onClick={() => setReasonModal({ kind: 'launch', title: 'Lanzar', label: 'Registrar lanzamiento' })}
-                >
-                  Lanzar
-                </button>
-                <button
-                  type="button"
-                  className="maqgo-btn-secondary"
-                  style={{ padding: '10px 12px', borderRadius: 12 }}
-                  disabled={posting}
-                  onClick={() => setReasonModal({ kind: 'pause', title: 'Pausar demanda', label: 'Registrar pausa' })}
-                >
-                  Pausar demanda
-                </button>
-              </div>
-              <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.45 }}>
-                Decisiones siempre auditable. En MVP no hay automatizaciones irreversibles.
-              </div>
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ cursor: 'pointer', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900 }}>
+                  Cambiar
+                </summary>
+                <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  <button
+                    type="button"
+                    className="maqgo-btn-secondary"
+                    style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
+                    disabled={posting}
+                    onClick={() => setReasonModal({ kind: 'pilot', title: 'Habilitar piloto', label: 'Registrar piloto' })}
+                  >
+                    Piloto
+                  </button>
+                  <button
+                    type="button"
+                    className="maqgo-btn-secondary"
+                    style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
+                    disabled={posting}
+                    onClick={() => setReasonModal({ kind: 'launch', title: 'Lanzar', label: 'Registrar lanzamiento' })}
+                  >
+                    Lanzar
+                  </button>
+                  <button
+                    type="button"
+                    className="maqgo-btn-secondary"
+                    style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 800 }}
+                    disabled={posting}
+                    onClick={() => setReasonModal({ kind: 'pause', title: 'Pausar demanda', label: 'Registrar pausa' })}
+                  >
+                    Pausar
+                  </button>
+                </div>
+                <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.35 }}>
+                  Queda en auditoría.
+                </div>
+              </details>
             </div>
           </div>
         )}
@@ -263,9 +402,11 @@ export default function AdminGrowthAINodeScreen() {
         theme={THEME}
         title="GO LIVE por maquinaria"
         right={
-          minSupplyPerMachine ? (
-            <Pill label={`Mínimo: ${minSupplyPerMachine}`} tone="neutral" />
-          ) : null
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {minSupplyPerMachine ? <Pill label={`Mínimo ${minSupplyPerMachine}`} tone="neutral" /> : null}
+            <Pill label={`LISTA ${listMachineKeys.length}`} tone={listMachineKeys.length ? 'amber' : 'neutral'} />
+            <Pill label={`LIVE ${liveMachineCount}`} tone={liveMachineCount ? 'green' : 'neutral'} />
+          </div>
         }
       >
         {loading ? (
@@ -276,6 +417,20 @@ export default function AdminGrowthAINodeScreen() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {listMachineKeys.length ? (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>Aprobar en bloque para abrir demanda controlada.</div>
+                <button
+                  type="button"
+                  className="maqgo-btn-primary"
+                  style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
+                  disabled={posting}
+                  onClick={() => setBulkModal({ title: 'Aprobar GO LIVE (bulk)', machineKeys: listMachineKeys })}
+                >
+                  Aprobar LISTAS ({listMachineKeys.length})
+                </button>
+              </div>
+            ) : null}
             {readyByMachine.map((m) => {
               const machineKey = String(m.machine_key || '').trim();
               const units = Number(m.units || 0) || 0;
@@ -320,7 +475,7 @@ export default function AdminGrowthAINodeScreen() {
                     ) : (
                       <button
                         type="button"
-                        className="maqgo-btn-primary"
+                        className="maqgo-btn-secondary"
                         style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
                         disabled={posting}
                         onClick={() =>
@@ -339,45 +494,60 @@ export default function AdminGrowthAINodeScreen() {
                 </div>
               );
             })}
-            <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.45 }}>
-              LISTA = cumple el mínimo de oferta activa detectada. LIVE = aprobado por Admin para abrir demanda y mostrar al cliente.
-            </div>
+            <details style={{ marginTop: 4 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12, color: 'rgba(255,255,255,0.65)', fontWeight: 900 }}>
+                ¿Qué significa LISTA/LIVE?
+              </summary>
+              <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.35 }}>
+                LISTA = cumple el mínimo de oferta activa detectada. LIVE = aprobado por Admin para abrir demanda y mostrar al cliente.
+              </div>
+            </details>
           </div>
         )}
       </Section>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <Section theme={THEME} title="Brechas (Top)">
+        <Section theme={THEME} title="Brechas">
           {loading ? (
             <ListSkeleton rows={4} />
           ) : gaps.length === 0 ? (
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>Sin brechas registradas.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {gaps.slice(0, 6).map((g) => (
-                <div key={g.id} style={{ border: `1px solid ${THEME.border}`, background: THEME.panelBgSoft, borderRadius: 14, padding: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 900 }}>{g.title}</div>
-                  <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>{g.detail}</div>
-                </div>
-              ))}
-            </div>
+            <details>
+              <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 900, color: 'rgba(255,255,255,0.78)' }}>{`Ver ${gaps.length}`}</summary>
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {gaps.slice(0, 8).map((g) => (
+                  <div key={g.id} style={{ border: `1px solid ${THEME.border}`, background: THEME.panelBgSoft, borderRadius: 14, padding: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 900 }}>{g.title}</div>
+                    {g.detail ? (
+                      <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>{g.detail}</div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
         </Section>
 
-        <Section theme={THEME} title="Riesgos P0">
+        <Section theme={THEME} title="Riesgos">
           {loading ? (
             <ListSkeleton rows={4} />
           ) : risks.length === 0 ? (
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>Sin riesgos P0 activos.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {risks.slice(0, 6).map((r) => (
-                <div key={r.id} style={{ border: `1px solid rgba(229,115,115,0.25)`, background: 'rgba(229,115,115,0.10)', borderRadius: 14, padding: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 900 }}>{r.title}</div>
-                  <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.78)', lineHeight: 1.45 }}>{r.detail}</div>
-                </div>
-              ))}
-            </div>
+            <details>
+              <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 900, color: 'rgba(255,255,255,0.78)' }}>{`Ver ${risks.length}`}</summary>
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {risks.slice(0, 8).map((r) => (
+                  <div key={r.id} style={{ border: `1px solid rgba(229,115,115,0.25)`, background: 'rgba(229,115,115,0.10)', borderRadius: 14, padding: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 900 }}>{r.title}</div>
+                    {r.detail ? (
+                      <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.78)', lineHeight: 1.35 }}>{r.detail}</div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
         </Section>
       </div>
@@ -417,6 +587,18 @@ export default function AdminGrowthAINodeScreen() {
           if (kind === 'go_live_on' && machineKey) void setGoLiveMachine({ machineKey, enable: true, reason });
           else if (kind === 'go_live_off' && machineKey) void setGoLiveMachine({ machineKey, enable: false, reason });
           else if (kind) void postDecision(kind, reason);
+        }}
+      />
+
+      <BulkGoLiveModal
+        open={Boolean(bulkModal)}
+        theme={THEME}
+        title={bulkModal?.title || ''}
+        machineKeys={bulkModal?.machineKeys || []}
+        onCancel={() => setBulkModal(null)}
+        onConfirm={({ reason, machine_keys }) => {
+          setBulkModal(null);
+          void approveBulk({ machine_keys, reason });
         }}
       />
     </div>
