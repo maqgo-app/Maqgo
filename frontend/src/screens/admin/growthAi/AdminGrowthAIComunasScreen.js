@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../../../utils/api';
 import { friendlyFetchError } from '../../../utils/fetchErrors';
 import ListSkeleton from '../../../components/ListSkeleton.jsx';
+import ComunaDrawer from '../../../components/growthAi/ComunaDrawer.jsx';
 
 function Card({ theme, title, right, children }) {
   return (
@@ -52,6 +53,8 @@ export default function AdminGrowthAIComunasScreen() {
   const [error, setError] = useState('');
   const [items, setItems] = useState([]);
   const [bootstrapping, setBootstrapping] = useState(false);
+  const [drawerId, setDrawerId] = useState('');
+  const [posting, setPosting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,84 +107,120 @@ export default function AdminGrowthAIComunasScreen() {
 
   const isEmpty = !loading && !error && Array.isArray(items) && items.length === 0;
 
-  const StageColumn = ({ title, tone, stageKey, rows }) => {
+  const selected = useMemo(() => {
+    if (!drawerId) return null;
+    return (Array.isArray(items) ? items : []).find((x) => String(x?.id || '') === String(drawerId)) || null;
+  }, [items, drawerId]);
+
+  const openDrawer = (id) => setDrawerId(String(id || ''));
+  const closeDrawer = () => setDrawerId('');
+
+  const setStage = async ({ nodeId, stage, reason }) => {
+    if (posting) return;
+    setPosting(true);
+    setError('');
+    try {
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/admin/growth-ai/nodes/${encodeURIComponent(nodeId)}/pipeline-stage`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stage, reason }),
+        },
+        20000
+      );
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.detail || `No se pudo actualizar etapa (${res.status})`);
+      await load();
+    } catch (e) {
+      setError(friendlyFetchError(e, 'No se pudo actualizar la etapa.'));
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const approveGoLiveBulk = async ({ nodeId, machine_keys, reason }) => {
+    if (posting) return;
+    setPosting(true);
+    setError('');
+    try {
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/admin/growth-ai/nodes/${encodeURIComponent(nodeId)}/go-live-machines`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ machine_keys, enable: true, reason }),
+        },
+        30000
+      );
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.detail || `No se pudo aprobar GO LIVE (${res.status})`);
+      await load();
+    } catch (e) {
+      setError(friendlyFetchError(e, 'No se pudo aprobar GO LIVE.'));
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const KanbanColumn = ({ title, tone, stageKey, rows }) => {
+    const list = Array.isArray(rows) ? rows : [];
     return (
-      <Card
-        theme={THEME}
-        title={title}
-        right={<Pill theme={THEME} label={`${rows.length}`} tone={tone} />}
-      >
-        {loading ? (
-          <ListSkeleton rows={6} />
-        ) : error ? (
-          <div style={{ color: '#E57373', fontSize: 13, lineHeight: 1.4 }}>{error}</div>
-        ) : rows.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>Sin elementos.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {rows.map((n) => {
-              const notLive = Number(n?.ready_machines?.not_live || 0) || 0;
-              const live = Number(n?.live_machines?.total || 0) || 0;
-              const signalLabel = n?.comuna_signal?.label || '—';
-              const signalTone = n?.comuna_signal?.tone || 'neutral';
-              return (
-                <div
-                  key={n.id}
-                  style={{
-                    border: `1px solid ${THEME.border}`,
-                    background: THEME.panelBgSoft,
-                    borderRadius: 14,
-                    padding: 12,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                  }}
-                >
+      <div style={{ width: 340, minWidth: 340, maxWidth: 340 }}>
+        <Card theme={THEME} title={title} right={<Pill theme={THEME} label={`${list.length}`} tone={tone} />}>
+          {loading ? (
+            <ListSkeleton rows={6} />
+          ) : error ? (
+            <div style={{ color: '#E57373', fontSize: 12, lineHeight: 1.35 }}>{error}</div>
+          ) : list.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>Sin elementos.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 560, overflowY: 'auto' }}>
+              {list.map((n) => {
+                const notLive = Number(n?.ready_machines?.not_live || 0) || 0;
+                const live = Number(n?.live_machines?.total || 0) || 0;
+                const signalLabel = n?.comuna_signal?.label || '—';
+                const signalTone = n?.comuna_signal?.tone || 'neutral';
+                return (
                   <button
+                    key={n.id}
                     type="button"
-                    onClick={() => navigate(`/admin/growth-ai/nodes/${encodeURIComponent(n.id)}`)}
+                    onClick={() => openDrawer(n.id)}
                     style={{
-                      border: 'none',
-                      background: 'transparent',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      padding: 0,
+                      width: '100%',
                       textAlign: 'left',
-                      minWidth: 0,
-                      flex: 1,
+                      borderRadius: 14,
+                      border: `1px solid ${THEME.border}`,
+                      background: THEME.panelBgSoft,
+                      padding: 12,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
                     }}
                   >
-                    <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: '-0.01em' }}>{n.name || n.comuna || 'Nodo'}</div>
-                    <div style={{ marginTop: 2, fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>
-                      {(n.region ? `${n.region} · ` : '') + (n.comuna || '')}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: '-0.01em' }}>{n.name || n.comuna || 'Comuna'}</div>
+                      <div style={{ marginTop: 2, fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>
+                        {(n.region ? `${n.region} · ` : '') + (n.comuna || '')}
+                      </div>
+                      <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <Pill theme={THEME} label={`LISTA ${notLive}`} tone={notLive ? 'amber' : 'neutral'} />
+                        <Pill theme={THEME} label={`LIVE ${live}`} tone={live ? 'green' : 'neutral'} />
+                      </div>
                     </div>
-                    <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <Pill theme={THEME} label={`LISTA ${notLive}`} tone={notLive > 0 ? 'amber' : 'neutral'} />
-                      <Pill theme={THEME} label={`LIVE ${live}`} tone={live > 0 ? 'green' : 'neutral'} />
-                    </div>
-                  </button>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
                       <Pill theme={THEME} label={signalLabel} tone={signalTone} />
                       <Pill theme={THEME} label={stageKey.replace('_', ' ')} tone={tone} />
                     </div>
-                    <button
-                      type="button"
-                      className="maqgo-btn-secondary"
-                      style={{ padding: '8px 10px', borderRadius: 10, fontWeight: 800, fontSize: 12 }}
-                      onClick={() => navigate(`/admin/growth-ai/nodes/${encodeURIComponent(n.id)}`)}
-                    >
-                      Gestionar
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
     );
   };
 
@@ -222,15 +261,32 @@ export default function AdminGrowthAIComunasScreen() {
         </Card>
       ) : null}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <StageColumn title="Captando" tone="neutral" stageKey="captando" rows={byStage.captando} />
-        <StageColumn title="Por abrir" tone="amber" stageKey="por_abrir" rows={byStage.por_abrir} />
+      <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 2 }}>
+        <KanbanColumn title="Captando" tone="neutral" stageKey="captando" rows={byStage.captando} />
+        <KanbanColumn title="Por abrir" tone="amber" stageKey="por_abrir" rows={byStage.por_abrir} />
+        <KanbanColumn title="Abiertas" tone="green" stageKey="abierta" rows={byStage.abierta} />
+        <KanbanColumn title="Pausadas" tone="red" stageKey="pausada" rows={byStage.pausada} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <StageColumn title="Abiertas" tone="green" stageKey="abierta" rows={byStage.abierta} />
-        <StageColumn title="Pausadas" tone="red" stageKey="pausada" rows={byStage.pausada} />
-      </div>
+      <ComunaDrawer
+        open={Boolean(selected)}
+        theme={THEME}
+        item={selected}
+        busy={posting}
+        onClose={closeDrawer}
+        onOpenNode={() => {
+          if (!selected?.id) return;
+          navigate(`/admin/growth-ai/nodes/${encodeURIComponent(selected.id)}`);
+        }}
+        onSetStage={({ stage, reason }) => {
+          if (!selected?.id) return;
+          void setStage({ nodeId: selected.id, stage, reason });
+        }}
+        onApproveGoLiveBulk={({ machine_keys, reason }) => {
+          if (!selected?.id) return;
+          void approveGoLiveBulk({ nodeId: selected.id, machine_keys, reason });
+        }}
+      />
 
     </div>
   );
