@@ -236,6 +236,7 @@ export default function AdminGrowthAIComunasScreen() {
   const [posting, setPosting] = useState(false);
   const [reasonModal, setReasonModal] = useState(null);
   const [bulkModal, setBulkModal] = useState(null);
+  const [bootstrapping, setBootstrapping] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -252,6 +253,22 @@ export default function AdminGrowthAIComunasScreen() {
       setLoading(false);
     }
   }, []);
+
+  const forceBootstrap = async () => {
+    if (bootstrapping || posting) return;
+    setBootstrapping(true);
+    setError('');
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/bootstrap`, { method: 'POST' }, 20000);
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.detail || `No se pudo inicializar (${res.status})`);
+      await load();
+    } catch (e) {
+      setError(friendlyFetchError(e, 'No se pudo inicializar Growth AI.'));
+    } finally {
+      setBootstrapping(false);
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -316,6 +333,8 @@ export default function AdminGrowthAIComunasScreen() {
       setPosting(false);
     }
   };
+
+  const isEmpty = !loading && !error && Array.isArray(items) && items.length === 0;
 
   const StageColumn = ({ title, tone, stageKey, rows }) => {
     return (
@@ -484,6 +503,25 @@ export default function AdminGrowthAIComunasScreen() {
           Actualizar
         </button>
       </div>
+
+      {isEmpty ? (
+        <Card theme={THEME} title="Inicialización" right={<Pill theme={THEME} label="RM" tone="neutral" />}>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
+            No hay comunas configuradas todavía. Puedes inicializar las 3 comunas de RM (Lampa, Quilicura, Pudahuel).
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className="maqgo-btn-primary"
+              style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
+              disabled={bootstrapping}
+              onClick={forceBootstrap}
+            >
+              {bootstrapping ? 'Inicializando…' : 'Inicializar RM (3 comunas)'}
+            </button>
+          </div>
+        </Card>
+      ) : null}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <StageColumn title="Captando" tone="neutral" stageKey="captando" rows={byStage.captando} />
