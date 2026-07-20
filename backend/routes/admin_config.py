@@ -86,6 +86,21 @@ TRANSPORT_REFERENCE_DEFAULT = {
     "min": 15000,
     "max": int(REFERENCE_TRANSPORT * 2),
     "default": int(REFERENCE_TRANSPORT),
+    "same_comuna": {
+        "min": 10000,
+        "max": int(REFERENCE_TRANSPORT * 1.2),
+        "default": int(REFERENCE_TRANSPORT * 0.7),
+    },
+    "intercomuna": {
+        "min": 15000,
+        "max": int(REFERENCE_TRANSPORT * 2),
+        "default": int(REFERENCE_TRANSPORT),
+    },
+    "interregional": {
+        "min": 20000,
+        "max": int(REFERENCE_TRANSPORT * 3),
+        "default": int(REFERENCE_TRANSPORT * 1.5),
+    },
 }
 
 
@@ -290,7 +305,7 @@ class UpdateReferencePricesRequest(BaseModel):
     per_hour: Optional[Dict[str, Dict[str, int]]] = None
     per_service: Optional[Dict[str, Dict[str, int]]] = None
     by_capacity: Optional[Dict[str, Dict[str, Dict[str, int]]]] = None
-    transport: Optional[Dict[str, int]] = None
+    transport: Optional[Dict[str, Any]] = None
 
 
 @router.get("/users")

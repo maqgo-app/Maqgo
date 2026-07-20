@@ -33,6 +33,9 @@ function AdminPricingScreen() {
   const [prices, setPrices] = useState({ per_hour: {}, per_service: {}, by_capacity: {}, transport: {} });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState('machine');
+  const [selectedMachineId, setSelectedMachineId] = useState('');
+  const [search, setSearch] = useState('');
 
   const goDashboardArea = (area) => {
     try {
@@ -47,10 +50,34 @@ function AdminPricingScreen() {
     try {
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reference-prices`);
       const data = await res.json();
-      setPrices(data);
+      const transport = data?.transport && typeof data.transport === 'object' ? data.transport : {};
+      const normTransport = {
+        ...transport,
+        same_comuna: typeof transport.same_comuna === 'object' && transport.same_comuna ? transport.same_comuna : {
+          min: transport.min ?? '',
+          max: transport.max ?? '',
+          default: transport.default ?? ''
+        },
+        intercomuna: typeof transport.intercomuna === 'object' && transport.intercomuna ? transport.intercomuna : {
+          min: transport.min ?? '',
+          max: transport.max ?? '',
+          default: transport.default ?? ''
+        },
+        interregional: typeof transport.interregional === 'object' && transport.interregional ? transport.interregional : {
+          min: transport.min ?? '',
+          max: transport.max ?? '',
+          default: transport.default ?? ''
+        }
+      };
+      setPrices({
+        per_hour: data?.per_hour || {},
+        per_service: data?.per_service || {},
+        by_capacity: data?.by_capacity || {},
+        transport: normTransport,
+      });
     } catch (e) {
       console.error(e);
-      setPrices({ per_hour: {}, per_service: {} });
+      setPrices({ per_hour: {}, per_service: {}, by_capacity: {}, transport: {} });
     }
     setLoading(false);
   }
@@ -94,14 +121,23 @@ function AdminPricingScreen() {
     }));
   };
 
-  const updateTransportPrice = (field, value) => {
+  const updateTransportPrice = (segment, field, value) => {
     const num = parseInt(value, 10);
     if (isNaN(num) && value !== '') return;
     setPrices(prev => ({
       ...prev,
       transport: {
         ...(prev.transport || {}),
-        [field]: value === '' ? '' : num,
+        ...(segment
+          ? {
+            [segment]: {
+              ...((prev.transport || {})[segment] || {}),
+              [field]: value === '' ? '' : num,
+            },
+          }
+          : {
+            [field]: value === '' ? '' : num,
+          }),
       },
     }));
   };
@@ -144,10 +180,23 @@ function AdminPricingScreen() {
         });
         if (Object.keys(cleanVariants).length) byCapacity[machineId] = cleanVariants;
       });
-      ['min', 'max', 'default'].forEach((field) => {
-        const value = prices.transport?.[field];
-        if (value != null && value !== '') transport[field] = Number(value);
-      });
+      const cleanRange = (vals) => {
+        if (!vals || typeof vals !== 'object') return null;
+        const out = {};
+        ['min', 'max', 'default'].forEach((k) => {
+          const v = vals[k];
+          if (v != null && v !== '') out[k] = Number(v);
+        });
+        return Object.keys(out).length ? out : null;
+      };
+      const legacy = cleanRange(prices.transport);
+      if (legacy) Object.assign(transport, legacy);
+      const same = cleanRange(prices.transport?.same_comuna);
+      const inter = cleanRange(prices.transport?.intercomuna);
+      const interreg = cleanRange(prices.transport?.interregional);
+      if (same) transport.same_comuna = same;
+      if (inter) transport.intercomuna = inter;
+      if (interreg) transport.interregional = interreg;
 
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reference-prices`, {
         method: 'PUT',
@@ -279,6 +328,80 @@ function AdminPricingScreen() {
 
   const capacityMachineIds = Object.keys(prices.by_capacity || {}).filter((machineId) => getMachineryCapacityOptions(machineId));
   const transport = prices.transport || {};
+
+  const machineIds = React.useMemo(() => {
+    const s = new Set([
+      ...Object.keys(prices.per_hour || {}),
+      ...Object.keys(prices.per_service || {}),
+      ...Object.keys(prices.by_capacity || {}),
+    ]);
+    const arr = Array.from(s);
+    arr.sort((a, b) => String(MACHINE_NAMES[a] || a).localeCompare(String(MACHINE_NAMES[b] || b), 'es'));
+    return arr;
+  }, [prices]);
+
+  useEffect(() => {
+    if (!machineIds.length) return;
+    if (selectedMachineId && machineIds.includes(selectedMachineId)) return;
+    setSelectedMachineId(machineIds[0]);
+  }, [machineIds, selectedMachineId]);
+
+  const filteredMachineIds = React.useMemo(() => {
+    const q = String(search || '').trim().toLowerCase();
+    if (!q) return machineIds;
+    return machineIds.filter((id) => {
+      const label = String(MACHINE_NAMES[id] || id).toLowerCase();
+      return label.includes(q) || String(id).toLowerCase().includes(q);
+    });
+  }, [machineIds, search]);
+
+  const TransportRangeEditor = ({ title, segmentKey, tone }) => {
+    const p = (transport && typeof transport === 'object' ? transport[segmentKey] : null) || {};
+    return (
+      <div style={{
+        border: `1px solid ${ADMIN_THEME.border}`,
+        background: 'rgba(255,255,255,0.03)',
+        borderRadius: 12,
+        padding: 12,
+        display: 'grid',
+        gridTemplateColumns: '1fr 100px 100px 120px',
+        gap: 12,
+        alignItems: 'center'
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div style={{ color: '#fff', fontSize: 14, fontWeight: 800 }}>{title}</div>
+          <div style={{ color: ADMIN_THEME.textMuted, fontSize: 12, lineHeight: 1.35 }}>
+            {tone === 'intra' ? 'Dentro de la misma comuna.' : tone === 'inter' ? 'Entre comunas (misma región).' : 'Entre regiones.'}
+          </div>
+        </div>
+        <input
+          type="number"
+          value={p.min ?? ''}
+          onChange={(e) => updateTransportPrice(segmentKey, 'min', e.target.value)}
+          placeholder="Mín"
+          style={inputStyle}
+        />
+        <input
+          type="number"
+          value={p.max ?? ''}
+          onChange={(e) => updateTransportPrice(segmentKey, 'max', e.target.value)}
+          placeholder="Máx"
+          style={inputStyle}
+        />
+        <input
+          type="number"
+          value={p.default ?? ''}
+          onChange={(e) => updateTransportPrice(segmentKey, 'default', e.target.value)}
+          placeholder="Sugerido"
+          style={{
+            ...inputStyle,
+            color: ADMIN_PALETTE.brand,
+            fontWeight: 600,
+          }}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="maqgo-admin-page" style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
@@ -512,6 +635,211 @@ function AdminPricingScreen() {
           </div>
         ) : (
           <>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap',
+              marginBottom: 14,
+              border: `1px solid ${ADMIN_THEME.border}`,
+              background: 'rgba(255,255,255,0.04)',
+              borderRadius: 12,
+              padding: 12,
+            }}>
+              <div style={{ display: 'flex', gap: 8, padding: 4, borderRadius: 999, border: `1px solid ${ADMIN_THEME.border}`, background: 'rgba(255,255,255,0.03)' }}>
+                <button
+                  type="button"
+                  onClick={() => setMode('machine')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 999,
+                    border: 'none',
+                    background: mode === 'machine' ? 'rgba(236, 104, 25, 0.22)' : 'transparent',
+                    color: mode === 'machine' ? '#fff' : 'rgba(255,255,255,0.75)',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 900,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Vista por maquinaria
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('bulk')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 999,
+                    border: 'none',
+                    background: mode === 'bulk' ? 'rgba(236, 104, 25, 0.22)' : 'transparent',
+                    color: mode === 'bulk' ? '#fff' : 'rgba(255,255,255,0.75)',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 900,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Vista masiva
+                </button>
+              </div>
+
+              {mode === 'machine' ? (
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar maquinaria…"
+                  style={{
+                    ...inputStyle,
+                    width: 'min(420px, 100%)',
+                    borderRadius: 12,
+                    padding: '10px 12px',
+                  }}
+                />
+              ) : null}
+            </div>
+
+            {mode === 'machine' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 14, alignItems: 'start' }}>
+                <div style={{
+                  position: 'sticky',
+                  top: 12,
+                  alignSelf: 'start',
+                  background: ADMIN_THEME.panelBg,
+                  border: `1px solid ${ADMIN_THEME.border}`,
+                  borderRadius: 12,
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ padding: '12px 14px', background: ADMIN_THEME.panelBgSoft, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+                    <div style={{ fontSize: 12, color: ADMIN_PALETTE.brand, fontWeight: 800, textTransform: 'uppercase' }}>Maquinarias</div>
+                  </div>
+                  <div style={{ maxHeight: 'calc(100dvh - 220px)', overflowY: 'auto' }}>
+                    {filteredMachineIds.map((id) => {
+                      const active = id === selectedMachineId;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setSelectedMachineId(id)}
+                          style={{
+                            width: '100%',
+                            textAlign: 'left',
+                            padding: '10px 12px',
+                            border: 'none',
+                            borderBottom: `1px solid ${ADMIN_THEME.border}`,
+                            background: active ? 'rgba(255,255,255,0.06)' : 'transparent',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 10,
+                          }}
+                        >
+                          <span style={{ fontSize: 13, fontWeight: 900, opacity: active ? 1 : 0.9 }}>
+                            {MACHINE_NAMES[id] || id}
+                          </span>
+                          {getMachineryCapacityOptions(id) ? (
+                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 800 }}>Cap.</span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{
+                    background: ADMIN_THEME.panelBg,
+                    borderRadius: 12,
+                    border: `1px solid ${ADMIN_THEME.border}`,
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{ padding: '14px 16px', background: ADMIN_THEME.panelBgSoft }}>
+                      <div style={{ fontSize: 12, color: ADMIN_PALETTE.brand, fontWeight: 800, textTransform: 'uppercase' }}>Editando</div>
+                      <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900, color: '#fff' }}>
+                        {MACHINE_NAMES[selectedMachineId] || selectedMachineId || '—'}
+                      </div>
+                    </div>
+
+                    <div style={{ padding: 16, display: 'grid', gap: 14 }}>
+                      <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                        <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
+                          Precio base por hora
+                        </div>
+                        <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                          <span>Maquinaria</span>
+                          <span>Mín</span>
+                          <span>Máx</span>
+                          <span>Sugerido</span>
+                        </div>
+                        {selectedMachineId && (prices.per_hour || {})[selectedMachineId] ? (
+                          <PriceRow type="per_hour" machineId={selectedMachineId} />
+                        ) : (
+                          <div style={{ padding: '12px 16px', color: ADMIN_THEME.textMuted, fontSize: 13 }}>
+                            No aplica / no configurado.
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                        <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
+                          Precio base por servicio
+                        </div>
+                        <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                          <span>Maquinaria</span>
+                          <span>Mín</span>
+                          <span>Máx</span>
+                          <span>Sugerido</span>
+                        </div>
+                        {selectedMachineId && (prices.per_service || {})[selectedMachineId] ? (
+                          <PriceRow type="per_service" machineId={selectedMachineId} />
+                        ) : (
+                          <div style={{ padding: '12px 16px', color: ADMIN_THEME.textMuted, fontSize: 13 }}>
+                            No aplica / no configurado.
+                          </div>
+                        )}
+                      </div>
+
+                      {selectedMachineId && getMachineryCapacityOptions(selectedMachineId) && (prices.by_capacity || {})[selectedMachineId] ? (
+                        <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                          <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
+                            Referencia por capacidad
+                          </div>
+                          <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                            <span>{getMachineryCapacityOptions(selectedMachineId)?.providerLabel || 'Capacidad'}</span>
+                            <span>Mín</span>
+                            <span>Máx</span>
+                            <span>Sugerido</span>
+                          </div>
+                          {Object.keys((prices.by_capacity || {})[selectedMachineId] || {}).map((capacityKey) => (
+                            <CapacityRow key={`${selectedMachineId}-${capacityKey}`} machineId={selectedMachineId} capacityKey={capacityKey} />
+                          ))}
+                        </div>
+                      ) : null}
+
+                      <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                        <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
+                          Traslado referencial (intra / inter)
+                        </div>
+                        <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                          <span>Tramo</span>
+                          <span>Mín</span>
+                          <span>Máx</span>
+                          <span>Sugerido</span>
+                        </div>
+                        <div style={{ padding: 12, display: 'grid', gap: 10 }}>
+                          <TransportRangeEditor title="Dentro de la comuna" segmentKey="same_comuna" tone="intra" />
+                          <TransportRangeEditor title="Entre comunas (misma región)" segmentKey="intercomuna" tone="inter" />
+                          <TransportRangeEditor title="Interregional" segmentKey="interregional" tone="interreg" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
             <div style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', marginBottom: 24, border: `1px solid ${ADMIN_THEME.border}` }}>
               <div style={{
                 padding: '14px 16px',
@@ -613,10 +941,10 @@ function AdminPricingScreen() {
                 fontWeight: 600,
                 textTransform: 'uppercase'
               }}>
-                Traslado referencial
+                Traslado referencial (legacy)
               </div>
               <div style={{ padding: '10px 16px', color: ADMIN_THEME.textMuted, fontSize: 12, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
-                Rango sugerido para maquinaria que requiere traslado. El proveedor verá este rango como referencia al configurar su equipo.
+                Compatibilidad: este bloque se mantiene para lectura/edición simple. El desglose intra/inter está en “Vista por maquinaria”.
               </div>
               <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
                 <span>Concepto</span>
@@ -637,21 +965,21 @@ function AdminPricingScreen() {
                 <input
                   type="number"
                   value={transport.min ?? ''}
-                  onChange={(e) => updateTransportPrice('min', e.target.value)}
+                  onChange={(e) => updateTransportPrice(null, 'min', e.target.value)}
                   placeholder="Mín"
                   style={inputStyle}
                 />
                 <input
                   type="number"
                   value={transport.max ?? ''}
-                  onChange={(e) => updateTransportPrice('max', e.target.value)}
+                  onChange={(e) => updateTransportPrice(null, 'max', e.target.value)}
                   placeholder="Máx"
                   style={inputStyle}
                 />
                 <input
                   type="number"
                   value={transport.default ?? ''}
-                  onChange={(e) => updateTransportPrice('default', e.target.value)}
+                  onChange={(e) => updateTransportPrice(null, 'default', e.target.value)}
                   placeholder="Sugerido"
                   style={{
                     ...inputStyle,
@@ -665,6 +993,8 @@ function AdminPricingScreen() {
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 20 }}>
               El proveedor usa estos valores como referencia al publicar su maquinaria. "Sugerido" es el valor precargado; "mín" y "máx" delimitan el rango esperado para esta maquinaria.
             </p>
+              </>
+            )}
           </>
         )}
       </div>

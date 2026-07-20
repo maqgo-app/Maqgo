@@ -75,6 +75,11 @@ class NodeGoLiveMachine(BaseModel):
     reason: str = Field(default="")
 
 
+class NodePipelineStageUpdate(BaseModel):
+    stage: str = Field(min_length=2)
+    reason: str = Field(min_length=2)
+
+
 class ProgramCreate(BaseModel):
     title: str = Field(min_length=3)
     objective: str = Field(default="")
@@ -202,17 +207,171 @@ async def overview(_: dict = Depends(get_current_admin_strict)):
             "node_id": top_action_doc.get("node_id") or "",
         }
 
+    def _pipeline_stage(n: dict) -> str:
+        st = str(n.get("pipeline_stage") or "").strip().lower()
+        if st in {"captando", "por_abrir", "abierta", "pausada"}:
+            return st
+        status = str(n.get("status") or "").strip().lower()
+        if status == "launched":
+            return "abierta"
+        if status == "pilot":
+            return "por_abrir"
+        if status == "paused":
+            return "pausada"
+        return "captando"
+
+    pipeline_items = []
+    total_ready_machines = 0
+    total_live_machines = 0
+    total_ready_not_live = 0
+    for n in nodes:
+        open_machines = n.get("open_machines") if isinstance(n.get("open_machines"), dict) else {}
+        live_machines = n.get("live_machines") if isinstance(n.get("live_machines"), dict) else {}
+        ready_keys = [str(k) for k in open_machines.keys()]
+        live_keys = [str(k) for k in live_machines.keys() if bool(live_machines.get(k))]
+        ready_not_live = [k for k in ready_keys if not bool(live_machines.get(k))]
+        total_ready_machines += len(ready_keys)
+        total_live_machines += len(live_keys)
+        total_ready_not_live += len(ready_not_live)
+        pipeline_items.append(
+            {
+                "id": n.get("id"),
+                "name": n.get("name") or n.get("comuna") or "Nodo",
+                "region": n.get("region") or "",
+                "comuna": n.get("comuna") or "",
+                "sequence": int(n.get("sequence") or 0),
+                "stage": _pipeline_stage(n),
+                "status": n.get("status") or "",
+                "traffic_light": n.get("traffic_light") or "—",
+                "traffic_tone": n.get("traffic_tone") or "neutral",
+                "ready_machines": {"total": len(ready_keys), "not_live": len(ready_not_live)},
+                "live_machines": {"total": len(live_keys)},
+                "ready_not_live": ready_not_live[:6],
+            }
+        )
+
+    captando = [p for p in pipeline_items if p.get("stage") == "captando"]
+    por_abrir = [p for p in pipeline_items if p.get("stage") == "por_abrir"]
+    abiertas = [p for p in pipeline_items if p.get("stage") == "abierta"]
+    pausadas = [p for p in pipeline_items if p.get("stage") == "pausada"]
+    captando.sort(key=lambda x: (int(x.get("sequence") or 0), str(x.get("comuna") or "")))
+    por_abrir.sort(key=lambda x: (int(x.get("sequence") or 0), str(x.get("comuna") or "")))
+    abiertas.sort(key=lambda x: (int(x.get("sequence") or 0), str(x.get("comuna") or "")))
+    pausadas.sort(key=lambda x: (int(x.get("sequence") or 0), str(x.get("comuna") or "")))
+
+    if total_live_machines > 0:
+        gl_status, gl_tone = "On", "green"
+        gl_reason = f"{total_live_machines} maquinaria(s) en LIVE"
+    elif total_ready_machines > 0:
+        gl_status, gl_tone = "Atención", "amber"
+        gl_reason = f"{total_ready_not_live} maquinaria(s) LISTA(s) sin aprobar"
+    else:
+        gl_status, gl_tone = "Off", "red"
+        gl_reason = "Sin oferta lista para GO LIVE"
+
+    last_gl = await db.growth_audit.find_one(
+        {"event_type": {"$in": ["go_live_machine", "go_live_machine_off"]}},
+        {"_id": 0, "at": 1, "title": 1, "node_id": 1},
+        sort=[("at", -1)],
+    )
+
     return {
         "marketplace": {
             "status": m_status,
             "tone": m_tone,
             "summary": f"{len(nodes)} nodos · {tones.count('red')} en rojo · {tones.count('amber')} en ámbar",
         },
+        "weekly": {
+            "go_live": {
+                "status": gl_status,
+                "tone": gl_tone,
+                "reason": gl_reason,
+                "live_machines": total_live_machines,
+                "ready_machines": total_ready_machines,
+                "ready_not_live": total_ready_not_live,
+                "last_change": last_gl.get("at") if isinstance(last_gl, dict) else None,
+                "last_change_title": last_gl.get("title") if isinstance(last_gl, dict) else None,
+                "last_change_node_id": last_gl.get("node_id") if isinstance(last_gl, dict) else None,
+            }
+        },
+        "pipeline": {
+            "captando": captando[:12],
+            "por_abrir": por_abrir[:12],
+            "abiertas": abiertas[:12],
+            "pausadas": pausadas[:12],
+            "next_captando": captando[:5],
+            "next_por_abrir": por_abrir[:5],
+        },
         "top_nodes": top_nodes,
         "p0_risks": p0_risks,
         "working_now": working_now,
         "top_action": top_action,
     }
+
+
+@router.get("/comunas")
+async def list_comunas(_: dict = Depends(get_current_admin_strict)):
+    nodes = await db.growth_nodes.find({}, {"_id": 0}).sort("sequence", 1).to_list(length=500)
+    items = []
+    for n in nodes:
+        status = str(n.get("status") or "").strip().lower()
+        stage = str(n.get("pipeline_stage") or "").strip().lower()
+        if stage not in {"captando", "por_abrir", "abierta", "pausada"}:
+            if status == "launched":
+                stage = "abierta"
+            elif status == "pilot":
+                stage = "por_abrir"
+            elif status == "paused":
+                stage = "pausada"
+            else:
+                stage = "captando"
+        open_machines = n.get("open_machines") if isinstance(n.get("open_machines"), dict) else {}
+        live_machines = n.get("live_machines") if isinstance(n.get("live_machines"), dict) else {}
+        ready_keys = [str(k) for k in open_machines.keys()]
+        ready_not_live = [k for k in ready_keys if not bool(live_machines.get(k))]
+        live_keys = [str(k) for k in live_machines.keys() if bool(live_machines.get(k))]
+        items.append(
+            {
+                "id": n.get("id"),
+                "name": n.get("name") or n.get("comuna") or "Nodo",
+                "region": n.get("region") or "",
+                "comuna": n.get("comuna") or "",
+                "sequence": int(n.get("sequence") or 0),
+                "stage": stage,
+                "status": n.get("status") or "",
+                "traffic_light": n.get("traffic_light") or "—",
+                "traffic_tone": n.get("traffic_tone") or "neutral",
+                "min_supply_per_machine": int(n.get("min_supply_per_machine") or 0) or 0,
+                "ready_machines": {"total": len(ready_keys), "not_live": len(ready_not_live)},
+                "live_machines": {"total": len(live_keys)},
+                "ready_not_live": ready_not_live[:6],
+            }
+        )
+    return {"items": items}
+
+
+@router.post("/nodes/{node_id}/pipeline-stage")
+async def set_node_pipeline_stage(node_id: str, payload: NodePipelineStageUpdate, _: dict = Depends(get_current_admin_strict)):
+    node = await db.growth_nodes.find_one({"id": node_id}, {"_id": 0})
+    if not node:
+        raise HTTPException(status_code=404, detail="Nodo no encontrado")
+
+    stage = payload.stage.strip().lower()
+    if stage not in {"captando", "por_abrir", "abierta", "pausada"}:
+        raise HTTPException(status_code=400, detail="stage inválido")
+
+    await db.growth_nodes.update_one(
+        {"id": node_id},
+        {"$set": {"pipeline_stage": stage, "updatedAt": _now_iso()}},
+    )
+    await _audit(
+        "Pipeline comuna actualizado",
+        payload.reason,
+        node_id=node_id,
+        severity="INFO",
+        event_type="pipeline_stage",
+    )
+    return {"ok": True}
 
 
 @router.get("/map")

@@ -170,6 +170,7 @@ const AdminMarketingScreen = lazy(() => import('./screens/admin/AdminMarketingSc
 const AdminChangePasswordScreen = lazy(() => import('./screens/admin/AdminChangePasswordScreen'));
 const AdminGrowthAIFrame = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIFrame'));
 const AdminGrowthAIOverviewScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIOverviewScreen'));
+const AdminGrowthAIComunasScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIComunasScreen'));
 const AdminGrowthAIMapScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIMapScreen'));
 const AdminGrowthAINodeScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAINodeScreen'));
 const AdminGrowthAIProgramsScreen = lazy(() => import('./screens/admin/growthAi/AdminGrowthAIProgramsScreen'));
@@ -357,6 +358,7 @@ function AppContent() {
           <Route path="marketing" element={<AdminMarketingScreen />} />
           <Route path="growth-ai" element={<AdminGrowthAIFrame />}>
             <Route index element={<AdminGrowthAIOverviewScreen />} />
+            <Route path="comunas" element={<AdminGrowthAIComunasScreen />} />
             <Route path="map" element={<AdminGrowthAIMapScreen />} />
             <Route path="nodes/:nodeId" element={<AdminGrowthAINodeScreen />} />
             <Route path="programs" element={<AdminGrowthAIProgramsScreen />} />

@@ -98,6 +98,9 @@ export default function AdminGrowthAIOverviewScreen() {
     return items.slice(0, 6);
   }, [data]);
 
+  const goLive = useMemo(() => data?.weekly?.go_live || null, [data]);
+  const pipeline = useMemo(() => data?.pipeline || null, [data]);
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 14 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
@@ -195,6 +198,152 @@ export default function AdminGrowthAIOverviewScreen() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+        <Card
+          theme={THEME}
+          title="Reporte semanal"
+          right={
+            goLive ? <Pill theme={THEME} label={`GO LIVE: ${goLive.status || '—'}`} tone={goLive.tone || 'neutral'} /> : null
+          }
+        >
+          {loading ? (
+            <ListSkeleton rows={2} />
+          ) : goLive ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.78)', lineHeight: 1.45 }}>
+                {goLive.reason || '—'}
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <Pill theme={THEME} label={`LIVE: ${goLive.live_machines ?? 0}`} tone={goLive.live_machines > 0 ? 'green' : 'neutral'} />
+                <Pill theme={THEME} label={`LISTA: ${goLive.ready_not_live ?? 0}`} tone={goLive.ready_not_live > 0 ? 'amber' : 'neutral'} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.62)' }}>
+                  Último cambio: {goLive.last_change ? String(goLive.last_change) : '—'}
+                </div>
+                <button
+                  type="button"
+                  className="maqgo-btn-secondary"
+                  style={{ padding: '8px 10px', borderRadius: 10, fontWeight: 800, fontSize: 12 }}
+                  onClick={() => navigate('/admin/growth-ai/comunas')}
+                >
+                  Ver comunas
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
+              Sin datos de reporte semanal todavía.
+            </div>
+          )}
+        </Card>
+
+        <Card
+          theme={THEME}
+          title="Comunas"
+          right={
+            pipeline ? (
+              <Pill
+                theme={THEME}
+                label={`Captando ${Array.isArray(pipeline.captando) ? pipeline.captando.length : 0} · Por abrir ${Array.isArray(pipeline.por_abrir) ? pipeline.por_abrir.length : 0}`}
+                tone="neutral"
+              />
+            ) : null
+          }
+        >
+          {loading ? (
+            <ListSkeleton rows={4} />
+          ) : pipeline ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 900, color: 'rgba(255,255,255,0.78)', marginBottom: 6 }}>
+                  Captando (siguientes)
+                </div>
+                {Array.isArray(pipeline.next_captando) && pipeline.next_captando.length ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {pipeline.next_captando.map((n) => (
+                      <button
+                        key={n.id}
+                        type="button"
+                        onClick={() => navigate(`/admin/growth-ai/nodes/${encodeURIComponent(n.id)}`)}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          borderRadius: 12,
+                          border: `1px solid ${THEME.border}`,
+                          background: 'rgba(255,255,255,0.04)',
+                          padding: 10,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 900 }}>{n.name || n.comuna || 'Comuna'}</div>
+                          <div style={{ marginTop: 2, fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
+                            {(n.region ? `${n.region} · ` : '') + (n.comuna || '')}
+                          </div>
+                        </div>
+                        <Pill theme={THEME} label="Captando" tone="neutral" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>No hay comunas en captación.</div>
+                )}
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 900, color: 'rgba(255,255,255,0.78)', marginBottom: 6 }}>
+                  Por abrir (listas)
+                </div>
+                {Array.isArray(pipeline.next_por_abrir) && pipeline.next_por_abrir.length ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {pipeline.next_por_abrir.map((n) => (
+                      <button
+                        key={n.id}
+                        type="button"
+                        onClick={() => navigate(`/admin/growth-ai/nodes/${encodeURIComponent(n.id)}`)}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          borderRadius: 12,
+                          border: `1px solid ${THEME.border}`,
+                          background: 'rgba(255,255,255,0.04)',
+                          padding: 10,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 900 }}>{n.name || n.comuna || 'Comuna'}</div>
+                          <div style={{ marginTop: 2, fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
+                            {(n.region ? `${n.region} · ` : '') + (n.comuna || '')}
+                          </div>
+                          {Array.isArray(n.ready_not_live) && n.ready_not_live.length ? (
+                            <div style={{ marginTop: 2, fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
+                              Lista: {n.ready_not_live.join(', ')}
+                            </div>
+                          ) : null}
+                        </div>
+                        <Pill theme={THEME} label="Por abrir" tone="amber" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>No hay comunas listas para abrir.</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>Sin pipeline todavía.</div>
+          )}
+        </Card>
+
         <Card theme={THEME} title="Readiness marketplace">
           {loading ? (
             <ListSkeleton rows={3} />
