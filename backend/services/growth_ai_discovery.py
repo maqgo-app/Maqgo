@@ -186,6 +186,7 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
     run_id = _sha256(_now_iso())
     now = _now_iso()
     created = 0
+    duplicates = 0
     errors: list[dict[str, str]] = []
     fetched = 0
 
@@ -217,6 +218,7 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
                             "detail": "",
                             "link": link,
                             "contact": {},
+                            "score": 0,
                             "meta": {"run_id": run_id},
                             "createdAt": now,
                             "updatedAt": now,
@@ -224,14 +226,25 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
                         try:
                             await db.growth_opportunity_items.insert_one(doc)
                             created += 1
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            msg = str(e)
+                            if "E11000" in msg or "duplicate key" in msg.lower():
+                                duplicates += 1
+                            else:
+                                errors.append({"source": src.id, "error": msg[:300]})
                 elif src.source_type == "html":
                     html = await _fetch(client, src.url)
                     fetched += 1
                     emails = extract_emails(html)
                     phones = extract_chile_mobiles(html)
                     links = extract_contact_links(html)
+                    score = 0
+                    if emails:
+                        score += 3
+                    if phones:
+                        score += 3
+                    if links:
+                        score += 1
                     title = f"Sitio detectado: {src.url}"
                     dk = discovery_dedupe_key(
                         source_id=src.id,
@@ -259,6 +272,12 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
                             "phones": phones,
                             "contact_links": links,
                         },
+                        "contact_quality": {
+                            "emails": len(emails),
+                            "phones": len(phones),
+                            "links": len(links),
+                        },
+                        "score": score,
                         "meta": {"run_id": run_id},
                         "createdAt": now,
                         "updatedAt": now,
@@ -266,8 +285,12 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
                     try:
                         await db.growth_opportunity_items.insert_one(doc)
                         created += 1
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        msg = str(e)
+                        if "E11000" in msg or "duplicate key" in msg.lower():
+                            duplicates += 1
+                        else:
+                            errors.append({"source": src.id, "error": msg[:300]})
                 else:
                     errors.append({"source": src.id, "error": f"unsupported_type:{src.source_type}"})
             except Exception as e:
@@ -280,9 +303,17 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
             "sources": len(sources),
             "fetched": fetched,
             "items_created": created,
+            "duplicates": duplicates,
             "errors": errors,
             "at": now,
         }
     )
-    return {"ok": True, "run_id": run_id, "sources": len(sources), "fetched": fetched, "items_created": created, "errors": errors}
-
+    return {
+        "ok": True,
+        "run_id": run_id,
+        "sources": len(sources),
+        "fetched": fetched,
+        "items_created": created,
+        "duplicates": duplicates,
+        "errors": errors,
+    }

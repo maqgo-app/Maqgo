@@ -44,6 +44,92 @@ def _scl_now() -> datetime:
     return datetime.now(ZoneInfo("America/Santiago"))
 
 
+def _norm_machine_key(v: str) -> str:
+    return (
+        (v or "")
+        .strip()
+        .lower()
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("í", "i")
+        .replace("ó", "o")
+        .replace("ú", "u")
+        .replace(" ", "_")
+    )
+
+
+async def _compute_open_machines_for_nodes(db, *, node_ids: list[str], min_units: int) -> dict[str, dict[str, int]]:
+    nodes = await db.growth_nodes.find({"id": {"$in": node_ids}}, {"_id": 0, "id": 1, "comuna": 1}).to_list(length=200)
+    by_node: dict[str, dict[str, int]] = {str(n.get("id") or "").strip(): {} for n in nodes}
+    comuna_by_node = {str(n.get("id") or "").strip(): str(n.get("comuna") or "").strip() for n in nodes}
+
+    for node_id, comuna in comuna_by_node.items():
+        if not node_id or not comuna:
+            continue
+
+        pipeline = [
+            {
+                "$match": {
+                    "status": {"$ne": "deleted"},
+                    "published": True,
+                    "available": True,
+                    "originComuna": comuna,
+                    "machineryType": {"$exists": True, "$ne": ""},
+                }
+            },
+            {"$group": {"_id": "$machineryType", "n": {"$sum": 1}}},
+        ]
+
+        counts: dict[str, int] = {}
+        async for row in db.machines.aggregate(pipeline):
+            k = _norm_machine_key(str(row.get("_id") or ""))
+            n = int(row.get("n") or 0)
+            if k and n > 0:
+                counts[k] = n
+
+        fallback_pipeline = [
+            {
+                "$match": {
+                    "status": {"$ne": "deleted"},
+                    "published": True,
+                    "available": True,
+                    "$or": [{"originComuna": {"$exists": False}}, {"originComuna": ""}, {"originComuna": None}],
+                    "provider_id": {"$exists": True, "$ne": ""},
+                    "machineryType": {"$exists": True, "$ne": ""},
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "users",
+                    "localField": "provider_id",
+                    "foreignField": "id",
+                    "as": "provider",
+                }
+            },
+            {"$unwind": "$provider"},
+            {
+                "$match": {
+                    "$or": [
+                        {"provider.providerData.comuna": comuna},
+                        {"provider.providerData.commune": comuna},
+                    ]
+                }
+            },
+            {"$group": {"_id": "$machineryType", "n": {"$sum": 1}}},
+        ]
+
+        async for row in db.machines.aggregate(fallback_pipeline):
+            k = _norm_machine_key(str(row.get("_id") or ""))
+            n = int(row.get("n") or 0)
+            if not k or n <= 0:
+                continue
+            counts[k] = int(counts.get(k) or 0) + n
+
+        by_node[node_id] = {k: n for k, n in counts.items() if n >= max(1, int(min_units))}
+
+    return by_node
+
+
 async def _ensure_indexes(db) -> None:
     await db.growth_nodes.create_index([("id", 1)], unique=True, name="uniq_growth_node_id")
     await db.growth_programs.create_index([("id", 1)], unique=True, name="uniq_growth_program_id")
@@ -59,6 +145,10 @@ async def _ensure_indexes(db) -> None:
     await db.growth_discovery_runs.create_index([("id", 1)], unique=True, name="uniq_growth_discovery_run_id")
     await db.growth_opportunity_items.create_index([("id", 1)], unique=True, name="uniq_growth_opportunity_item_id")
     await db.growth_opportunity_items.create_index([("status", 1), ("createdAt", -1)], name="idx_growth_opportunity_item_status")
+    await db.growth_opportunity_items.create_index(
+        [("status", 1), ("score", -1), ("createdAt", 1)],
+        name="idx_growth_opportunity_item_priority",
+    )
     await db.growth_sms_suppressions.create_index([("id", 1)], unique=True, name="uniq_growth_sms_suppression_id")
     await db.growth_sms_suppressions.create_index([("phone", 1)], unique=True, name="uniq_growth_sms_suppression_phone")
     await db.growth_opportunity_items.create_index([("dedupe_key", 1)], unique=True, name="uniq_growth_opportunity_item_dedupe")
@@ -195,6 +285,8 @@ async def _seed_if_empty(db) -> None:
                         "max_actions_per_tick": 10,
                         "max_exec_per_tick": 5,
                         "discovery_min_interval_min": 30,
+                        "inventory_refresh_min_interval_min": 15,
+                        "min_supply_per_machine": 3,
                         "allowed_node_ids": ["lampa", "quilicura", "pudahuel"],
                     },
                     "market": {
@@ -357,6 +449,9 @@ async def _autopilot_tick(db) -> dict[str, int]:
     max_exec_per_tick = int(autopilot.get("max_exec_per_tick", 5) or 5)
     discovery_min_interval_min = int(autopilot.get("discovery_min_interval_min", 30) or 30)
 
+    min_supply_per_machine = int(autopilot.get("min_supply_per_machine", 3) or 3)
+    inventory_refresh_min_interval_min = int(autopilot.get("inventory_refresh_min_interval_min", 15) or 15)
+
     allowed_nodes = autopilot.get("allowed_node_ids")
     if not isinstance(allowed_nodes, list):
         allowed_nodes = []
@@ -364,6 +459,60 @@ async def _autopilot_tick(db) -> dict[str, int]:
     if not allowed_nodes:
         nodes = await db.growth_nodes.find({"region": "RM"}, {"_id": 0, "id": 1}).sort("sequence", 1).to_list(length=10)
         allowed_nodes = [str(n.get("id") or "").strip() for n in nodes if str(n.get("id") or "").strip()][:3]
+
+    last_inventory_at = str(state_cfg.get("last_inventory_at") or "").strip()
+    should_refresh_inventory = True
+    if last_inventory_at:
+        try:
+            last_dt = datetime.fromisoformat(last_inventory_at.replace("Z", "+00:00"))
+            mins = (datetime.now(timezone.utc) - last_dt).total_seconds() / 60.0
+            should_refresh_inventory = mins >= float(inventory_refresh_min_interval_min)
+        except Exception:
+            should_refresh_inventory = True
+
+    open_machines_by_node: dict[str, dict[str, int]] = {}
+    if should_refresh_inventory and allowed_nodes:
+        try:
+            open_machines_by_node = await _compute_open_machines_for_nodes(
+                db,
+                node_ids=allowed_nodes,
+                min_units=min_supply_per_machine,
+            )
+            await db.config.update_one(
+                {"_id": "growth_ai_state"},
+                {
+                    "$set": {
+                        "last_inventory_at": now_iso,
+                        "open_machines_by_node": open_machines_by_node,
+                        "min_supply_per_machine": min_supply_per_machine,
+                        "updatedAt": now_iso,
+                    },
+                    "$setOnInsert": {"createdAt": now_iso},
+                },
+                upsert=True,
+            )
+            for nid, open_counts in open_machines_by_node.items():
+                await db.growth_nodes.update_one(
+                    {"id": nid},
+                    {
+                        "$set": {
+                            "open_machines": open_counts,
+                            "min_supply_per_machine": min_supply_per_machine,
+                            "open_machines_updatedAt": now_iso,
+                            "updatedAt": now_iso,
+                        }
+                    },
+                )
+        except Exception as e:
+            await db.config.update_one(
+                {"_id": "growth_ai_state"},
+                {"$set": {"last_inventory_at": now_iso, "inventory_error": str(e)[:300], "updatedAt": now_iso}, "$setOnInsert": {"createdAt": now_iso}},
+                upsert=True,
+            )
+    else:
+        cached = state_cfg.get("open_machines_by_node")
+        if isinstance(cached, dict):
+            open_machines_by_node = {str(k): (v if isinstance(v, dict) else {}) for k, v in cached.items()}
 
     now_iso = _now_iso()
     out = {"discovery_runs": 0, "leads_triaged": 0, "actions_created": 0, "actions_executed": 0}
@@ -418,7 +567,7 @@ async def _autopilot_tick(db) -> dict[str, int]:
     if allowed_nodes:
         lead_filter["node_id"] = {"$in": allowed_nodes}
 
-    cursor = db.growth_opportunity_items.find(lead_filter, {"_id": 0}).sort("createdAt", 1)
+    cursor = db.growth_opportunity_items.find(lead_filter, {"_id": 0}).sort([("score", -1), ("createdAt", 1)])
     created = 0
     triaged = 0
     async for lead in cursor:
@@ -458,7 +607,27 @@ async def _autopilot_tick(db) -> dict[str, int]:
         node_id = str(lead.get("node_id") or "").strip()
         node = await db.growth_nodes.find_one({"id": node_id}, {"_id": 0}) if node_id else None
         city = str((node or {}).get("comuna") or "").strip()
-        machine = str(lead.get("category") or "").strip() or "maquinaria"
+        machine_raw = str(lead.get("category") or "").strip() or "maquinaria"
+        machine_key = _norm_machine_key(machine_raw)
+
+        if persona == "cliente" and node_id:
+            open_for_node = open_machines_by_node.get(node_id) or {}
+            if machine_key and machine_key != "maquinaria" and machine_key not in open_for_node:
+                await db.growth_opportunity_items.update_one(
+                    {"id": lead_id},
+                    {
+                        "$set": {
+                            "status": "triaged_insufficient_supply",
+                            "triageReason": f"Insuficiente oferta para {machine_raw} (mínimo {min_supply_per_machine})",
+                            "updatedAt": now_iso,
+                            "required_min_supply": min_supply_per_machine,
+                            "machine": machine_raw,
+                            "machine_key": machine_key,
+                        }
+                    },
+                )
+                triaged += 1
+                continue
 
         if email and phone:
             e_n, e_rate = await _sent_rate("email", node_id=node_id, persona=persona, role=role, machine=machine)
@@ -480,7 +649,7 @@ async def _autopilot_tick(db) -> dict[str, int]:
             triaged += 1
             continue
 
-        draft = await draft_outreach_message(persona=persona, context={"city": city, "machine": machine, "role": role})
+        draft = await draft_outreach_message(persona=persona, context={"city": city, "machine": machine_raw, "role": role})
         result = draft.get("result") if isinstance(draft, dict) else None
         if not isinstance(result, dict):
             continue
@@ -512,7 +681,8 @@ async def _autopilot_tick(db) -> dict[str, int]:
                     "lead_source_type": lead.get("source_type"),
                     "lead_url": lead.get("link"),
                     "role": role,
-                    "machine": machine,
+                    "machine": machine_raw,
+                    "machine_key": machine_key,
                 },
                 "approvedAt": now2 if status == "approved" else None,
                 "createdAt": now2,
