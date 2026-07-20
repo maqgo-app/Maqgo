@@ -22,6 +22,101 @@ client = AsyncIOMotorClient(get_mongo_url())
 db = client[get_db_name()]
 
 
+async def _bootstrap_nodes_if_empty() -> None:
+    if await db.growth_nodes.estimated_document_count() > 0:
+        return
+
+    now = _now_iso()
+    await db.growth_nodes.insert_many(
+        [
+            {
+                "id": "lampa",
+                "name": "Lampa",
+                "region": "RM",
+                "comuna": "Lampa",
+                "sequence": 1,
+                "status": "planned",
+                "pipeline_stage": "captando",
+                "traffic_light": "Preparar",
+                "traffic_tone": "amber",
+                "primary_gap": "Oferta por maquinaria",
+                "zoc_summary": "Abrir por maquinaria (mínimo oferta activa).",
+                "createdAt": now,
+                "updatedAt": now,
+            },
+            {
+                "id": "quilicura",
+                "name": "Quilicura",
+                "region": "RM",
+                "comuna": "Quilicura",
+                "sequence": 2,
+                "status": "planned",
+                "pipeline_stage": "captando",
+                "traffic_light": "Preparar",
+                "traffic_tone": "amber",
+                "primary_gap": "Oferta por maquinaria",
+                "zoc_summary": "Abrir por maquinaria (mínimo oferta activa).",
+                "createdAt": now,
+                "updatedAt": now,
+            },
+            {
+                "id": "pudahuel",
+                "name": "Pudahuel",
+                "region": "RM",
+                "comuna": "Pudahuel",
+                "sequence": 3,
+                "status": "planned",
+                "pipeline_stage": "captando",
+                "traffic_light": "Preparar",
+                "traffic_tone": "amber",
+                "primary_gap": "Oferta por maquinaria",
+                "zoc_summary": "Abrir por maquinaria (mínimo oferta activa).",
+                "createdAt": now,
+                "updatedAt": now,
+            },
+        ]
+    )
+
+    await db.config.update_one(
+        {"_id": "growth_ai_config"},
+        {
+            "$setOnInsert": {
+                "createdAt": now,
+                "config": {
+                    "autopilot": {
+                        "enabled": False,
+                        "discovery_enabled": True,
+                        "outreach_enabled": True,
+                        "auto_approve": True,
+                        "auto_execute": False,
+                        "max_actions_per_tick": 10,
+                        "max_exec_per_tick": 5,
+                        "discovery_min_interval_min": 30,
+                        "inventory_refresh_min_interval_min": 15,
+                        "min_supply_per_machine": 3,
+                        "require_go_live_approval_for_demand": True,
+                        "allowed_node_ids": ["lampa", "quilicura", "pudahuel"],
+                    },
+                    "market": {
+                        "country": "Chile",
+                        "region": "RM",
+                        "strategic_definition": "MAQGO es el marketplace de maquinaria pesada con operador para particulares, contratistas y pequeñas y medianas empresas que ejecutan trabajos en terreno y necesitan acceder a maquinaria de forma rápida, simple y confiable, sin depender de contratos de largo plazo ni procesos tradicionales de cotización.",
+                    },
+                },
+            }
+        },
+        upsert=True,
+    )
+
+    await _audit(
+        "Bootstrap Growth AI",
+        "Se crearon nodos iniciales RM (Lampa, Quilicura, Pudahuel) y config base.",
+        node_id="lampa",
+        severity="INFO",
+        event_type="bootstrap",
+    )
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -164,6 +259,7 @@ class DiscoverySourceUpsert(BaseModel):
 
 @router.get("/overview")
 async def overview(_: dict = Depends(get_current_admin_strict)):
+    await _bootstrap_nodes_if_empty()
     nodes = await db.growth_nodes.find({}, {"_id": 0}).sort("sequence", 1).to_list(length=200)
     top_nodes = []
     for n in nodes[:6]:
@@ -333,6 +429,7 @@ async def overview(_: dict = Depends(get_current_admin_strict)):
 
 @router.get("/comunas")
 async def list_comunas(_: dict = Depends(get_current_admin_strict)):
+    await _bootstrap_nodes_if_empty()
     nodes = await db.growth_nodes.find({}, {"_id": 0}).sort("sequence", 1).to_list(length=500)
     items = []
 
