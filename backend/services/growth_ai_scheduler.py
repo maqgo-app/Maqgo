@@ -202,7 +202,7 @@ async def _seed_if_empty(db) -> None:
                         "region": "RM",
                         "strategic_definition": "MAQGO es el marketplace de maquinaria pesada con operador para particulares, contratistas y pequeñas y medianas empresas que ejecutan trabajos en terreno y necesitan acceder a maquinaria de forma rápida, simple y confiable, sin depender de contratos de largo plazo ni procesos tradicionales de cotización.",
                     },
-                    "sender": {"recommended_from": "hola@maqgo.cl", "env_var": "SENDER_EMAIL"},
+                    "sender": {"recommended_from": "equipo@maqgo.cl", "recommended_name": "Equipo MAQGO", "env_var": "SENDER_EMAIL", "env_var_name": "SENDER_NAME"},
                 },
             }
         },

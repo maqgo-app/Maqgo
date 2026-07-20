@@ -54,7 +54,20 @@ def _normalize_email_list(value) -> list[str]:
 
 
 def _get_sender_email() -> str:
-    return (os.environ.get("SENDER_EMAIL", "").strip() or "onboarding@resend.dev").strip()
+    return (os.environ.get("SENDER_EMAIL", "").strip() or "equipo@maqgo.cl").strip()
+
+
+def _get_sender_name() -> str:
+    return (os.environ.get("SENDER_NAME", "").strip() or "Equipo MAQGO").strip()
+
+
+def _get_sender_from() -> str:
+    name = _get_sender_name()
+    email = _get_sender_email()
+    if not name:
+        return email
+    safe_name = name.replace('"', "'").strip()
+    return f"{safe_name} <{email}>"
 
 
 def _smtp_send_ssl(host: str, port: int, user: str, password: str, msg: EmailMessage, context) -> None:
@@ -71,7 +84,7 @@ def _smtp_send_starttls(host: str, port: int, user: str, password: str, msg: Ema
 
 
 async def _send_email(to_emails: list[str], subject: str, text: str, html: Optional[str] = None) -> dict:
-    sender = _get_sender_email()
+    sender = _get_sender_from()
 
     smtp_host = os.environ.get("EMAIL_SMTP_HOST", "").strip()
     smtp_user = os.environ.get("EMAIL_SMTP_USER", "").strip()

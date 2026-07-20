@@ -241,11 +241,15 @@ def _email_html(subject: str, message: str) -> str:
         else ""
     )
 
+    sender_email = (os.environ.get("SENDER_EMAIL", "").strip() or "equipo@maqgo.cl").strip()
+    sender_name = (os.environ.get("SENDER_NAME", "").strip() or "Equipo MAQGO").strip()
+    sender_from = f"{sender_name} <{sender_email}>" if sender_name else sender_email
+
     trust_block = (
         "<div style=\"margin-top:12px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;\">"
         "<div style=\"font-size:11px;letter-spacing:.28px;color:#64748B;font-weight:800;text-transform:uppercase;\">Confianza y control</div>"
         f"<div style=\"margin-top:10px;font-size:12px;line-height:16px;color:#475569;\">Sitio oficial: <a href=\"{_public_base_url()}\" style=\"color:#0B1220;font-weight:900;text-decoration:none;\">{html.escape(_public_base_url())}</a> · No solicitamos claves ni pagos por correo.</div>"
-        f"<div style=\"margin-top:8px;font-size:12px;line-height:16px;color:#475569;\">Enviado desde: <span style=\"font-weight:900;color:#0B1220;\">{html.escape((os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev').strip() or 'onboarding@resend.dev'))}</span></div>"
+        f"<div style=\"margin-top:8px;font-size:12px;line-height:16px;color:#475569;\">Remitente: <span style=\"font-weight:900;color:#0B1220;\">{html.escape(sender_from)}</span></div>"
         "<div style=\"margin-top:8px;font-size:12px;line-height:16px;color:#475569;\">Para dejar de recibir mensajes, responde este correo con <span style=\"font-weight:900;color:#0B1220;\">BAJA</span>.</div>"
         "</div>"
     )
