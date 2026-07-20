@@ -178,6 +178,30 @@ async def _fetch(client: httpx.AsyncClient, url: str) -> str:
     return r.text
 
 
+async def _try_fetch_contact_from_link(client: httpx.AsyncClient, link: str) -> tuple[dict[str, Any], int]:
+    url = (link or "").strip()
+    if not url:
+        return ({}, 0)
+    try:
+        html = await _fetch(client, url)
+    except Exception:
+        return ({}, 0)
+    emails = extract_emails(html)
+    phones = extract_chile_mobiles(html)
+    links = extract_contact_links(html)
+    score = 0
+    if emails:
+        score += 3
+    if phones:
+        score += 3
+    if links:
+        score += 1
+    contact: dict[str, Any] = {}
+    if emails or phones or links:
+        contact = {"emails": emails, "phones": phones, "contact_links": links}
+    return (contact, score)
+
+
 async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
     sources = [s for s in load_sources_from_config(config) if s.enabled]
     if not sources:
@@ -189,6 +213,8 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
     duplicates = 0
     errors: list[dict[str, str]] = []
     fetched = 0
+
+    enrich_rss_links = bool((config or {}).get("enrich_rss_links", True))
 
     timeout = httpx.Timeout(12.0, connect=10.0)
     headers = {"User-Agent": "MAQGO-GrowthAI/1.0"}
@@ -203,6 +229,18 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
                         title = it.get("title") or ""
                         link = it.get("link") or ""
                         dk = discovery_dedupe_key(source_id=src.id, link=link, email="", phone="", title=title)
+
+                        contact: dict[str, Any] = {}
+                        score = 0
+                        contact_quality: dict[str, int] | None = None
+                        if enrich_rss_links and link:
+                            contact, score = await _try_fetch_contact_from_link(client, link)
+                            if contact:
+                                emails = contact.get("emails") if isinstance(contact.get("emails"), list) else []
+                                phones = contact.get("phones") if isinstance(contact.get("phones"), list) else []
+                                links2 = contact.get("contact_links") if isinstance(contact.get("contact_links"), list) else []
+                                contact_quality = {"emails": len(emails), "phones": len(phones), "links": len(links2)}
+
                         doc = {
                             "id": dk,
                             "dedupe_key": dk,
@@ -217,12 +255,14 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
                             "title": title,
                             "detail": "",
                             "link": link,
-                            "contact": {},
-                            "score": 0,
+                            "contact": contact,
+                            "score": score,
                             "meta": {"run_id": run_id},
                             "createdAt": now,
                             "updatedAt": now,
                         }
+                        if contact_quality is not None:
+                            doc["contact_quality"] = contact_quality
                         try:
                             await db.growth_opportunity_items.insert_one(doc)
                             created += 1
@@ -230,6 +270,18 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
                             msg = str(e)
                             if "E11000" in msg or "duplicate key" in msg.lower():
                                 duplicates += 1
+                                if contact:
+                                    await db.growth_opportunity_items.update_one(
+                                        {"id": dk},
+                                        {
+                                            "$set": {
+                                                "contact": contact,
+                                                "score": score,
+                                                "contact_quality": contact_quality or {},
+                                                "updatedAt": now,
+                                            }
+                                        },
+                                    )
                             else:
                                 errors.append({"source": src.id, "error": msg[:300]})
                 elif src.source_type == "html":

@@ -59,6 +59,7 @@ export default function AdminGrowthAIOverviewScreen() {
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
   const [bootstrapping, setBootstrapping] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -121,6 +122,32 @@ export default function AdminGrowthAIOverviewScreen() {
 
   const goLive = useMemo(() => data?.weekly?.go_live || null, [data]);
   const pipeline = useMemo(() => data?.pipeline || null, [data]);
+  const startSearch = async () => {
+    if (starting) return;
+    setStarting(true);
+    setError('');
+    try {
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/admin/growth-ai/start`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ include_outreach: false }),
+        },
+        30000
+      );
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.detail || `No se pudo iniciar (${res.status})`);
+      const res2 = await fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/overview`, { method: 'GET' }, 15000);
+      const payload2 = await res2.json().catch(() => ({}));
+      if (!res2.ok) throw new Error(payload2?.detail || `No se pudo recargar Overview (${res2.status})`);
+      setData(payload2);
+    } catch (e) {
+      setError(friendlyFetchError(e, 'No se pudo iniciar la búsqueda.'));
+    } finally {
+      setStarting(false);
+    }
+  };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 14 }}>
@@ -267,6 +294,37 @@ export default function AdminGrowthAIOverviewScreen() {
               Sin datos de reporte semanal todavía.
             </div>
           )}
+        </Card>
+
+        <Card
+          theme={THEME}
+          title="Búsqueda (Discovery)"
+          right={<Pill theme={THEME} label={starting ? 'Buscando…' : 'Listo'} tone={starting ? 'amber' : 'neutral'} />}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.78)', lineHeight: 1.45 }}>
+              Ejecuta una búsqueda inicial en las comunas RM y crea leads. No envía mensajes.
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="maqgo-btn-primary"
+                style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
+                disabled={starting}
+                onClick={startSearch}
+              >
+                Empezar
+              </button>
+              <button
+                type="button"
+                className="maqgo-btn-secondary"
+                style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 800 }}
+                onClick={() => navigate('/admin/growth-ai/discovery')}
+              >
+                Ver leads
+              </button>
+            </div>
+          </div>
         </Card>
 
         <Card

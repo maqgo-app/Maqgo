@@ -117,6 +117,85 @@ async def _bootstrap_nodes_if_empty() -> None:
     )
 
 
+def _google_news_rss(query: str) -> str:
+    from urllib.parse import quote_plus
+
+    q = quote_plus(query)
+    return f"https://news.google.com/rss/search?q={q}&hl=es-419&gl=CL&ceid=CL:es-419"
+
+
+async def _seed_discovery_sources_if_empty() -> int:
+    conf = await db.config.find_one({"_id": "growth_ai_config"}, {"_id": 0})
+    cfg = (conf or {}).get("config") if isinstance(conf, dict) else {}
+    if not isinstance(cfg, dict):
+        cfg = {}
+    sources = cfg.get("discovery_sources")
+    if isinstance(sources, list) and len(sources) > 0:
+        return len(sources)
+
+    nodes = await db.growth_nodes.find({"region": "RM"}, {"_id": 0, "id": 1, "comuna": 1}).sort("sequence", 1).to_list(length=10)
+    base: list[dict[str, Any]] = []
+
+    for n in nodes:
+        node_id = str(n.get("id") or "").strip()
+        comuna = str(n.get("comuna") or "").strip()
+        if not node_id or not comuna:
+            continue
+
+        base.extend(
+            [
+                {
+                    "id": f"rm_{node_id}_prov_retro",
+                    "url": _google_news_rss(f"arriendo retroexcavadora {comuna}"),
+                    "type": "rss",
+                    "kind": "supply",
+                    "node_id": node_id,
+                    "category": "retroexcavadora",
+                    "enabled": True,
+                    "max_items": 25,
+                },
+                {
+                    "id": f"rm_{node_id}_prov_excavadora",
+                    "url": _google_news_rss(f"arriendo excavadora {comuna}"),
+                    "type": "rss",
+                    "kind": "supply",
+                    "node_id": node_id,
+                    "category": "excavadora",
+                    "enabled": True,
+                    "max_items": 25,
+                },
+                {
+                    "id": f"rm_{node_id}_prov_tolva",
+                    "url": _google_news_rss(f"camion tolva arriendo {comuna}"),
+                    "type": "rss",
+                    "kind": "supply",
+                    "node_id": node_id,
+                    "category": "camion_tolva",
+                    "enabled": True,
+                    "max_items": 25,
+                },
+                {
+                    "id": f"rm_{node_id}_demanda_mov_tierra",
+                    "url": _google_news_rss(f"movimiento de tierra {comuna} retroexcavadora"),
+                    "type": "rss",
+                    "kind": "demand",
+                    "node_id": node_id,
+                    "category": "retroexcavadora",
+                    "enabled": True,
+                    "max_items": 25,
+                },
+            ]
+        )
+
+    await db.config.update_one(
+        {"_id": "growth_ai_config"},
+        {"$set": {"config.discovery_sources": base, "updatedAt": _now_iso()}, "$setOnInsert": {"createdAt": _now_iso()}},
+        upsert=True,
+    )
+    await _audit("Discovery sources seeded", f"count={len(base)}", event_type="discovery")
+    return len(base)
+
+
 @router.get("/ping")
 async def growth_ai_ping(_: dict = Depends(get_current_admin_strict)):
     await _bootstrap_nodes_if_empty()
@@ -133,6 +212,56 @@ async def growth_ai_bootstrap(_: dict = Depends(get_current_admin_strict)):
     await _bootstrap_nodes_if_empty()
     nodes = await db.growth_nodes.find({}, {"_id": 0, "id": 1, "comuna": 1, "region": 1}).sort("sequence", 1).to_list(length=50)
     return {"ok": True, "nodes": nodes}
+
+
+@router.post("/start")
+async def growth_ai_start(payload: GrowthStartPayload, _: dict = Depends(get_current_admin_strict)):
+    await _bootstrap_nodes_if_empty()
+    sources_count = await _seed_discovery_sources_if_empty()
+
+    conf = await db.config.find_one({"_id": "growth_ai_config"}, {"_id": 0})
+    cfg = (conf or {}).get("config") if isinstance(conf, dict) else {}
+    if not isinstance(cfg, dict):
+        cfg = {}
+
+    autopilot = cfg.get("autopilot") if isinstance(cfg.get("autopilot"), dict) else {}
+    autopilot["enabled"] = True
+    autopilot["discovery_enabled"] = True
+    autopilot["outreach_enabled"] = bool(payload.include_outreach)
+    autopilot["auto_execute"] = False
+
+    await db.config.update_one(
+        {"_id": "growth_ai_config"},
+        {"$set": {"config.autopilot": autopilot, "updatedAt": _now_iso()}, "$setOnInsert": {"createdAt": _now_iso()}},
+        upsert=True,
+    )
+
+    from services.growth_ai_discovery import run_discovery_once
+
+    res = await run_discovery_once(db=db, config=cfg | {"autopilot": autopilot})
+    await _audit(
+        "Growth start",
+        f"sources={sources_count} created={res.get('items_created')} outreach={bool(payload.include_outreach)}",
+        event_type="start",
+    )
+    return {"ok": True, "sources": sources_count, "discovery": res}
+
+
+@router.post("/stop")
+async def growth_ai_stop(_: dict = Depends(get_current_admin_strict)):
+    conf = await db.config.find_one({"_id": "growth_ai_config"}, {"_id": 0})
+    cfg = (conf or {}).get("config") if isinstance(conf, dict) else {}
+    if not isinstance(cfg, dict):
+        cfg = {}
+    autopilot = cfg.get("autopilot") if isinstance(cfg.get("autopilot"), dict) else {}
+    autopilot["enabled"] = False
+    await db.config.update_one(
+        {"_id": "growth_ai_config"},
+        {"$set": {"config.autopilot": autopilot, "updatedAt": _now_iso()}, "$setOnInsert": {"createdAt": _now_iso()}},
+        upsert=True,
+    )
+    await _audit("Growth stop", "autopilot.enabled=false", event_type="stop")
+    return {"ok": True}
 
 
 def _now_iso() -> str:
@@ -186,6 +315,10 @@ class NodeGoLiveMachine(BaseModel):
     machine_key: str = Field(min_length=2)
     enable: bool = Field(default=True)
     reason: str = Field(default="")
+
+
+class GrowthStartPayload(BaseModel):
+    include_outreach: bool = Field(default=False)
 
 
 class NodePipelineStageUpdate(BaseModel):
