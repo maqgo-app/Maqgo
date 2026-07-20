@@ -58,10 +58,11 @@ export default function AdminGrowthAIOverviewScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
+  const [bootstrapping, setBootstrapping] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    const load = async () => {
       setLoading(true);
       setError('');
       try {
@@ -77,11 +78,31 @@ export default function AdminGrowthAIOverviewScreen() {
       } finally {
         if (mounted) setLoading(false);
       }
-    })();
+    };
+    void load();
     return () => {
       mounted = false;
     };
   }, []);
+
+  const forceBootstrap = async () => {
+    if (bootstrapping) return;
+    setBootstrapping(true);
+    setError('');
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/bootstrap`, { method: 'POST' }, 20000);
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.detail || `No se pudo inicializar (${res.status})`);
+      const res2 = await fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/overview`, { method: 'GET' }, 15000);
+      const payload2 = await res2.json().catch(() => ({}));
+      if (!res2.ok) throw new Error(payload2?.detail || `No se pudo cargar Overview (${res2.status})`);
+      setData(payload2);
+    } catch (e) {
+      setError(friendlyFetchError(e, 'No se pudo inicializar Growth AI.'));
+    } finally {
+      setBootstrapping(false);
+    }
+  };
 
   const topNodes = useMemo(() => {
     const items = Array.isArray(data?.top_nodes) ? data.top_nodes : [];
@@ -125,6 +146,17 @@ export default function AdminGrowthAIOverviewScreen() {
           ) : topNodes.length === 0 ? (
             <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.45 }}>
               No hay nodos configurados todavía.
+              <div style={{ marginTop: 10 }}>
+                <button
+                  type="button"
+                  className="maqgo-btn-primary"
+                  style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
+                  disabled={bootstrapping}
+                  onClick={forceBootstrap}
+                >
+                  {bootstrapping ? 'Inicializando…' : 'Inicializar RM (3 comunas)'}
+                </button>
+              </div>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>

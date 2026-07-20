@@ -117,6 +117,24 @@ async def _bootstrap_nodes_if_empty() -> None:
     )
 
 
+@router.get("/ping")
+async def growth_ai_ping(_: dict = Depends(get_current_admin_strict)):
+    await _bootstrap_nodes_if_empty()
+    nodes_count = await db.growth_nodes.estimated_document_count()
+    return {
+        "ok": True,
+        "nodes_count": int(nodes_count or 0),
+        "has_config": bool(await db.config.find_one({"_id": "growth_ai_config"}, {"_id": 1})),
+    }
+
+
+@router.post("/bootstrap")
+async def growth_ai_bootstrap(_: dict = Depends(get_current_admin_strict)):
+    await _bootstrap_nodes_if_empty()
+    nodes = await db.growth_nodes.find({}, {"_id": 0, "id": 1, "comuna": 1, "region": 1}).sort("sequence", 1).to_list(length=50)
+    return {"ok": True, "nodes": nodes}
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
