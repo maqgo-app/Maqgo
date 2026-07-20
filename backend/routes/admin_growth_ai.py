@@ -69,6 +69,12 @@ class NodeDecision(BaseModel):
     reason: str = Field(min_length=2)
 
 
+class NodeGoLiveMachine(BaseModel):
+    machine_key: str = Field(min_length=2)
+    enable: bool = Field(default=True)
+    reason: str = Field(default="")
+
+
 class ProgramCreate(BaseModel):
     title: str = Field(min_length=3)
     objective: str = Field(default="")
@@ -280,6 +286,18 @@ async def node_detail(node_id: str, _: dict = Depends(get_current_admin_strict))
         .to_list(length=12)
     )
 
+    open_machines = node.get("open_machines") if isinstance(node.get("open_machines"), dict) else {}
+    live_machines = node.get("live_machines") if isinstance(node.get("live_machines"), dict) else {}
+    ready_by_machine = []
+    for k, n in open_machines.items():
+        try:
+            nn = int(n)
+        except Exception:
+            nn = 0
+        kk = str(k)
+        ready_by_machine.append({"machine_key": kk, "units": nn, "is_live": bool(live_machines.get(kk))})
+    ready_by_machine.sort(key=lambda x: (-int(x.get("units") or 0), str(x.get("machine_key") or "")))
+
     return {
         "node": {
             "id": node.get("id"),
@@ -290,6 +308,10 @@ async def node_detail(node_id: str, _: dict = Depends(get_current_admin_strict))
             "traffic_light": node.get("traffic_light") or "—",
             "traffic_tone": node.get("traffic_tone") or "neutral",
             "zoc_summary": node.get("zoc_summary") or "",
+            "min_supply_per_machine": int(node.get("min_supply_per_machine") or 0) or 0,
+            "open_machines": open_machines,
+            "live_machines": live_machines,
+            "ready_by_machine": ready_by_machine,
         },
         "gaps": gaps,
         "risks": [{"id": r.get("id"), "title": r.get("title"), "detail": r.get("detail")} for r in risks],
@@ -336,6 +358,45 @@ async def node_decision(node_id: str, payload: NodeDecision, _: dict = Depends(g
         {"$set": {"status": status, "traffic_light": tl, "traffic_tone": tone, "updatedAt": _now_iso()}},
     )
     await _audit(title, payload.reason, node_id=node_id, severity="INFO", event_type=et)
+    return {"ok": True}
+
+
+@router.post("/nodes/{node_id}/go-live-machine")
+async def node_go_live_machine(node_id: str, payload: NodeGoLiveMachine, _: dict = Depends(get_current_admin_strict)):
+    node = await db.growth_nodes.find_one({"id": node_id}, {"_id": 0})
+    if not node:
+        raise HTTPException(status_code=404, detail="Nodo no encontrado")
+
+    machine_key = payload.machine_key.strip().lower()
+    if not machine_key:
+        raise HTTPException(status_code=400, detail="machine_key requerido")
+
+    now = _now_iso()
+    if payload.enable:
+        await db.growth_nodes.update_one(
+            {"id": node_id},
+            {"$set": {f"live_machines.{machine_key}": True, "updatedAt": now}},
+        )
+        await _audit(
+            "GO LIVE aprobado (maquinaria)",
+            (payload.reason or "").strip() or f"machine_key={machine_key}",
+            node_id=node_id,
+            severity="INFO",
+            event_type="go_live_machine",
+        )
+    else:
+        await db.growth_nodes.update_one(
+            {"id": node_id},
+            {"$unset": {f"live_machines.{machine_key}": ""}, "$set": {"updatedAt": now}},
+        )
+        await _audit(
+            "GO LIVE removido (maquinaria)",
+            (payload.reason or "").strip() or f"machine_key={machine_key}",
+            node_id=node_id,
+            severity="INFO",
+            event_type="go_live_machine_off",
+        )
+
     return {"ok": True}
 
 

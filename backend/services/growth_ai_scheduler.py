@@ -287,6 +287,7 @@ async def _seed_if_empty(db) -> None:
                         "discovery_min_interval_min": 30,
                         "inventory_refresh_min_interval_min": 15,
                         "min_supply_per_machine": 3,
+                        "require_go_live_approval_for_demand": True,
                         "allowed_node_ids": ["lampa", "quilicura", "pudahuel"],
                     },
                     "market": {
@@ -451,6 +452,7 @@ async def _autopilot_tick(db) -> dict[str, int]:
 
     min_supply_per_machine = int(autopilot.get("min_supply_per_machine", 3) or 3)
     inventory_refresh_min_interval_min = int(autopilot.get("inventory_refresh_min_interval_min", 15) or 15)
+    require_go_live_approval_for_demand = bool(autopilot.get("require_go_live_approval_for_demand", True))
 
     allowed_nodes = autopilot.get("allowed_node_ids")
     if not isinstance(allowed_nodes, list):
@@ -628,6 +630,26 @@ async def _autopilot_tick(db) -> dict[str, int]:
                 )
                 triaged += 1
                 continue
+
+            if require_go_live_approval_for_demand:
+                node_doc = await db.growth_nodes.find_one({"id": node_id}, {"_id": 0, "live_machines": 1})
+                live_machines = node_doc.get("live_machines") if isinstance(node_doc, dict) else None
+                live_machines = live_machines if isinstance(live_machines, dict) else {}
+                if machine_key and machine_key != "maquinaria" and not bool(live_machines.get(machine_key)):
+                    await db.growth_opportunity_items.update_one(
+                        {"id": lead_id},
+                        {
+                            "$set": {
+                                "status": "triaged_not_live_machine",
+                                "triageReason": f"Maquinaria no aprobada para GO LIVE ({machine_raw})",
+                                "updatedAt": now_iso,
+                                "machine": machine_raw,
+                                "machine_key": machine_key,
+                            }
+                        },
+                    )
+                    triaged += 1
+                    continue
 
         if email and phone:
             e_n, e_rate = await _sent_rate("email", node_id=node_id, persona=persona, role=role, machine=machine)

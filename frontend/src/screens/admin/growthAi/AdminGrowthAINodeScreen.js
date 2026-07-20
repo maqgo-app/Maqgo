@@ -131,6 +131,8 @@ export default function AdminGrowthAINodeScreen() {
   const recommendations = useMemo(() => (Array.isArray(data?.recommendations) ? data.recommendations : []), [data]);
   const gaps = useMemo(() => (Array.isArray(data?.gaps) ? data.gaps : []), [data]);
   const risks = useMemo(() => (Array.isArray(data?.risks) ? data.risks : []), [data]);
+  const readyByMachine = useMemo(() => (Array.isArray(data?.node?.ready_by_machine) ? data.node.ready_by_machine : []), [data]);
+  const minSupplyPerMachine = useMemo(() => Number(data?.node?.min_supply_per_machine || 0) || 0, [data]);
 
   const postDecision = async (kind, reason) => {
     if (posting) return;
@@ -150,6 +152,29 @@ export default function AdminGrowthAINodeScreen() {
       await load();
     } catch (e) {
       setError(friendlyFetchError(e, 'No se pudo registrar la decisión.'));
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const setGoLiveMachine = async ({ machineKey, enable, reason }) => {
+    if (posting) return;
+    setPosting(true);
+    try {
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/admin/growth-ai/nodes/${encodeURIComponent(nodeId)}/go-live-machine`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ machine_key: machineKey, enable, reason: reason || '' }),
+        },
+        15000
+      );
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.detail || `No se pudo actualizar GO LIVE (${res.status})`);
+      await load();
+    } catch (e) {
+      setError(friendlyFetchError(e, 'No se pudo actualizar GO LIVE.'));
     } finally {
       setPosting(false);
     }
@@ -234,6 +259,93 @@ export default function AdminGrowthAINodeScreen() {
         )}
       </Section>
 
+      <Section
+        theme={THEME}
+        title="GO LIVE por maquinaria"
+        right={
+          minSupplyPerMachine ? (
+            <Pill label={`Mínimo: ${minSupplyPerMachine}`} tone="neutral" />
+          ) : null
+        }
+      >
+        {loading ? (
+          <ListSkeleton rows={4} />
+        ) : readyByMachine.length === 0 ? (
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
+            Aún no hay maquinarias listas para GO LIVE en esta comuna.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {readyByMachine.map((m) => {
+              const machineKey = String(m.machine_key || '').trim();
+              const units = Number(m.units || 0) || 0;
+              const isLive = Boolean(m.is_live);
+              return (
+                <div
+                  key={machineKey}
+                  style={{
+                    border: `1px solid ${THEME.border}`,
+                    background: THEME.panelBgSoft,
+                    borderRadius: 14,
+                    padding: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ fontSize: 13, fontWeight: 900 }}>{machineKey}</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>{units} activa(s) detectada(s)</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Pill label={isLive ? 'LIVE' : 'LISTA'} tone={isLive ? 'green' : 'amber'} />
+                    {isLive ? (
+                      <button
+                        type="button"
+                        className="maqgo-btn-secondary"
+                        style={{ padding: '10px 12px', borderRadius: 12 }}
+                        disabled={posting}
+                        onClick={() =>
+                          setReasonModal({
+                            kind: 'go_live_off',
+                            machineKey,
+                            title: `Remover GO LIVE: ${machineKey}`,
+                            label: 'Remover',
+                          })
+                        }
+                      >
+                        Remover
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="maqgo-btn-primary"
+                        style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
+                        disabled={posting}
+                        onClick={() =>
+                          setReasonModal({
+                            kind: 'go_live_on',
+                            machineKey,
+                            title: `Aprobar GO LIVE: ${machineKey}`,
+                            label: 'Aprobar',
+                          })
+                        }
+                      >
+                        Aprobar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.45 }}>
+              LISTA = cumple el mínimo de oferta activa detectada. LIVE = aprobado por Admin para abrir demanda y mostrar al cliente.
+            </div>
+          </div>
+        )}
+      </Section>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <Section theme={THEME} title="Brechas (Top)">
           {loading ? (
@@ -300,8 +412,11 @@ export default function AdminGrowthAINodeScreen() {
         onCancel={() => setReasonModal(null)}
         onConfirm={(reason) => {
           const kind = reasonModal?.kind;
+          const machineKey = reasonModal?.machineKey;
           setReasonModal(null);
-          if (kind) void postDecision(kind, reason);
+          if (kind === 'go_live_on' && machineKey) void setGoLiveMachine({ machineKey, enable: true, reason });
+          else if (kind === 'go_live_off' && machineKey) void setGoLiveMachine({ machineKey, enable: false, reason });
+          else if (kind) void postDecision(kind, reason);
         }}
       />
     </div>
