@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
+import MaqgoLogo from '../../components/MaqgoLogo';
 import { formatCartolaLabel } from '../../utils/weekCartola';
 import { friendlyFetchError } from '../../utils/fetchErrors';
 
@@ -367,9 +368,7 @@ function AdminMarketingScreen() {
             >
               <BackArrowIcon size={18} style={{ display: 'block' }} />
             </button>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, fontFamily: "'Space Grotesk', sans-serif", color: '#EC6819' }}>
-              MAQGO Admin
-            </h1>
+            <MaqgoLogo size="small" style={{ margin: 0 }} />
           </div>
           <div style={{ flex: 1, minWidth: 260 }} />
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
