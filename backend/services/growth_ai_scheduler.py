@@ -44,6 +44,12 @@ def _scl_now() -> datetime:
     return datetime.now(ZoneInfo("America/Santiago"))
 
 
+def _scl_day_start_utc_iso() -> str:
+    now = _scl_now()
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return day_start.astimezone(timezone.utc).isoformat()
+
+
 def _norm_machine_key(v: str) -> str:
     return (
         (v or "")
@@ -288,6 +294,10 @@ async def _seed_if_empty(db) -> None:
                         "inventory_refresh_min_interval_min": 15,
                         "min_supply_per_machine": 3,
                         "require_go_live_approval_for_demand": True,
+                        "daily_total_contact_actions": 40,
+                        "daily_supply_contact_actions": 30,
+                        "daily_demand_contact_actions": 10,
+                        "daily_demand_contact_actions_per_node": 6,
                         "allowed_node_ids": ["lampa", "quilicura", "pudahuel"],
                     },
                     "market": {
@@ -454,6 +464,11 @@ async def _autopilot_tick(db) -> dict[str, int]:
     inventory_refresh_min_interval_min = int(autopilot.get("inventory_refresh_min_interval_min", 15) or 15)
     require_go_live_approval_for_demand = bool(autopilot.get("require_go_live_approval_for_demand", True))
 
+    daily_total_limit = int(autopilot.get("daily_total_contact_actions", 40) or 40)
+    daily_supply_limit = int(autopilot.get("daily_supply_contact_actions", 30) or 30)
+    daily_demand_limit = int(autopilot.get("daily_demand_contact_actions", 10) or 10)
+    daily_demand_per_node_limit = int(autopilot.get("daily_demand_contact_actions_per_node", 6) or 6)
+
     allowed_nodes = autopilot.get("allowed_node_ids")
     if not isinstance(allowed_nodes, list):
         allowed_nodes = []
@@ -519,6 +534,33 @@ async def _autopilot_tick(db) -> dict[str, int]:
     now_iso = _now_iso()
     out = {"discovery_runs": 0, "leads_triaged": 0, "actions_created": 0, "actions_executed": 0}
 
+    day_start_utc = _scl_day_start_utc_iso()
+    total_created_today = await db.growth_contact_actions.count_documents({"createdAt": {"$gte": day_start_utc}})
+    supply_created_today = await db.growth_contact_actions.count_documents({"createdAt": {"$gte": day_start_utc}, "persona": "proveedor"})
+    demand_created_today = await db.growth_contact_actions.count_documents({"createdAt": {"$gte": day_start_utc}, "persona": "cliente"})
+    await db.config.update_one(
+        {"_id": "growth_ai_state"},
+        {
+            "$set": {
+                "daily_counts": {
+                    "day_start_utc": day_start_utc,
+                    "total_created": int(total_created_today),
+                    "supply_created": int(supply_created_today),
+                    "demand_created": int(demand_created_today),
+                    "limits": {
+                        "total": daily_total_limit,
+                        "supply": daily_supply_limit,
+                        "demand": daily_demand_limit,
+                        "demand_per_node": daily_demand_per_node_limit,
+                    },
+                },
+                "updatedAt": now_iso,
+            },
+            "$setOnInsert": {"createdAt": now_iso},
+        },
+        upsert=True,
+    )
+
     if discovery_enabled:
         should_run = True
         if last_discovery_at:
@@ -576,6 +618,9 @@ async def _autopilot_tick(db) -> dict[str, int]:
         if created >= max_actions_per_tick:
             break
 
+        if total_created_today + created >= daily_total_limit:
+            break
+
         lead_id = str(lead.get("id") or "").strip()
         if not lead_id:
             continue
@@ -593,6 +638,11 @@ async def _autopilot_tick(db) -> dict[str, int]:
 
         kind = str(lead.get("kind") or "").strip().lower()
         persona = "proveedor" if kind == "supply" else "cliente"
+
+        if persona == "proveedor" and supply_created_today + created >= daily_supply_limit:
+            continue
+        if persona == "cliente" and demand_created_today + created >= daily_demand_limit:
+            continue
 
         title = str(lead.get("title") or "").strip().lower()
         link = str(lead.get("link") or "").strip().lower()
@@ -613,6 +663,22 @@ async def _autopilot_tick(db) -> dict[str, int]:
         machine_key = _norm_machine_key(machine_raw)
 
         if persona == "cliente" and node_id:
+            if daily_demand_per_node_limit > 0:
+                demand_node_today = await db.growth_contact_actions.count_documents(
+                    {
+                        "createdAt": {"$gte": day_start_utc},
+                        "persona": "cliente",
+                        "node_id": node_id,
+                    }
+                )
+                if int(demand_node_today) >= daily_demand_per_node_limit:
+                    await db.growth_opportunity_items.update_one(
+                        {"id": lead_id},
+                        {"$set": {"status": "triaged_daily_demand_node_limit", "triageReason": "Límite diario de demanda por comuna", "updatedAt": now_iso}},
+                    )
+                    triaged += 1
+                    continue
+
             open_for_node = open_machines_by_node.get(node_id) or {}
             if machine_key and machine_key != "maquinaria" and machine_key not in open_for_node:
                 await db.growth_opportunity_items.update_one(
