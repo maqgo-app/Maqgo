@@ -131,7 +131,7 @@ def _email_html(subject: str, message: str) -> str:
             "Registra empresa, unidades disponibles y territorio que cubres.",
             "Empieza a recibir solicitudes verificadas cuando haya match en tu zona.",
         ]
-        differentiator = "MAQGO está diseñado para dueños, gerencias y operación: más solicitudes, control por zona y seguimiento en línea del servicio."
+        differentiator = "MAQGO te ayuda a recibir solicitudes en tu zona (mismo día o programadas), con seguimiento en línea y activación rápida del perfil."
     elif is_client:
         steps_title = "Cómo funciona (clientes)"
         steps = [
@@ -139,7 +139,7 @@ def _email_html(subject: str, message: str) -> str:
             "Indica ubicación exacta y detalles del proyecto (una sola línea clara).",
             "Coordina directamente con el proveedor y monitorea el estado 24/7.",
         ]
-        differentiator = "MAQGO está diseñado para pymes, personas y municipalidades: cotiza en tiempo real y monitorea el estado del servicio sin salir de la plataforma."
+        differentiator = "Cotiza y reserva maquinaria con operador en minutos (mismo día o programado), con seguimiento en línea y coordinación simple."
     else:
         steps_title = "Cómo funciona"
         steps = [
@@ -166,9 +166,9 @@ def _email_html(subject: str, message: str) -> str:
     )
 
     if is_provider:
-        tagline = "Más solicitudes · Control por zona · Seguimiento en línea"
+        tagline = "Más solicitudes · Cobertura por zona · Seguimiento en línea"
     elif is_client:
-        tagline = "Cotiza en tiempo real · Seguimiento en línea"
+        tagline = "Cotiza y reserva · Mismo día o programado · Seguimiento en línea"
     else:
         tagline = "Solicitud inmediata o programada · Seguimiento en línea"
 
@@ -184,7 +184,7 @@ def _email_html(subject: str, message: str) -> str:
             use_cases_title = "Ideal para"
             use_cases = [
                 "Reducir llamadas y tiempos de coordinación.",
-                "Control del servicio con seguimiento en línea.",
+                "Seguimiento del servicio en línea.",
                 "Planificación por fecha o urgencia (hoy).",
             ]
         elif role_label == "Jefatura de Obra":
@@ -205,7 +205,7 @@ def _email_html(subject: str, message: str) -> str:
         if role_label == "Gerencia":
             use_cases_title = "Hecho para"
             use_cases = [
-                "Más solicitudes con control de zona y unidades.",
+                "Más solicitudes con cobertura por zona y unidades.",
                 "Seguimiento del servicio para tu equipo.",
                 "Activación rápida del perfil y flota.",
             ]
@@ -213,7 +213,7 @@ def _email_html(subject: str, message: str) -> str:
             use_cases_title = "Hecho para"
             use_cases = [
                 "Dueños y operación en terreno.",
-                "Control por zona y disponibilidad.",
+                "Cobertura por zona y disponibilidad.",
                 "Seguimiento del servicio para mejor experiencia.",
             ]
     else:
@@ -247,7 +247,7 @@ def _email_html(subject: str, message: str) -> str:
 
     trust_block = (
         "<div style=\"margin-top:12px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;\">"
-        "<div style=\"font-size:11px;letter-spacing:.28px;color:#64748B;font-weight:800;text-transform:uppercase;\">Confianza y control</div>"
+        "<div style=\"font-size:11px;letter-spacing:.28px;color:#64748B;font-weight:800;text-transform:uppercase;\">Importante</div>"
         f"<div style=\"margin-top:10px;font-size:12px;line-height:16px;color:#475569;\">Sitio oficial: <a href=\"{_public_base_url()}\" style=\"color:#0B1220;font-weight:900;text-decoration:none;\">{html.escape(_public_base_url())}</a> · No solicitamos claves ni pagos por correo.</div>"
         f"<div style=\"margin-top:8px;font-size:12px;line-height:16px;color:#475569;\">Remitente: <span style=\"font-weight:900;color:#0B1220;\">{html.escape(sender_from)}</span></div>"
         "<div style=\"margin-top:8px;font-size:12px;line-height:16px;color:#475569;\">Si este correo no corresponde, responde con <span style=\"font-weight:900;color:#0B1220;\">BAJA</span> y lo detenemos.</div>"

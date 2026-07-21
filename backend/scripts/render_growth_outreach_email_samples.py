@@ -68,7 +68,7 @@ def main() -> None:
             "message": (
                 "Hola Fernanda, soy del equipo MAQGO.\n"
                 "Para Gerencia: estamos sumando proveedores de excavadoras en Lampa (RM).\n\n"
-                "Control por zona y unidades, con seguimiento del servicio en línea y trabajos (mismo día o programados).\n\n"
+                "Cobertura por zona y unidades, con seguimiento del servicio en línea y trabajos (mismo día o programados).\n\n"
                 "Haz clic en Iniciar onboarding para activar tu perfil.\n"
                 "Si prefieres, responde con: comuna(s) que cubres + máquinas + disponibilidad."
             ),

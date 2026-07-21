@@ -93,7 +93,7 @@ def _draft_for_provider(context: dict[str, Any]) -> dict[str, Any]:
     role_norm = _normalize_role(role)
     benefit = _safe_str(
         context.get("benefit"),
-        "más solicitudes sin inversión publicitaria y con control por rol (Titular/Gerente/Operador)",
+        "más solicitudes sin inversión publicitaria y con visibilidad por rol (Titular/Gerente/Operador)",
     )
     contact = _safe_str(context.get("contact_name"), "")
     who = f"{contact}, " if contact else ""
