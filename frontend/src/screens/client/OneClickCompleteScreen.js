@@ -297,7 +297,7 @@ function OneClickCompleteScreen() {
               aria-hidden="true"
             />
             <p style={{ color: '#fff', marginTop: 20, textAlign: 'center' }}>
-              Tarjeta registrada. Preparando tu solicitud...
+              Tarjeta registrada en MAQGO. Preparando tu solicitud...
             </p>
           </>
         )}
