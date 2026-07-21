@@ -22,25 +22,51 @@ export default function AdminGrowthAIDiscoveryScreen() {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
+  const [sourcesError, setSourcesError] = useState('');
+  const [runsError, setRunsError] = useState('');
+  const [itemsError, setItemsError] = useState('');
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError('');
+    setSourcesError('');
+    setRunsError('');
+    setItemsError('');
     try {
-      const [sRes, rRes, iRes] = await Promise.all([
-        fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/discovery/sources`, { method: 'GET' }, 15000),
-        fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/discovery/runs`, { method: 'GET' }, 15000),
-        fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/opportunity-items?status=new`, { method: 'GET' }, 15000),
-      ]);
+      const sRes = await fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/discovery/sources`, { method: 'GET' }, 15000);
       const sData = await sRes.json().catch(() => ({}));
+      if (!sRes.ok) {
+        setSourcesError(String(sData?.detail || `sources HTTP ${sRes.status}`));
+        setSources([]);
+      } else {
+        setSources(Array.isArray(sData?.items) ? sData.items : []);
+      }
+
+      const rRes = await fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/discovery/runs`, { method: 'GET' }, 15000);
       const rData = await rRes.json().catch(() => ({}));
+      if (!rRes.ok) {
+        setRunsError(String(rData?.detail || `runs HTTP ${rRes.status}`));
+        setRuns([]);
+      } else {
+        setRuns(Array.isArray(rData?.items) ? rData.items : []);
+      }
+
+      const iRes = await fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/opportunity-items?status=new`, { method: 'GET' }, 15000);
       const iData = await iRes.json().catch(() => ({}));
-      if (!sRes.ok) throw new Error(sData?.detail || `sources HTTP ${sRes.status}`);
-      if (!rRes.ok) throw new Error(rData?.detail || `runs HTTP ${rRes.status}`);
-      if (!iRes.ok) throw new Error(iData?.detail || `items HTTP ${iRes.status}`);
-      setSources(Array.isArray(sData?.items) ? sData.items : []);
-      setRuns(Array.isArray(rData?.items) ? rData.items : []);
-      setItems(Array.isArray(iData?.items) ? iData.items : []);
+      if (!iRes.ok) {
+        setItemsError(String(iData?.detail || `items HTTP ${iRes.status}`));
+        setItems([]);
+      } else {
+        setItems(Array.isArray(iData?.items) ? iData.items : []);
+      }
+
+      if (!sRes.ok || !rRes.ok || !iRes.ok) {
+        const parts = [];
+        if (!sRes.ok) parts.push('sources');
+        if (!rRes.ok) parts.push('runs');
+        if (!iRes.ok) parts.push('items');
+        setError(`Error cargando: ${parts.join(', ')}`);
+      }
     } catch (e) {
       setError(String(e?.message || e));
       setSources([]);
@@ -132,6 +158,9 @@ export default function AdminGrowthAIDiscoveryScreen() {
       </div>
 
       {error ? <div style={{ marginTop: 10, color: '#E57373', fontSize: 13 }}>{error}</div> : null}
+      {sourcesError ? <div style={{ marginTop: 6, color: '#E57373', fontSize: 12 }}>Sources: {sourcesError}</div> : null}
+      {runsError ? <div style={{ marginTop: 6, color: '#E57373', fontSize: 12 }}>Runs: {runsError}</div> : null}
+      {itemsError ? <div style={{ marginTop: 6, color: '#E57373', fontSize: 12 }}>Items: {itemsError}</div> : null}
 
       <div style={{ marginTop: 14, padding: 14, borderRadius: 16, border: `1px solid ${THEME.border}`, background: THEME.panelBg }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
@@ -342,4 +371,3 @@ export default function AdminGrowthAIDiscoveryScreen() {
     </div>
   );
 }
-
