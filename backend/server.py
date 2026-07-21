@@ -380,7 +380,6 @@ admin_config_router = None
 admin_access_router = None
 admin_notifications_router = None
 admin_growth_ai_router = None
-admin_transbank_test_cards_router = None
 marketing_kpi_router = None
 marketing_cron_router = None
 support_router = None
@@ -491,12 +490,6 @@ try:
     logger.info("ROUTER LOADED: admin_growth_ai")
 except Exception as e:
     logger.error(f"ROUTER FAILED: admin_growth_ai - {e}")
-
-try:
-    from routes.admin_transbank_test_cards import router as admin_transbank_test_cards_router  # type: ignore
-    logger.info("ROUTER LOADED: admin_transbank_test_cards")
-except Exception as e:
-    logger.error(f"ROUTER FAILED: admin_transbank_test_cards - {e}")
 try:
     from routes.marketing_kpi import router as marketing_kpi_router, cron_router as marketing_cron_router  # type: ignore
     logger.info("ROUTER LOADED: marketing_kpi + cron")
@@ -616,7 +609,6 @@ _include_if_present(admin_config_router, "admin_config")
 _include_if_present(admin_access_router, "admin_access")
 _include_if_present(admin_notifications_router, "admin_notifications")
 _include_if_present(admin_growth_ai_router, "admin_growth_ai")
-_include_if_present(admin_transbank_test_cards_router, "admin_transbank_test_cards")
 _include_if_present(marketing_kpi_router, "marketing_kpi")
 _include_if_present(marketing_cron_router, "marketing_cron")
 _include_if_present(support_router, "support")
