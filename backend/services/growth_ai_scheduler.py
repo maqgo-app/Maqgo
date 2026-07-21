@@ -50,6 +50,153 @@ def _scl_day_start_utc_iso() -> str:
     return day_start.astimezone(timezone.utc).isoformat()
 
 
+async def _upsert_daily_stats(db, *, day_start_utc: str) -> dict:
+    supply_created = await db.growth_contact_actions.count_documents(
+        {"createdAt": {"$gte": day_start_utc}, "persona": "proveedor"}
+    )
+    demand_created = await db.growth_contact_actions.count_documents(
+        {"createdAt": {"$gte": day_start_utc}, "persona": "cliente"}
+    )
+    total_created = await db.growth_contact_actions.count_documents({"createdAt": {"$gte": day_start_utc}})
+
+    supply_sent = await db.growth_contact_attempts.count_documents(
+        {"at": {"$gte": day_start_utc}, "persona": "proveedor", "status": "sent"}
+    )
+    supply_failed = await db.growth_contact_attempts.count_documents(
+        {"at": {"$gte": day_start_utc}, "persona": "proveedor", "status": {"$in": ["failed", "manual_required"]}}
+    )
+    supply_attempts = int(supply_sent) + int(supply_failed)
+    supply_sent_rate = (float(supply_sent) / float(supply_attempts)) if supply_attempts > 0 else None
+
+    doc = {
+        "id": f"day:{day_start_utc}",
+        "day_start_utc": day_start_utc,
+        "counts": {
+            "total_created": int(total_created),
+            "supply_created": int(supply_created),
+            "demand_created": int(demand_created),
+            "supply_attempts": int(supply_attempts),
+            "supply_sent": int(supply_sent),
+            "supply_failed": int(supply_failed),
+            "supply_sent_rate": supply_sent_rate,
+        },
+        "updatedAt": _now_iso(),
+    }
+    await db.growth_ai_daily_stats.update_one(
+        {"id": doc["id"]},
+        {"$set": doc, "$setOnInsert": {"createdAt": _now_iso()}},
+        upsert=True,
+    )
+    return doc
+
+
+async def _maybe_autoscale_supply(db, *, cfg: dict, now_day_start_utc: str) -> dict:
+    autopilot = cfg.get("autopilot") if isinstance(cfg.get("autopilot"), dict) else {}
+    enabled = bool(autopilot.get("autoscale_supply_enabled", True))
+    if not enabled:
+        return {"changed": False}
+
+    state = await db.config.find_one({"_id": "growth_ai_state"}, {"_id": 0})
+    last_scaled = str((state or {}).get("autoscale_last_day_start_utc") or "").strip()
+    if last_scaled == now_day_start_utc:
+        return {"changed": False}
+
+    window_days = int(autopilot.get("autoscale_window_days", 3) or 3)
+    window_days = max(2, min(7, window_days))
+    util_threshold = float(autopilot.get("autoscale_supply_util_threshold", 0.9) or 0.9)
+    min_sent_rate = float(autopilot.get("autoscale_supply_min_sent_rate", 0.85) or 0.85)
+    step_supply = int(autopilot.get("autoscale_step_supply", 10) or 10)
+    step_total = int(autopilot.get("autoscale_step_total", 10) or 10)
+    step_supply_per_node = int(autopilot.get("autoscale_step_supply_per_node", 3) or 3)
+    cap_supply = int(autopilot.get("autoscale_cap_supply", 100) or 100)
+    cap_total = int(autopilot.get("autoscale_cap_total", 120) or 120)
+    cap_supply_per_node = int(autopilot.get("autoscale_cap_supply_per_node", 30) or 30)
+
+    cursor = (
+        db.growth_ai_daily_stats.find({"day_start_utc": {"$lt": now_day_start_utc}}, {"_id": 0})
+        .sort("day_start_utc", -1)
+        .limit(window_days)
+    )
+    hist = [d async for d in cursor]
+    if len(hist) < window_days:
+        await db.config.update_one(
+            {"_id": "growth_ai_state"},
+            {"$set": {"autoscale_last_day_start_utc": now_day_start_utc, "autoscale_status": "insufficient_history", "updatedAt": _now_iso()}, "$setOnInsert": {"createdAt": _now_iso()}},
+            upsert=True,
+        )
+        return {"changed": False}
+
+    current_supply_limit = int(autopilot.get("daily_supply_contact_actions", 30) or 30)
+    current_total_limit = int(autopilot.get("daily_total_contact_actions", 40) or 40)
+    current_supply_node_limit = int(autopilot.get("daily_supply_contact_actions_per_node", 12) or 12)
+
+    def _safe_rate(x):
+        try:
+            return float(x)
+        except Exception:
+            return None
+
+    high_util = True
+    good_delivery = True
+    for d in hist:
+        counts = d.get("counts") if isinstance(d.get("counts"), dict) else {}
+        sc = int(counts.get("supply_created") or 0)
+        sr = _safe_rate(counts.get("supply_sent_rate"))
+        if current_supply_limit > 0 and (float(sc) / float(current_supply_limit)) < util_threshold:
+            high_util = False
+        if sr is not None and sr < min_sent_rate:
+            good_delivery = False
+
+    changed = False
+    action = "none"
+    new_supply_limit = current_supply_limit
+    new_total_limit = current_total_limit
+    new_supply_node_limit = current_supply_node_limit
+
+    if high_util and good_delivery:
+        new_supply_limit = min(cap_supply, current_supply_limit + step_supply)
+        new_total_limit = min(cap_total, current_total_limit + step_total)
+        new_supply_node_limit = min(cap_supply_per_node, current_supply_node_limit + step_supply_per_node)
+        changed = (new_supply_limit != current_supply_limit) or (new_total_limit != current_total_limit) or (new_supply_node_limit != current_supply_node_limit)
+        action = "scale_up" if changed else "cap_reached"
+    elif not good_delivery:
+        new_supply_limit = max(5, current_supply_limit - step_supply)
+        new_total_limit = max(new_supply_limit, current_total_limit - step_total)
+        new_supply_node_limit = max(3, current_supply_node_limit - step_supply_per_node)
+        changed = (new_supply_limit != current_supply_limit) or (new_total_limit != current_total_limit) or (new_supply_node_limit != current_supply_node_limit)
+        action = "scale_down" if changed else "floor_reached"
+
+    if changed:
+        autopilot["daily_supply_contact_actions"] = int(new_supply_limit)
+        autopilot["daily_total_contact_actions"] = int(new_total_limit)
+        autopilot["daily_supply_contact_actions_per_node"] = int(new_supply_node_limit)
+        await db.config.update_one(
+            {"_id": "growth_ai_config"},
+            {"$set": {"config.autopilot": autopilot, "updatedAt": _now_iso()}, "$setOnInsert": {"createdAt": _now_iso()}},
+            upsert=True,
+        )
+        await _audit(
+            "Autoscale supply",
+            f"{action} supply={current_supply_limit}->{new_supply_limit} total={current_total_limit}->{new_total_limit} per_node={current_supply_node_limit}->{new_supply_node_limit}",
+            event_type="autoscale",
+        )
+
+    await db.config.update_one(
+        {"_id": "growth_ai_state"},
+        {
+            "$set": {
+                "autoscale_last_day_start_utc": now_day_start_utc,
+                "autoscale_status": action,
+                "autoscale_window_days": window_days,
+                "updatedAt": _now_iso(),
+            },
+            "$setOnInsert": {"createdAt": _now_iso()},
+        },
+        upsert=True,
+    )
+    return {"changed": changed, "action": action}
+
+
 def _norm_machine_key(v: str) -> str:
     return (
         (v or "")
@@ -146,6 +293,7 @@ async def _ensure_indexes(db) -> None:
     await db.growth_audit.create_index([("processedAt", 1), ("at", 1)], name="idx_growth_audit_processed")
     await db.growth_contact_actions.create_index([("id", 1)], unique=True, name="uniq_growth_contact_action_id")
     await db.growth_contact_actions.create_index([("status", 1), ("createdAt", -1)], name="idx_growth_contact_action_status")
+    await db.growth_contact_actions.create_index([("persona", 1), ("createdAt", -1)], name="idx_growth_contact_action_persona")
     await db.growth_contact_attempts.create_index([("id", 1)], unique=True, name="uniq_growth_contact_attempt_id")
     await db.growth_contact_attempts.create_index([("action_id", 1), ("at", -1)], name="idx_growth_contact_attempt_action")
     await db.growth_discovery_runs.create_index([("id", 1)], unique=True, name="uniq_growth_discovery_run_id")
@@ -157,6 +305,10 @@ async def _ensure_indexes(db) -> None:
     )
     await db.growth_sms_suppressions.create_index([("id", 1)], unique=True, name="uniq_growth_sms_suppression_id")
     await db.growth_sms_suppressions.create_index([("phone", 1)], unique=True, name="uniq_growth_sms_suppression_phone")
+
+    await db.growth_contact_attempts.create_index([("persona", 1), ("at", -1)], name="idx_growth_contact_attempt_persona")
+    await db.growth_ai_daily_stats.create_index([("id", 1)], unique=True, name="uniq_growth_ai_daily_stats_id")
+    await db.growth_ai_daily_stats.create_index([("day_start_utc", -1)], name="idx_growth_ai_daily_stats_day")
     await db.growth_opportunity_items.create_index([("dedupe_key", 1)], unique=True, name="uniq_growth_opportunity_item_dedupe")
     await db.growth_discovery_runs.create_index([("at", -1)], name="idx_growth_discovery_runs_at")
     await db.growth_learning_stats.create_index([("id", 1)], unique=True, name="uniq_growth_learning_stats_id")
@@ -303,6 +455,16 @@ async def _seed_if_empty(db) -> None:
                         "outreach_demand_enabled": False,
                         "auto_execute_providers": False,
                         "auto_execute_clients": False,
+                        "autoscale_supply_enabled": True,
+                        "autoscale_window_days": 3,
+                        "autoscale_supply_util_threshold": 0.9,
+                        "autoscale_supply_min_sent_rate": 0.85,
+                        "autoscale_step_supply": 10,
+                        "autoscale_step_total": 10,
+                        "autoscale_step_supply_per_node": 3,
+                        "autoscale_cap_supply": 100,
+                        "autoscale_cap_total": 120,
+                        "autoscale_cap_supply_per_node": 30,
                         "allowed_node_ids": ["lampa", "quilicura", "pudahuel"],
                     },
                     "market": {
@@ -560,6 +722,7 @@ async def _autopilot_tick(db) -> dict[str, int]:
                     "limits": {
                         "total": daily_total_limit,
                         "supply": daily_supply_limit,
+                        "supply_per_node": daily_supply_per_node_limit,
                         "demand": daily_demand_limit,
                         "demand_per_node": daily_demand_per_node_limit,
                     },
@@ -854,6 +1017,8 @@ async def _autopilot_tick(db) -> dict[str, int]:
             {
                 "id": attempt_id,
                 "action_id": action_id,
+                "persona": str(a.get("persona") or ""),
+                "node_id": str(a.get("node_id") or ""),
                 "channel": channel,
                 "to": to,
                 "status": str(res.get("status") or "").strip().lower(),
@@ -912,6 +1077,15 @@ async def run_growth_ai_cycle(db) -> None:
         {"$set": {"last_tick_at": _now_iso(), "updatedAt": _now_iso()}, "$setOnInsert": {"createdAt": _now_iso()}},
         upsert=True,
     )
+
+    day_start_utc = _scl_day_start_utc_iso()
+    await _upsert_daily_stats(db, day_start_utc=day_start_utc)
+
+    cfg_doc = await db.config.find_one({"_id": "growth_ai_config"}, {"_id": 0})
+    cfg = (cfg_doc or {}).get("config") if isinstance(cfg_doc, dict) else None
+    if not isinstance(cfg, dict):
+        cfg = {}
+    await _maybe_autoscale_supply(db, cfg=cfg, now_day_start_utc=day_start_utc)
 
     autopilot_stats = await _autopilot_tick(db)
     await db.config.update_one(

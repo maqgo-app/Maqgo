@@ -324,11 +324,40 @@ export default function AdminGrowthAIOverviewScreen() {
                     label={`Proveedor ${runtime?.daily?.supply_created ?? 0}/${runtime?.daily?.limits?.supply ?? '—'}`}
                     tone="neutral"
                   />
+                  {runtime?.daily?.limits?.supply_per_node ? (
+                    <Pill
+                      theme={THEME}
+                      label={`Proveedor/comuna ${runtime?.daily?.limits?.supply_per_node}`}
+                      tone="neutral"
+                    />
+                  ) : null}
                   <Pill
                     theme={THEME}
                     label={`Cliente ${runtime?.daily?.demand_created ?? 0}/${runtime?.daily?.limits?.demand ?? '—'}`}
                     tone="neutral"
                   />
+                  {runtime?.daily?.limits?.demand_per_node ? (
+                    <Pill
+                      theme={THEME}
+                      label={`Cliente/comuna ${runtime?.daily?.limits?.demand_per_node}`}
+                      tone="neutral"
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+
+              {runtime?.autopilot?.autoscale_supply_enabled ? (
+                <div className="maqgo-admin-chip-row">
+                  <Pill theme={THEME} label="Autoscale ON" tone="green" />
+                  {runtime?.autoscale?.status ? (
+                    <Pill theme={THEME} label={`Autoscale: ${runtime.autoscale.status}`} tone="neutral" />
+                  ) : null}
+                  {runtime?.autopilot?.autoscale_window_days ? (
+                    <Pill theme={THEME} label={`Ventana: ${runtime.autopilot.autoscale_window_days}d`} tone="neutral" />
+                  ) : null}
+                  {runtime?.autopilot?.autoscale_cap_supply ? (
+                    <Pill theme={THEME} label={`Tope proveedor/día: ${runtime.autopilot.autoscale_cap_supply}`} tone="neutral" />
+                  ) : null}
                 </div>
               ) : null}
 
