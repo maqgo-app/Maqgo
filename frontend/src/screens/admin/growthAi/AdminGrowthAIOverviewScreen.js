@@ -63,10 +63,6 @@ export default function AdminGrowthAIOverviewScreen() {
   const [runtimeLoading, setRuntimeLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [testSmsPhones, setTestSmsPhones] = useState('');
-  const [testSmsSending, setTestSmsSending] = useState(false);
-  const [testSmsResult, setTestSmsResult] = useState(null);
-  const [testSmsError, setTestSmsError] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -187,40 +183,6 @@ export default function AdminGrowthAIOverviewScreen() {
     }
   };
 
-  const sendTestSmsBatch = async () => {
-    if (testSmsSending) return;
-    setTestSmsSending(true);
-    setTestSmsResult(null);
-    setTestSmsError('');
-    try {
-      const comuna = startingComunas[0] || 'RM';
-      const phones = String(testSmsPhones || '')
-        .split(',')
-        .map((x) => x.trim())
-        .filter(Boolean);
-      const res = await fetchWithAuth(
-        `${BACKEND_URL}/api/admin/growth-ai/test/sms/batch`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phones,
-            variants: ['proveedor', 'cliente'],
-            comuna,
-            machine: 'retroexcavadora',
-          }),
-        },
-        20000
-      );
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(payload?.detail || `No se pudo enviar SMS (${res.status})`);
-      setTestSmsResult(payload);
-    } catch (e) {
-      setTestSmsError(friendlyFetchError(e, 'No se pudo enviar SMS de prueba.'));
-    } finally {
-      setTestSmsSending(false);
-    }
-  };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 14 }}>
@@ -490,56 +452,6 @@ export default function AdminGrowthAIOverviewScreen() {
               >
                 Ver leads
               </button>
-            </div>
-
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900 }}>Pruebas SMS</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.68)', lineHeight: 1.35 }}>
-                Envía 4 SMS de prueba: (proveedor + cliente) × (números). Separa teléfonos con coma.
-              </div>
-              <input
-                value={testSmsPhones}
-                onChange={(e) => setTestSmsPhones(e.target.value)}
-                placeholder="+569XXXXXXXX, +569YYYYYYYY"
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  border: `1px solid ${THEME.border}`,
-                  background: 'rgba(255,255,255,0.04)',
-                  color: '#fff',
-                  fontSize: 13,
-                  width: '100%',
-                }}
-              />
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className="maqgo-btn-secondary"
-                  style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
-                  disabled={testSmsSending}
-                  onClick={sendTestSmsBatch}
-                >
-                  {testSmsSending ? 'Enviando…' : 'Enviar SMS prueba (4)'}
-                </button>
-              </div>
-              {testSmsError ? <div style={{ color: '#E57373', fontSize: 12, lineHeight: 1.35 }}>{testSmsError}</div> : null}
-              {Array.isArray(testSmsResult?.sent) && testSmsResult.sent.length ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {testSmsResult.sent.slice(0, 8).map((r, idx) => (
-                    <div
-                      key={`${idx}-${r.phone}-${r.persona}`}
-                      style={{ padding: 10, borderRadius: 12, border: `1px solid ${THEME.border}`, background: 'rgba(255,255,255,0.03)' }}
-                    >
-                      <div style={{ fontSize: 12, fontWeight: 900 }}>
-                        {r.persona} → {String(r.phone || '').slice(-4).padStart(4, '•')}
-                      </div>
-                      <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>
-                        {r.message}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
             </div>
           </div>
         </Card>

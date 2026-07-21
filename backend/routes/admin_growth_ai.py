@@ -241,14 +241,16 @@ async def growth_ai_start(payload: GrowthStartPayload, _: dict = Depends(get_cur
     )
 
     from services.growth_ai_discovery import run_discovery_once
+    from services.growth_ai_scheduler import _autopilot_tick
 
     res = await run_discovery_once(db=db, config=cfg | {"autopilot": autopilot})
+    autopilot_res = await _autopilot_tick(db)
     await _audit(
         "Growth start",
         f"sources={sources_count} created={res.get('items_created')} supply_outreach={True} demand_outreach={False} auto_execute_providers={bool(payload.auto_execute_providers)}",
         event_type="start",
     )
-    return {"ok": True, "sources": sources_count, "discovery": res}
+    return {"ok": True, "sources": sources_count, "discovery": res, "autopilot": autopilot_res}
 
 
 @router.post("/stop")
