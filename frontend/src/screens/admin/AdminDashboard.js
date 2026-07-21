@@ -1622,89 +1622,91 @@ function AdminDashboard() {
 
       {/* Content */}
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
-        <div
-          style={{
-            marginBottom: 20,
-            padding: '16px 18px',
-            borderRadius: 14,
-            background: ADMIN_THEME.panelBg,
-            border: `1px solid ${ADMIN_THEME.border}`,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ minWidth: 260 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.4 }}>Destinatarios de reportes</div>
-              <div style={{ color: ADMIN_THEME.textMuted, fontSize: 12, marginTop: 6, lineHeight: 1.45 }}>
-                <div><span style={{ color: 'rgba(255,255,255,0.82)' }}>Semanal:</span> {parseEmailsInput(weeklyReportEmailsText).join(', ') || '—'}</div>
-                <div><span style={{ color: 'rgba(255,255,255,0.82)' }}>Mensual:</span> {parseEmailsInput(monthlyReportEmailsText).join(', ') || '—'}</div>
-                {reportSubsMeta?.updatedAt ? (
-                  <div style={{ marginTop: 6 }}>
-                    Última actualización: {String(reportSubsMeta.updatedAt).slice(0, 19)}
-                  </div>
-                ) : null}
+        {adminArea === 'money' && (
+          <div
+            style={{
+              marginBottom: 20,
+              padding: '16px 18px',
+              borderRadius: 14,
+              background: ADMIN_THEME.panelBg,
+              border: `1px solid ${ADMIN_THEME.border}`,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ minWidth: 260 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.4 }}>Destinatarios de reportes</div>
+                <div style={{ color: ADMIN_THEME.textMuted, fontSize: 12, marginTop: 6, lineHeight: 1.45 }}>
+                  <div><span style={{ color: 'rgba(255,255,255,0.82)' }}>Semanal:</span> {parseEmailsInput(weeklyReportEmailsText).join(', ') || '—'}</div>
+                  <div><span style={{ color: 'rgba(255,255,255,0.82)' }}>Mensual:</span> {parseEmailsInput(monthlyReportEmailsText).join(', ') || '—'}</div>
+                  {reportSubsMeta?.updatedAt ? (
+                    <div style={{ marginTop: 6 }}>
+                      Última actualización: {String(reportSubsMeta.updatedAt).slice(0, 19)}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={openReportSubscriptions}
+                  disabled={actionsLocked || usingOfflineDemo}
+                  style={{
+                    padding: '8px 12px',
+                    background: 'transparent',
+                    border: `1px solid ${ADMIN_THEME.borderStrong}`,
+                    borderRadius: 10,
+                    color: '#fff',
+                    cursor: actionsLocked || usingOfflineDemo ? 'not-allowed' : 'pointer',
+                    opacity: actionsLocked || usingOfflineDemo ? 0.6 : 1,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={sendWeeklyReportTestEmail}
+                  disabled={actionsLocked || usingOfflineDemo || reportTestSending === 'weekly'}
+                  style={{
+                    padding: '8px 12px',
+                    background: 'transparent',
+                    border: '1px solid rgba(236, 104, 25, 0.55)',
+                    borderRadius: 10,
+                    color: '#fff',
+                    cursor: actionsLocked || usingOfflineDemo || reportTestSending === 'weekly' ? 'not-allowed' : 'pointer',
+                    opacity: actionsLocked || usingOfflineDemo ? 0.6 : 1,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {reportTestSending === 'weekly' ? 'Enviando…' : 'Prueba semanal'}
+                </button>
+                <button
+                  type="button"
+                  onClick={sendMonthlyReportTestEmail}
+                  disabled={actionsLocked || usingOfflineDemo || reportTestSending === 'monthly'}
+                  style={{
+                    padding: '8px 12px',
+                    background: 'transparent',
+                    border: '1px solid rgba(236, 104, 25, 0.55)',
+                    borderRadius: 10,
+                    color: '#fff',
+                    cursor: actionsLocked || usingOfflineDemo || reportTestSending === 'monthly' ? 'not-allowed' : 'pointer',
+                    opacity: actionsLocked || usingOfflineDemo ? 0.6 : 1,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {reportTestSending === 'monthly' ? 'Enviando…' : 'Prueba mensual'}
+                </button>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={openReportSubscriptions}
-                disabled={actionsLocked || usingOfflineDemo}
-                style={{
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  border: `1px solid ${ADMIN_THEME.borderStrong}`,
-                  borderRadius: 10,
-                  color: '#fff',
-                  cursor: actionsLocked || usingOfflineDemo ? 'not-allowed' : 'pointer',
-                  opacity: actionsLocked || usingOfflineDemo ? 0.6 : 1,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Editar
-              </button>
-              <button
-                type="button"
-                onClick={sendWeeklyReportTestEmail}
-                disabled={actionsLocked || usingOfflineDemo || reportTestSending === 'weekly'}
-                style={{
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  border: '1px solid rgba(236, 104, 25, 0.55)',
-                  borderRadius: 10,
-                  color: '#fff',
-                  cursor: actionsLocked || usingOfflineDemo || reportTestSending === 'weekly' ? 'not-allowed' : 'pointer',
-                  opacity: actionsLocked || usingOfflineDemo ? 0.6 : 1,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {reportTestSending === 'weekly' ? 'Enviando…' : 'Prueba semanal'}
-              </button>
-              <button
-                type="button"
-                onClick={sendMonthlyReportTestEmail}
-                disabled={actionsLocked || usingOfflineDemo || reportTestSending === 'monthly'}
-                style={{
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  border: '1px solid rgba(236, 104, 25, 0.55)',
-                  borderRadius: 10,
-                  color: '#fff',
-                  cursor: actionsLocked || usingOfflineDemo || reportTestSending === 'monthly' ? 'not-allowed' : 'pointer',
-                  opacity: actionsLocked || usingOfflineDemo ? 0.6 : 1,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {reportTestSending === 'monthly' ? 'Enviando…' : 'Prueba mensual'}
-              </button>
-            </div>
           </div>
-        </div>
+        )}
 
         {adminArea === 'today' && (
         <div
