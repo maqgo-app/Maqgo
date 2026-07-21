@@ -224,21 +224,6 @@ def send_otp(phone_number: str, channel: str = "sms") -> dict:
     if channel != "sms":
         channel = "sms"
 
-    env_name = str(os.getenv("MAQGO_ENV") or os.getenv("ENV") or "").strip().lower()
-    dev_mode = str(os.getenv("OTP_DEV_MODE") or "").strip().lower() in {"1", "true", "yes", "on"}
-    if dev_mode and env_name not in {"prod", "production"}:
-        allow = str(os.getenv("OTP_DEV_PHONES") or "").strip()
-        allowset = {p.strip() for p in allow.split(",") if p.strip()} if allow else set()
-        if not allowset or phone in allowset:
-            logger.info("OTP_DEV_MODE used phone=%s", _phone_tail(phone))
-            return {
-                "success": True,
-                "channel": "sms",
-                "demo_mode": True,
-                "reused": False,
-                "ttl_seconds": OTP_EXPIRY_SECONDS,
-            }
-
     r = _get_redis()
 
     # Sin Redis: no podemos hacer rate limit ni guardar OTP
@@ -397,15 +382,6 @@ def verify_otp(phone_number: str, code: str) -> dict:
             "error": "Código inválido",
         }
 
-    env_name = str(os.getenv("MAQGO_ENV") or os.getenv("ENV") or "").strip().lower()
-    dev_mode = str(os.getenv("OTP_DEV_MODE") or "").strip().lower() in {"1", "true", "yes", "on"}
-    if dev_mode and env_name not in {"prod", "production"}:
-        allow = str(os.getenv("OTP_DEV_PHONES") or "").strip()
-        allowset = {p.strip() for p in allow.split(",") if p.strip()} if allow else set()
-        dev_code = str(os.getenv("OTP_DEV_CODE") or "123456").strip()
-        if (not allowset or phone in allowset) and code == dev_code:
-            return {"success": True, "valid": True, "demo_mode": True}
-
     r = _get_redis()
     if not r:
         return {
@@ -468,10 +444,6 @@ def verify_otp(phone_number: str, code: str) -> dict:
 
 def is_otp_configured() -> bool:
     """Indica si el servicio OTP (Redis + LabsMobile) está listo."""
-    env_name = str(os.getenv("MAQGO_ENV") or os.getenv("ENV") or "").strip().lower()
-    dev_mode = str(os.getenv("OTP_DEV_MODE") or "").strip().lower() in {"1", "true", "yes", "on"}
-    if dev_mode and env_name not in {"prod", "production"}:
-        return True
     # Usar LABSMOBILE_SENDER del módulo (default MAQGO), no exigir variable de entorno extra:
     # send_sms() ya usa esta constante; antes is_otp_configured() fallaba si el env no definía sender.
     sender = str(LABSMOBILE_SENDER).strip()

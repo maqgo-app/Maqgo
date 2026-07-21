@@ -33,11 +33,11 @@ export const PAYMENT_COPY = {
 
   /** P6 — registro de tarjeta (OneClick) */
   P6_VERIFY: {
-    screenTitle: 'Registrar tarjeta en MAQGO',
+    screenTitle: 'Registrar tarjeta',
     /** Texto principal del bloque verde (línea 1 y 2) */
     noChargeNow: 'Registra tu tarjeta (sin cobro)',
     chargeWhen: 'Solo se cobrará si un proveedor acepta tu solicitud.',
-    transbankNote: 'Serás redirigido al flujo seguro de Oneclick (Transbank) para validar tu tarjeta.',
+    transbankNote: 'Serás redirigido a Transbank para validar tu tarjeta de forma segura.',
     cardStorageNote: 'MAQGO no almacena los datos de tu tarjeta.',
     footerBelowButton: 'No se realizará ningún cobro en este paso',
     /** Error antes de Transbank (sync de perfil / sesión) — el detalle concreto viene del backend o de red */
