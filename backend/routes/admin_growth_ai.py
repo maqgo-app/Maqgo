@@ -308,6 +308,36 @@ async def send_test_sms(payload: SmsTestPayload, _: dict = Depends(get_current_a
     return {"ok": True, "message": msg, "result": res}
 
 
+@router.post("/test/sms/batch")
+async def send_test_sms_batch(payload: SmsTestBatchPayload, _: dict = Depends(get_current_admin_strict)):
+    phones = [str(p).strip() for p in (payload.phones or []) if str(p).strip()]
+    phones = phones[:5]
+    variants = [str(v).strip().lower() for v in (payload.variants or []) if str(v).strip()]
+    variants = [v for v in variants if v in {"proveedor", "cliente"}]
+    if not phones:
+        raise HTTPException(status_code=400, detail="phones requerido")
+    if not variants:
+        variants = ["proveedor", "cliente"]
+
+    out = []
+    for phone in phones:
+        for persona in variants:
+            r = await send_test_sms(
+                SmsTestPayload(
+                    phone=phone,
+                    persona=persona,
+                    comuna=payload.comuna,
+                    machine=payload.machine,
+                ),
+                _,
+            )
+            out.append({"phone": phone, "persona": persona, "ok": True, "message": r.get("message")})
+
+    redacted = [f"***{p[-4:]}" if len(p) >= 4 else "***" for p in phones]
+    await _audit("SMS test batch", f"phones={','.join(redacted)} variants={','.join(variants)}", event_type="sms_test")
+    return {"ok": True, "sent": out}
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -372,6 +402,13 @@ class SmsTestPayload(BaseModel):
     comuna: str = Field(default="")
     machine: str = Field(default="retroexcavadora")
     role: str = Field(default="")
+
+
+class SmsTestBatchPayload(BaseModel):
+    phones: list[str] = Field(default_factory=list)
+    variants: list[str] = Field(default_factory=lambda: ["proveedor", "cliente"])
+    comuna: str = Field(default="")
+    machine: str = Field(default="retroexcavadora")
 
 
 class NodePipelineStageUpdate(BaseModel):
