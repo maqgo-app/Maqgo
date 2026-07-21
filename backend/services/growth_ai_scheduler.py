@@ -296,8 +296,13 @@ async def _seed_if_empty(db) -> None:
                         "require_go_live_approval_for_demand": True,
                         "daily_total_contact_actions": 40,
                         "daily_supply_contact_actions": 30,
+                        "daily_supply_contact_actions_per_node": 12,
                         "daily_demand_contact_actions": 10,
                         "daily_demand_contact_actions_per_node": 6,
+                        "outreach_supply_enabled": True,
+                        "outreach_demand_enabled": False,
+                        "auto_execute_providers": False,
+                        "auto_execute_clients": False,
                         "allowed_node_ids": ["lampa", "quilicura", "pudahuel"],
                     },
                     "market": {
@@ -453,8 +458,12 @@ async def _autopilot_tick(db) -> dict[str, int]:
 
     discovery_enabled = bool(autopilot.get("discovery_enabled", True))
     outreach_enabled = bool(autopilot.get("outreach_enabled", True))
+    outreach_supply_enabled = bool(autopilot.get("outreach_supply_enabled", outreach_enabled))
+    outreach_demand_enabled = bool(autopilot.get("outreach_demand_enabled", outreach_enabled))
     auto_approve = bool(autopilot.get("auto_approve", True))
     auto_execute = bool(autopilot.get("auto_execute", False))
+    auto_execute_providers = bool(autopilot.get("auto_execute_providers", auto_execute))
+    auto_execute_clients = bool(autopilot.get("auto_execute_clients", auto_execute))
 
     max_actions_per_tick = int(autopilot.get("max_actions_per_tick", 10) or 10)
     max_exec_per_tick = int(autopilot.get("max_exec_per_tick", 5) or 5)
@@ -468,6 +477,7 @@ async def _autopilot_tick(db) -> dict[str, int]:
     daily_supply_limit = int(autopilot.get("daily_supply_contact_actions", 30) or 30)
     daily_demand_limit = int(autopilot.get("daily_demand_contact_actions", 10) or 10)
     daily_demand_per_node_limit = int(autopilot.get("daily_demand_contact_actions_per_node", 6) or 6)
+    daily_supply_per_node_limit = int(autopilot.get("daily_supply_contact_actions_per_node", 0) or 0)
 
     allowed_nodes = autopilot.get("allowed_node_ids")
     if not isinstance(allowed_nodes, list):
@@ -639,6 +649,11 @@ async def _autopilot_tick(db) -> dict[str, int]:
         kind = str(lead.get("kind") or "").strip().lower()
         persona = "proveedor" if kind == "supply" else "cliente"
 
+        if persona == "proveedor" and not outreach_supply_enabled:
+            continue
+        if persona == "cliente" and not outreach_demand_enabled:
+            continue
+
         if persona == "proveedor" and supply_created_today + created >= daily_supply_limit:
             continue
         if persona == "cliente" and demand_created_today + created >= daily_demand_limit:
@@ -661,6 +676,22 @@ async def _autopilot_tick(db) -> dict[str, int]:
         city = str((node or {}).get("comuna") or "").strip()
         machine_raw = str(lead.get("category") or "").strip() or "maquinaria"
         machine_key = _norm_machine_key(machine_raw)
+
+        if persona == "proveedor" and node_id and daily_supply_per_node_limit > 0:
+            supply_node_today = await db.growth_contact_actions.count_documents(
+                {
+                    "createdAt": {"$gte": day_start_utc},
+                    "persona": "proveedor",
+                    "node_id": node_id,
+                }
+            )
+            if int(supply_node_today) >= daily_supply_per_node_limit:
+                await db.growth_opportunity_items.update_one(
+                    {"id": lead_id},
+                    {"$set": {"status": "triaged_daily_supply_node_limit", "triageReason": "Límite diario de proveedores por comuna", "updatedAt": now_iso}},
+                )
+                triaged += 1
+                continue
 
         if persona == "cliente" and node_id:
             if daily_demand_per_node_limit > 0:
@@ -747,7 +778,8 @@ async def _autopilot_tick(db) -> dict[str, int]:
         message = str(result.get("message") or "").strip()
         reason = str(result.get("short_reason") or "").strip() or "autopilot"
 
-        exec_mode = "auto" if auto_execute else "manual"
+        is_auto = (persona == "proveedor" and auto_execute_providers) or (persona == "cliente" and auto_execute_clients)
+        exec_mode = "auto" if is_auto else "manual"
         status = "approved" if auto_approve else "draft"
         now2 = _now_iso()
         await db.growth_contact_actions.insert_one(
@@ -787,7 +819,7 @@ async def _autopilot_tick(db) -> dict[str, int]:
     out["actions_created"] = created
     out["leads_triaged"] = triaged
 
-    if not auto_execute:
+    if not (auto_execute_providers or auto_execute_clients):
         return out
 
     exec_cursor = db.growth_contact_actions.find(

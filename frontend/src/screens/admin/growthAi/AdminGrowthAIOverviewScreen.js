@@ -166,7 +166,7 @@ export default function AdminGrowthAIOverviewScreen() {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ include_outreach: false }),
+          body: JSON.stringify({ include_outreach: true, auto_execute_providers: true }),
         },
         30000
       );
@@ -394,7 +394,7 @@ export default function AdminGrowthAIOverviewScreen() {
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>
-              Crea leads y registra el run. No envía mensajes.
+              Prospección automática de proveedores (email/SMS si hay contacto), con límites diarios. Clientes quedan bloqueados hasta GO LIVE.
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Pill theme={THEME} label="Región: RM" tone="neutral" />

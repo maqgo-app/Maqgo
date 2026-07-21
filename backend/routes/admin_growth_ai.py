@@ -228,7 +228,11 @@ async def growth_ai_start(payload: GrowthStartPayload, _: dict = Depends(get_cur
     autopilot["enabled"] = True
     autopilot["discovery_enabled"] = True
     autopilot["outreach_enabled"] = bool(payload.include_outreach)
+    autopilot["outreach_supply_enabled"] = True
+    autopilot["outreach_demand_enabled"] = False
     autopilot["auto_execute"] = False
+    autopilot["auto_execute_providers"] = bool(payload.auto_execute_providers)
+    autopilot["auto_execute_clients"] = False
 
     await db.config.update_one(
         {"_id": "growth_ai_config"},
@@ -241,7 +245,7 @@ async def growth_ai_start(payload: GrowthStartPayload, _: dict = Depends(get_cur
     res = await run_discovery_once(db=db, config=cfg | {"autopilot": autopilot})
     await _audit(
         "Growth start",
-        f"sources={sources_count} created={res.get('items_created')} outreach={bool(payload.include_outreach)}",
+        f"sources={sources_count} created={res.get('items_created')} supply_outreach={True} demand_outreach={False} auto_execute_providers={bool(payload.auto_execute_providers)}",
         event_type="start",
     )
     return {"ok": True, "sources": sources_count, "discovery": res}
@@ -318,7 +322,8 @@ class NodeGoLiveMachine(BaseModel):
 
 
 class GrowthStartPayload(BaseModel):
-    include_outreach: bool = Field(default=False)
+    include_outreach: bool = Field(default=True)
+    auto_execute_providers: bool = Field(default=True)
 
 
 class NodePipelineStageUpdate(BaseModel):
