@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from uuid import uuid4
 
-from loguru import logger
+logger = logging.getLogger(__name__)
 
 
 def _now_iso() -> str:

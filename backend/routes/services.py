@@ -41,10 +41,7 @@ async def _run_sync_call(fn):
     return await run_in_threadpool(fn)
 
 # Admin listado paginado por fecha (evita COLLSCAN en volumen alto)
-try:
-    services_collection.create_index([("created_at", -1)])
-except Exception:
-    pass
+
 
 # RBAC imports
 from utils.rbac import (

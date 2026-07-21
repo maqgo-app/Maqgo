@@ -255,6 +255,8 @@ async def lifespan(app: FastAPI):
             name="uniq_charged_per_service_request"
         )
 
+        await _db.services.create_index([("created_at", -1)], name="idx_services_created_at_desc")
+
         logger.info("Índices de MongoDB creados (idempotencia, métricas, service_requests)")
     except Exception as e:
         logger.warning("Error creando índices MongoDB: %s", e)
