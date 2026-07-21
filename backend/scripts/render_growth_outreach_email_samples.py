@@ -55,8 +55,8 @@ def main() -> None:
             "subject": "MAQGO — Activa tu perfil y recibe solicitudes",
             "message": (
                 "Hola Diego, soy del equipo MAQGO.\n"
-                "Para Dueño / Administración: estamos sumando proveedores de retroexcavadoras en Lampa (RM).\n\n"
-                "Tus clientes pueden solicitar inmediato o programado y ver el estado en línea.\n"
+                "Para Administración: estamos sumando proveedores de retroexcavadoras en Lampa (RM).\n\n"
+                "Recibe solicitudes para obras y proyectos (mismo día o programado) y con seguimiento en línea.\n"
                 "Inicio hoy puede pagar bonificación adicional (hasta +20%).\n\n"
                 "Haz clic en Iniciar onboarding para activar tu perfil.\n"
                 "Si prefieres, responde con: comuna(s) que cubres + máquinas + disponibilidad."
@@ -68,7 +68,7 @@ def main() -> None:
             "message": (
                 "Hola Fernanda, soy del equipo MAQGO.\n"
                 "Para Gerencia: estamos sumando proveedores de excavadoras en Lampa (RM).\n\n"
-                "Control por zona y unidades, con seguimiento del servicio en línea.\n\n"
+                "Control por zona y unidades, con seguimiento del servicio en línea y trabajos (mismo día o programados).\n\n"
                 "Haz clic en Iniciar onboarding para activar tu perfil.\n"
                 "Si prefieres, responde con: comuna(s) que cubres + máquinas + disponibilidad."
             ),
@@ -78,8 +78,9 @@ def main() -> None:
             "subject": "MAQGO — Cotiza maquinaria en tiempo real",
             "message": (
                 "Hola, soy del equipo MAQGO.\n"
-                "Para Dueño / Administración: si necesitas retroexcavadora en Lampa (RM).\n\n"
-                "Cotiza en tiempo real con seguimiento en línea (hoy o programado).\n\n"
+                "Para Administración: si necesitas retroexcavadora en Lampa (RM).\n\n"
+                "Cotiza y reserva en tiempo real, incluso para el mismo día (según disponibilidad), con seguimiento en línea.\n"
+                "Aplica para obras, faenas y proyectos de cualquier tamaño (empresas y organizaciones).\n\n"
                 "Haz clic en Cotizar ahora o responde con: ubicación + fecha/hora + tipo de trabajo (1 línea)."
             ),
         },
@@ -88,8 +89,9 @@ def main() -> None:
             "subject": "MAQGO — Cotiza maquinaria en tiempo real",
             "message": (
                 "Hola, soy del equipo MAQGO.\n"
-                "Para Gerencia / Operaciones: si necesitas camión tolva en Santiago.\n\n"
-                "Cotiza en tiempo real con seguimiento en línea (hoy o programado).\n\n"
+                "Para Operaciones: si necesitas camión tolva en Santiago.\n\n"
+                "Cotiza y reserva en tiempo real, incluso para el mismo día (según disponibilidad), con seguimiento en línea.\n"
+                "Aplica para obras, faenas y proyectos de cualquier tamaño (empresas y organizaciones).\n\n"
                 "Haz clic en Cotizar ahora o responde con: ubicación + fecha/hora + tipo de trabajo (1 línea)."
             ),
         },
@@ -98,8 +100,9 @@ def main() -> None:
             "subject": "MAQGO — Cotiza maquinaria en tiempo real",
             "message": (
                 "Hola, soy del equipo MAQGO.\n"
-                "Para Municipalidad / Compras: si necesitas motoniveladora en terreno.\n\n"
-                "Cotiza en tiempo real con seguimiento en línea (hoy o programado).\n\n"
+                "Para Compras: si necesitas motoniveladora en terreno.\n\n"
+                "Cotiza y reserva en tiempo real, incluso para el mismo día (según disponibilidad), con seguimiento en línea.\n"
+                "Aplica para obras, faenas y proyectos de cualquier tamaño (empresas y organizaciones).\n\n"
                 "Haz clic en Cotizar ahora o responde con: ubicación + fecha/hora + tipo de trabajo (1 línea)."
             ),
         },
@@ -108,8 +111,9 @@ def main() -> None:
             "subject": "MAQGO — Cotiza maquinaria en tiempo real",
             "message": (
                 "Hola, soy del equipo MAQGO.\n"
-                "Para Jefatura de Obra: si necesitas excavadora en obra.\n\n"
-                "Cotiza en tiempo real con seguimiento en línea (hoy o programado).\n\n"
+                "Para Jefatura de obra: si necesitas excavadora en obra.\n\n"
+                "Cotiza y reserva en tiempo real, incluso para el mismo día (según disponibilidad), con seguimiento en línea.\n"
+                "Aplica para obras, faenas y proyectos de cualquier tamaño (empresas y organizaciones).\n\n"
                 "Haz clic en Cotizar ahora o responde con: ubicación + fecha/hora + tipo de trabajo (1 línea)."
             ),
         },
@@ -139,3 +143,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

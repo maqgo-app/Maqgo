@@ -250,7 +250,7 @@ def _email_html(subject: str, message: str) -> str:
         "<div style=\"font-size:11px;letter-spacing:.28px;color:#64748B;font-weight:800;text-transform:uppercase;\">Confianza y control</div>"
         f"<div style=\"margin-top:10px;font-size:12px;line-height:16px;color:#475569;\">Sitio oficial: <a href=\"{_public_base_url()}\" style=\"color:#0B1220;font-weight:900;text-decoration:none;\">{html.escape(_public_base_url())}</a> · No solicitamos claves ni pagos por correo.</div>"
         f"<div style=\"margin-top:8px;font-size:12px;line-height:16px;color:#475569;\">Remitente: <span style=\"font-weight:900;color:#0B1220;\">{html.escape(sender_from)}</span></div>"
-        "<div style=\"margin-top:8px;font-size:12px;line-height:16px;color:#475569;\">Para dejar de recibir mensajes, responde este correo con <span style=\"font-weight:900;color:#0B1220;\">BAJA</span>.</div>"
+        "<div style=\"margin-top:8px;font-size:12px;line-height:16px;color:#475569;\">Si este correo no corresponde, responde con <span style=\"font-weight:900;color:#0B1220;\">BAJA</span> y lo detenemos.</div>"
         "</div>"
     )
     return f"""<!doctype html>
