@@ -106,7 +106,7 @@ def _draft_for_client(context: dict[str, Any]) -> dict[str, Any]:
     role_line = f"Para {role}: " if role else ""
     msg = (
         f"Hola, soy del equipo MAQGO. {role_line}Si necesitas {machine}{extra}{loc}.{urg} "
-        "Cotiza maquinaria con operador en tiempo real y con seguimiento en línea (hoy o por fecha). "
+        "Cotiza y reserva maquinaria con operador en tiempo real, incluso para el mismo día (según disponibilidad), con seguimiento en línea. "
         "Haz clic en Cotizar ahora o responde con: ubicación + fecha/hora + tipo de trabajo (1 línea)."
     )
     return {
