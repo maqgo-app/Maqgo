@@ -100,7 +100,7 @@ async def _bootstrap_nodes_if_empty() -> None:
                     "market": {
                         "country": "Chile",
                         "region": "RM",
-                        "strategic_definition": "MAQGO es el marketplace de maquinaria pesada con operador para personas, empresas y organizaciones (públicas y privadas) que ejecutan trabajos en terreno y necesitan acceder a maquinaria de forma rápida, simple y confiable, sin depender de contratos de largo plazo ni procesos tradicionales de cotización.",
+                        "strategic_definition": "MAQGO es el marketplace de maquinaria pesada con operador para cualquier obra, faena o proyecto que necesite maquinaria de forma rápida, simple y confiable, con coordinación y seguimiento en línea.",
                     },
                 },
             }

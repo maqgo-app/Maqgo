@@ -96,7 +96,7 @@ def main() -> None:
             ),
         },
         {
-            "name": "client_municipal",
+            "name": "client_procurement",
             "subject": "MAQGO — Cotiza maquinaria en tiempo real",
             "message": (
                 "Hola, soy del equipo MAQGO.\n"
@@ -143,4 +143,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
