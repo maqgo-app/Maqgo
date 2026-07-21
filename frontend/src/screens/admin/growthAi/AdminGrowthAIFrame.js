@@ -53,14 +53,19 @@ export default function AdminGrowthAIFrame() {
             <MaqgoLogo size="mini" style={{ minHeight: 44, height: 44 }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900, letterSpacing: '-0.02em' }}>Growth AI</h1>
-              <span style={{ color: THEME.textMuted, fontSize: 12, fontWeight: 700 }}>
-                Cerebro comercial MAQGO (always-on)
-              </span>
+                <h1 className="maqgo-admin-title" style={{ margin: 0, fontSize: 20 }}>Growth AI</h1>
+                <span className="maqgo-admin-subtitle" style={{ color: THEME.textMuted, fontWeight: 700 }}>
+                  Cerebro comercial MAQGO
+                </span>
               </div>
-              <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 1.35 }}>
-                Equilibrio &gt; actividad · Regímenes · Sistema único · Aprendizaje
-              </div>
+              <details style={{ marginTop: 8 }}>
+                <summary className="maqgo-admin-subtitle" style={{ cursor: 'pointer' }}>
+                  Principios
+                </summary>
+                <div className="maqgo-admin-help" style={{ marginTop: 6 }}>
+                  Equilibrio &gt; actividad · Regímenes · Sistema único · Aprendizaje
+                </div>
+              </details>
             </div>
           </div>
           <button

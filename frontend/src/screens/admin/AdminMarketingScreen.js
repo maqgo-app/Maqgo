@@ -544,10 +544,8 @@ function AdminMarketingScreen() {
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
         <div style={{ marginBottom: 14 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#fff' }}>Marketing & CAC</h2>
-          <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '6px 0 0', maxWidth: 820 }}>
-            Inversión semanal por canal y audiencia. Elige la semana con la fecha; el sistema usa el lunes de esa semana como clave.
-          </p>
+          <div className="maqgo-admin-title">Marketing & CAC</div>
+          <div className="maqgo-admin-subtitle">Inversión semanal por canal/audiencia (clave: lunes de la semana).</div>
         </div>
         {/* Semana: campo fecha + rango efectivo */}
         <section

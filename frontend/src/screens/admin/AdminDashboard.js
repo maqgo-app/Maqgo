@@ -1476,9 +1476,9 @@ function AdminDashboard() {
           </div>
         </div>
         <div style={{ maxWidth: 1400, margin: '6px auto 0' }}>
-          <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: 0 }}>
-            Panel interno — reservas y facturación (solo personal autorizado)
-          </p>
+          <div className="maqgo-admin-subtitle" style={{ color: ADMIN_THEME.textMuted }}>
+            Panel interno: operación, reservas y facturación.
+          </div>
           {usingOfflineDemo && (
             <p
               style={{

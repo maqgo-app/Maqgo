@@ -1173,6 +1173,50 @@ async def engine_status(_: dict = Depends(get_current_admin_strict)):
     }
 
 
+@router.get("/runtime/status")
+async def runtime_status(_: dict = Depends(get_current_admin_strict)):
+    cfg_doc = await db.config.find_one({"_id": "growth_ai_config"}, {"_id": 0})
+    cfg = (cfg_doc or {}).get("config") if isinstance(cfg_doc, dict) else None
+    if not isinstance(cfg, dict):
+        cfg = {}
+    autopilot = cfg.get("autopilot") if isinstance(cfg.get("autopilot"), dict) else {}
+
+    state = await db.config.find_one({"_id": "growth_ai_state"}, {"_id": 0})
+    s = state if isinstance(state, dict) else {}
+
+    interval = os.environ.get("MAQGO_GROWTH_AI_INTERVAL_SECONDS", "12")
+    try:
+        interval_sec = int(str(interval).strip() or "12")
+    except Exception:
+        interval_sec = 12
+
+    return {
+        "scheduler": {
+            "interval_sec": interval_sec,
+            "last_tick_at": s.get("last_tick_at") or "—",
+            "last_autopilot_stats": s.get("last_autopilot_stats") or {},
+        },
+        "discovery": {
+            "last_discovery_at": s.get("last_discovery_at") or "—",
+            "last_discovery_error": s.get("last_discovery_error") or "",
+        },
+        "inventory": {
+            "last_inventory_at": s.get("last_inventory_at") or "—",
+            "inventory_error": s.get("inventory_error") or "",
+        },
+        "daily": s.get("daily_counts") or {},
+        "autopilot": {
+            "enabled": bool(autopilot.get("enabled", False)),
+            "discovery_enabled": bool(autopilot.get("discovery_enabled", True)),
+            "outreach_enabled": bool(autopilot.get("outreach_enabled", True)),
+            "auto_approve": bool(autopilot.get("auto_approve", True)),
+            "auto_execute": bool(autopilot.get("auto_execute", False)),
+            "require_go_live_approval_for_demand": bool(autopilot.get("require_go_live_approval_for_demand", True)),
+            "allowed_node_ids": autopilot.get("allowed_node_ids") if isinstance(autopilot.get("allowed_node_ids"), list) else [],
+        },
+    }
+
+
 @router.post("/engine/draft-outreach")
 async def engine_draft_outreach(payload: DraftOutreachRequest, _: dict = Depends(get_current_admin_strict)):
     from services.growth_ai_copy_engine import draft_outreach_message

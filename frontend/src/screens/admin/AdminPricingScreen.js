@@ -605,10 +605,8 @@ function AdminPricingScreen() {
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#fff' }}>Precios de referencia</h2>
-            <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '6px 0 0' }}>
-              Define precio base por maquinaria, variantes por capacidad y referencia de traslado.
-            </p>
+            <div className="maqgo-admin-title">Precios</div>
+            <div className="maqgo-admin-subtitle">Base por maquinaria, variantes y referencia de traslado.</div>
           </div>
           <button
             onClick={handleSave}

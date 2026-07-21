@@ -58,6 +58,9 @@ export default function AdminGrowthAIOverviewScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
+  const [runtime, setRuntime] = useState(null);
+  const [runtimeError, setRuntimeError] = useState('');
+  const [runtimeLoading, setRuntimeLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [starting, setStarting] = useState(false);
 
@@ -80,7 +83,26 @@ export default function AdminGrowthAIOverviewScreen() {
         if (mounted) setLoading(false);
       }
     };
+
+    const loadRuntime = async () => {
+      setRuntimeLoading(true);
+      setRuntimeError('');
+      try {
+        const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/runtime/status`, { method: 'GET' }, 15000);
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload?.detail || `No se pudo cargar runtime (${res.status})`);
+        if (!mounted) return;
+        setRuntime(payload);
+      } catch (e) {
+        if (!mounted) return;
+        setRuntimeError(friendlyFetchError(e, 'No se pudo cargar estado del motor.'));
+        setRuntime(null);
+      } finally {
+        if (mounted) setRuntimeLoading(false);
+      }
+    };
     void load();
+    void loadRuntime();
     return () => {
       mounted = false;
     };
@@ -269,6 +291,63 @@ export default function AdminGrowthAIOverviewScreen() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+        <Card
+          theme={THEME}
+          title="Estado del motor"
+          right={
+            runtime?.autopilot ? (
+              <Pill theme={THEME} label={runtime.autopilot.enabled ? 'Autopilot ON' : 'Autopilot OFF'} tone={runtime.autopilot.enabled ? 'green' : 'neutral'} />
+            ) : null
+          }
+        >
+          {runtimeLoading ? (
+            <ListSkeleton rows={2} />
+          ) : runtimeError ? (
+            <div style={{ color: '#E57373', fontSize: 12, lineHeight: 1.35 }}>{runtimeError}</div>
+          ) : runtime ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="maqgo-admin-chip-row">
+                <Pill theme={THEME} label={`Intervalo ${runtime?.scheduler?.interval_sec ?? '—'}s`} tone="neutral" />
+                <Pill theme={THEME} label={`Último tick ${String(runtime?.scheduler?.last_tick_at || '—').slice(0, 19).replace('T', ' ')}`} tone="neutral" />
+                <Pill theme={THEME} label={`Discovery ${String(runtime?.discovery?.last_discovery_at || '—').slice(0, 19).replace('T', ' ')}`} tone="neutral" />
+              </div>
+
+              {runtime?.daily?.limits ? (
+                <div className="maqgo-admin-chip-row">
+                  <Pill
+                    theme={THEME}
+                    label={`Hoy total ${runtime?.daily?.total_created ?? 0}/${runtime?.daily?.limits?.total ?? '—'}`}
+                    tone="neutral"
+                  />
+                  <Pill
+                    theme={THEME}
+                    label={`Proveedor ${runtime?.daily?.supply_created ?? 0}/${runtime?.daily?.limits?.supply ?? '—'}`}
+                    tone="neutral"
+                  />
+                  <Pill
+                    theme={THEME}
+                    label={`Cliente ${runtime?.daily?.demand_created ?? 0}/${runtime?.daily?.limits?.demand ?? '—'}`}
+                    tone="neutral"
+                  />
+                </div>
+              ) : null}
+
+              {runtime?.discovery?.last_discovery_error ? (
+                <div style={{ color: '#E57373', fontSize: 12, lineHeight: 1.35 }}>
+                  Discovery error: {runtime.discovery.last_discovery_error}
+                </div>
+              ) : null}
+              {runtime?.inventory?.inventory_error ? (
+                <div style={{ color: '#E57373', fontSize: 12, lineHeight: 1.35 }}>
+                  Inventory error: {runtime.inventory.inventory_error}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>Sin datos de motor todavía.</div>
+          )}
+        </Card>
+
         <Card
           theme={THEME}
           title="Reporte semanal"

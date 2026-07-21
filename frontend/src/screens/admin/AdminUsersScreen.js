@@ -777,8 +777,8 @@ function AdminUsersScreen() {
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
         <div style={{ marginBottom: 14 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#fff' }}>Usuarios registrados</h2>
-          <p style={{ color: ADMIN_THEME.textMuted, fontSize: 13, margin: '6px 0 0' }}>Clientes y proveedores en la plataforma</p>
+          <div className="maqgo-admin-title">Usuarios</div>
+          <div className="maqgo-admin-subtitle">Clientes, proveedores y maquinaria.</div>
         </div>
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
