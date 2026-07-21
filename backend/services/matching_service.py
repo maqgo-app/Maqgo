@@ -26,6 +26,31 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+PROVIDER_MATCH_PROJECTION = {
+    '_id': 0,
+    'id': 1,
+    'name': 1,
+    'rating': 1,
+    'hourlyRate': 1,
+    'machineryType': 1,
+    'responseTimeScore': 1,
+    'responseTimeAvg': 1,
+    'isAvailable': 1,
+    'status': 1,
+    'deleted': 1,
+    'role': 1,
+    'roles': 1,
+    'owner_id': 1,
+    'provider_role': 1,
+    'onboarding_completed': 1,
+    'operators': 1,
+    'machineData': 1,
+    'providerData': 1,
+    'location': 1,
+    'locationUpdatedAt': 1,
+    'locationSource': 1,
+ }
+
 
 async def _notify_provider_offer(db: AsyncIOMotorDatabase, *, provider_id: str, service_request_id: str, kind: str, occurred_at: str) -> None:
     pid = str(provider_id or '').strip()
@@ -117,6 +142,17 @@ ACTIVE_SERVICE_STATES = ['confirmed', 'en_route', 'in_progress', 'last_30']
 # Frescura de ubicación (MVP-safe): solo invalida por antigüedad cuando hay timestamp explícito y source GPS.
 GPS_ONLINE_MAX_AGE_SECONDS = 15 * 60
 GPS_STALE_MAX_AGE_SECONDS = 6 * 60 * 60
+
+
+async def _busy_provider_ids(db: AsyncIOMotorDatabase, provider_ids: List[str]) -> set:
+    ids = [str(x).strip() for x in (provider_ids or []) if x is not None and str(x).strip()]
+    if not ids:
+        return set()
+    rows = await db.service_requests.distinct(
+        'providerId',
+        {'providerId': {'$in': ids}, 'status': {'$in': ACTIVE_SERVICE_STATES}},
+    )
+    return {str(x).strip() for x in (rows or []) if x is not None and str(x).strip()}
 
 
 def _rotation_waiting_for_more_waves(sr: Mapping[str, Any], now: datetime) -> bool:
@@ -455,13 +491,43 @@ async def filter_valid_providers_for_wave(
     - No tienen servicio activo
     - No están eliminados
     """
-    valid_ids = []
-    for pid in provider_ids:
-        validation = await validate_provider_for_wave(db, pid)
-        if validation['valid']:
-            valid_ids.append(pid)
-        else:
-            logger.info(f"WAVE_GUARD: Provider {pid} filtrado - {validation['reason']}")
+    ids = [str(x).strip() for x in (provider_ids or []) if x is not None and str(x).strip()]
+    if not ids:
+        return []
+
+    providers = await db.users.find(
+        {'id': {'$in': ids}},
+        {'_id': 0, 'id': 1, 'isAvailable': 1, 'status': 1, 'deleted': 1, 'role': 1},
+    ).to_list(len(ids))
+    by_id = {str(p.get('id') or '').strip(): p for p in (providers or []) if isinstance(p, dict) and p.get('id')}
+    busy_ids = await _busy_provider_ids(db, ids)
+
+    valid_ids: List[str] = []
+    for pid in ids:
+        provider = by_id.get(pid)
+        if not provider:
+            logger.info(f"WAVE_GUARD: Provider {pid} filtrado - provider_not_found")
+            continue
+
+        if provider.get('deleted') is True or provider.get('status') == 'deleted':
+            logger.info(f"WAVE_GUARD: Provider {pid} filtrado - provider_deleted")
+            continue
+
+        p_status = provider.get('status') or 'active'
+        if p_status != 'active':
+            logger.info(f"WAVE_GUARD: Provider {pid} filtrado - provider_inactive")
+            continue
+
+        if not provider.get('isAvailable'):
+            logger.info(f"WAVE_GUARD: Provider {pid} filtrado - provider_not_available")
+            continue
+
+        if pid in busy_ids:
+            logger.info(f"WAVE_GUARD: Provider {pid} filtrado - provider_has_active_service")
+            continue
+
+        valid_ids.append(pid)
+
     return valid_ids
 
 async def get_available_providers(
@@ -493,7 +559,7 @@ async def get_available_providers(
         query['machineryType'] = machinery_type
     if excluded_provider_ids:
         query['id'] = {'$nin': excluded_provider_ids}
-    providers = await db.users.find(query, {'_id': 0}).to_list(100)
+    providers = await db.users.find(query, PROVIDER_MATCH_PROJECTION).to_list(100)
 
     if not providers and machinery_type:
         query_fallback = {
@@ -508,20 +574,17 @@ async def get_available_providers(
         }
         if excluded_provider_ids:
             query_fallback['id'] = {'$nin': excluded_provider_ids}
-        providers = await db.users.find(query_fallback, {'_id': 0}).to_list(100)
+        providers = await db.users.find(query_fallback, PROVIDER_MATCH_PROJECTION).to_list(100)
         if providers:
             logger.info(f"Usando fallback sin machineryType (encontrados {len(providers)})")
     
     providers = [p for p in providers if _is_provider_activation_complete(p)]
 
-    # Filtrar proveedores con servicios activos
-    available_providers = []
-    for provider in providers:
-        has_active = await check_provider_has_active_service(db, provider['id'])
-        if not has_active:
-            available_providers.append(provider)
-        else:
-            logger.info(f"Proveedor {provider['id']} excluido: tiene servicio activo")
+    candidate_ids = [str(p.get('id') or '').strip() for p in providers if str(p.get('id') or '').strip()]
+    busy_ids = await _busy_provider_ids(db, candidate_ids)
+    if _DEBUG_MATCH and busy_ids:
+        logger.info("MATCH busy providers excluded=%s", len(busy_ids))
+    available_providers = [p for p in providers if str(p.get('id') or '').strip() not in busy_ids]
     
     # Distancia y precio por proveedor; filtro duro por radio
     candidates: List[Tuple[dict, float, float]] = []

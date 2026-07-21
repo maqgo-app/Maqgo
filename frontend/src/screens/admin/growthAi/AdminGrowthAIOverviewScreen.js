@@ -63,6 +63,9 @@ export default function AdminGrowthAIOverviewScreen() {
   const [runtimeLoading, setRuntimeLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [testSmsPhone, setTestSmsPhone] = useState('');
+  const [testSmsSending, setTestSmsSending] = useState(false);
+  const [testSmsResult, setTestSmsResult] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -180,6 +183,37 @@ export default function AdminGrowthAIOverviewScreen() {
       setError(friendlyFetchError(e, 'No se pudo iniciar la búsqueda.'));
     } finally {
       setStarting(false);
+    }
+  };
+
+  const sendTestSms = async ({ persona }) => {
+    if (testSmsSending) return;
+    setTestSmsSending(true);
+    setTestSmsResult(null);
+    setError('');
+    try {
+      const comuna = startingComunas[0] || 'RM';
+      const res = await fetchWithAuth(
+        `${BACKEND_URL}/api/admin/growth-ai/test/sms`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: String(testSmsPhone || '').trim(),
+            persona,
+            comuna,
+            machine: 'retroexcavadora',
+          }),
+        },
+        20000
+      );
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.detail || `No se pudo enviar SMS (${res.status})`);
+      setTestSmsResult(payload);
+    } catch (e) {
+      setError(friendlyFetchError(e, 'No se pudo enviar SMS de prueba.'));
+    } finally {
+      setTestSmsSending(false);
     }
   };
 
@@ -452,6 +486,56 @@ export default function AdminGrowthAIOverviewScreen() {
                 Ver leads
               </button>
             </div>
+
+            <details style={{ marginTop: 2 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 800 }}>
+                Pruebas (SMS)
+              </summary>
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <input
+                  value={testSmsPhone}
+                  onChange={(e) => setTestSmsPhone(e.target.value)}
+                  placeholder="+569XXXXXXXX"
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: `1px solid ${THEME.border}`,
+                    background: 'rgba(255,255,255,0.04)',
+                    color: '#fff',
+                    fontSize: 13,
+                    width: 220,
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="maqgo-btn-secondary"
+                    style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
+                    disabled={testSmsSending}
+                    onClick={() => sendTestSms({ persona: 'proveedor' })}
+                  >
+                    SMS proveedor
+                  </button>
+                  <button
+                    type="button"
+                    className="maqgo-btn-secondary"
+                    style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
+                    disabled={testSmsSending}
+                    onClick={() => sendTestSms({ persona: 'cliente' })}
+                  >
+                    SMS cliente
+                  </button>
+                </div>
+                {testSmsResult?.message ? (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>
+                    Enviado. Texto:
+                    <div style={{ marginTop: 6, padding: 10, borderRadius: 12, border: `1px solid ${THEME.border}`, background: 'rgba(255,255,255,0.03)' }}>
+                      {testSmsResult.message}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </details>
           </div>
         </Card>
 

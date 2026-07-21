@@ -268,6 +268,46 @@ async def growth_ai_stop(_: dict = Depends(get_current_admin_strict)):
     return {"ok": True}
 
 
+def _append_sms_stop_if_possible(msg: str) -> str:
+    t = (msg or "").strip()
+    if not t:
+        return t
+    if "stop" in t.lower():
+        return t
+    suffix = " Responde STOP para no recibir más mensajes."
+    if len(t) + len(suffix) <= 480:
+        return t + suffix
+    return t
+
+
+@router.post("/test/sms")
+async def send_test_sms(payload: SmsTestPayload, _: dict = Depends(get_current_admin_strict)):
+    from services.growth_ai_scheduler import _sms_guardrails_for_scheduler
+    from services.growth_ai_contact_executor import execute_contact_action
+
+    phone = payload.phone.strip()
+    ok, err = await _sms_guardrails_for_scheduler(db, phone)
+    if not ok:
+        raise HTTPException(status_code=400, detail=f"sms_blocked:{err}")
+
+    persona = payload.persona.strip().lower()
+    comuna = payload.comuna.strip() or "RM"
+    machine = payload.machine.strip() or "maquinaria"
+    role = payload.role.strip()
+
+    if persona in {"proveedor", "provider"}:
+        base = f"MAQGO: {('Para ' + role + ': ') if role else ''}Estamos sumando proveedores de {machine} en {comuna}. Activa tu perfil y recibe solicitudes. Onboarding: https://maqgo.cl/provider/register"
+    else:
+        base = f"MAQGO: {('Para ' + role + ': ') if role else ''}Cotiza y reserva {machine} con operador en {comuna}, incluso para hoy (según disponibilidad). Responde: comuna + fecha/hora + trabajo."
+
+    msg = _append_sms_stop_if_possible(base)
+    res = await execute_contact_action(channel="sms", to=phone, subject="", message=msg)
+
+    masked = phone[-4:] if len(phone) >= 4 else ""
+    await _audit("SMS test", f"persona={persona} phone=***{masked}", event_type="sms_test")
+    return {"ok": True, "message": msg, "result": res}
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -324,6 +364,14 @@ class NodeGoLiveMachine(BaseModel):
 class GrowthStartPayload(BaseModel):
     include_outreach: bool = Field(default=True)
     auto_execute_providers: bool = Field(default=True)
+
+
+class SmsTestPayload(BaseModel):
+    phone: str = Field(min_length=8)
+    persona: str = Field(min_length=2)
+    comuna: str = Field(default="")
+    machine: str = Field(default="retroexcavadora")
+    role: str = Field(default="")
 
 
 class NodePipelineStageUpdate(BaseModel):

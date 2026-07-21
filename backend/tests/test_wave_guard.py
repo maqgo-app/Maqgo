@@ -27,6 +27,29 @@ class MockUsersCollection:
                 return doc
         return None
 
+    def find(self, query, *args, **kwargs):
+        class _Cursor:
+            def __init__(self, data, q):
+                self._data = data
+                self._q = q
+
+            async def to_list(self, length=None):
+                ids = None
+                qid = (self._q or {}).get('id')
+                if isinstance(qid, dict) and '$in' in qid:
+                    ids = set(qid['$in'])
+
+                out = []
+                for doc in self._data:
+                    if ids is not None and doc.get('id') not in ids:
+                        continue
+                    out.append(doc)
+                if length is None:
+                    return out
+                return out[:length]
+
+        return _Cursor(self.data, query)
+
 
 class MockServiceRequestsCollection:
     def __init__(self, requests_data):
@@ -40,6 +63,32 @@ class MockServiceRequestsCollection:
                 if doc.get('providerId') == provider_id and doc.get('status') in status['$in']:
                     return doc
         return None
+
+    async def distinct(self, field, query, *args, **kwargs):
+        if field != 'providerId':
+            return []
+        qpid = (query or {}).get('providerId')
+        qst = (query or {}).get('status')
+        ids = None
+        if isinstance(qpid, dict) and '$in' in qpid:
+            ids = set(qpid['$in'])
+        statuses = None
+        if isinstance(qst, dict) and '$in' in qst:
+            statuses = set(qst['$in'])
+
+        out = []
+        seen = set()
+        for doc in self.data:
+            pid = doc.get('providerId')
+            if ids is not None and pid not in ids:
+                continue
+            if statuses is not None and doc.get('status') not in statuses:
+                continue
+            if pid in seen:
+                continue
+            seen.add(pid)
+            out.append(pid)
+        return out
 
 
 class MockDB:
