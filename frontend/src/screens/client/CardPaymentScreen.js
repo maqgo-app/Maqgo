@@ -80,14 +80,6 @@ function CardPaymentScreen() {
 
   // Mostrar error si Transbank redirigió con oneclick_error
   const [oneclickErrorCode, setOneclickErrorCode] = useState(null);
-  const [oneclickRef, setOneclickRef] = useState(() => {
-    try {
-      const raw = localStorage.getItem('maqgo_oneclick_last_ref');
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  });
 
   const enrollmentFailureDispatched = useRef(false);
   /** Evita doble submit / doble POST a /start mientras la petición está en curso. */
@@ -243,9 +235,7 @@ function CardPaymentScreen() {
         payload.serviceModel = 'truck';
         payload.urgencyType = localStorage.getItem('urgencyType') || '';
       }
-      if (import.meta.env.DEV) {
-        console.log('ONECLICK PAYLOAD', { ...payload, email: '[redacted]' });
-      }
+      console.log('ONECLICK PAYLOAD', payload);
       const { data } = await axios.post(
         `${BACKEND_URL}/api/payments/oneclick/start`,
         payload,
@@ -254,23 +244,7 @@ function CardPaymentScreen() {
           headers: { 'Idempotency-Key': idempotencyKey('oneclick-start') },
         }
       );
-      if (data?.buy_order) {
-        const ref = {
-          buy_order: data.buy_order,
-          email,
-          ts: Date.now(),
-        };
-        try {
-          localStorage.setItem('maqgo_oneclick_last_ref', JSON.stringify(ref));
-        } catch {
-          void 0;
-        }
-        setOneclickRef(ref);
-      }
-      if (import.meta.env.DEV) {
-        const tokenTail = typeof data?.token === 'string' ? data.token.slice(-6) : null;
-        console.log('ONECLICK RESPONSE', { ...data, token: tokenTail ? `***${tokenTail}` : data?.token });
-      }
+      console.log('ONECLICK RESPONSE', data);
 
       // Modo demo: salta Transbank y va directo a completar (para dev en localhost)
       if (data?.demo_mode && data?.tbk_user) {
@@ -366,14 +340,6 @@ function CardPaymentScreen() {
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, margin: '0 0 14px', textAlign: 'center', lineHeight: 1.45 }}>
                 {cardDetail}
               </p>
-            ) : null}
-            {!isSession && oneclickRef?.buy_order ? (
-              <div style={{ marginBottom: 14, textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', lineHeight: 1.35 }}>Referencia</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.92)', fontWeight: 900, letterSpacing: 0.2 }}>
-                  {oneclickRef.buy_order}
-                </div>
-              </div>
             ) : null}
             <button
               type="button"
@@ -543,8 +509,7 @@ function CardPaymentScreen() {
             marginBottom: 10,
             fontWeight: 500
           }}>
-            Correo electrónico <span style={{ color: 'rgba(255,255,255,0.45)', fontWeight: 400 }}>(solo para enviar el comprobante de pago)</span>{' '}
-            <span style={{ color: '#EC6819' }}>*</span>
+            Correo para tu comprobante <span style={{ color: '#EC6819' }}>*</span>
           </label>
           <input
             id="card-email"
@@ -578,7 +543,7 @@ function CardPaymentScreen() {
               fontSize: 13, 
               margin: '8px 0 0' 
             }}>
-              Solo usaremos este correo para enviarte el comprobante de pago.
+              Usamos este correo para enviarte información de tu solicitud.
             </p>
           )}
         </div>
