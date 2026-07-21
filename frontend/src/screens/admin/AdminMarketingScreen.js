@@ -76,14 +76,9 @@ function AdminMarketingScreen() {
   const [report, setReport] = useState(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [weekMeta, setWeekMeta] = useState(null);
-  const [oneclickEmail, setOneclickEmail] = useState('');
-  const [oneclickLoading, setOneclickLoading] = useState(false);
-  const [oneclickItems, setOneclickItems] = useState([]);
-  const [oneclickError, setOneclickError] = useState('');
   /** Evita aplicar respuestas viejas si el usuario cambia de semana rápido (race). */
   const spendLoadSeqRef = useRef(0);
   const importSeqRef = useRef(0);
-  const oneclickSeqRef = useRef(0);
 
   const goDashboardArea = (area) => {
     try {
@@ -95,38 +90,6 @@ function AdminMarketingScreen() {
   };
 
   const weekEffective = useMemo(() => mondayISOFromCalendarDate(weekInput), [weekInput]);
-
-  const loadOneclickEvidence = useCallback(async () => {
-    const email = String(oneclickEmail || '').trim();
-    if (!email) {
-      setOneclickError('Ingresa un email');
-      setOneclickItems([]);
-      return;
-    }
-    const seq = ++oneclickSeqRef.current;
-    setOneclickLoading(true);
-    setOneclickError('');
-    try {
-      const res = await fetchWithAuth(
-        `${BACKEND_URL}/api/payments/oneclick/admin/evidence?email=${encodeURIComponent(email)}&limit=10`,
-        { method: 'GET' },
-        20000,
-      );
-      const data = await res.json().catch(() => ({}));
-      if (seq !== oneclickSeqRef.current) return;
-      if (!res.ok) throw new Error(data?.detail || `Error Oneclick (${res.status})`);
-      setOneclickItems(Array.isArray(data?.items) ? data.items : []);
-      if (!Array.isArray(data?.items) || data.items.length === 0) {
-        setOneclickError('Sin registros para ese email');
-      }
-    } catch (e) {
-      if (seq !== oneclickSeqRef.current) return;
-      setOneclickItems([]);
-      setOneclickError(friendlyFetchError(e, 'No se pudo cargar evidencia Oneclick'));
-    } finally {
-      if (seq === oneclickSeqRef.current) setOneclickLoading(false);
-    }
-  }, [oneclickEmail]);
 
   const cartolaLabel = useMemo(
     () => formatCartolaLabel(weekMeta?.week_start_date || weekEffective, weekMeta),
@@ -583,105 +546,6 @@ function AdminMarketingScreen() {
         <div style={{ marginBottom: 14 }}>
           <div className="maqgo-admin-title">Marketing & CAC</div>
           <div className="maqgo-admin-subtitle">Inversión semanal por canal/audiencia (clave: lunes de la semana).</div>
-        </div>
-
-        <div
-          style={{
-            background: ADMIN_THEME.panelBg,
-            border: `1px solid ${ADMIN_THEME.border}`,
-            borderRadius: 16,
-            padding: 16,
-            marginBottom: 16,
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div>
-              <div style={{ fontWeight: 900, fontSize: 14 }}>Evidencia Oneclick (Transbank)</div>
-              <div style={{ marginTop: 6, fontSize: 12, color: ADMIN_THEME.textMuted, lineHeight: 1.35 }}>
-                Busca por email y copia los IDs/resultados para soporte/certificación Transbank.
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input
-                value={oneclickEmail}
-                onChange={(e) => setOneclickEmail(e.target.value)}
-                placeholder="email cliente"
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  border: `1px solid ${ADMIN_THEME.borderStrong}`,
-                  background: 'rgba(255,255,255,0.04)',
-                  color: '#fff',
-                  fontSize: 13,
-                  width: 280,
-                }}
-              />
-              <button
-                type="button"
-                onClick={loadOneclickEvidence}
-                disabled={oneclickLoading}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: 12,
-                  border: `1px solid rgba(255,255,255,0.2)`,
-                  background: oneclickLoading ? 'rgba(255,255,255,0.06)' : 'rgba(236, 104, 25, 0.18)',
-                  color: '#fff',
-                  cursor: oneclickLoading ? 'default' : 'pointer',
-                  fontSize: 13,
-                  fontWeight: 900,
-                }}
-              >
-                {oneclickLoading ? 'Buscando…' : 'Buscar'}
-              </button>
-            </div>
-          </div>
-
-          {oneclickError ? (
-            <div style={{ marginTop: 10, fontSize: 12, color: ADMIN_PALETTE.warning, lineHeight: 1.35 }}>{oneclickError}</div>
-          ) : null}
-
-          {Array.isArray(oneclickItems) && oneclickItems.length ? (
-            <div style={{ marginTop: 12, overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', color: ADMIN_THEME.textMuted }}>
-                    <th style={{ padding: '8px 8px' }}>buy_order</th>
-                    <th style={{ padding: '8px 8px' }}>status</th>
-                    <th style={{ padding: '8px 8px' }}>tbk_user</th>
-                    <th style={{ padding: '8px 8px' }}>token</th>
-                    <th style={{ padding: '8px 8px' }}>card</th>
-                    <th style={{ padding: '8px 8px' }}>confirm_rc</th>
-                    <th style={{ padding: '8px 8px' }}>auth_rc</th>
-                    <th style={{ padding: '8px 8px' }}>auth_code</th>
-                    <th style={{ padding: '8px 8px' }}>pay_type</th>
-                    <th style={{ padding: '8px 8px' }}>amount</th>
-                    <th style={{ padding: '8px 8px' }}>created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {oneclickItems.map((it, idx) => (
-                    <tr key={`${idx}-${it.buy_order || ''}`} style={{ borderTop: `1px solid ${ADMIN_THEME.border}` }}>
-                      <td style={{ padding: '8px 8px', whiteSpace: 'nowrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>
-                        {it.buy_order}
-                      </td>
-                      <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>{it.status}</td>
-                      <td style={{ padding: '8px 8px', whiteSpace: 'nowrap', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>
-                        {it.tbk_user || ''}
-                      </td>
-                      <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>{it.token_tail || ''}</td>
-                      <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>{[it.card_type, it.card_number].filter(Boolean).join(' ')}</td>
-                      <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>{it.confirm_response_code ?? ''}</td>
-                      <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>{it.authorize?.response_code ?? ''}</td>
-                      <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>{it.authorize?.authorization_code ?? ''}</td>
-                      <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>{it.authorize?.payment_type_code ?? ''}</td>
-                      <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>{it.amount ?? ''}</td>
-                      <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>{it.created_at || ''}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
         </div>
         {/* Semana: campo fecha + rango efectivo */}
         <section

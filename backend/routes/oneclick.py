@@ -156,25 +156,6 @@ def _mask_token(token: Optional[str]) -> str:
     return f"{token[:4]}...{token[-4:]}"
 
 
-def _mask_token_tail(token: Optional[str]) -> str:
-    t = (token or "").strip()
-    if not t:
-        return ""
-    if len(t) <= 8:
-        return "***"
-    return f"***{t[-6:]}"
-
-
-def _extract_auth_detail(auth: Optional[dict]) -> dict:
-    if not isinstance(auth, dict):
-        return {}
-    details = auth.get("details")
-    if isinstance(details, list) and details:
-        d = details[0]
-        return d if isinstance(d, dict) else {}
-    return {}
-
-
 def _partial_email_for_debug(email: Optional[str]) -> str:
     """Email parcial para respuestas de debug (certificación / soporte)."""
     e = (email or "").strip()
@@ -1153,55 +1134,6 @@ async def debug_last_oneclick_token(
         "email": _partial_email_for_debug((doc.get("email") or "").strip()),
         "username": doc.get("username"),
     }
-
-
-@router.get("/admin/evidence")
-@limiter.limit("60/minute")
-async def admin_oneclick_evidence(
-    request: Request,
-    email: str = Query(default=""),
-    buy_order: str = Query(default=""),
-    limit: int = Query(default=10, ge=1, le=25),
-    _: dict = Depends(get_current_admin_strict),
-):
-    q: dict = {}
-    if (email or "").strip():
-        q["email"] = email.strip()
-    if (buy_order or "").strip():
-        q["buy_order"] = buy_order.strip()
-
-    cursor = db[PAYMENTS_COLLECTION].find(q, {"_id": 0}).sort("created_at", -1).limit(limit)
-    docs = await cursor.to_list(limit)
-    items = []
-    for d in docs:
-        auth = d.get("authorization_response") if isinstance(d, dict) else None
-        detail = _extract_auth_detail(auth)
-        items.append(
-            {
-                "buy_order": d.get("buy_order"),
-                "status": d.get("status"),
-                "amount": d.get("amount"),
-                "created_at": d.get("created_at"),
-                "updated_at": d.get("updated_at"),
-                "email": _partial_email_for_debug(d.get("email")),
-                "username": d.get("username"),
-                "token_tail": _mask_token_tail(d.get("token")),
-                "tbk_user": d.get("tbk_user"),
-                "card_type": d.get("card_type"),
-                "card_number": d.get("card_number"),
-                "confirm_response_code": d.get("confirm_response_code"),
-                "authorize": {
-                    "response_code": detail.get("response_code"),
-                    "status": detail.get("status"),
-                    "authorization_code": detail.get("authorization_code"),
-                    "payment_type_code": detail.get("payment_type_code"),
-                    "installments_number": detail.get("installments_number"),
-                    "amount": detail.get("amount"),
-                },
-            }
-        )
-
-    return {"ok": True, "query": q, "items": items}
 
 
 @router.post("/test-flow")
