@@ -1326,7 +1326,7 @@ function MachineDataScreen() {
   const handleContinue = async () => {
     if (yearError) return;
     if (!isEditMode && !isAddMachineEntry && !hasProviderRoleInStorage() && !inlineReady) {
-      toast.error('Primero crea tu cuenta proveedor con correo y contraseña arriba.');
+      toast.error('Primero activa tu cuenta proveedor para continuar.');
       return;
     }
     const originError = getOriginValidationMessage(form);

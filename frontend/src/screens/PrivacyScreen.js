@@ -89,7 +89,7 @@ function PrivacyScreen() {
         <Section title="4. Avisos y registros del servicio">
           <p style={{ marginBottom: 12 }}>
             Los registros del servicio (avisos y estados) se almacenan para operar el servicio 
-            y resolver eventuales disputas.
+            y atender solicitudes de soporte.
           </p>
           <p>
             Los registros se eliminan automáticamente según la política de retención aplicable.
@@ -142,7 +142,11 @@ function PrivacyScreen() {
         <Section title="9. Contacto">
           <p>
             Para ejercer tus derechos o realizar consultas sobre el tratamiento de tus 
-            datos personales, contáctanos desde Soporte dentro de la app.
+            datos personales, escríbenos a{' '}
+            <a href="mailto:soporte@maqgo.cl" style={{ color: '#90BDD3' }}>
+              soporte@maqgo.cl
+            </a>
+            .
           </p>
         </Section>
 

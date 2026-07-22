@@ -342,7 +342,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     });
     if (next.kind === 'error_not_admin') {
       setError(
-        'Esta cuenta no tiene acceso al panel de administración. Usa el correo y clave de una cuenta admin.'
+        'Esta cuenta no tiene acceso al panel de administración. Usa el correo y la contraseña de una cuenta admin.'
       );
       return false;
     }
@@ -797,7 +797,7 @@ function LoginScreen({ setUserRole, setUserId }) {
               }}
             >
               {loginMode === 'sms'
-                ? 'Entrar con correo y contraseña'
+                ? 'Entrar con cuenta proveedor'
                 : 'Entrar con celular (código SMS)'}
             </button>
           </p>
@@ -817,14 +817,14 @@ function LoginScreen({ setUserRole, setUserId }) {
                 }}
               >
                 {redirectTo === '/admin'
-                  ? 'Usa el correo y la clave de tu cuenta de administración.'
-                  : 'Clientes: celular y código. Proveedores: correo y contraseña.'}
+                  ? 'Usa el correo y la contraseña de tu cuenta de administración.'
+                  : 'Usa el correo y la contraseña de tu cuenta proveedor.'}
               </p>
               <label
                 htmlFor="login-email"
                 style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
               >
-                Correo (cuenta proveedor)
+                Correo de la cuenta
               </label>
               <input
                 id="login-email"
@@ -837,7 +837,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                   setEmail(ev.target.value);
                 }}
                 className="maqgo-input"
-                placeholder="tu@correo.cl"
+                placeholder="contacto@empresa.cl"
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',

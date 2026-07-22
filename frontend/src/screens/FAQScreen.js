@@ -58,7 +58,15 @@ const FAQ_DATA = [
       },
       {
         q: '¿Cómo contacto a soporte?',
-        a: 'Desde la sección de soporte disponible en la aplicación. Respondemos en horario hábil de lunes a viernes.'
+        a: (
+          <>
+            Escríbenos a{' '}
+            <a href="mailto:soporte@maqgo.cl" style={{ color: '#90BDD3' }}>
+              soporte@maqgo.cl
+            </a>
+            . También puedes revisar Ayuda y Soporte dentro de la aplicación.
+          </>
+        )
       }
     ]
   },
@@ -467,7 +475,11 @@ function FAQScreen() {
 
             <div style={{ marginTop: 32, textAlign: 'center' }}>
               <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, marginBottom: 16 }}>
-                ¿Aún tienes dudas? Escríbenos a <span style={{ fontWeight: 600 }}>soporte@maqgo.cl</span>. Atendemos en horario hábil de lunes a viernes.
+                ¿Aún tienes dudas? Escríbenos a{' '}
+                <a href="mailto:soporte@maqgo.cl" style={{ color: '#90BDD3' }}>
+                  soporte@maqgo.cl
+                </a>{' '}
+                o revisa esta sección y los documentos legales.
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
                 <button

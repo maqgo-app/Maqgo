@@ -547,7 +547,11 @@ function ProviderServiceFinishedScreen() {
               >
                 Factura dirigida a MAQGO (desde Mis Cobros).
                 <br />
-                Ante cualquier duda sobre este servicio, contáctanos en soporte@maqgo.cl.
+                Ante cualquier duda sobre este servicio, escríbenos a{' '}
+                <a href="mailto:soporte@maqgo.cl" style={{ color: '#90BDD3' }}>
+                  soporte@maqgo.cl
+                </a>
+                .
               </p>
             </div>
           </div>

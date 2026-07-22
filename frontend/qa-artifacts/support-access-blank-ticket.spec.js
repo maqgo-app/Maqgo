@@ -28,7 +28,7 @@ test.describe('Support access', () => {
     await context.close();
   });
 
-  test('permite crear ticket sin celular (blanco)', async ({ browser }) => {
+  test('no permite crear ticket y ofrece volver a login', async ({ browser }) => {
     const context = await browser.newContext();
     await installApiMocks(context);
     const page = await context.newPage();
@@ -40,8 +40,9 @@ test.describe('Support access', () => {
     await page.waitForLoadState('load');
 
     await expect(page.getByRole('heading', { name: /Recuperar acceso/i })).toBeVisible();
-    await page.getByRole('button', { name: /Solicitar revisión/i }).click();
-    await expect(page.getByText(/Recibimos tu solicitud/i)).toBeVisible();
+    await expect(page.getByText(/Qu[eé] puedes hacer ahora/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /Volver y reintentar/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Usar otro n[uú]mero/i })).toBeVisible();
 
     await context.close();
   });

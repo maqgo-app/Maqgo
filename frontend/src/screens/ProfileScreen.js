@@ -4,14 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import BACKEND_URL from '../utils/api';
 import { clearAuthSessionPreservingDraft } from '../utils/sessionCleanup';
-import { persistClientEmailToStorage } from '../utils/clientSessionForPayment';
 import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
 import { useAuth } from '../context/authHooks';
 
 /**
  * Perfil cliente (ruta /profile): enrolamiento OTP + datos opcionales.
  * - Teléfono: identidad principal (sesión OTP).
- * - Nombre y correo: opcionales; el correo también se pide en el pago (OneClick) si aplica.
+ * - Nombre: opcional para comprobante.
  * - RUT: solo si quedó guardado por facturación (lectura).
  * - Dirección del servicio: en la reserva (mapa), no aquí.
  */
@@ -32,7 +31,6 @@ function ProfileScreen() {
   const [me, setMe] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const loadMe = useCallback(async () => {
@@ -48,7 +46,6 @@ function ProfileScreen() {
       const { data } = await axios.get(`${BACKEND_URL}/api/auth/me`, { timeout: 15000 });
       setMe(data);
       setEditName(data?.name || '');
-      setEditEmail(data?.email || '');
     } catch (e) {
       const status = e?.response?.status;
       if (status === 401) {
@@ -80,16 +77,13 @@ function ProfileScreen() {
     setError('');
     try {
       const nameTrim = editName.trim();
-      const emailTrim = editEmail.trim();
       await axios.post(
         `${BACKEND_URL}/api/auth/me/profile`,
         {
           name: nameTrim ? nameTrim : null,
-          email: emailTrim ? emailTrim.toLowerCase() : null,
         },
         { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
       );
-      if (emailTrim) persistClientEmailToStorage(emailTrim);
       setEditing(false);
       await loadMe();
     } catch (e) {
@@ -147,7 +141,6 @@ function ProfileScreen() {
             onClick={() => {
               if (editing) {
                 setEditName(me?.name || '');
-                setEditEmail(me?.email || '');
               }
               setEditing(!editing);
             }}
@@ -292,26 +285,6 @@ function ProfileScreen() {
             ) : (
               <p style={{ color: '#fff', fontSize: 16, margin: 0, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
                 {me?.name?.trim() || '—'}
-              </p>
-            )}
-          </div>
-
-          <div style={{ marginBottom: 18 }}>
-            <label style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, marginBottom: 6, display: 'block' }}>
-              Correo <span style={{ color: 'rgba(255,255,255,0.45)' }}>(opcional hasta el pago)</span>
-            </label>
-            {editing ? (
-              <input
-                className="maqgo-input"
-                type="email"
-                value={editEmail}
-                onChange={(e) => setEditEmail(e.target.value)}
-                placeholder="tu@correo.cl"
-                autoComplete="email"
-              />
-            ) : (
-              <p style={{ color: '#fff', fontSize: 16, margin: 0, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
-                {me?.email?.trim() || '—'}
               </p>
             )}
           </div>

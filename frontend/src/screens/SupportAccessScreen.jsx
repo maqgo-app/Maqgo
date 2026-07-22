@@ -1,9 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import MaqgoLogo from '../components/MaqgoLogo';
-import BACKEND_URL from '../utils/api';
-import { getHttpErrorMessage } from '../utils/httpErrors';
 
 function normalizePhone9(value) {
   return String(value || '').replace(/\D/g, '').slice(-9);
@@ -19,9 +16,6 @@ function SupportAccessScreen() {
   const requestedRole = String(params.get('role') || location.state?.requestedRole || '');
 
   const [phone9, setPhone9] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     const prefill =
@@ -46,37 +40,13 @@ function SupportAccessScreen() {
   })();
 
   const subtitle = (() => {
-    if (reason === 'inactive_user') return 'Tu cuenta está desactivada. Envíanos esta solicitud y lo revisamos.';
-    if (reason === 'phone_in_use') return 'Este número ya está registrado. Envíanos esta solicitud y te ayudamos a recuperar acceso.';
-    if (reason === 'otp_not_received') return 'Si el código no llega, revisamos tu caso y te ayudamos.';
-    if (reason === 'phone_blocked') return 'Detectamos un bloqueo de seguridad. Envíanos esta solicitud y lo revisamos.';
-    if (reason === 'temporary_lock') return 'Tu acceso está temporalmente bloqueado por seguridad. Envíanos esta solicitud y lo revisamos.';
-    return 'Cuéntanos el problema y te ayudamos a resolverlo.';
+    if (reason === 'inactive_user') return 'Tu acceso está desactivado o requiere revisión.';
+    if (reason === 'phone_in_use') return 'Este número ya está registrado.';
+    if (reason === 'otp_not_received') return 'Si el código no llega, revisa estos pasos.';
+    if (reason === 'phone_blocked') return 'Detectamos un bloqueo de seguridad.';
+    if (reason === 'temporary_lock') return 'Tu acceso está temporalmente bloqueado por seguridad.';
+    return 'Revisa estos pasos y vuelve a intentarlo.';
   })();
-
-  const submit = async () => {
-    setError('');
-    const p9 = normalizePhone9(phone9);
-    setLoading(true);
-    try {
-      const payload = {
-        reason,
-        ...(p9.length === 9 ? { phone9: p9 } : {}),
-        ...(requestedRole ? { requested_role: requestedRole } : {}),
-      };
-      await axios.post(`${BACKEND_URL}/api/support/tickets`, payload, { timeout: 12000 });
-      setSent(true);
-    } catch (e) {
-      setError(
-        getHttpErrorMessage(e, {
-          fallback: 'No pudimos enviar tu solicitud. Intenta nuevamente.',
-          statusMessages: { 429: 'Recibimos varias solicitudes. Espera un momento e intenta de nuevo.' },
-        })
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
@@ -87,60 +57,71 @@ function SupportAccessScreen() {
           {subtitle}
         </p>
 
-        {sent ? (
-          <>
-            <div
-              style={{
-                background: 'rgba(76, 175, 80, 0.10)',
-                border: '1px solid rgba(76, 175, 80, 0.35)',
-                borderRadius: 12,
-                padding: '14px 14px',
-                color: '#fff',
-                lineHeight: 1.45,
-                marginBottom: 16,
-                textAlign: 'center',
-              }}
-            >
-              Recibimos tu solicitud. Te ayudaremos a resolverlo lo antes posible.
-            </div>
-            <button
-              type="button"
-              className="maqgo-btn-primary"
-              onClick={() => navigate('/login', { replace: true })}
-              style={{ width: '100%' }}
-            >
-              Volver a iniciar sesión
-            </button>
-          </>
-        ) : (
-          <>
-            {error ? (
-              <p style={{ color: '#ff6b6b', fontSize: 13, textAlign: 'center', marginTop: 12, lineHeight: 1.45 }}>
-                {error}
-              </p>
+        <div
+          style={{
+            background: 'rgba(144, 189, 211, 0.10)',
+            border: '1px solid rgba(144, 189, 211, 0.25)',
+            borderRadius: 12,
+            padding: '14px 14px',
+            color: 'rgba(255,255,255,0.86)',
+            lineHeight: 1.45,
+            marginBottom: 16,
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>Qué puedes hacer ahora</div>
+          <div style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13 }}>
+            1) Verifica que tu celular esté bien escrito.
+            <br />
+            2) Revisa señal y modo avión.
+            <br />
+            3) Espera 1 minuto y reintenta.
+            {normalizePhone9(phone9).length === 9 ? (
+              <>
+                <br />
+                <span style={{ opacity: 0.85 }}>Celular: •••••{normalizePhone9(phone9).slice(-4)}</span>
+              </>
             ) : null}
+          </div>
+        </div>
 
-            <button
-              ref={buttonRef}
-              type="button"
-              className="maqgo-btn-primary"
-              disabled={loading}
-              onClick={submit}
-              style={{ width: '100%', marginTop: 14 }}
-            >
-              {loading ? 'Enviando…' : 'Solicitar revisión'}
-            </button>
+        <div
+          style={{
+            borderRadius: 12,
+            padding: '14px 14px',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            color: 'rgba(255,255,255,0.82)',
+            fontSize: 13,
+            lineHeight: 1.5,
+            textAlign: 'center',
+          }}
+        >
+          Si aún no puedes entrar, escríbenos a{' '}
+          <a href="mailto:soporte@maqgo.cl" style={{ color: '#90BDD3' }}>
+            soporte@maqgo.cl
+          </a>
+          .
+        </div>
 
-            <button
-              type="button"
-              className="maqgo-btn-secondary"
-              onClick={() => navigate('/login')}
-              style={{ width: '100%', marginTop: 10 }}
-            >
-              Volver
-            </button>
-          </>
-        )}
+        <button
+          ref={buttonRef}
+          type="button"
+          className="maqgo-btn-primary"
+          onClick={() => navigate('/login', { replace: true, state: { prefillPhoneDigits: phone9, requestedRole } })}
+          style={{ width: '100%', marginTop: 14 }}
+        >
+          Volver y reintentar
+        </button>
+
+        <button
+          type="button"
+          className="maqgo-btn-secondary"
+          onClick={() => navigate('/login')}
+          style={{ width: '100%', marginTop: 10 }}
+        >
+          Usar otro número
+        </button>
       </div>
     </div>
   );

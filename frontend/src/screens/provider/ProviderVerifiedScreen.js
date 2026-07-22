@@ -165,7 +165,7 @@ function ProviderVerifiedScreen({ setUserRole, setUserId }) {
             if (!cancelled) {
               setPhase('error');
               setErrorMsg(
-                'La activación de tu cuenta tardó demasiado (sin respuesta del servidor). Revisa tu conexión, recarga la página o inicia sesión con tu correo y contraseña.'
+                'La activación de tu cuenta tardó demasiado. Revisa tu conexión, recarga la página o vuelve a iniciar sesión para continuar.'
               );
             }
             return;
@@ -176,7 +176,7 @@ function ProviderVerifiedScreen({ setUserRole, setUserId }) {
         if (!ok || !hasPersistedSessionCredentials()) {
           setPhase('error');
           setErrorMsg(
-            'No pudimos activar tu sesión. Inicia sesión con tu correo y contraseña para continuar el registro.'
+            'No pudimos activar tu sesión. Vuelve a iniciar sesión para continuar el registro.'
           );
           return;
         }

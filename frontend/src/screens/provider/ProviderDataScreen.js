@@ -207,7 +207,7 @@ function ProviderDataScreen() {
     addressTrim;
   const missingFields = [];
   if (!businessNameTrim) missingFields.push('Nombre propietario o empresa');
-  if (!emailTrim || !isEmailValid) missingFields.push('Correo electrónico válido');
+  if (!emailTrim || !isEmailValid) missingFields.push('Correo de contacto válido');
   if (!form.rut || !validateRut(form.rut)) missingFields.push('RUT válido');
   if (!comunaTrim) missingFields.push('Comuna');
   if (!giroTrim) missingFields.push('Giro comercial');
@@ -263,11 +263,11 @@ function ProviderDataScreen() {
           />
 
           <label style={{ color: 'rgba(255,255,255,0.95)', fontSize: 14, marginBottom: 8, marginTop: 12, display: 'block' }}>
-            Correo electrónico <span style={{ color: '#EC6819' }}>*</span>
+            Correo de contacto <span style={{ color: '#EC6819' }}>*</span>
           </label>
           <input
             className="maqgo-input"
-            placeholder="tu@correo.cl"
+            placeholder="contacto@empresa.cl"
             type="email"
             value={form.email}
             onChange={e => update('email', e.target.value)}

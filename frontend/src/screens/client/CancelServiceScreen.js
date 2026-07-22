@@ -158,7 +158,11 @@ function CancelServiceScreen() {
                   Ya empezó
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                  El servicio ya está en curso. Si tienes un problema, contáctanos desde Ayuda y Soporte.
+                  El servicio ya está en curso. Si tienes un problema, escríbenos a{' '}
+                  <a href="mailto:soporte@maqgo.cl" style={{ color: '#90BDD3' }}>
+                    soporte@maqgo.cl
+                  </a>
+                  .
                 </p>
               </div>
             </div>

@@ -383,11 +383,9 @@ function WelcomeScreen() {
 
   <div className="welcome-legal-footer">
     <div className="welcome-legal-links" aria-label="Enlaces legales">
-        <Link className="welcome-legal-link" to="/terms">Términos</Link>
-      <span className="welcome-legal-sep" aria-hidden>|</span>
-        <Link className="welcome-legal-link" to="/privacy">Políticas</Link>
-      <span className="welcome-legal-sep" aria-hidden>|</span>
-      <Link className="welcome-legal-link" to="/faq">Ayuda y Soporte</Link>
+      <Link className="welcome-legal-link" to="/terms">Términos</Link>
+      <Link className="welcome-legal-link" to="/privacy">Privacidad</Link>
+      <Link className="welcome-legal-link" to="/faq">Preguntas frecuentes</Link>
     </div>
     <div className="welcome-legal-copy">© <strong>2026 MAQGO</strong>. <strong>Todos los derechos reservados</strong>.</div>
   </div>
@@ -422,27 +420,39 @@ function WelcomeScreen() {
       line-height: 1.25;
       letter-spacing: 0.01em;
       color: rgba(255,255,255,0.62);
-      gap: clamp(6px, 1vw, 10px);
+      gap: 0;
       max-width: 100%;
       padding: 0 12px;
     }
 
     .welcome-legal-link {
-      color: rgba(255,255,255,0.62);
+      position: relative;
+      padding: 10px 12px;
+      border-radius: 10px;
+      color: rgba(255,255,255,0.72);
       text-decoration: none;
-      transition: color 160ms ease;
+      transition: background 140ms ease, color 140ms ease;
     }
 
     .welcome-legal-link:hover {
-      color: rgba(255,255,255,0.78);
+      color: rgba(255,255,255,0.92);
+      background: rgba(255,255,255,0.06);
     }
 
-    .welcome-legal-sep {
-      color: rgba(255,255,255,0.38);
-      font-size: 12px;
-      line-height: 1;
-      padding: 0 2px;
-      user-select: none;
+    .welcome-legal-link:focus-visible {
+      outline: 2px solid rgba(144, 189, 211, 0.9);
+      outline-offset: 2px;
+    }
+
+    .welcome-legal-link + .welcome-legal-link::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 1px;
+      height: 14px;
+      background: rgba(255,255,255,0.18);
     }
 
     .welcome-legal-copy {
@@ -466,7 +476,6 @@ function WelcomeScreen() {
       .welcome-legal-links {
         flex-wrap: nowrap;
         white-space: nowrap;
-        gap: 6px;
         font-size: 10.5px;
       }
       .welcome-legal-copy {

@@ -19,21 +19,14 @@ function buildCelularNational(nineDigits) {
   return d;
 }
 
-function isValidEmailLoose(email) {
-  const s = String(email || '').trim();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-}
-
 function ForgotPasswordScreen() {
   const navigate = useNavigate();
   const location = useLocation();
-  const emailRef = useRef(null);
   const phoneInputRef = useRef(null);
   const otpRef = useRef(null);
   const requestCodeInFlightRef = useRef(false);
 
   const [step, setStep] = useState(1);
-  const [email, setEmail] = useState('');
   const [phoneLocalDigits, setPhoneLocalDigits] = useState('');
   const [maskedPhone, setMaskedPhone] = useState('');
   const [code, setCode] = useState('');
@@ -45,9 +38,7 @@ function ForgotPasswordScreen() {
   const [didSubmit, setDidSubmit] = useState(false);
 
   useEffect(() => {
-    const prefillEmail = String(location.state?.prefillEmail || '').trim();
     const prefillPhone = String(location.state?.prefillPhoneDigits || '').replace(/\D/g, '').slice(-9);
-    if (prefillEmail) setEmail(prefillEmail);
     if (prefillPhone) setPhoneLocalDigits(prefillPhone);
   }, [location.state]);
 
@@ -63,7 +54,7 @@ function ForgotPasswordScreen() {
 
   useEffect(() => {
     if (step === 1) {
-      setTimeout(() => emailRef.current?.focus(), 0);
+      setTimeout(() => phoneInputRef.current?.focus?.(), 0);
     } else {
       setTimeout(() => otpRef.current?.focus(), 0);
     }
@@ -90,30 +81,19 @@ function ForgotPasswordScreen() {
   const requestCode = async () => {
     if (requestCodeInFlightRef.current) return;
     setDidSubmit(true);
-    const em = email.trim();
     const cel = buildCelularNational(phoneLocalDigits);
-    if (em && !isValidEmailLoose(em)) {
-      setError('Revisa el formato del correo.');
+    if (!cel) {
+      setError('Ingresa tu celular para continuar.');
       setMessage('');
-      setTimeout(() => emailRef.current?.focus(), 0);
+      setTimeout(() => phoneInputRef.current?.focus?.(), 0);
       return;
     }
-    if (!em && !cel) {
-      setError('Ingresa tu correo o tu celular para continuar.');
-      setMessage('');
-      setTimeout(() => (phoneInputRef.current?.focus ? phoneInputRef.current.focus() : emailRef.current?.focus()), 0);
-      return;
-    }
-    if (!em && !cel) return;
     requestCodeInFlightRef.current = true;
     setLoading(true);
     setError('');
     setMessage('');
     try {
-      const payload =
-        em && cel
-          ? { email: em.toLowerCase(), celular: cel }
-          : { identifier: em ? em.toLowerCase() : `+56${cel}` };
+      const payload = { identifier: `+56${cel}` };
       const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/request`, payload);
       const ok = res.data?.success !== false && res.data?.requires_channel_selection !== true;
       if (ok) {
@@ -132,15 +112,15 @@ function ForgotPasswordScreen() {
       const status = e.response?.status;
       setMessage('');
       if (status === 404) {
-        setError('No encontramos una cuenta con esos datos. Revisa correo y celular.');
+        setError('No encontramos una cuenta con ese número. Revisa tu celular.');
       } else {
-      setError(
-        getHttpErrorMessage(e, {
-          fallback: 'No pudimos enviarte el código. Intenta nuevamente.',
-        })
-      );
+        setError(
+          getHttpErrorMessage(e, {
+            fallback: 'No pudimos enviarte el código. Intenta nuevamente.',
+          })
+        );
       }
-      setTimeout(() => emailRef.current?.focus(), 0);
+      setTimeout(() => phoneInputRef.current?.focus?.(), 0);
     } finally {
       requestCodeInFlightRef.current = false;
       setLoading(false);
@@ -149,24 +129,16 @@ function ForgotPasswordScreen() {
 
   const resendCode = async () => {
     setDidSubmit(true);
-    const em = email.trim();
     const cel = buildCelularNational(phoneLocalDigits);
-    if (em && !isValidEmailLoose(em)) {
-      setError('Vuelve al paso anterior y revisa el correo.');
-      return;
-    }
-    if (!em && !cel) {
-      setError('Vuelve al paso anterior y completa correo o celular.');
+    if (!cel) {
+      setError('Vuelve al paso anterior y completa tu celular.');
       return;
     }
     setLoading(true);
     setError('');
     setMessage('');
     try {
-      const payload =
-        em && cel
-          ? { email: em.toLowerCase(), celular: cel }
-          : { identifier: em ? em.toLowerCase() : `+56${cel}` };
+      const payload = { identifier: `+56${cel}` };
       const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/request`, payload);
       if (res.data?.success === false) {
         setError(String(res.data?.message || '').trim() || 'No pudimos reenviar el código.');
@@ -214,15 +186,9 @@ function ForgotPasswordScreen() {
       setMessage('');
       return;
     }
-    const em = email.trim().toLowerCase();
     const cel = buildCelularNational(phoneLocalDigits);
-    if (em && !isValidEmailLoose(em)) {
-      setError('Revisa el formato del correo.');
-      setMessage('');
-      return;
-    }
-    if (!em && !cel) {
-      setError('Vuelve al paso anterior y completa correo o celular.');
+    if (!cel) {
+      setError('Vuelve al paso anterior y completa tu celular.');
       setMessage('');
       return;
     }
@@ -230,10 +196,7 @@ function ForgotPasswordScreen() {
     setError('');
     setMessage('');
     try {
-      const payload =
-        em && cel
-          ? { email: em, celular: cel, code: digits, new_password: newPassword }
-          : { identifier: em ? em : `+56${cel}`, code: digits, new_password: newPassword };
+      const payload = { identifier: `+56${cel}`, code: digits, new_password: newPassword };
       const res = await axios.post(`${BACKEND_URL}/api/auth/password-reset/confirm`, payload);
       setMessage(res.data?.message || 'Contraseña actualizada correctamente');
       setTimeout(() => {
@@ -325,26 +288,11 @@ function ForgotPasswordScreen() {
             </div>
             <h2 style={headingStyle}>Restablecer contraseña</h2>
             <p style={subStyle}>
-              Ingresa tu correo o celular registrado. Te enviaremos un código para continuar.
+              Ingresa tu celular. Te enviaremos un código para continuar.
             </p>
 
-            <label htmlFor="forgot-email" style={{ ...sectionTitle, display: 'block' }}>
-              Correo (opcional)
-            </label>
-            <input
-              id="forgot-email"
-              className="maqgo-input"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="nombre@correo.cl"
-              autoComplete="email"
-              data-testid="forgot-email"
-              ref={emailRef}
-            />
-
             <label htmlFor="forgot-phone-local" style={{ ...sectionTitle, display: 'block', marginTop: 14 }}>
-              Celular (opcional)
+              Celular
             </label>
             <PhoneNationalInput
               id="forgot-phone-local"
@@ -454,10 +402,7 @@ function ForgotPasswordScreen() {
             type="button"
             className="maqgo-btn-primary"
             onClick={requestCode}
-            disabled={
-              loading ||
-              (email.trim() ? !isValidEmailLoose(email.trim()) : buildCelularNational(phoneLocalDigits).length !== 9)
-            }
+            disabled={loading || buildCelularNational(phoneLocalDigits).length !== 9}
             style={{ width: '100%' }}
             data-testid="forgot-request-code"
           >

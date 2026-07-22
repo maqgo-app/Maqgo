@@ -428,7 +428,11 @@ function HistoryScreen() {
             textAlign: 'center',
             lineHeight: 1.4
           }}>
-            ¿Necesitas ayuda? Entra a Soporte desde la app.
+            ¿Necesitas ayuda? Escríbenos a{' '}
+            <a href="mailto:soporte@maqgo.cl" style={{ color: '#90BDD3' }}>
+              soporte@maqgo.cl
+            </a>
+            .
           </p>
         </div>
 
