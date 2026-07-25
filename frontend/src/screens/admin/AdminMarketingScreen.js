@@ -81,12 +81,13 @@ function AdminMarketingScreen() {
   const importSeqRef = useRef(0);
 
   const goDashboardArea = (area) => {
-    try {
-      localStorage.setItem('maqgo_admin_area', area);
-    } catch {
-      void 0;
-    }
-    navigate('/admin/legacy/dashboard');
+    const routeByArea = {
+      today: '/admin/reservas',
+      system: '/admin/matching',
+      platform: '/admin/clientes',
+      money: '/admin/pagos',
+    };
+    navigate(routeByArea[area] || '/admin');
   };
 
   const weekEffective = useMemo(() => mondayISOFromCalendarDate(weekInput), [weekInput]);

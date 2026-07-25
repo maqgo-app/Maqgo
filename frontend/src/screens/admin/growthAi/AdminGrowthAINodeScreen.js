@@ -230,6 +230,8 @@ export default function AdminGrowthAINodeScreen() {
   const risks = useMemo(() => (Array.isArray(data?.risks) ? data.risks : []), [data]);
   const readyByMachine = useMemo(() => (Array.isArray(data?.node?.ready_by_machine) ? data.node.ready_by_machine : []), [data]);
   const minSupplyPerMachine = useMemo(() => Number(data?.node?.min_supply_per_machine || 0) || 0, [data]);
+  const nodeTitle = node?.name || node?.comuna || 'Nodo';
+  const nodePlace = node?.region || node?.comuna ? `${node?.region ? `${node.region} · ` : ''}${node?.comuna || ''}` : '';
 
   const listMachineKeys = useMemo(() => {
     return readyByMachine
@@ -313,22 +315,52 @@ export default function AdminGrowthAINodeScreen() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <button
-          type="button"
-          className="maqgo-btn-secondary"
-          style={{ padding: '10px 12px', borderRadius: 12 }}
-          onClick={() => navigate('/admin/growth-ai')}
-        >
-          Volver
-        </button>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="maqgo-btn-secondary"
+            style={{ padding: '10px 12px', borderRadius: 12 }}
+            onClick={() => navigate('/admin/growth-ai/comunas')}
+          >
+            Volver a comunas
+          </button>
+          <button
+            type="button"
+            className="maqgo-btn-secondary"
+            style={{ padding: '10px 12px', borderRadius: 12 }}
+            onClick={() => navigate('/admin/growth-ai/discovery')}
+          >
+            Abrir radar
+          </button>
+        </div>
         <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 12, fontWeight: 800 }}>
           {nodeId}
         </div>
       </div>
 
+      <div
+        style={{
+          border: `1px solid ${THEME.border}`,
+          background: 'linear-gradient(135deg, rgba(236,104,25,0.10), rgba(15,23,42,0.96) 42%, rgba(143,179,201,0.08))',
+          borderRadius: 18,
+          padding: 18,
+          boxShadow: '0 20px 40px rgba(0,0,0,0.18)',
+        }}
+      >
+        <div style={{ fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: 'rgba(255,255,255,0.56)', fontWeight: 900 }}>
+          Nodo comercial
+        </div>
+        <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>{nodeTitle}</div>
+        <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.74)', lineHeight: 1.5 }}>
+          {loading
+            ? 'Growth AI esta cargando la lectura comercial de este nodo.'
+            : `Aqui se decide como captar oferta, abrir demanda y proteger la apertura de ${nodeTitle}${nodePlace ? ` en ${nodePlace}` : ''}.`}
+        </div>
+      </div>
+
       <Section
         theme={THEME}
-        title={node?.name || node?.comuna || 'Nodo'}
+        title={nodeTitle}
         right={<Pill label={node?.traffic_light || '—'} tone={node?.traffic_tone || 'neutral'} />}
       >
         {loading ? (
@@ -338,9 +370,9 @@ export default function AdminGrowthAINodeScreen() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              {node?.region || node?.comuna ? (
+              {nodePlace ? (
                 <div style={{ marginBottom: 10, color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>
-                  {(node?.region ? `${node.region} · ` : '') + (node?.comuna || '')}
+                  {nodePlace}
                 </div>
               ) : null}
               <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>Estado</div>
@@ -350,15 +382,15 @@ export default function AdminGrowthAINodeScreen() {
                   ZOC
                 </summary>
                 <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,0.78)', lineHeight: 1.35 }}>
-                  {node?.zoc_summary || 'Sin ZOC definida'}
+                  {node?.zoc_summary || 'Sin zona operativa comercial definida'}
                 </div>
               </details>
             </div>
             <div>
-              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>Decisión</div>
+              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>Decision comercial</div>
               <details style={{ marginTop: 8 }}>
                 <summary style={{ cursor: 'pointer', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900 }}>
-                  Cambiar
+                  Gestionar estado
                 </summary>
                 <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                   <button
@@ -366,7 +398,7 @@ export default function AdminGrowthAINodeScreen() {
                     className="maqgo-btn-secondary"
                     style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
                     disabled={posting}
-                    onClick={() => setReasonModal({ kind: 'pilot', title: 'Habilitar piloto', label: 'Registrar piloto' })}
+                    onClick={() => setReasonModal({ kind: 'pilot', title: 'Habilitar piloto comercial', label: 'Registrar piloto' })}
                   >
                     Piloto
                   </button>
@@ -375,9 +407,9 @@ export default function AdminGrowthAINodeScreen() {
                     className="maqgo-btn-secondary"
                     style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
                     disabled={posting}
-                    onClick={() => setReasonModal({ kind: 'launch', title: 'Lanzar', label: 'Registrar lanzamiento' })}
+                    onClick={() => setReasonModal({ kind: 'launch', title: 'Abrir mercado', label: 'Registrar apertura' })}
                   >
-                    Lanzar
+                    Abrir mercado
                   </button>
                   <button
                     type="button"
@@ -390,7 +422,7 @@ export default function AdminGrowthAINodeScreen() {
                   </button>
                 </div>
                 <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.35 }}>
-                  Queda en auditoría.
+                  Cada decision queda auditada y alimenta el aprendizaje de Growth AI.
                 </div>
               </details>
             </div>
@@ -400,10 +432,10 @@ export default function AdminGrowthAINodeScreen() {
 
       <Section
         theme={THEME}
-        title="GO LIVE por maquinaria"
+        title="Apertura por maquinaria"
         right={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {minSupplyPerMachine ? <Pill label={`Mínimo ${minSupplyPerMachine}`} tone="neutral" /> : null}
+            {minSupplyPerMachine ? <Pill label={`Minimo ${minSupplyPerMachine}`} tone="neutral" /> : null}
             <Pill label={`LISTA ${listMachineKeys.length}`} tone={listMachineKeys.length ? 'amber' : 'neutral'} />
             <Pill label={`LIVE ${liveMachineCount}`} tone={liveMachineCount ? 'green' : 'neutral'} />
           </div>
@@ -413,19 +445,19 @@ export default function AdminGrowthAINodeScreen() {
           <ListSkeleton rows={4} />
         ) : readyByMachine.length === 0 ? (
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
-            Aún no hay maquinarias listas para GO LIVE en esta comuna.
+            Aun no hay maquinarias listas para abrir demanda en esta comuna.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {listMachineKeys.length ? (
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>Aprobar en bloque para abrir demanda controlada.</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>Aprobar en bloque para abrir demanda controlada con oferta suficiente.</div>
                 <button
                   type="button"
                   className="maqgo-btn-primary"
                   style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 900 }}
                   disabled={posting}
-                  onClick={() => setBulkModal({ title: 'Aprobar GO LIVE (bulk)', machineKeys: listMachineKeys })}
+                  onClick={() => setBulkModal({ title: 'Aprobar apertura por maquinaria', machineKeys: listMachineKeys })}
                 >
                   Aprobar LISTAS ({listMachineKeys.length})
                 </button>
@@ -451,7 +483,7 @@ export default function AdminGrowthAINodeScreen() {
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div style={{ fontSize: 13, fontWeight: 900 }}>{machineKey}</div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>{units} activa(s) detectada(s)</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>{units} unidad(es) de oferta activa detectada(s)</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <Pill label={isLive ? 'LIVE' : 'LISTA'} tone={isLive ? 'green' : 'amber'} />
@@ -465,12 +497,12 @@ export default function AdminGrowthAINodeScreen() {
                           setReasonModal({
                             kind: 'go_live_off',
                             machineKey,
-                            title: `Remover GO LIVE: ${machineKey}`,
-                            label: 'Remover',
+                            title: `Cerrar apertura: ${machineKey}`,
+                            label: 'Cerrar apertura',
                           })
                         }
                       >
-                        Remover
+                        Cerrar
                       </button>
                     ) : (
                       <button
@@ -482,12 +514,12 @@ export default function AdminGrowthAINodeScreen() {
                           setReasonModal({
                             kind: 'go_live_on',
                             machineKey,
-                            title: `Aprobar GO LIVE: ${machineKey}`,
-                            label: 'Aprobar',
+                            title: `Aprobar apertura: ${machineKey}`,
+                            label: 'Aprobar apertura',
                           })
                         }
                       >
-                        Aprobar
+                        Abrir
                       </button>
                     )}
                   </div>
@@ -499,7 +531,7 @@ export default function AdminGrowthAINodeScreen() {
                 ¿Qué significa LISTA/LIVE?
               </summary>
               <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.35 }}>
-                LISTA = cumple el mínimo de oferta activa detectada. LIVE = aprobado por Admin para abrir demanda y mostrar al cliente.
+                LISTA = cumple el minimo de oferta activa detectada. LIVE = aprobado para abrir demanda y mostrarse al cliente con seguridad.
               </div>
             </details>
           </div>

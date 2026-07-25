@@ -73,12 +73,13 @@ function AdminUsersScreen() {
   }, [location.search]);
 
   const goDashboardArea = (area) => {
-    try {
-      localStorage.setItem('maqgo_admin_area', area);
-    } catch {
-      void 0;
-    }
-    navigate('/admin/legacy/dashboard');
+    const routeByArea = {
+      today: '/admin/reservas',
+      system: '/admin/matching',
+      platform: '/admin/clientes',
+      money: '/admin/pagos',
+    };
+    navigate(routeByArea[area] || '/admin');
   };
 
   async function fetchUsers() {

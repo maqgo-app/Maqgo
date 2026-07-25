@@ -136,12 +136,12 @@ export default function AdminGrowthAIComunasScreen() {
       try {
         const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/nodes/${encodeURIComponent(nodeId)}/drawer`, { method: 'GET' }, 15000);
         const payload = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(payload?.detail || `No se pudo cargar drawer (${res.status})`);
+        if (!res.ok) throw new Error(payload?.detail || `No se pudo cargar el detalle comercial (${res.status})`);
         if (!mounted) return;
         setDrawerData(payload);
       } catch (e) {
         if (!mounted) return;
-        setDrawerData({ error: friendlyFetchError(e, 'No se pudo cargar auditoría/leads.') });
+        setDrawerData({ error: friendlyFetchError(e, 'No se pudo cargar el detalle comercial.') });
       } finally {
         if (mounted) setDrawerLoading(false);
       }
