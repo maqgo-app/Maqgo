@@ -229,10 +229,11 @@ async def growth_ai_start(payload: GrowthStartPayload, _: dict = Depends(get_cur
     autopilot["discovery_enabled"] = True
     autopilot["outreach_enabled"] = bool(payload.include_outreach)
     autopilot["outreach_supply_enabled"] = True
-    autopilot["outreach_demand_enabled"] = False
+    autopilot["outreach_demand_enabled"] = True
     autopilot["auto_execute"] = False
     autopilot["auto_execute_providers"] = bool(payload.auto_execute_providers)
-    autopilot["auto_execute_clients"] = False
+    autopilot["auto_execute_clients"] = bool(payload.auto_execute_clients)
+    autopilot["require_go_live_approval_for_demand"] = False
 
     await db.config.update_one(
         {"_id": "growth_ai_config"},
@@ -247,7 +248,7 @@ async def growth_ai_start(payload: GrowthStartPayload, _: dict = Depends(get_cur
     autopilot_res = await _autopilot_tick(db)
     await _audit(
         "Growth start",
-        f"sources={sources_count} created={res.get('items_created')} supply_outreach={True} demand_outreach={False} auto_execute_providers={bool(payload.auto_execute_providers)}",
+        f"sources={sources_count} created={res.get('items_created')} supply_outreach={True} demand_outreach={True} auto_go_live={True} auto_execute_providers={bool(payload.auto_execute_providers)} auto_execute_clients={bool(payload.auto_execute_clients)}",
         event_type="start",
     )
     return {"ok": True, "sources": sources_count, "discovery": res, "autopilot": autopilot_res}
@@ -352,6 +353,51 @@ def _pick(obj: dict, keys: list[str]) -> dict:
     return out
 
 
+async def _autopilot_runtime_flags() -> dict[str, bool]:
+    conf = await db.config.find_one({"_id": "growth_ai_config"}, {"_id": 0, "config.autopilot": 1})
+    cfg = (conf or {}).get("config") if isinstance(conf, dict) else {}
+    autopilot = cfg.get("autopilot") if isinstance(cfg.get("autopilot"), dict) else {}
+    return {
+        "enabled": bool(autopilot.get("enabled", False)),
+        "outreach_demand_enabled": bool(autopilot.get("outreach_demand_enabled", False)),
+        "require_go_live_approval_for_demand": bool(autopilot.get("require_go_live_approval_for_demand", True)),
+    }
+
+
+def _effective_go_live_state(
+    *,
+    open_machines: dict,
+    live_machines: dict,
+    auto_go_live: bool,
+) -> tuple[list[str], list[str], list[str]]:
+    ready_keys = [str(k) for k in open_machines.keys()]
+    if auto_go_live:
+        effective_live_keys = ready_keys[:]
+        ready_not_live_all: list[str] = []
+    else:
+        effective_live_keys = [str(k) for k in live_machines.keys() if bool(live_machines.get(k))]
+        ready_not_live_all = [k for k in ready_keys if not bool(live_machines.get(k))]
+    return ready_keys, effective_live_keys, ready_not_live_all
+
+
+def _effective_pipeline_stage(node: dict, *, live_total: int, ready_total: int) -> str:
+    explicit_stage = str(node.get("pipeline_stage") or "").strip().lower()
+    status = str(node.get("status") or "").strip().lower()
+    if explicit_stage == "pausada" or status == "paused":
+        return "pausada"
+    if live_total > 0:
+        return "abierta"
+    if ready_total > 0:
+        return "por_abrir"
+    if explicit_stage in {"captando", "por_abrir", "abierta", "pausada"}:
+        return explicit_stage
+    if status == "launched":
+        return "abierta"
+    if status == "pilot":
+        return "por_abrir"
+    return "captando"
+
+
 async def _audit(title: str, detail: str, *, node_id: Optional[str] = None, severity: str = "INFO", event_type: str = "event") -> str:
     _id = str(uuid4())
     await db.growth_audit.insert_one(
@@ -396,6 +442,7 @@ class NodeGoLiveMachine(BaseModel):
 class GrowthStartPayload(BaseModel):
     include_outreach: bool = Field(default=True)
     auto_execute_providers: bool = Field(default=True)
+    auto_execute_clients: bool = Field(default=True)
 
 
 class SmsTestPayload(BaseModel):
@@ -552,19 +599,6 @@ async def overview(_: dict = Depends(get_current_admin_strict)):
             "node_id": top_action_doc.get("node_id") or "",
         }
 
-    def _pipeline_stage(n: dict) -> str:
-        st = str(n.get("pipeline_stage") or "").strip().lower()
-        if st in {"captando", "por_abrir", "abierta", "pausada"}:
-            return st
-        status = str(n.get("status") or "").strip().lower()
-        if status == "launched":
-            return "abierta"
-        if status == "pilot":
-            return "por_abrir"
-        if status == "paused":
-            return "pausada"
-        return "captando"
-
     def _comuna_signal(stage: str, live_total: int, ready_total: int, ready_not_live: int) -> dict:
         st = str(stage or "").strip().lower()
         if st == "pausada":
@@ -582,14 +616,16 @@ async def overview(_: dict = Depends(get_current_admin_strict)):
     for n in nodes:
         open_machines = n.get("open_machines") if isinstance(n.get("open_machines"), dict) else {}
         live_machines = n.get("live_machines") if isinstance(n.get("live_machines"), dict) else {}
-        ready_keys = [str(k) for k in open_machines.keys()]
-        live_keys = [str(k) for k in live_machines.keys() if bool(live_machines.get(k))]
-        ready_not_live_all = [k for k in ready_keys if not bool(live_machines.get(k))]
+        ready_keys, live_keys, ready_not_live_all = _effective_go_live_state(
+            open_machines=open_machines,
+            live_machines=live_machines,
+            auto_go_live=auto_go_live,
+        )
         ready_not_live_preview = ready_not_live_all[:6]
         total_ready_machines += len(ready_keys)
         total_live_machines += len(live_keys)
         total_ready_not_live += len(ready_not_live_all)
-        stage = _pipeline_stage(n)
+        stage = _effective_pipeline_stage(n, live_total=len(live_keys), ready_total=len(ready_keys))
         signal = _comuna_signal(stage, len(live_keys), len(ready_keys), len(ready_not_live_all))
         pipeline_items.append(
             {
@@ -625,7 +661,7 @@ async def overview(_: dict = Depends(get_current_admin_strict)):
         gl_reason = f"{total_live_machines} maquinaria(s) en LIVE"
     elif total_ready_machines > 0:
         gl_status, gl_tone = "Atención", "amber"
-        gl_reason = f"{total_ready_not_live} maquinaria(s) LISTA(s) sin aprobar"
+        gl_reason = "Oferta lista, pero el autopiloto aun no habilita demanda"
     else:
         gl_status, gl_tone = "Off", "red"
         gl_reason = "Sin oferta lista para GO LIVE"
@@ -673,6 +709,12 @@ async def overview(_: dict = Depends(get_current_admin_strict)):
 @router.get("/comunas")
 async def list_comunas(_: dict = Depends(get_current_admin_strict)):
     await _bootstrap_nodes_if_empty()
+    runtime_flags = await _autopilot_runtime_flags()
+    auto_go_live = bool(
+        runtime_flags.get("enabled")
+        and runtime_flags.get("outreach_demand_enabled")
+        and not runtime_flags.get("require_go_live_approval_for_demand")
+    )
     nodes = await db.growth_nodes.find({}, {"_id": 0}).sort("sequence", 1).to_list(length=500)
     items = []
 
@@ -687,23 +729,15 @@ async def list_comunas(_: dict = Depends(get_current_admin_strict)):
         return {"label": "Captando", "tone": "neutral", "key": "captando"}
 
     for n in nodes:
-        status = str(n.get("status") or "").strip().lower()
-        stage = str(n.get("pipeline_stage") or "").strip().lower()
-        if stage not in {"captando", "por_abrir", "abierta", "pausada"}:
-            if status == "launched":
-                stage = "abierta"
-            elif status == "pilot":
-                stage = "por_abrir"
-            elif status == "paused":
-                stage = "pausada"
-            else:
-                stage = "captando"
         open_machines = n.get("open_machines") if isinstance(n.get("open_machines"), dict) else {}
         live_machines = n.get("live_machines") if isinstance(n.get("live_machines"), dict) else {}
-        ready_keys = [str(k) for k in open_machines.keys()]
-        ready_not_live_all = [k for k in ready_keys if not bool(live_machines.get(k))]
+        ready_keys, live_keys, ready_not_live_all = _effective_go_live_state(
+            open_machines=open_machines,
+            live_machines=live_machines,
+            auto_go_live=auto_go_live,
+        )
         ready_not_live_preview = ready_not_live_all[:6]
-        live_keys = [str(k) for k in live_machines.keys() if bool(live_machines.get(k))]
+        stage = _effective_pipeline_stage(n, live_total=len(live_keys), ready_total=len(ready_keys))
         signal = _comuna_signal(stage, len(live_keys), len(ready_keys), len(ready_not_live_all))
         items.append(
             {
@@ -837,6 +871,12 @@ async def node_detail(node_id: str, _: dict = Depends(get_current_admin_strict))
     node = await db.growth_nodes.find_one({"id": node_id}, {"_id": 0})
     if not node:
         raise HTTPException(status_code=404, detail="Nodo no encontrado")
+    runtime_flags = await _autopilot_runtime_flags()
+    auto_go_live = bool(
+        runtime_flags.get("enabled")
+        and runtime_flags.get("outreach_demand_enabled")
+        and not runtime_flags.get("require_go_live_approval_for_demand")
+    )
 
     risks = (
         await db.growth_audit.find({"node_id": node_id, "severity": "P0"}, {"_id": 0})
@@ -868,6 +908,12 @@ async def node_detail(node_id: str, _: dict = Depends(get_current_admin_strict))
 
     open_machines = node.get("open_machines") if isinstance(node.get("open_machines"), dict) else {}
     live_machines = node.get("live_machines") if isinstance(node.get("live_machines"), dict) else {}
+    _, effective_live_keys, _ = _effective_go_live_state(
+        open_machines=open_machines,
+        live_machines=live_machines,
+        auto_go_live=auto_go_live,
+    )
+    effective_live_map = {k: True for k in effective_live_keys}
     ready_by_machine = []
     for k, n in open_machines.items():
         try:
@@ -875,7 +921,7 @@ async def node_detail(node_id: str, _: dict = Depends(get_current_admin_strict))
         except Exception:
             nn = 0
         kk = str(k)
-        ready_by_machine.append({"machine_key": kk, "units": nn, "is_live": bool(live_machines.get(kk))})
+        ready_by_machine.append({"machine_key": kk, "units": nn, "is_live": bool(effective_live_map.get(kk))})
     ready_by_machine.sort(key=lambda x: (-int(x.get("units") or 0), str(x.get("machine_key") or "")))
 
     return {
@@ -890,7 +936,7 @@ async def node_detail(node_id: str, _: dict = Depends(get_current_admin_strict))
             "zoc_summary": node.get("zoc_summary") or "",
             "min_supply_per_machine": int(node.get("min_supply_per_machine") or 0) or 0,
             "open_machines": open_machines,
-            "live_machines": live_machines,
+            "live_machines": effective_live_map,
             "ready_by_machine": ready_by_machine,
         },
         "gaps": gaps,

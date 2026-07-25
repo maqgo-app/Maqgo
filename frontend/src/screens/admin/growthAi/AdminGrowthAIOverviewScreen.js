@@ -228,7 +228,7 @@ export default function AdminGrowthAIOverviewScreen() {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ include_outreach: true, auto_execute_providers: true }),
+          body: JSON.stringify({ include_outreach: true, auto_execute_providers: true, auto_execute_clients: true }),
         },
         30000
       );
@@ -391,7 +391,7 @@ export default function AdminGrowthAIOverviewScreen() {
           <Card
             theme={THEME}
             title="Motor comercial"
-            subtitle="Activa o detiene el radar comercial y el outreach sin salir de la vista ejecutiva."
+            subtitle="Activa o detiene el autopiloto comercial sin salir de la vista ejecutiva."
             right={runtime?.autopilot ? <Pill theme={THEME} label={runtime.autopilot.enabled ? 'Motor automatico activo' : 'Motor automatico detenido'} tone={runtime.autopilot.enabled ? 'green' : 'neutral'} /> : null}
           >
             {runtimeLoading ? (
@@ -402,8 +402,8 @@ export default function AdminGrowthAIOverviewScreen() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.4 }}>
                   {runtime?.autopilot?.enabled
-                    ? 'Growth AI está autorizado para descubrir y preparar expansión sobre la configuración vigente.'
-                    : 'Growth AI está detenido. Puedes activarlo para poblar el radar comercial y disparar el primer ciclo de expansión.'}
+                    ? 'Growth AI esta autorizado para descubrir, captar oferta y abrir mercado automaticamente solo cuando cada comuna cumpla el minimo de oferta exigido.'
+                    : 'Growth AI esta detenido. Al activarlo enciendes el autopiloto comercial; la apertura no se libera de forma ciega, solo cuando se cumple el minimo de oferta por comuna.'}
                 </div>
                 <div className="maqgo-admin-chip-row">
                   <Pill theme={THEME} label={`Intervalo ${runtime?.scheduler?.interval_sec ?? '—'}s`} tone="neutral" />
@@ -415,6 +415,11 @@ export default function AdminGrowthAIOverviewScreen() {
                     <Pill theme={THEME} label={`Hoy ${runtime?.daily?.total_created ?? 0}/${runtime?.daily?.limits?.total ?? '—'}`} tone="neutral" />
                     <Pill theme={THEME} label={`Oferta ${runtime?.daily?.supply_created ?? 0}/${runtime?.daily?.limits?.supply ?? '—'}`} tone="neutral" />
                     <Pill theme={THEME} label={`Demanda ${runtime?.daily?.demand_created ?? 0}/${runtime?.daily?.limits?.demand ?? '—'}`} tone="neutral" />
+                  <Pill
+                    theme={THEME}
+                    label={runtime?.autopilot?.require_go_live_approval_for_demand ? 'GO LIVE manual' : 'GO LIVE automatico'}
+                    tone={runtime?.autopilot?.require_go_live_approval_for_demand ? 'amber' : 'green'}
+                  />
                   </div>
                 ) : null}
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -425,7 +430,7 @@ export default function AdminGrowthAIOverviewScreen() {
                     disabled={starting}
                     onClick={startSearch}
                   >
-                    {starting ? 'Activando…' : 'Activar motor'}
+                    {starting ? 'Activando…' : 'Activar autopiloto'}
                   </button>
                   <button
                     type="button"
@@ -574,14 +579,17 @@ export default function AdminGrowthAIOverviewScreen() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
           <Card
             theme={THEME}
-            title="Apertura semanal"
-            subtitle="Senal de apertura comercial y readiness de oferta."
+            title="Estado de apertura comercial"
+            subtitle="Apertura automatica gobernada por oferta suficiente y reglas MAQGO."
             right={goLive ? <Pill theme={THEME} label={`GO LIVE ${goLive.status || '—'}`} tone={goLive.tone || 'neutral'} /> : null}
           >
             {loading ? (
               <ListSkeleton rows={2} />
             ) : goLive ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>
+                  GO LIVE significa abrir mercado en una comuna o maquinaria solo cuando ya existe oferta suficiente para operar bien.
+                </div>
                 {goLive.reason ? <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>{goLive.reason}</div> : null}
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <Pill theme={THEME} label={`LIVE ${goLive.live_machines ?? 0}`} tone={goLive.live_machines > 0 ? 'green' : 'neutral'} />
@@ -695,7 +703,7 @@ export default function AdminGrowthAIOverviewScreen() {
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>
-                El foco actual esta en oferta. Clientes permanecen bloqueados hasta que cada comuna tenga oferta suficiente para abrir mercado.
+                El foco arranca en oferta, pero la demanda ya no depende de aprobaciones manuales: se activa sola por comuna cuando la maquinaria cumple el minimo de oferta.
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <Pill theme={THEME} label="Región RM" tone="neutral" />
