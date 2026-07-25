@@ -29,7 +29,7 @@ export function AdminSurface({ title, subtitle, right, children }) {
   );
 }
 
-export function AdminStatChip({ label, value, tone = 'neutral' }) {
+export function AdminStatChip({ label, value, tone = 'neutral', to }) {
   const theme = ADMIN_SHELL_THEME;
   const tones = {
     neutral: {
@@ -54,7 +54,7 @@ export function AdminStatChip({ label, value, tone = 'neutral' }) {
     },
   };
   const style = tones[tone] || tones.neutral;
-  return (
+  const content = (
     <div
       style={{
         borderRadius: 14,
@@ -69,6 +69,12 @@ export function AdminStatChip({ label, value, tone = 'neutral' }) {
       </div>
       <div style={{ marginTop: 8, fontSize: 20, fontWeight: 900, letterSpacing: '-0.02em', color: style.color }}>{value}</div>
     </div>
+  );
+  if (!to) return content;
+  return (
+    <Link to={to} style={{ textDecoration: 'none' }}>
+      {content}
+    </Link>
   );
 }
 

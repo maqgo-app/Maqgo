@@ -1,18 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AdminActionLink, AdminDomainCard, AdminStatChip, AdminSurface } from './AdminShellBlocks.jsx';
 import { fetchAdminMatchingHistory } from './adminDomainData';
-
-function toDateInputValue(date) {
-  const safe = date instanceof Date ? date : new Date();
-  return `${safe.getFullYear()}-${String(safe.getMonth() + 1).padStart(2, '0')}-${String(safe.getDate()).padStart(2, '0')}`;
-}
-
-function defaultRange(days = 30) {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(end.getDate() - days);
-  return { fromDate: toDateInputValue(start), toDate: toDateInputValue(end) };
-}
+import { ADMIN_RANGE_PRESETS, buildRecentRange, persistAdminRange, readAdminRange } from './adminTimeContext';
 
 const INPUT_STYLE = {
   background: 'rgba(255,255,255,0.04)',
@@ -25,11 +15,24 @@ const INPUT_STYLE = {
 };
 
 export default function AdminMatchingDomainScreen() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [payload, setPayload] = useState({ items: [], summary: {} });
-  const [range, setRange] = useState(() => defaultRange(30));
-  const [statusScope, setStatusScope] = useState('all');
+  const [range, setRange] = useState(() => readAdminRange('operations', searchParams, 30));
+  const [statusScope, setStatusScope] = useState(() => String(searchParams.get('scope') || 'all'));
+
+  useEffect(() => {
+    persistAdminRange('operations', range);
+    const next = new URLSearchParams(searchParams);
+    next.set('from', range.fromDate);
+    next.set('to', range.toDate);
+    if (statusScope && statusScope !== 'all') next.set('scope', statusScope);
+    else next.delete('scope');
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [range, searchParams, setSearchParams, statusScope]);
 
   useEffect(() => {
     let active = true;
@@ -91,6 +94,16 @@ export default function AdminMatchingDomainScreen() {
             <option value="active">Solo activos</option>
             <option value="closed">Solo cerrados</option>
           </select>
+          {ADMIN_RANGE_PRESETS.map((preset) => (
+            <button
+              key={`matching-preset-${preset.days}`}
+              type="button"
+              onClick={() => setRange(buildRecentRange(preset.days))}
+              style={{ ...INPUT_STYLE, cursor: 'pointer' }}
+            >
+              {preset.label}
+            </button>
+          ))}
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <AdminStatChip label="Solicitudes" value={String(stats.total)} tone="brand" />

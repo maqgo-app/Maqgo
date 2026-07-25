@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AdminActionLink, AdminDomainCard, AdminStatChip, AdminSurface } from './AdminShellBlocks.jsx';
 import { fetchAdminMonthlyReport, fetchAdminServices } from './adminDomainData';
+import { ADMIN_RANGE_PRESETS, buildRecentRange, persistAdminRange, readAdminRange } from './adminTimeContext';
 
 function formatPrice(value) {
   try {
@@ -25,18 +27,6 @@ function buildRecentMonthOptions(total = 12) {
   return options;
 }
 
-function toDateInputValue(date) {
-  const safe = date instanceof Date ? date : new Date();
-  return `${safe.getFullYear()}-${String(safe.getMonth() + 1).padStart(2, '0')}-${String(safe.getDate()).padStart(2, '0')}`;
-}
-
-function buildRecentRange(days = 30) {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(end.getDate() - days);
-  return { fromDate: toDateInputValue(start), toDate: toDateInputValue(end) };
-}
-
 const INPUT_STYLE = {
   background: 'rgba(255,255,255,0.04)',
   border: '1px solid rgba(255,255,255,0.12)',
@@ -48,15 +38,29 @@ const INPUT_STYLE = {
 };
 
 export default function AdminReservationsDomainScreen({ mode }) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [payload, setPayload] = useState({ services: [], stats: {}, finances: {}, sla: {}, total: 0 });
-  const [range, setRange] = useState(() => buildRecentRange(30));
+  const [range, setRange] = useState(() => readAdminRange('operations', searchParams, 30));
   const monthOptions = useMemo(() => buildRecentMonthOptions(12), []);
   const [selectedMonthKey, setSelectedMonthKey] = useState(() => buildRecentMonthOptions(12)[0]?.key || '');
   const [monthlyFinance, setMonthlyFinance] = useState(null);
   const [monthlyFinanceLoading, setMonthlyFinanceLoading] = useState(false);
   const [monthlyFinanceError, setMonthlyFinanceError] = useState('');
+  const [focus, setFocus] = useState(() => String(searchParams.get('focus') || 'all'));
+
+  useEffect(() => {
+    persistAdminRange('operations', range);
+    const next = new URLSearchParams(searchParams);
+    next.set('from', range.fromDate);
+    next.set('to', range.toDate);
+    if (focus && focus !== 'all') next.set('focus', focus);
+    else next.delete('focus');
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [focus, range, searchParams, setSearchParams]);
 
   useEffect(() => {
     let active = true;
@@ -120,8 +124,14 @@ export default function AdminReservationsDomainScreen({ mode }) {
     facturacion: 'Vista documental y fiscal del servicio, separada del dinero.',
   };
 
+  const filteredServices = useMemo(() => {
+    const list = Array.isArray(payload.services) ? payload.services : [];
+    if (!focus || focus === 'all') return list;
+    return list.filter((service) => String(service?.status || '').trim() === focus);
+  }, [focus, payload.services]);
+
   const cards = useMemo(() => {
-    return (Array.isArray(payload.services) ? payload.services : []).slice(0, 24).map((service) => ({
+    return filteredServices.slice(0, 24).map((service) => ({
       title: service?.client_name || service?.clientName || 'Reserva',
       subtitle: `${service?.machinery_type || service?.machineryType || 'Sin maquinaria'} · ${service?.location || 'Sin ubicacion'}`,
       bullets:
@@ -143,7 +153,7 @@ export default function AdminReservationsDomainScreen({ mode }) {
                 `Creada: ${service?.created_at ? new Date(service.created_at).toLocaleDateString('es-CL') : '-'}`,
               ],
     }));
-  }, [mode, payload.services]);
+  }, [filteredServices, mode]);
 
   const stats = useMemo(() => {
     const rangeSummary = payload?.range_summary || {};
@@ -185,6 +195,28 @@ export default function AdminReservationsDomainScreen({ mode }) {
         ? '/admin/legacy/area/money'
         : '/admin/legacy/area/money';
 
+  const focusOptions =
+    mode === 'payments'
+      ? [
+          { value: 'all', label: 'Todo el rango' },
+          { value: 'paid', label: 'Solo pagados' },
+          { value: 'invoiced', label: 'Solo facturados' },
+          { value: 'disputed', label: 'Solo disputados' },
+        ]
+      : mode === 'facturacion'
+        ? [
+            { value: 'all', label: 'Todo el rango' },
+            { value: 'approved', label: 'Aprobados' },
+            { value: 'invoiced', label: 'Facturados' },
+            { value: 'paid', label: 'Pagados' },
+          ]
+        : [
+            { value: 'all', label: 'Todo el rango' },
+            { value: 'pending_review', label: 'Pendientes revisión' },
+            { value: 'approved', label: 'Aprobados' },
+            { value: 'disputed', label: 'Disputas' },
+          ];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <AdminSurface
@@ -205,6 +237,23 @@ export default function AdminReservationsDomainScreen({ mode }) {
             onChange={(e) => setRange((current) => ({ ...current, toDate: e.target.value }))}
             style={INPUT_STYLE}
           />
+          <select value={focus} onChange={(e) => setFocus(e.target.value)} style={INPUT_STYLE}>
+            {focusOptions.map((option) => (
+              <option key={`${mode}-${option.value}`} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {ADMIN_RANGE_PRESETS.map((preset) => (
+            <button
+              key={`${mode}-preset-${preset.days}`}
+              type="button"
+              onClick={() => setRange(buildRecentRange(preset.days))}
+              style={{ ...INPUT_STYLE, cursor: 'pointer' }}
+            >
+              {preset.label}
+            </button>
+          ))}
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {stats.map((item) => (

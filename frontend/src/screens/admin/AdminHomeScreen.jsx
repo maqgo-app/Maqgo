@@ -2,12 +2,20 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ADMIN_DOMAIN_META, ADMIN_NAV_GROUPS, ADMIN_SHELL_THEME } from './adminShellConfig';
 import { AdminActionLink, AdminDomainCard, AdminStatChip, AdminSurface } from './AdminShellBlocks.jsx';
 import { fetchAdminDashboardSnapshot } from './adminDomainData';
+import { buildAdminQuery, buildRecentRange } from './adminTimeContext';
 
 export default function AdminHomeScreen() {
   const theme = ADMIN_SHELL_THEME;
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState(null);
   const [error, setError] = useState('');
+  const sharedRange = useMemo(() => buildRecentRange(30), []);
+  const reservationsQuery = buildAdminQuery(sharedRange);
+  const paymentsQuery = buildAdminQuery(sharedRange);
+  const matchingQuery = buildAdminQuery(sharedRange, { scope: 'all' });
+  const reviewsQuery = buildAdminQuery(sharedRange, { focus: 'pending_review' });
+  const disputesQuery = buildAdminQuery(sharedRange, { focus: 'disputed' });
+  const invoicedQuery = buildAdminQuery(sharedRange, { focus: 'invoiced' });
   const topGroups = ADMIN_NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.map((item) => ({
@@ -74,7 +82,7 @@ export default function AdminHomeScreen() {
         `Disputas: ${stats.disputes}`,
         `Solicitudes en matching: ${stats.matching}`,
       ],
-      to: '/admin/reservas',
+      to: `/admin/reservas${reviewsQuery}`,
       actionLabel: 'Revisar servicio',
     },
     {
@@ -85,7 +93,7 @@ export default function AdminHomeScreen() {
         `Tickets soporte: ${stats.tickets}`,
         `Telefonos bloqueados: ${stats.blockedPhones}`,
       ],
-      to: '/admin/pagos',
+      to: `/admin/pagos${paymentsQuery}`,
       actionLabel: 'Revisar dinero',
     },
   ];
@@ -115,12 +123,70 @@ export default function AdminHomeScreen() {
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <AdminStatChip label="Dominios oficiales" value={String(stats.domains)} tone="brand" />
-          <AdminStatChip label="Matching activo" value={String(stats.matching)} tone="neutral" />
-          <AdminStatChip label="Pendientes revision" value={String(stats.pendingReview)} tone="warning" />
-          <AdminStatChip label="Soporte abierto" value={String(stats.tickets)} tone="success" />
+          <AdminStatChip label="Matching activo" value={String(stats.matching)} tone="neutral" to={`/admin/matching${matchingQuery}`} />
+          <AdminStatChip label="Pendientes revision" value={String(stats.pendingReview)} tone="warning" to={`/admin/reservas${reviewsQuery}`} />
+          <AdminStatChip label="Soporte abierto" value={String(stats.tickets)} tone="success" to="/admin/soporte" />
         </div>
         {loading ? <div style={{ marginTop: 12, fontSize: 12, color: theme.textMuted }}>Actualizando snapshot…</div> : null}
         {error ? <div style={{ marginTop: 12, fontSize: 12, color: '#E8A34B' }}>{error}</div> : null}
+      </AdminSurface>
+
+      <AdminSurface
+        title="Accion inmediata"
+        subtitle="Entradas rápidas para abrir la bandeja correcta con un contexto operativo compartido."
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 12,
+          }}
+        >
+          <AdminDomainCard
+            title="Pendientes de revisión"
+            subtitle="Reserva"
+            bullets={[
+              `Casos visibles: ${stats.pendingReview}`,
+              'Abre la bandeja de reservas ya filtrada al foco correcto',
+              'Usa el mismo rango base entre servicio, matching y dinero',
+            ]}
+            to={`/admin/reservas${reviewsQuery}`}
+            actionLabel="Abrir pendientes"
+          />
+          <AdminDomainCard
+            title="Disputas activas"
+            subtitle="Reserva"
+            bullets={[
+              `Casos visibles: ${stats.disputes}`,
+              'Lleva directo al segmento de excepciones del servicio',
+              'Útil para operación y resolución diaria',
+            ]}
+            to={`/admin/reservas${disputesQuery}`}
+            actionLabel="Abrir disputas"
+          />
+          <AdminDomainCard
+            title="Matching del periodo"
+            subtitle="Asignación"
+            bullets={[
+              `Solicitudes visibles: ${stats.matching}`,
+              'Abre matching con el mismo rango operativo del Admin',
+              'Permite revisar búsqueda, oferta y cierre sin perder contexto',
+            ]}
+            to={`/admin/matching${matchingQuery}`}
+            actionLabel="Abrir matching"
+          />
+          <AdminDomainCard
+            title="Facturación cargada"
+            subtitle="Dinero"
+            bullets={[
+              `Servicios invoiced: ${stats.invoiced}`,
+              'Abre la capa documental con foco en facturas del periodo',
+              'Ayuda a cerrar caja y documentación en el mismo flujo',
+            ]}
+            to={`/admin/facturacion${invoicedQuery}`}
+            actionLabel="Abrir facturación"
+          />
+        </div>
       </AdminSurface>
 
       <AdminSurface
