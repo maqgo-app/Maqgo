@@ -19,7 +19,7 @@ function Section({ theme, title, right, children }) {
 function OutcomeStrip({ expected, observed, learning }) {
   return (
     <div style={{ marginTop: 10, borderRadius: 14, border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.04)', padding: 12 }}>
-      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 900 }}>Outcome loop</div>
+      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 900 }}>Loop de aprendizaje</div>
       <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,0.78)', lineHeight: 1.45 }}>
         <span style={{ color: 'rgba(255,255,255,0.60)', fontWeight: 900 }}>Esperado:</span> {expected || '—'}
       </div>
@@ -94,7 +94,7 @@ export default function AdminGrowthAIActionsScreen() {
   const summary = useMemo(() => {
     const total = items.length;
     const done = items.filter((i) => String(i.status || '') === 'done').length;
-    return { total, done };
+    return { total, done, open: Math.max(0, total - done) };
   }, [items]);
 
   const saveField = async (id, kind, text) => {
@@ -124,13 +124,23 @@ export default function AdminGrowthAIActionsScreen() {
         title="Acciones"
         right={
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.70)', fontWeight: 800 }}>{summary.done}/{summary.total} done</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.70)', fontWeight: 800 }}>{summary.done}/{summary.total} cerradas</div>
             <button type="button" className="maqgo-btn-secondary" style={{ padding: '8px 10px', borderRadius: 10, fontWeight: 900, fontSize: 12 }} onClick={() => void load()}>
               Recargar
             </button>
           </div>
         }
       >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
+          <div style={{ borderRadius: 14, border: `1px solid ${THEME.border}`, background: 'rgba(255,255,255,0.04)', padding: 12 }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.66)', fontWeight: 800 }}>Acciones abiertas</div>
+            <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900 }}>{summary.open}</div>
+          </div>
+          <div style={{ borderRadius: 14, border: '1px solid rgba(102,187,106,0.22)', background: 'rgba(102,187,106,0.10)', padding: 12 }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.66)', fontWeight: 800 }}>Acciones cerradas</div>
+            <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900 }}>{summary.done}</div>
+          </div>
+        </div>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
           Registro de esperado/obtenido/aprendizaje. El Cerebro mejora por outcomes, no por actividad.
         </div>
@@ -148,7 +158,7 @@ export default function AdminGrowthAIActionsScreen() {
               <div key={a.id} style={{ border: `1px solid ${THEME.border}`, background: THEME.panelBg, borderRadius: 16, padding: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ fontSize: 14, fontWeight: 900 }}>{a.title}</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.60)', fontWeight: 900 }}>{a.status || 'open'}</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.60)', fontWeight: 900 }}>{a.status === 'done' ? 'cerrada' : 'abierta'}</div>
                 </div>
                 <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>{a.reason || '—'}</div>
                 {a.node_id ? <div style={{ marginTop: 6, fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Nodo: {a.node_id}</div> : null}
@@ -185,4 +195,3 @@ export default function AdminGrowthAIActionsScreen() {
     </div>
   );
 }
-

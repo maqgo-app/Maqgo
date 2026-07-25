@@ -51,7 +51,7 @@ SUBSCRIPTIONS_CONFIG_KEY = "admin_report_subscriptions"
 
 DEFAULT_ADMIN_REPORT_EMAIL = (
     os.environ.get("MAQGO_ADMIN_REPORT_EMAIL", "").strip()
-    or "tomas@maqgo.cl, cvalle@maqgo.cl"
+    or "soporte@maqgo.cl"
 ).strip().lower()
 
 def _parse_bool(v: str, default: bool = False) -> bool:
@@ -217,7 +217,7 @@ async def _send_email(
     html: Optional[str] = None,
     attachments: Optional[list[dict]] = None,
 ) -> dict:
-    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev").strip() or "onboarding@resend.dev"
+    sender = os.environ.get("SENDER_EMAIL", "soporte@maqgo.cl").strip() or "soporte@maqgo.cl"
 
     smtp_host = os.environ.get("EMAIL_SMTP_HOST", "").strip()
     smtp_user = os.environ.get("EMAIL_SMTP_USER", "").strip()
@@ -426,11 +426,11 @@ def _render_admin_email_shell(*, title: str, subtitle: str, kpis: list[dict], se
         kpi_cells.append(
             f"""
             <td style="padding:0 8px 0 0;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E6EDF5;border-radius:14px;background:#FFFFFF;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #DCE5F0;border-radius:16px;background:#FFFFFF;">
                 <tr><td style="padding:14px 14px 12px 14px;">
-                  <div style="font-size:11px;letter-spacing:.3px;color:#64748B;font-weight:800;">{html_escape(str(k.get('label','')).upper())}</div>
-                  <div style="margin-top:6px;font-size:20px;line-height:24px;color:#0B1220;font-weight:900;">{html_escape(str(k.get('value','')))}</div>
-                  <div style="margin-top:4px;font-size:12px;color:#64748B;">{html_escape(str(k.get('sub','')))}</div>
+                  <div style="font-size:11px;letter-spacing:.38px;color:#64748B;font-weight:800;">{html_escape(str(k.get('label','')).upper())}</div>
+                  <div style="margin-top:8px;font-size:22px;line-height:26px;color:#0B1220;font-weight:900;letter-spacing:-0.3px;">{html_escape(str(k.get('value','')))}</div>
+                  <div style="margin-top:5px;font-size:12px;line-height:17px;color:#64748B;">{html_escape(str(k.get('sub','')))}</div>
                 </td></tr>
               </table>
             </td>
@@ -471,7 +471,7 @@ def _render_admin_email_shell(*, title: str, subtitle: str, kpis: list[dict], se
             f"""
             <tr>
               <td style="padding:0 0 14px 0;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #DCE5F0;border-radius:18px;background:#FFFFFF;">
                   <tr>
                     <td style="padding:16px 16px 6px 16px;">
                       <div style="font-size:14px;font-weight:900;color:#0B1220;">{st}</div>
@@ -498,18 +498,18 @@ def _render_admin_email_shell(*, title: str, subtitle: str, kpis: list[dict], se
     <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>
   <body style="margin:0;background:#F6F8FB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FB;padding:26px 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F6FA;padding:30px 0;">
       <tr>
         <td align="center">
           <table role="presentation" width="720" cellpadding="0" cellspacing="0" style="width:720px;max-width:720px;">
             <tr>
-              <td style="background:#ffffff;border:1px solid #E6EDF5;border-radius:20px;overflow:hidden;">
-                <div style="height:10px;background:#EC6819;line-height:10px;font-size:0;">&nbsp;</div>
+              <td style="background:#ffffff;border:1px solid #DCE5F0;border-radius:24px;overflow:hidden;">
+                <div style="height:8px;background:linear-gradient(90deg,#EC6819 0%,#FFB36E 100%);line-height:8px;font-size:0;">&nbsp;</div>
                 <div style="padding:22px 26px 18px 26px;">
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0B1220;border-radius:22px;">
                     <tr>
-                      <td style="vertical-align:middle;">
-                        <table role="presentation" cellpadding="0" cellspacing="0" style="background:#0B1220;border-radius:999px;">
+                      <td style="vertical-align:middle;padding:18px 18px 16px 18px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" style="background:rgba(255,255,255,0.08);border-radius:999px;">
                           <tr>
                             <td style="padding:10px 14px;">
                               <img src="{logo_url}" alt="MAQGO" width="86" style="display:block;border:0;outline:none;text-decoration:none;" />
@@ -517,14 +517,18 @@ def _render_admin_email_shell(*, title: str, subtitle: str, kpis: list[dict], se
                           </tr>
                         </table>
                       </td>
-                      <td style="vertical-align:middle;text-align:right;">
-                        <span style="display:inline-block;background:#0B1220;color:#ffffff;padding:8px 12px;border-radius:999px;font-weight:900;font-size:12px;">Admin</span>
+                      <td style="vertical-align:top;text-align:right;padding:18px 18px 16px 12px;">
+                        <span style="display:inline-block;background:rgba(255,255,255,0.10);color:#ffffff;padding:8px 12px;border-radius:999px;font-weight:900;font-size:12px;">Admin</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colspan="2" style="padding:0 18px 20px 18px;">
+                        <div style="font-size:11px;letter-spacing:.42px;text-transform:uppercase;color:rgba(255,255,255,0.60);font-weight:800;">Reporte ejecutivo</div>
+                        <div style="margin-top:8px;font-weight:900;font-size:29px;line-height:34px;letter-spacing:-0.45px;color:#FFFFFF;">{safe_title}</div>
+                        <div style="margin-top:7px;font-size:13px;line-height:19px;color:rgba(255,255,255,0.72);">{safe_subtitle}</div>
                       </td>
                     </tr>
                   </table>
-
-                  <div style="margin-top:14px;font-weight:900;font-size:26px;line-height:32px;letter-spacing:-0.2px;color:#0B1220;">{safe_title}</div>
-                  <div style="margin-top:6px;font-size:12px;color:#64748B;">{safe_subtitle}</div>
 
                   <div style="margin-top:16px;">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -538,12 +542,12 @@ def _render_admin_email_shell(*, title: str, subtitle: str, kpis: list[dict], se
                     </table>
                   </div>
 
-                  <div style="margin-top:4px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:14px;background:#FAFBFE;">
+                  <div style="margin-top:6px;padding:16px 16px;border:1px solid #DCE5F0;border-radius:18px;background:#F8FAFD;">
                     <div style="font-size:12px;color:#0B1220;line-height:18px;">
                       Adjuntamos el reporte en PDF (onepager) para lectura rápida. ID: <span style="font-weight:900;">{safe_report_id}</span>
                     </div>
                     <div style="margin-top:12px;">
-                      <a href="{safe_cta_url}" style="display:inline-block;background:#0B1220;color:#ffffff;text-decoration:none;padding:12px 16px;border-radius:12px;font-weight:900;font-size:13px;">
+                      <a href="{safe_cta_url}" style="display:inline-block;background:#0B1220;color:#ffffff;text-decoration:none;padding:12px 16px;border-radius:14px;font-weight:900;font-size:13px;">
                         {safe_cta_text}
                       </a>
                     </div>
@@ -605,11 +609,11 @@ def _fmt_ratio(n, d) -> str:
 def _render_metric_tile(*, label: str, value: str, sub: str) -> str:
     return f"""
     <td style="padding:0 10px 10px 0;vertical-align:top;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #DCE5F0;border-radius:18px;background:#FFFFFF;">
         <tr><td style="padding:16px 16px 12px 16px;">
-          <div style="font-size:11px;letter-spacing:.28px;color:#64748B;font-weight:800;text-transform:uppercase;">{html_escape(label)}</div>
-          <div style="margin-top:6px;font-size:22px;line-height:26px;color:#0B1220;font-weight:900;">{html_escape(value)}</div>
-          <div style="margin-top:4px;font-size:12px;line-height:16px;color:#64748B;">{html_escape(sub)}</div>
+          <div style="font-size:11px;letter-spacing:.32px;color:#64748B;font-weight:800;text-transform:uppercase;">{html_escape(label)}</div>
+          <div style="margin-top:8px;font-size:24px;line-height:28px;color:#0B1220;font-weight:900;letter-spacing:-0.35px;">{html_escape(value)}</div>
+          <div style="margin-top:5px;font-size:12px;line-height:17px;color:#64748B;">{html_escape(sub)}</div>
         </td></tr>
       </table>
     </td>
@@ -618,8 +622,8 @@ def _render_metric_tile(*, label: str, value: str, sub: str) -> str:
 
 def _render_section_header(title: str) -> str:
     return f"""
-    <div style="margin-top:18px;font-size:14px;font-weight:900;color:#0B1220;letter-spacing:.2px;">{html_escape(title)}</div>
-    <div style="margin-top:8px;height:2px;width:140px;background:#EC6819;border-radius:2px;"></div>
+    <div style="margin-top:20px;font-size:14px;font-weight:900;color:#0B1220;letter-spacing:.2px;">{html_escape(title)}</div>
+    <div style="margin-top:8px;height:3px;width:148px;background:linear-gradient(90deg,#EC6819 0%,#FFB36E 100%);border-radius:999px;"></div>
     """
 
 
@@ -869,19 +873,19 @@ def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: s
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>
-  <body style="margin:0;background:#F6F8FB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FB;padding:28px 0;">
+  <body style="margin:0;background:#F3F6FA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F6FA;padding:32px 0;">
       <tr>
         <td align="center">
           <table role="presentation" width="720" cellpadding="0" cellspacing="0" style="width:720px;max-width:720px;">
             <tr>
-              <td style="background:#ffffff;border:1px solid #E6EDF5;border-radius:22px;overflow:hidden;">
-                <div style="height:10px;background:#EC6819;line-height:10px;font-size:0;">&nbsp;</div>
+              <td style="background:#ffffff;border:1px solid #DCE5F0;border-radius:24px;overflow:hidden;">
+                <div style="height:8px;background:linear-gradient(90deg,#EC6819 0%,#FFB36E 100%);line-height:8px;font-size:0;">&nbsp;</div>
                 <div style="padding:26px 26px 22px 26px;">
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0B1220;border-radius:24px;">
                     <tr>
-                      <td style="vertical-align:middle;">
-                        <table role="presentation" cellpadding="0" cellspacing="0" style="background:#0B1220;border-radius:999px;">
+                      <td style="vertical-align:middle;padding:18px 18px 16px 18px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" style="background:rgba(255,255,255,0.08);border-radius:999px;">
                           <tr>
                             <td style="padding:12px 16px;">
                               <img src="{logo_url}" alt="MAQGO" width="92" style="display:block;border:0;outline:none;text-decoration:none;width:92px;height:auto;" />
@@ -889,14 +893,18 @@ def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: s
                           </tr>
                         </table>
                       </td>
-                      <td style="vertical-align:middle;text-align:right;">
-                        <span style="display:inline-block;background:#0B1220;color:#ffffff;padding:9px 12px;border-radius:999px;font-weight:900;font-size:12px;letter-spacing:.2px;">Admin</span>
+                      <td style="vertical-align:top;text-align:right;padding:18px 18px 16px 12px;">
+                        <span style="display:inline-block;background:rgba(255,255,255,0.10);color:#ffffff;padding:9px 12px;border-radius:999px;font-weight:900;font-size:12px;letter-spacing:.2px;">Admin</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colspan="2" style="padding:0 18px 20px 18px;">
+                        <div style="font-size:11px;letter-spacing:.42px;text-transform:uppercase;color:rgba(255,255,255,0.60);font-weight:800;">Reporte ejecutivo</div>
+                        <div style="margin-top:8px;font-weight:900;font-size:30px;line-height:35px;letter-spacing:-0.45px;color:#FFFFFF;">{html_escape(title)}</div>
+                        <div style="margin-top:7px;font-size:13px;line-height:19px;color:rgba(255,255,255,0.72);">{html_escape(subtitle)}</div>
                       </td>
                     </tr>
                   </table>
-
-                  <div style="margin-top:18px;font-weight:900;font-size:28px;line-height:34px;letter-spacing:-0.3px;color:#0B1220;">{html_escape(title)}</div>
-                  <div style="margin-top:6px;font-size:12px;line-height:16px;color:#64748B;">{html_escape(subtitle)}</div>
 
                   <div style="margin-top:18px;">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -904,11 +912,11 @@ def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: s
                         {_render_metric_tile(label="GMV pagado", value=gmv, sub=f"vs semana anterior: {wow_gmv}")}
                         {_render_metric_tile(label="Ingreso MAQGO", value=maqgo_rev, sub=f"vs semana anterior: {wow_rev}")}
                         <td style="padding:0 0 10px 0;vertical-align:top;">
-                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #DCE5F0;border-radius:18px;background:#FFFFFF;">
                             <tr><td style="padding:16px 16px 12px 16px;">
                               <div style="font-size:11px;letter-spacing:.28px;color:#64748B;font-weight:800;text-transform:uppercase;">Salud operacional</div>
-                              <div style="margin-top:6px;font-size:22px;line-height:26px;color:#0B1220;font-weight:900;">{html_escape(health_value)}</div>
-                              <div style="margin-top:4px;font-size:12px;line-height:16px;color:#64748B;">{html_escape(health_label)}</div>
+                              <div style="margin-top:8px;font-size:24px;line-height:28px;color:#0B1220;font-weight:900;letter-spacing:-0.35px;">{html_escape(health_value)}</div>
+                              <div style="margin-top:5px;font-size:12px;line-height:17px;color:#64748B;">{html_escape(health_label)}</div>
                             </td></tr>
                           </table>
                         </td>
@@ -917,41 +925,41 @@ def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: s
                   </div>
 
                   {_render_section_header("Claves")}
-                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FAFBFE;">
+                  <div style="margin-top:10px;padding:16px 16px;border:1px solid #DCE5F0;border-radius:18px;background:#F8FAFD;">
                     {_render_bullets(insights)}
                   </div>
 
                   {_render_section_header("Negocio")}
-                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                  <div style="margin-top:10px;padding:16px 16px;border:1px solid #DCE5F0;border-radius:18px;background:#FFFFFF;">
                     {_render_bullets(a_items)}
                   </div>
 
                   {_render_section_header("Operación")}
-                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                  <div style="margin-top:10px;padding:16px 16px;border:1px solid #DCE5F0;border-radius:18px;background:#FFFFFF;">
                     {_render_bullets(b_items)}
                   </div>
 
                   {_render_section_header("Crecimiento")}
-                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                  <div style="margin-top:10px;padding:16px 16px;border:1px solid #DCE5F0;border-radius:18px;background:#FFFFFF;">
                     {_render_bullets(c_items)}
                   </div>
 
                   {_render_section_header("Riesgos")}
-                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                  <div style="margin-top:10px;padding:16px 16px;border:1px solid #DCE5F0;border-radius:18px;background:#FFFFFF;">
                     {_render_bullets(d_items)}
                     {'<div style="margin-top:10px;"></div>' if zone_rows else ''}
                     {_render_mini_rows(zone_rows) if zone_rows else ''}
                   </div>
 
-                  <div style="margin-top:16px;padding:16px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#0B1220;">
+                  <div style="margin-top:18px;padding:18px 18px;border:1px solid #DCE5F0;border-radius:20px;background:#0B1220;">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td style="font-size:12px;line-height:16px;color:rgba(255,255,255,0.78);">
                           Reporte ID: <span style="font-weight:900;color:#ffffff;">{html_escape(report_id)}</span>
                         </td>
                         <td style="text-align:right;">
-                          <a href="{html_escape(cta_url)}" style="display:inline-block;background:#ffffff;color:#0B1220;text-decoration:none;padding:11px 14px;border-radius:12px;font-weight:900;font-size:13px;">
-                            Abrir Admin
+                          <a href="{html_escape(cta_url)}" style="display:inline-block;background:#ffffff;color:#0B1220;text-decoration:none;padding:12px 16px;border-radius:14px;font-weight:900;font-size:13px;">
+                            Abrir panel MAQGO
                           </a>
                         </td>
                       </tr>
@@ -1167,19 +1175,19 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>
-  <body style="margin:0;background:#F6F8FB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FB;padding:28px 0;">
+  <body style="margin:0;background:#F3F6FA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F6FA;padding:32px 0;">
       <tr>
         <td align="center">
           <table role="presentation" width="720" cellpadding="0" cellspacing="0" style="width:720px;max-width:720px;">
             <tr>
-              <td style="background:#ffffff;border:1px solid #E6EDF5;border-radius:22px;overflow:hidden;">
-                <div style="height:10px;background:#EC6819;line-height:10px;font-size:0;">&nbsp;</div>
+              <td style="background:#ffffff;border:1px solid #DCE5F0;border-radius:24px;overflow:hidden;">
+                <div style="height:8px;background:linear-gradient(90deg,#EC6819 0%,#FFB36E 100%);line-height:8px;font-size:0;">&nbsp;</div>
                 <div style="padding:26px 26px 22px 26px;">
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0B1220;border-radius:24px;">
                     <tr>
-                      <td style="vertical-align:middle;">
-                        <table role="presentation" cellpadding="0" cellspacing="0" style="background:#0B1220;border-radius:999px;">
+                      <td style="vertical-align:middle;padding:18px 18px 16px 18px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" style="background:rgba(255,255,255,0.08);border-radius:999px;">
                           <tr>
                             <td style="padding:12px 16px;">
                               <img src="{logo_url}" alt="MAQGO" width="92" style="display:block;border:0;outline:none;text-decoration:none;width:92px;height:auto;" />
@@ -1187,14 +1195,18 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
                           </tr>
                         </table>
                       </td>
-                      <td style="vertical-align:middle;text-align:right;">
-                        <span style="display:inline-block;background:#0B1220;color:#ffffff;padding:9px 12px;border-radius:999px;font-weight:900;font-size:12px;letter-spacing:.2px;">Admin</span>
+                      <td style="vertical-align:top;text-align:right;padding:18px 18px 16px 12px;">
+                        <span style="display:inline-block;background:rgba(255,255,255,0.10);color:#ffffff;padding:9px 12px;border-radius:999px;font-weight:900;font-size:12px;letter-spacing:.2px;">Admin</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colspan="2" style="padding:0 18px 20px 18px;">
+                        <div style="font-size:11px;letter-spacing:.42px;text-transform:uppercase;color:rgba(255,255,255,0.60);font-weight:800;">Reporte ejecutivo</div>
+                        <div style="margin-top:8px;font-weight:900;font-size:30px;line-height:35px;letter-spacing:-0.45px;color:#FFFFFF;">{html_escape(title)}</div>
+                        <div style="margin-top:7px;font-size:13px;line-height:19px;color:rgba(255,255,255,0.72);">{html_escape(subtitle)}</div>
                       </td>
                     </tr>
                   </table>
-
-                  <div style="margin-top:18px;font-weight:900;font-size:28px;line-height:34px;letter-spacing:-0.3px;color:#0B1220;">{html_escape(title)}</div>
-                  <div style="margin-top:6px;font-size:12px;line-height:16px;color:#64748B;">{html_escape(subtitle)}</div>
 
                   <div style="margin-top:18px;">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -1207,11 +1219,11 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
                         {_render_metric_tile(label="IVA neto estimado", value=iva_neto, sub="Validar contabilidad")}
                         {mid_tile}
                         <td style="padding:0 0 10px 0;vertical-align:top;">
-                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #DCE5F0;border-radius:18px;background:#FFFFFF;">
                             <tr><td style="padding:16px 16px 12px 16px;">
                               <div style="font-size:11px;letter-spacing:.28px;color:#64748B;font-weight:800;text-transform:uppercase;">Nuevas maquinarias</div>
-                              <div style="margin-top:6px;font-size:22px;line-height:26px;color:#0B1220;font-weight:900;">{new_machines}</div>
-                              <div style="margin-top:4px;font-size:12px;line-height:16px;color:#64748B;">CAC C/P: {html_escape(cac_value)}</div>
+                              <div style="margin-top:8px;font-size:24px;line-height:28px;color:#0B1220;font-weight:900;letter-spacing:-0.35px;">{new_machines}</div>
+                              <div style="margin-top:5px;font-size:12px;line-height:17px;color:#64748B;">CAC C/P: {html_escape(cac_value)}</div>
                             </td></tr>
                           </table>
                         </td>
@@ -1223,12 +1235,12 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
                   {growth_ai_hint}
 
                   {_render_section_header("Claves")}
-                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FAFBFE;">
+                  <div style="margin-top:10px;padding:16px 16px;border:1px solid #DCE5F0;border-radius:18px;background:#F8FAFD;">
                     {_render_bullets(insights)}
                   </div>
 
                   {_render_section_header("Finanzas")}
-                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                  <div style="margin-top:10px;padding:16px 16px;border:1px solid #DCE5F0;border-radius:18px;background:#FFFFFF;">
                     <div style="font-size:12px;color:#64748B;margin-bottom:10px;">
                       Arriendo promedio: {html_escape(avg_days_label)} ·
                       Documentos MAQGO a cliente: por emitir {maqgo_pending} · emitidos (marcados) {maqgo_done}
@@ -1242,28 +1254,28 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
                   </div>
 
                   {_render_section_header("Mercado")}
-                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                  <div style="margin-top:10px;padding:16px 16px;border:1px solid #DCE5F0;border-radius:18px;background:#FFFFFF;">
                     <div style="font-size:12px;color:#64748B;margin-bottom:8px;">Solicitudes creadas: {int(demand.get('requests_created') or 0)}</div>
                     {_render_mini_rows(zone_rows)}
                   </div>
 
                   {_render_section_header("Plataforma")}
-                  <div style="margin-top:10px;padding:14px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#FFFFFF;">
+                  <div style="margin-top:10px;padding:16px 16px;border:1px solid #DCE5F0;border-radius:18px;background:#FFFFFF;">
                     {_render_bullets([
                       f"Maquinarias publicadas (MAQGO): {machines_published_total}",
                       f"Komatsu (única telemática hoy): conectadas {k_total} · actualizadas (últimas 24h) {k_ok} · sin actualizar (más de 72h) {k_stale} · nunca sincronizadas {k_never}",
                     ])}
                   </div>
 
-                  <div style="margin-top:16px;padding:16px 16px;border:1px solid #E6EDF5;border-radius:16px;background:#0B1220;">
+                  <div style="margin-top:18px;padding:18px 18px;border:1px solid #DCE5F0;border-radius:20px;background:#0B1220;">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td style="font-size:12px;line-height:16px;color:rgba(255,255,255,0.78);">
                           Reporte ID: <span style="font-weight:900;color:#ffffff;">{html_escape(report_id)}</span>
                         </td>
                         <td style="text-align:right;">
-                          <a href="{html_escape(cta_url)}" style="display:inline-block;background:#ffffff;color:#0B1220;text-decoration:none;padding:11px 14px;border-radius:12px;font-weight:900;font-size:13px;">
-                            Abrir Admin
+                          <a href="{html_escape(cta_url)}" style="display:inline-block;background:#ffffff;color:#0B1220;text-decoration:none;padding:12px 16px;border-radius:14px;font-weight:900;font-size:13px;">
+                            Abrir panel MAQGO
                           </a>
                         </td>
                       </tr>
@@ -1299,10 +1311,10 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
     BRAND = colors.HexColor("#EC6819")
     INK = colors.HexColor("#0B1220")
     MUTED = colors.HexColor("#475569")
-    BG = colors.HexColor("#F8FAFC")
+    BG = colors.HexColor("#F3F6FA")
     CARD = colors.white
-    BORDER = colors.HexColor("#E2E8F0")
-    SOFT = colors.HexColor("#EEF2F7")
+    BORDER = colors.HexColor("#DCE5F0")
+    SOFT = colors.HexColor("#E9EFF7")
 
     periodo = report.get("periodo", {}) or {}
     resumen = report.get("resumen", {}) or {}
@@ -1435,10 +1447,11 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
     width, height = A4
 
     styles = {
+        "eyebrow": ParagraphStyle("ey", fontName="Helvetica-Bold", fontSize=8.4, leading=10, textColor=BRAND, spaceAfter=3),
         "title": ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=20, leading=24, textColor=INK, spaceAfter=2),
-        "sub": ParagraphStyle("s", fontName="Helvetica", fontSize=9.2, leading=12, textColor=MUTED, spaceAfter=10),
+        "sub": ParagraphStyle("s", fontName="Helvetica", fontSize=9.4, leading=13, textColor=MUTED, spaceAfter=10),
         "kpi_label": ParagraphStyle("kl", fontName="Helvetica-Bold", fontSize=8.2, leading=10, textColor=MUTED),
-        "kpi_value": ParagraphStyle("kv", fontName="Helvetica-Bold", fontSize=16, leading=18, textColor=INK),
+        "kpi_value": ParagraphStyle("kv", fontName="Helvetica-Bold", fontSize=17, leading=19, textColor=INK),
         "kpi_sub": ParagraphStyle("ks", fontName="Helvetica", fontSize=8.6, leading=11, textColor=MUTED),
         "card_title": ParagraphStyle("ct", fontName="Helvetica-Bold", fontSize=11, leading=14, textColor=INK),
         "row_label": ParagraphStyle("rl", fontName="Helvetica", fontSize=9, leading=11, textColor=INK),
@@ -1479,7 +1492,7 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
                 [
                     ("BACKGROUND", (0, 0), (-1, -1), CARD),
                     ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
-                    ("LINEABOVE", (0, 0), (-1, 0), 2.2, BRAND),
+                    ("LINEABOVE", (0, 0), (-1, 0), 3.0, BRAND),
                     ("LEFTPADDING", (0, 0), (-1, -1), pad),
                     ("RIGHTPADDING", (0, 0), (-1, -1), pad),
                     ("TOPPADDING", (0, 0), (-1, -1), pad),
@@ -1549,27 +1562,31 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
         canv.setFillColor(BG)
         canv.rect(0, 0, width, height, stroke=0, fill=1)
         canv.setFillColor(BRAND)
-        canv.rect(0, height - 18, width, 18, stroke=0, fill=1)
+        canv.rect(0, height - 12, width, 12, stroke=0, fill=1)
 
-        pill_x, pill_y, pill_w, pill_h = 24, height - 68, 136, 36
+        hero_x, hero_y, hero_w, hero_h = 24, height - 86, width - 48, 54
+        canv.setFillColor(INK)
+        canv.roundRect(hero_x, hero_y, hero_w, hero_h, 18, stroke=0, fill=1)
+
+        pill_x, pill_y, pill_w, pill_h = 38, height - 74, 136, 32
         canv.setFillColor(INK)
         canv.roundRect(pill_x, pill_y, pill_w, pill_h, 14, stroke=0, fill=1)
         if logo_reader:
             try:
-                canv.drawImage(logo_reader, pill_x + 10, pill_y + 6, width=116, height=24, preserveAspectRatio=True, mask="auto")
+                canv.drawImage(logo_reader, pill_x + 10, pill_y + 4, width=116, height=22, preserveAspectRatio=True, mask="auto")
             except Exception:
                 pass
         else:
             canv.setFillColor(colors.white)
             canv.setFont("Helvetica-Bold", 12)
-            canv.drawString(pill_x + 12, height - 13, "MAQGO")
+            canv.drawString(pill_x + 12, height - 19, "MAQGO")
 
         badge_w, badge_h = 64, 22
-        canv.setFillColor(INK)
-        canv.roundRect(width - 24 - badge_w, height - 22, badge_w, badge_h, 10, stroke=0, fill=1)
+        canv.setFillColor(colors.HexColor("#253041"))
+        canv.roundRect(width - 38 - badge_w, height - 66, badge_w, badge_h, 10, stroke=0, fill=1)
         canv.setFillColor(colors.white)
         canv.setFont("Helvetica-Bold", 10.5)
-        canv.drawCentredString(width - 24 - badge_w / 2, height - 7.5, "Admin")
+        canv.drawCentredString(width - 38 - badge_w / 2, height - 51.5, "Admin")
 
         canv.setFillColor(colors.HexColor("#64748B"))
         canv.setFont("Helvetica", 8)
@@ -1577,8 +1594,15 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
         canv.restoreState()
 
     story = []
+    story.append(Paragraph("INTELIGENCIA SEMANAL", styles["eyebrow"]))
     story.append(Paragraph("Informe semanal", styles["title"]))
     story.append(Paragraph(html_escape(subtitle), styles["sub"]))
+    executive_summary = (
+        f"Se crearon {created_count} servicios por {fmt_clp(created_amount)}. "
+        f"Se cerraron {paid_count} pagos por {fmt_clp(gmv_paid)} de GMV y quedaron {por_pagar_count} documentos proveedor por {fmt_clp(por_pagar_amount)} pendientes de pago."
+    )
+    story.append(card(inner=[Paragraph("Resumen ejecutivo", styles["card_title"]), Spacer(1, 7), Paragraph(html_escape(executive_summary), styles["alert"])], pad=12))
+    story.append(Spacer(1, 12))
 
     mk = report.get("marketing") or {}
     mk_kpi = (mk.get("kpi") or {}) if isinstance(mk, dict) else {}
@@ -1663,10 +1687,10 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
     BRAND = colors.HexColor("#EC6819")
     INK = colors.HexColor("#0B1220")
     MUTED = colors.HexColor("#475569")
-    BG = colors.HexColor("#F8FAFC")
+    BG = colors.HexColor("#F3F6FA")
     CARD = colors.white
-    BORDER = colors.HexColor("#E2E8F0")
-    SOFT = colors.HexColor("#EEF2F7")
+    BORDER = colors.HexColor("#DCE5F0")
+    SOFT = colors.HexColor("#E9EFF7")
 
     periodo = report.get("periodo", {}) or {}
     volume = report.get("volume", {}) or {}
@@ -1689,14 +1713,16 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
     buffer = io.BytesIO()
 
     styles = {
+        "eyebrow": ParagraphStyle("ey", fontName="Helvetica-Bold", fontSize=8.4, leading=10, textColor=BRAND, spaceAfter=3),
         "title": ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=20, leading=24, textColor=INK, spaceAfter=2),
-        "sub": ParagraphStyle("s", fontName="Helvetica", fontSize=9.2, leading=12, textColor=MUTED, spaceAfter=10),
+        "sub": ParagraphStyle("s", fontName="Helvetica", fontSize=9.4, leading=13, textColor=MUTED, spaceAfter=10),
         "kpi_label": ParagraphStyle("kl", fontName="Helvetica-Bold", fontSize=8.2, leading=10, textColor=MUTED),
-        "kpi_value": ParagraphStyle("kv", fontName="Helvetica-Bold", fontSize=16, leading=18, textColor=INK),
+        "kpi_value": ParagraphStyle("kv", fontName="Helvetica-Bold", fontSize=17, leading=19, textColor=INK),
         "kpi_sub": ParagraphStyle("ks", fontName="Helvetica", fontSize=8.6, leading=11, textColor=MUTED),
         "card_title": ParagraphStyle("ct", fontName="Helvetica-Bold", fontSize=11, leading=14, textColor=INK),
         "row_label": ParagraphStyle("rl", fontName="Helvetica", fontSize=9, leading=11, textColor=INK),
         "row_value": ParagraphStyle("rv", fontName="Helvetica", fontSize=9, leading=11, textColor=MUTED, alignment=2, splitLongWords=0),
+        "alert": ParagraphStyle("al", fontName="Helvetica", fontSize=9, leading=12, textColor=colors.HexColor("#334155")),
     }
 
     class ProgressBar(Flowable):
@@ -1732,7 +1758,7 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
                 [
                     ("BACKGROUND", (0, 0), (-1, -1), CARD),
                     ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
-                    ("LINEABOVE", (0, 0), (-1, 0), 2.2, BRAND),
+                    ("LINEABOVE", (0, 0), (-1, 0), 3.0, BRAND),
                     ("LEFTPADDING", (0, 0), (-1, -1), pad),
                     ("RIGHTPADDING", (0, 0), (-1, -1), pad),
                     ("TOPPADDING", (0, 0), (-1, -1), pad),
@@ -1877,27 +1903,31 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
         canv.setFillColor(BG)
         canv.rect(0, 0, width, height, stroke=0, fill=1)
         canv.setFillColor(BRAND)
-        canv.rect(0, height - 18, width, 18, stroke=0, fill=1)
+        canv.rect(0, height - 12, width, 12, stroke=0, fill=1)
 
-        pill_x, pill_y, pill_w, pill_h = 24, height - 68, 136, 36
+        hero_x, hero_y, hero_w, hero_h = 24, height - 86, width - 48, 54
+        canv.setFillColor(INK)
+        canv.roundRect(hero_x, hero_y, hero_w, hero_h, 18, stroke=0, fill=1)
+
+        pill_x, pill_y, pill_w, pill_h = 38, height - 74, 136, 32
         canv.setFillColor(INK)
         canv.roundRect(pill_x, pill_y, pill_w, pill_h, 14, stroke=0, fill=1)
         if logo_reader:
             try:
-                canv.drawImage(logo_reader, pill_x + 10, pill_y + 6, width=116, height=24, preserveAspectRatio=True, mask="auto")
+                canv.drawImage(logo_reader, pill_x + 10, pill_y + 4, width=116, height=22, preserveAspectRatio=True, mask="auto")
             except Exception:
                 pass
         else:
             canv.setFillColor(colors.white)
             canv.setFont("Helvetica-Bold", 12)
-            canv.drawString(pill_x + 12, height - 13, "MAQGO")
+            canv.drawString(pill_x + 12, height - 19, "MAQGO")
 
         badge_w, badge_h = 64, 22
-        canv.setFillColor(INK)
-        canv.roundRect(width - 24 - badge_w, height - 22, badge_w, badge_h, 10, stroke=0, fill=1)
+        canv.setFillColor(colors.HexColor("#253041"))
+        canv.roundRect(width - 38 - badge_w, height - 66, badge_w, badge_h, 10, stroke=0, fill=1)
         canv.setFillColor(colors.white)
         canv.setFont("Helvetica-Bold", 10.5)
-        canv.drawCentredString(width - 24 - badge_w / 2, height - 7.5, "Admin")
+        canv.drawCentredString(width - 38 - badge_w / 2, height - 51.5, "Admin")
 
         canv.setFillColor(colors.HexColor("#64748B"))
         canv.setFont("Helvetica", 8)
@@ -1905,8 +1935,15 @@ def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
         canv.restoreState()
 
     story = []
+    story.append(Paragraph("INTELIGENCIA MENSUAL", styles["eyebrow"]))
     story.append(Paragraph("Informe mensual", styles["title"]))
     story.append(Paragraph(html_escape(subtitle), styles["sub"]))
+    executive_summary = (
+        f"El mes cerró con {fmt_clp(sales_net)} en ventas netas, {fmt_clp(margin_val)} de margen de contribución y {fmt_clp(maqgo_val)} de ingreso neto MAQGO. "
+        f"Se pagaron {services_paid} servicios y se incorporaron {new_clients} clientes, {new_providers} proveedores y {new_machines} maquinarias."
+    )
+    story.append(card(inner=[Paragraph("Resumen ejecutivo", styles["card_title"]), Spacer(1, 7), Paragraph(html_escape(executive_summary), styles["alert"])], pad=12))
+    story.append(Spacer(1, 12))
 
     mk = report.get("marketing") or {}
     mk_kpi = (mk.get("kpi") or {}) if isinstance(mk, dict) else {}

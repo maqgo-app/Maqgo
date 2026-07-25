@@ -32,6 +32,16 @@ function Pill({ label, tone }) {
   );
 }
 
+function statusLabel(status) {
+  const key = String(status || '').toLowerCase();
+  if (key === 'draft') return 'Borrador';
+  if (key === 'approved') return 'Aprobado';
+  if (key === 'executed') return 'Ejecutado';
+  if (key === 'manual_required') return 'Paso manual';
+  if (key === 'failed') return 'Fallido';
+  return key || '—';
+}
+
 export default function AdminGrowthAIContactsScreen() {
   const { THEME } = useOutletContext();
   const toast = useToast();
@@ -148,13 +158,18 @@ export default function AdminGrowthAIContactsScreen() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 14, fontWeight: 900 }}>Contactos</div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 900 }}>Contactos y outreach</div>
+          <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.68)', lineHeight: 1.35 }}>
+            Aprueba, ejecuta y sigue los contactos que Growth AI propone para activar oferta o demanda.
+          </div>
+        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Pill label={`Draft ${counts.draft}`} tone="draft" />
-          <Pill label={`Approved ${counts.approved}`} tone="approved" />
-          <Pill label={`Executed ${counts.executed}`} tone="executed" />
-          <Pill label={`Manual ${counts.manual_required}`} tone="manual_required" />
-          <Pill label={`Failed ${counts.failed}`} tone="failed" />
+          <button type="button" onClick={() => setStatusFilter('draft')} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}><Pill label={`Borradores ${counts.draft}`} tone="draft" /></button>
+          <button type="button" onClick={() => setStatusFilter('approved')} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}><Pill label={`Aprobados ${counts.approved}`} tone="approved" /></button>
+          <button type="button" onClick={() => setStatusFilter('executed')} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}><Pill label={`Ejecutados ${counts.executed}`} tone="executed" /></button>
+          <button type="button" onClick={() => setStatusFilter('manual_required')} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}><Pill label={`Paso manual ${counts.manual_required}`} tone="manual_required" /></button>
+          <button type="button" onClick={() => setStatusFilter('failed')} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}><Pill label={`Fallidos ${counts.failed}`} tone="failed" /></button>
         </div>
       </div>
 
@@ -182,11 +197,11 @@ export default function AdminGrowthAIContactsScreen() {
             }}
           >
             <option value="">Todos</option>
-            <option value="draft">Draft</option>
-            <option value="approved">Approved</option>
-            <option value="executed">Executed</option>
-            <option value="manual_required">Manual required</option>
-            <option value="failed">Failed</option>
+            <option value="draft">Borradores</option>
+            <option value="approved">Aprobados</option>
+            <option value="executed">Ejecutados</option>
+            <option value="manual_required">Paso manual</option>
+            <option value="failed">Fallidos</option>
           </select>
 
           <button
@@ -222,7 +237,7 @@ export default function AdminGrowthAIContactsScreen() {
                     {it.message}
                   </div>
                 </div>
-                <Pill label={it.status} tone={it.status} />
+                <Pill label={statusLabel(it.status)} tone={it.status} />
               </div>
 
               <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -243,7 +258,7 @@ export default function AdminGrowthAIContactsScreen() {
                     style={{ padding: '8px 10px', borderRadius: 10 }}
                     onClick={() => window.open(String(it.manualUrl), '_blank', 'noopener,noreferrer')}
                   >
-                    Abrir link
+                    Abrir enlace
                   </button>
                 ) : null}
               </div>
@@ -264,7 +279,10 @@ export default function AdminGrowthAIContactsScreen() {
           background: THEME.panelBg,
         }}
       >
-        <div style={{ fontWeight: 900, fontSize: 14 }}>Nuevo contacto (draft)</div>
+        <div style={{ fontWeight: 900, fontSize: 14 }}>Nuevo contacto manual</div>
+        <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.68)', lineHeight: 1.35 }}>
+          Úsalo cuando necesites crear un outreach puntual fuera de las sugerencias automáticas del motor.
+        </div>
         <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <select
@@ -360,7 +378,7 @@ export default function AdminGrowthAIContactsScreen() {
               className="maqgo-btn"
               style={{ padding: '10px 14px', borderRadius: 10, background: '#EC6819' }}
             >
-              {creating ? 'Creando…' : 'Crear draft'}
+              {creating ? 'Creando…' : 'Crear borrador'}
             </button>
           </div>
         </div>
@@ -368,4 +386,3 @@ export default function AdminGrowthAIContactsScreen() {
     </div>
   );
 }
-

@@ -48,22 +48,37 @@ export default function AdminGrowthAIFrame() {
       }}
     >
       <div style={{ maxWidth: 1120, margin: '0 auto', padding: '18px 18px 28px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: 18,
+            borderRadius: 18,
+            border: `1px solid ${THEME.border}`,
+            background: 'linear-gradient(135deg, rgba(236,104,25,0.12), rgba(11,18,32,0.92) 46%, rgba(143,179,201,0.10))',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.20)',
+          }}
+        >
           <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
             <MaqgoLogo size="mini" style={{ minHeight: 44, height: 44 }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                 <h1 className="maqgo-admin-title" style={{ margin: 0, fontSize: 20 }}>Growth AI</h1>
                 <span className="maqgo-admin-subtitle" style={{ color: THEME.textMuted, fontWeight: 700 }}>
-                  Cerebro comercial MAQGO
+                  Motor comercial y de growth hacking de MAQGO
                 </span>
+              </div>
+              <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.78)', lineHeight: 1.45, maxWidth: 720 }}>
+                Detecta oferta y demanda, ordena oportunidades, coordina outreach y acelera apertura por comuna sin romper la lógica del marketplace.
               </div>
               <details style={{ marginTop: 8 }}>
                 <summary className="maqgo-admin-subtitle" style={{ cursor: 'pointer' }}>
                   Principios
                 </summary>
                 <div className="maqgo-admin-help" style={{ marginTop: 6 }}>
-                  Equilibrio &gt; actividad · Regímenes · Sistema único · Aprendizaje
+                  Expansión con disciplina · Una sola verdad operativa · Aprendizaje por resultados
                 </div>
               </details>
             </div>
@@ -92,12 +107,12 @@ export default function AdminGrowthAIFrame() {
             WebkitOverflowScrolling: 'touch',
           }}
         >
-          <Tab to="." label="Overview" />
+          <Tab to="." label="Resumen" />
           <Tab to="comunas" label="Comunas" />
           <Tab to="map" label="Mapa" />
           <Tab to="opportunities" label="Oportunidades" />
           <Tab to="discovery" label="Discovery" />
-          <Tab to="config" label="Config" />
+          <Tab to="config" label="Configuración" />
           <Tab to="audit" label="Auditoría" />
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>

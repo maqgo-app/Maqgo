@@ -18,6 +18,7 @@ function Section({ theme, title, right, children }) {
 
 function StatusPill({ status }) {
   const s = String(status || 'proposed').toLowerCase();
+  const label = s === 'active' ? 'Activo' : s === 'paused' ? 'Pausado' : s === 'closed' ? 'Cerrado' : 'Propuesto';
   const cfg =
     s === 'active'
       ? { fg: '#CFF3D1', bg: 'rgba(102,187,106,0.14)', br: 'rgba(102,187,106,0.28)' }
@@ -28,7 +29,7 @@ function StatusPill({ status }) {
           : { fg: 'rgba(255,255,255,0.82)', bg: 'rgba(255,255,255,0.08)', br: 'rgba(255,255,255,0.14)' };
   return (
     <span style={{ padding: '5px 10px', borderRadius: 999, border: `1px solid ${cfg.br}`, background: cfg.bg, color: cfg.fg, fontSize: 12, fontWeight: 900 }}>
-      {s}
+      {label}
     </span>
   );
 }
@@ -62,6 +63,15 @@ export default function AdminGrowthAIProgramsScreen() {
   }, []);
 
   const canCreate = useMemo(() => String(draft.title || '').trim().length >= 3, [draft.title]);
+  const summary = useMemo(
+    () => ({
+      proposed: items.filter((item) => String(item?.status || '').toLowerCase() === 'proposed').length,
+      active: items.filter((item) => String(item?.status || '').toLowerCase() === 'active').length,
+      paused: items.filter((item) => String(item?.status || '').toLowerCase() === 'paused').length,
+      closed: items.filter((item) => String(item?.status || '').toLowerCase() === 'closed').length,
+    }),
+    [items]
+  );
 
   const create = async () => {
     if (!canCreate || posting) return;
@@ -115,6 +125,24 @@ export default function AdminGrowthAIProgramsScreen() {
           </button>
         }
       >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 12 }}>
+          <div style={{ borderRadius: 14, border: `1px solid ${THEME.border}`, background: 'rgba(255,255,255,0.04)', padding: 12 }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.66)', fontWeight: 800 }}>Propuestos</div>
+            <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900 }}>{summary.proposed}</div>
+          </div>
+          <div style={{ borderRadius: 14, border: '1px solid rgba(102,187,106,0.22)', background: 'rgba(102,187,106,0.10)', padding: 12 }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.66)', fontWeight: 800 }}>Activos</div>
+            <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900 }}>{summary.active}</div>
+          </div>
+          <div style={{ borderRadius: 14, border: '1px solid rgba(217,161,90,0.22)', background: 'rgba(217,161,90,0.10)', padding: 12 }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.66)', fontWeight: 800 }}>Pausados</div>
+            <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900 }}>{summary.paused}</div>
+          </div>
+          <div style={{ borderRadius: 14, border: '1px solid rgba(229,115,115,0.22)', background: 'rgba(229,115,115,0.10)', padding: 12 }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.66)', fontWeight: 800 }}>Cerrados</div>
+            <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900 }}>{summary.closed}</div>
+          </div>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10 }}>
           <input
             value={draft.title}
@@ -125,7 +153,7 @@ export default function AdminGrowthAIProgramsScreen() {
           <input
             value={draft.node_id}
             onChange={(e) => setDraft((d) => ({ ...d, node_id: e.target.value }))}
-            placeholder="NodeId (opcional)"
+            placeholder="Nodo (opcional)"
             style={{ borderRadius: 12, border: `1px solid ${THEME.borderStrong}`, background: 'rgba(255,255,255,0.06)', color: '#fff', padding: '10px 12px', fontSize: 13, outline: 'none' }}
           />
           <input
@@ -141,7 +169,7 @@ export default function AdminGrowthAIProgramsScreen() {
         {error ? <div style={{ marginTop: 10, color: '#E57373', fontSize: 13, lineHeight: 1.45 }}>{error}</div> : null}
       </Section>
 
-      <Section theme={THEME} title="Portafolio (vista MVP)">
+      <Section theme={THEME} title="Portafolio" right={<div style={{ fontSize: 12, color: 'rgba(255,255,255,0.66)', fontWeight: 800 }}>{items.length} programas</div>}>
         {loading ? (
           <ListSkeleton rows={8} />
         ) : items.length === 0 ? (
@@ -192,4 +220,3 @@ export default function AdminGrowthAIProgramsScreen() {
     </div>
   );
 }
-

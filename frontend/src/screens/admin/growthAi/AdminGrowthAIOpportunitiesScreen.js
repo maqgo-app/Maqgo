@@ -18,6 +18,7 @@ function Section({ theme, title, right, children }) {
 
 function StatusPill({ status }) {
   const s = String(status || 'new').toLowerCase();
+  const label = s === 'triaged' ? 'Priorizada' : s === 'discarded' ? 'Descartada' : 'Nueva';
   const cfg =
     s === 'triaged'
       ? { fg: '#CFF3D1', bg: 'rgba(102,187,106,0.14)', br: 'rgba(102,187,106,0.28)' }
@@ -26,7 +27,7 @@ function StatusPill({ status }) {
         : { fg: 'rgba(255,255,255,0.82)', bg: 'rgba(255,255,255,0.08)', br: 'rgba(255,255,255,0.14)' };
   return (
     <span style={{ padding: '5px 10px', borderRadius: 999, border: `1px solid ${cfg.br}`, background: cfg.bg, color: cfg.fg, fontSize: 12, fontWeight: 900 }}>
-      {s}
+      {label}
     </span>
   );
 }
@@ -68,6 +69,7 @@ export default function AdminGrowthAIOpportunitiesScreen() {
   const [items, setItems] = useState([]);
   const [posting, setPosting] = useState(false);
   const [filter, setFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [reasonModal, setReasonModal] = useState(null);
 
   const load = async () => {
@@ -92,12 +94,26 @@ export default function AdminGrowthAIOpportunitiesScreen() {
 
   const filtered = useMemo(() => {
     const q = String(filter || '').trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((it) => {
+    const statusScoped =
+      statusFilter === 'all'
+        ? items
+        : items.filter((it) => String(it?.status || 'new').toLowerCase() === statusFilter);
+    if (!q) return statusScoped;
+    return statusScoped.filter((it) => {
       const hay = `${it.title || ''} ${it.source || ''} ${it.node_id || ''} ${it.category || ''}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [items, filter]);
+  }, [items, filter, statusFilter]);
+
+  const summary = useMemo(
+    () => ({
+      total: items.length,
+      new: items.filter((it) => String(it?.status || 'new').toLowerCase() === 'new').length,
+      triaged: items.filter((it) => String(it?.status || '').toLowerCase() === 'triaged').length,
+      discarded: items.filter((it) => String(it?.status || '').toLowerCase() === 'discarded').length,
+    }),
+    [items]
+  );
 
   const triage = async (id, status, reason) => {
     if (posting) return;
@@ -130,6 +146,24 @@ export default function AdminGrowthAIOpportunitiesScreen() {
           </button>
         }
       >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 12 }}>
+          <button type="button" onClick={() => setStatusFilter('all')} style={{ textAlign: 'left', borderRadius: 14, border: `1px solid ${statusFilter === 'all' ? THEME.borderStrong : THEME.border}`, background: statusFilter === 'all' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', padding: 12, color: '#fff', cursor: 'pointer' }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.66)', fontWeight: 800 }}>Total</div>
+            <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900 }}>{summary.total}</div>
+          </button>
+          <button type="button" onClick={() => setStatusFilter('new')} style={{ textAlign: 'left', borderRadius: 14, border: `1px solid ${statusFilter === 'new' ? 'rgba(217,161,90,0.28)' : THEME.border}`, background: statusFilter === 'new' ? 'rgba(217,161,90,0.10)' : 'rgba(255,255,255,0.04)', padding: 12, color: '#fff', cursor: 'pointer' }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.66)', fontWeight: 800 }}>Nuevas</div>
+            <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900 }}>{summary.new}</div>
+          </button>
+          <button type="button" onClick={() => setStatusFilter('triaged')} style={{ textAlign: 'left', borderRadius: 14, border: `1px solid ${statusFilter === 'triaged' ? 'rgba(102,187,106,0.28)' : THEME.border}`, background: statusFilter === 'triaged' ? 'rgba(102,187,106,0.10)' : 'rgba(255,255,255,0.04)', padding: 12, color: '#fff', cursor: 'pointer' }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.66)', fontWeight: 800 }}>Priorizadas</div>
+            <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900 }}>{summary.triaged}</div>
+          </button>
+          <button type="button" onClick={() => setStatusFilter('discarded')} style={{ textAlign: 'left', borderRadius: 14, border: `1px solid ${statusFilter === 'discarded' ? 'rgba(229,115,115,0.28)' : THEME.border}`, background: statusFilter === 'discarded' ? 'rgba(229,115,115,0.10)' : 'rgba(255,255,255,0.04)', padding: 12, color: '#fff', cursor: 'pointer' }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.66)', fontWeight: 800 }}>Descartadas</div>
+            <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900 }}>{summary.discarded}</div>
+          </button>
+        </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <input
             value={filter}
@@ -137,6 +171,16 @@ export default function AdminGrowthAIOpportunitiesScreen() {
             placeholder="Buscar por título/fuente/nodo/categoría"
             style={{ flex: 1, minWidth: 260, borderRadius: 12, border: `1px solid ${THEME.borderStrong}`, background: 'rgba(255,255,255,0.06)', color: '#fff', padding: '10px 12px', fontSize: 13, outline: 'none' }}
           />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ borderRadius: 12, border: `1px solid ${THEME.borderStrong}`, background: 'rgba(255,255,255,0.06)', color: '#fff', padding: '10px 12px', fontSize: 13, outline: 'none', fontWeight: 800 }}
+          >
+            <option value="all">Todas</option>
+            <option value="new">Nuevas</option>
+            <option value="triaged">Priorizadas</option>
+            <option value="discarded">Descartadas</option>
+          </select>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.70)', fontWeight: 800 }}>{filtered.length} items</div>
         </div>
         {error ? <div style={{ marginTop: 10, color: '#E57373', fontSize: 13, lineHeight: 1.45 }}>{error}</div> : null}
@@ -160,12 +204,12 @@ export default function AdminGrowthAIOpportunitiesScreen() {
                   <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {o.source ? <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Fuente: {o.source}</span> : null}
                     {o.node_id ? <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Nodo: {o.node_id}</span> : null}
-                    {o.category ? <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Cat: {o.category}</span> : null}
+                    {o.category ? <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Categoría: {o.category}</span> : null}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <button type="button" className="maqgo-btn-primary" style={{ padding: '9px 10px', borderRadius: 12, fontWeight: 900, fontSize: 12 }} disabled={posting} onClick={() => setReasonModal({ id: o.id, status: 'triaged', title: 'Marcar como triaged' })}>
-                    Triage
+                  <button type="button" className="maqgo-btn-primary" style={{ padding: '9px 10px', borderRadius: 12, fontWeight: 900, fontSize: 12 }} disabled={posting} onClick={() => setReasonModal({ id: o.id, status: 'triaged', title: 'Priorizar oportunidad' })}>
+                    Priorizar
                   </button>
                   <button type="button" className="maqgo-btn-secondary" style={{ padding: '9px 10px', borderRadius: 12, fontWeight: 900, fontSize: 12 }} disabled={posting} onClick={() => setReasonModal({ id: o.id, status: 'discarded', title: 'Descartar' })}>
                     Descartar
@@ -191,4 +235,3 @@ export default function AdminGrowthAIOpportunitiesScreen() {
     </div>
   );
 }
-
