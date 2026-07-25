@@ -1,11 +1,35 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AdminActionLink, AdminDomainCard, AdminStatChip, AdminSurface } from './AdminShellBlocks.jsx';
-import { fetchAdminMatching } from './adminDomainData';
+import { fetchAdminMatchingHistory } from './adminDomainData';
+
+function toDateInputValue(date) {
+  const safe = date instanceof Date ? date : new Date();
+  return `${safe.getFullYear()}-${String(safe.getMonth() + 1).padStart(2, '0')}-${String(safe.getDate()).padStart(2, '0')}`;
+}
+
+function defaultRange(days = 30) {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - days);
+  return { fromDate: toDateInputValue(start), toDate: toDateInputValue(end) };
+}
+
+const INPUT_STYLE = {
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.12)',
+  color: '#fff',
+  borderRadius: 12,
+  padding: '10px 12px',
+  fontSize: 13,
+  fontWeight: 700,
+};
 
 export default function AdminMatchingDomainScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [items, setItems] = useState([]);
+  const [payload, setPayload] = useState({ items: [], summary: {} });
+  const [range, setRange] = useState(() => defaultRange(30));
+  const [statusScope, setStatusScope] = useState('all');
 
   useEffect(() => {
     let active = true;
@@ -13,8 +37,12 @@ export default function AdminMatchingDomainScreen() {
       try {
         setLoading(true);
         setError('');
-        const json = await fetchAdminMatching(100);
-        if (active) setItems(Array.isArray(json) ? json : []);
+        const json = await fetchAdminMatchingHistory(200, {
+          fromDate: range.fromDate,
+          toDate: range.toDate,
+          statusScope,
+        });
+        if (active) setPayload({ items: Array.isArray(json?.items) ? json.items : [], summary: json?.summary || {} });
       } catch (err) {
         if (active) setError(err?.message || 'No se pudo cargar matching.');
       } finally {
@@ -24,34 +52,59 @@ export default function AdminMatchingDomainScreen() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [range.fromDate, range.toDate, statusScope]);
 
   const stats = useMemo(() => {
-    const list = Array.isArray(items) ? items : [];
-    const matching = list.filter((item) => String(item?.status || '') === 'matching').length;
-    const offers = list.filter((item) => String(item?.status || '') === 'offer_sent').length;
-    const active = list.filter((item) => ['confirmed', 'in_progress', 'last_30'].includes(String(item?.status || ''))).length;
-    return { total: list.length, matching, offers, active };
-  }, [items]);
+    const summary = payload?.summary || {};
+    return {
+      total: summary.total || 0,
+      matching: summary.matching || 0,
+      offers: summary.offer_sent || 0,
+      active: (summary.confirmed || 0) + (summary.in_progress || 0),
+      closed: summary.closed || 0,
+      attempts: summary.attempts || 0,
+    };
+  }, [payload]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <AdminSurface
         title="Matching"
-        subtitle="Cola oficial de asignacion de oferta. Esta vista separa matching de reservas y lo hace visible como proceso operativo."
-        right={<AdminActionLink to="/admin/legacy/area/system" label="Abrir superficie legado" tone="secondary" />}
+        subtitle="Revisa la asignación de oferta por rango, desde búsqueda hasta cierre del caso."
+        right={<AdminActionLink to="/admin/legacy/area/system" label="Ver matching actual" tone="secondary" />}
       >
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+          <input
+            type="date"
+            value={range.fromDate}
+            onChange={(e) => setRange((current) => ({ ...current, fromDate: e.target.value }))}
+            style={INPUT_STYLE}
+          />
+          <input
+            type="date"
+            value={range.toDate}
+            onChange={(e) => setRange((current) => ({ ...current, toDate: e.target.value }))}
+            style={INPUT_STYLE}
+          />
+          <select value={statusScope} onChange={(e) => setStatusScope(e.target.value)} style={INPUT_STYLE}>
+            <option value="all">Todo el rango</option>
+            <option value="active">Solo activos</option>
+            <option value="closed">Solo cerrados</option>
+          </select>
+        </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <AdminStatChip label="Solicitudes activas" value={String(stats.total)} tone="brand" />
+          <AdminStatChip label="Solicitudes" value={String(stats.total)} tone="brand" />
           <AdminStatChip label="Buscando oferta" value={String(stats.matching)} tone="warning" />
           <AdminStatChip label="Ofertas enviadas" value={String(stats.offers)} tone="neutral" />
           <AdminStatChip label="Asignadas" value={String(stats.active)} tone="success" />
+          <AdminStatChip label="Cerradas" value={String(stats.closed)} tone="neutral" />
+          <AdminStatChip label="Intentos" value={String(stats.attempts)} tone="brand" />
         </div>
       </AdminSurface>
 
       <AdminSurface
-        title="Cola visible"
-        subtitle="La cola de matching ya queda separada del dashboard y puede observar intentos activos sin confundirse con el servicio completo."
+        title="Casos del rango"
+        subtitle="Histórico operativo del matching dentro del período seleccionado."
       >
         {loading ? (
           <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando matching…</div>
@@ -59,7 +112,7 @@ export default function AdminMatchingDomainScreen() {
           <div style={{ color: '#E8A34B', fontSize: 13 }}>{error}</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-            {items.slice(0, 24).map((item, index) => (
+            {payload.items.slice(0, 24).map((item, index) => (
               <AdminDomainCard
                 key={`${item?.id || item?._id || index}`}
                 title={item?.locationName || item?.location?.address || 'Solicitud activa'}
@@ -73,6 +126,41 @@ export default function AdminMatchingDomainScreen() {
             ))}
           </div>
         )}
+      </AdminSurface>
+
+      <AdminSurface
+        title="Lectura del rango"
+        subtitle="Interpretación rápida para entender presión de matching y cobertura en el período."
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+          <AdminDomainCard
+            title="Cobertura"
+            subtitle="Casos que avanzaron o quedaron pendientes"
+            bullets={[
+              `Buscando oferta: ${stats.matching}`,
+              `Ofertas enviadas: ${stats.offers}`,
+              `Asignadas: ${stats.active}`,
+            ]}
+          />
+          <AdminDomainCard
+            title="Carga operativa"
+            subtitle="Volumen e intensidad de matching"
+            bullets={[
+              `Solicitudes en rango: ${stats.total}`,
+              `Intentos acumulados: ${stats.attempts}`,
+              `Promedio por caso: ${stats.total ? (stats.attempts / stats.total).toFixed(1) : '0.0'}`,
+            ]}
+          />
+          <AdminDomainCard
+            title="Cierre"
+            subtitle="Casos fuera de la cola activa"
+            bullets={[
+              `Cerradas: ${stats.closed}`,
+              statusScope === 'active' ? 'El filtro actual deja fuera cierres' : 'Incluye estados fuera de la cola activa',
+              'Útil para entender si matching resuelve o acumula fricción',
+            ]}
+          />
+        </div>
       </AdminSurface>
     </div>
   );

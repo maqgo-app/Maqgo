@@ -60,17 +60,30 @@ export async function fetchAdminUsersAndMachines() {
   };
 }
 
-export async function fetchAdminServices(status = 'all', limit = 50, offset = 0) {
+export async function fetchAdminServices(status = 'all', limit = 50, offset = 0, options = {}) {
   const qs = new URLSearchParams();
   qs.set('limit', String(limit));
   qs.set('offset', String(offset));
   if (status) qs.set('status', status);
+  if (options?.fromDate) qs.set('from_date', String(options.fromDate));
+  if (options?.toDate) qs.set('to_date', String(options.toDate));
+  if (options?.dateField) qs.set('date_field', String(options.dateField));
   const res = await fetchWithAuth(`${BACKEND_URL}/api/services/admin/all?${qs.toString()}`);
   return res.json();
 }
 
 export async function fetchAdminMatching(limit = 100) {
   const res = await fetchWithAuth(`${BACKEND_URL}/api/service-requests/admin/active?limit=${encodeURIComponent(String(limit))}`);
+  return res.json();
+}
+
+export async function fetchAdminMatchingHistory(limit = 200, options = {}) {
+  const qs = new URLSearchParams();
+  qs.set('limit', String(limit));
+  if (options?.fromDate) qs.set('from_date', String(options.fromDate));
+  if (options?.toDate) qs.set('to_date', String(options.toDate));
+  if (options?.statusScope) qs.set('status_scope', String(options.statusScope));
+  const res = await fetchWithAuth(`${BACKEND_URL}/api/service-requests/admin/history?${qs.toString()}`);
   return res.json();
 }
 

@@ -1,7 +1,7 @@
 import uuid
 import os
 
-from fastapi import APIRouter, HTTPException, Body, Depends, status, Request
+from fastapi import APIRouter, HTTPException, Body, Depends, status, Request, Query
 from fastapi.responses import JSONResponse
 from typing import List, Optional
 
@@ -68,6 +68,35 @@ def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
         return dt
     except Exception:
         return None
+
+
+def _parse_admin_range_bound(raw: Optional[str], *, end_of_day: bool = False) -> Optional[datetime]:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        if "T" in text:
+            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        dt = datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        if end_of_day:
+            return dt + timedelta(days=1)
+        return dt
+    except Exception:
+        raise HTTPException(status_code=400, detail="Rango inválido. Usa formato YYYY-MM-DD.")
+
+
+def _admin_match_status_scope(scope: str) -> Optional[dict]:
+    safe_scope = str(scope or "active").strip().lower()
+    if safe_scope == "active":
+        return {"$in": ["matching", "offer_sent", "confirmed", "in_progress", "last_30"]}
+    if safe_scope == "all":
+        return None
+    if safe_scope == "closed":
+        return {"$nin": ["matching", "offer_sent", "confirmed", "in_progress", "last_30"]}
+    raise HTTPException(status_code=400, detail="status_scope inválido. Usa active, closed o all.")
 
 
 def _operator_gps_confirmed_for_accept(user: dict, req: dict) -> bool:
@@ -772,6 +801,50 @@ async def admin_active_service_requests(
     q = {"status": {"$in": statuses}}
     reqs = await db.service_requests.find(q, {"_id": 0}).sort("createdAt", -1).to_list(max(1, min(limit, 500)))
     return reqs
+
+
+@router.get("/admin/history", response_model=dict)
+async def admin_service_requests_history(
+    limit: int = Query(200, ge=1, le=500),
+    from_date: Optional[str] = Query(None, description="Inicio inclusivo YYYY-MM-DD"),
+    to_date: Optional[str] = Query(None, description="Fin inclusivo YYYY-MM-DD"),
+    status_scope: str = Query("all", pattern="^(active|closed|all)$"),
+    current_admin: dict = Depends(get_current_admin_strict),
+):
+    _ = current_admin
+    q: dict = {}
+    status_filter = _admin_match_status_scope(status_scope)
+    if status_filter is not None:
+        q["status"] = status_filter
+    start = _parse_admin_range_bound(from_date, end_of_day=False)
+    end = _parse_admin_range_bound(to_date, end_of_day=True)
+    if start or end:
+        created_filter = {}
+        if start:
+            created_filter["$gte"] = start.isoformat()
+        if end:
+            created_filter["$lt"] = end.isoformat()
+        q["createdAt"] = created_filter
+
+    reqs = await db.service_requests.find(q, {"_id": 0}).sort("createdAt", -1).to_list(limit)
+    summary = {
+        "total": len(reqs),
+        "matching": 0,
+        "offer_sent": 0,
+        "confirmed": 0,
+        "in_progress": 0,
+        "closed": 0,
+        "attempts": 0,
+    }
+    for req in reqs:
+        status_value = str(req.get("status") or "").strip()
+        summary["attempts"] += len(req.get("matchingAttempts") or [])
+        if status_value in {"matching", "offer_sent", "confirmed", "in_progress"}:
+            summary[status_value] += 1
+        elif status_value:
+            summary["closed"] += 1
+
+    return {"items": reqs, "summary": summary, "limit": limit}
 
 
 @router.post("/{request_id}/admin/expire-offer", response_model=dict)

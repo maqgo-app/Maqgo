@@ -25,6 +25,18 @@ function buildRecentMonthOptions(total = 12) {
   return options;
 }
 
+function toDateInputValue(date) {
+  const safe = date instanceof Date ? date : new Date();
+  return `${safe.getFullYear()}-${String(safe.getMonth() + 1).padStart(2, '0')}-${String(safe.getDate()).padStart(2, '0')}`;
+}
+
+function buildRecentRange(days = 30) {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - days);
+  return { fromDate: toDateInputValue(start), toDate: toDateInputValue(end) };
+}
+
 const INPUT_STYLE = {
   background: 'rgba(255,255,255,0.04)',
   border: '1px solid rgba(255,255,255,0.12)',
@@ -39,6 +51,7 @@ export default function AdminReservationsDomainScreen({ mode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [payload, setPayload] = useState({ services: [], stats: {}, finances: {}, sla: {}, total: 0 });
+  const [range, setRange] = useState(() => buildRecentRange(30));
   const monthOptions = useMemo(() => buildRecentMonthOptions(12), []);
   const [selectedMonthKey, setSelectedMonthKey] = useState(() => buildRecentMonthOptions(12)[0]?.key || '');
   const [monthlyFinance, setMonthlyFinance] = useState(null);
@@ -51,8 +64,13 @@ export default function AdminReservationsDomainScreen({ mode }) {
       try {
         setLoading(true);
         setError('');
-        const status = mode === 'payments' ? 'invoiced' : mode === 'facturacion' ? 'approved' : 'all';
-        const json = await fetchAdminServices(status, 50, 0);
+        const status = mode === 'payments' || mode === 'facturacion' ? 'all' : 'all';
+        const dateField = mode === 'facturacion' ? 'invoice_uploaded_at' : mode === 'payments' ? 'paid_at' : 'created_at';
+        const json = await fetchAdminServices(status, 200, 0, {
+          fromDate: range.fromDate,
+          toDate: range.toDate,
+          dateField,
+        });
         if (active) setPayload(json || {});
       } catch (err) {
         if (active) setError(err?.message || 'No se pudo cargar la vista.');
@@ -63,7 +81,7 @@ export default function AdminReservationsDomainScreen({ mode }) {
     return () => {
       active = false;
     };
-  }, [mode]);
+  }, [mode, range.fromDate, range.toDate]);
 
   const selectedMonth = useMemo(
     () => monthOptions.find((item) => item.key === selectedMonthKey) || monthOptions[0] || null,
@@ -128,34 +146,35 @@ export default function AdminReservationsDomainScreen({ mode }) {
   }, [mode, payload.services]);
 
   const stats = useMemo(() => {
+    const rangeSummary = payload?.range_summary || {};
     if (mode === 'payments') {
       return [
-        { label: 'Servicios facturados', value: String(payload?.stats?.invoiced || 0), tone: 'brand' },
-        { label: 'Pendientes de pago', value: String(payload?.sla?.facturados_sin_pago || 0), tone: 'warning' },
-        { label: 'Venta neta', value: formatPrice(payload?.finances?.totalNet || 0), tone: 'success' },
+        { label: 'Pagados en rango', value: String(rangeSummary?.paid || 0), tone: 'brand' },
+        { label: 'Neto en rango', value: formatPrice(rangeSummary?.net_total || 0), tone: 'success' },
+        { label: 'Comisión en rango', value: formatPrice(rangeSummary?.service_fee_total || 0), tone: 'warning' },
       ];
     }
     if (mode === 'facturacion') {
       return [
-        { label: 'Aprobados', value: String(payload?.stats?.approved || 0), tone: 'brand' },
-        { label: 'Invoiced', value: String(payload?.stats?.invoiced || 0), tone: 'success' },
-        { label: 'Sin factura', value: String(payload?.sla?.aprobado_sin_facturar || 0), tone: 'warning' },
+        { label: 'Facturas subidas', value: String(rangeSummary?.invoiced || 0), tone: 'brand' },
+        { label: 'Monto neto', value: formatPrice(rangeSummary?.net_total || 0), tone: 'success' },
+        { label: 'Pendientes documento', value: String(payload?.sla?.aprobado_sin_facturar || 0), tone: 'warning' },
       ];
     }
     return [
-      { label: 'Total visible', value: String(payload?.total || 0), tone: 'brand' },
-      { label: 'Pendientes de revision', value: String(payload?.stats?.pending_review || 0), tone: 'warning' },
-      { label: 'Disputas', value: String(payload?.stats?.disputed || 0), tone: 'neutral' },
+      { label: 'Creadas en rango', value: String(payload?.range_summary?.total || payload?.total || 0), tone: 'brand' },
+      { label: 'Pendientes de revision', value: String(payload?.range_summary?.pending_review || 0), tone: 'warning' },
+      { label: 'Disputas en rango', value: String(payload?.range_summary?.disputed || 0), tone: 'neutral' },
     ];
   }, [mode, payload]);
 
   const statusBreakdown = useMemo(() => {
-    const raw = payload?.stats || {};
+    const raw = payload?.range_summary || payload?.stats || {};
     return [
-      { title: 'Pendiente revision', value: String(raw.pending_review || 0), subtitle: 'Servicios por aprobar', tone: 'warning' },
+      { title: 'Pendiente revision', value: String(raw.pending_review || 0), subtitle: 'Servicios por aprobar en el rango', tone: 'warning' },
       { title: 'Approved', value: String(raw.approved || 0), subtitle: 'Listos para avanzar a documento', tone: 'neutral' },
       { title: 'Invoiced', value: String(raw.invoiced || 0), subtitle: 'Factura proveedor ya subida', tone: 'success' },
-      { title: 'Disputed', value: String(raw.disputed || 0), subtitle: 'Excepciones a resolver', tone: 'warning' },
+      { title: 'Disputed', value: String(raw.disputed || 0), subtitle: 'Excepciones dentro del rango', tone: 'warning' },
     ];
   }, [payload]);
 
@@ -171,8 +190,22 @@ export default function AdminReservationsDomainScreen({ mode }) {
       <AdminSurface
         title={titleMap[mode]}
         subtitle={subtitleMap[mode]}
-        right={<AdminActionLink to={legacyTo} label="Abrir superficie legado" tone="secondary" />}
+        right={<AdminActionLink to={legacyTo} label="Ver herramienta actual" tone="secondary" />}
       >
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+          <input
+            type="date"
+            value={range.fromDate}
+            onChange={(e) => setRange((current) => ({ ...current, fromDate: e.target.value }))}
+            style={INPUT_STYLE}
+          />
+          <input
+            type="date"
+            value={range.toDate}
+            onChange={(e) => setRange((current) => ({ ...current, toDate: e.target.value }))}
+            style={INPUT_STYLE}
+          />
+        </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {stats.map((item) => (
             <AdminStatChip key={`${mode}-${item.label}`} label={item.label} value={item.value} tone={item.tone} />
@@ -181,8 +214,8 @@ export default function AdminReservationsDomainScreen({ mode }) {
       </AdminSurface>
 
       <AdminSurface
-        title="Bandeja actual"
-        subtitle="Vista operativa del dominio con los casos visibles hoy."
+        title="Casos del rango"
+        subtitle="Bandeja operativa filtrada por el período seleccionado."
       >
         {loading ? (
           <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando dominio…</div>
@@ -252,6 +285,80 @@ export default function AdminReservationsDomainScreen({ mode }) {
               />
             </div>
           )}
+        </AdminSurface>
+      ) : null}
+
+      {mode === 'reservas' ? (
+        <AdminSurface
+          title="Lectura histórica"
+          subtitle="Cómo se movió la creación y resolución de reservas dentro del rango."
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+            <AdminDomainCard
+              title="Volumen"
+              subtitle="Actividad del periodo"
+              bullets={[
+                `Reservas creadas: ${payload?.range_summary?.total || 0}`,
+                `Pendientes revisión: ${payload?.range_summary?.pending_review || 0}`,
+                `Aprobadas: ${payload?.range_summary?.approved || 0}`,
+              ]}
+            />
+            <AdminDomainCard
+              title="Escalaciones"
+              subtitle="Señales que requieren seguimiento"
+              bullets={[
+                `Disputas: ${payload?.range_summary?.disputed || 0}`,
+                `Tiempo prom. revisión actual: ${payload?.sla?.revision_horas_promedio || 0} h`,
+                `Máx. revisión actual: ${payload?.sla?.revision_horas_max || 0} h`,
+              ]}
+            />
+            <AdminDomainCard
+              title="Conversión del flujo"
+              subtitle="Qué parte del rango avanza aguas abajo"
+              bullets={[
+                `Invoiced: ${payload?.range_summary?.invoiced || 0}`,
+                `Paid: ${payload?.range_summary?.paid || 0}`,
+                'Permite ver si la reserva se transforma o se estanca',
+              ]}
+            />
+          </div>
+        </AdminSurface>
+      ) : null}
+
+      {mode === 'facturacion' ? (
+        <AdminSurface
+          title="Documentos por rango"
+          subtitle="Seguimiento de facturas proveedor y avance documental dentro del período."
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+            <AdminDomainCard
+              title="Carga documental"
+              subtitle="Volumen de documentos en el rango"
+              bullets={[
+                `Facturas subidas: ${payload?.range_summary?.invoiced || 0}`,
+                `Monto neto asociado: ${formatPrice(payload?.range_summary?.net_total || 0)}`,
+                `Comisión visible: ${formatPrice(payload?.range_summary?.service_fee_total || 0)}`,
+              ]}
+            />
+            <AdminDomainCard
+              title="Pendientes"
+              subtitle="Lo que aún falta cerrar"
+              bullets={[
+                `Aprobado sin factura: ${payload?.sla?.aprobado_sin_facturar || 0}`,
+                `Facturado sin pago: ${payload?.sla?.facturados_sin_pago || 0}`,
+                'Sirve para anticipar cuello documental y caja',
+              ]}
+            />
+            <AdminDomainCard
+              title="Cobertura del flujo"
+              subtitle="Cómo avanza la documentación después de aprobar"
+              bullets={[
+                `Approved en rango: ${payload?.range_summary?.approved || 0}`,
+                `Invoiced en rango: ${payload?.range_summary?.invoiced || 0}`,
+                `Paid en rango: ${payload?.range_summary?.paid || 0}`,
+              ]}
+            />
+          </div>
         </AdminSurface>
       ) : null}
 

@@ -314,6 +314,68 @@ def _admin_list_filter(status: Optional[str]) -> dict:
     )
 
 
+def _parse_admin_date_bound(raw: Optional[str], *, end_of_day: bool = False) -> Optional[datetime]:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        if "T" in text:
+            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            if getattr(dt, "tzinfo", None) is not None:
+                dt = dt.replace(tzinfo=None)
+            return dt
+        dt = datetime.strptime(text, "%Y-%m-%d")
+        if end_of_day:
+            return dt + timedelta(days=1)
+        return dt
+    except Exception:
+        raise HTTPException(status_code=400, detail="Rango inválido. Usa formato YYYY-MM-DD.")
+
+
+def _merge_admin_date_filter(base_filter: dict, *, date_field: Optional[str], from_date: Optional[str], to_date: Optional[str]) -> dict:
+    field = str(date_field or "").strip()
+    if not field:
+      return dict(base_filter or {})
+    if field not in {"created_at", "approved_at", "invoice_uploaded_at", "paid_at"}:
+      raise HTTPException(status_code=400, detail="date_field inválido.")
+    start = _parse_admin_date_bound(from_date, end_of_day=False)
+    end = _parse_admin_date_bound(to_date, end_of_day=True)
+    if not start and not end:
+      return dict(base_filter or {})
+    merged = dict(base_filter or {})
+    range_filter = {}
+    if start:
+      range_filter["$gte"] = start
+    if end:
+      range_filter["$lt"] = end
+    merged[field] = range_filter
+    return merged
+
+
+def _admin_compute_range_summary(list_filter: dict) -> dict:
+    base = dict(list_filter or {})
+    summary = {
+        "total": services_collection.count_documents(base),
+        "pending_review": services_collection.count_documents({**base, "status": "pending_review"}),
+        "approved": services_collection.count_documents({**base, "status": "approved"}),
+        "invoiced": services_collection.count_documents({**base, "status": "invoiced"}),
+        "paid": services_collection.count_documents({**base, "status": "paid"}),
+        "disputed": services_collection.count_documents({**base, "status": "disputed"}),
+        "gross_total": 0,
+        "net_total": 0,
+        "service_fee_total": 0,
+    }
+    projection = {"gross_total": 1, "net_total": 1, "service_fee": 1}
+    for doc in services_collection.find(base, projection):
+        summary["gross_total"] += float(doc.get("gross_total") or 0)
+        summary["net_total"] += float(doc.get("net_total") or 0)
+        summary["service_fee_total"] += float(doc.get("service_fee") or 0)
+    summary["gross_total"] = round(summary["gross_total"])
+    summary["net_total"] = round(summary["net_total"])
+    summary["service_fee_total"] = round(summary["service_fee_total"])
+    return summary
+
+
 def _admin_compute_stats() -> dict:
     """Conteos globales sin cargar todos los documentos."""
     total = services_collection.count_documents({})
@@ -528,6 +590,9 @@ async def get_all_services(
         None,
         description="Filtro de listado: all | pending_review | approved | invoiced | paid | disputed | maqgo_to_invoice",
     ),
+    from_date: Optional[str] = Query(None, description="Inicio inclusivo YYYY-MM-DD"),
+    to_date: Optional[str] = Query(None, description="Fin inclusivo YYYY-MM-DD"),
+    date_field: Optional[str] = Query(None, description="Campo temporal: created_at | approved_at | invoice_uploaded_at | paid_at"),
     _: dict = Depends(get_current_admin_strict),
 ):
     """
@@ -535,12 +600,14 @@ async def get_all_services(
     Evita cargar toda la colección en memoria ni enviar megabytes al front.
     """
     list_filter = _admin_list_filter(status)
+    list_filter = _merge_admin_date_filter(list_filter, date_field=date_field, from_date=from_date, to_date=to_date)
     total_for_filter = await _run_sync(services_collection.count_documents, list_filter)
 
     stats = await _run_sync_call(_admin_compute_stats)
     finances = await _run_sync_call(_admin_compute_finances)
     sla = await _run_sync_call(_admin_compute_sla_metrics)
     week_comparison = await _run_sync_call(_admin_week_over_week)
+    range_summary = await _run_sync_call(lambda: _admin_compute_range_summary(list_filter))
 
     services = await _run_sync_call(
         lambda: list(
@@ -557,6 +624,14 @@ async def get_all_services(
             service["created_at"] = service["created_at"].isoformat()
         if "review_deadline" in service:
             service["review_deadline"] = service["review_deadline"].isoformat()
+        if "updated_at" in service and isinstance(service["updated_at"], datetime):
+            service["updated_at"] = service["updated_at"].isoformat()
+        if "approved_at" in service and isinstance(service["approved_at"], datetime):
+            service["approved_at"] = service["approved_at"].isoformat()
+        if "invoice_uploaded_at" in service and isinstance(service["invoice_uploaded_at"], datetime):
+            service["invoice_uploaded_at"] = service["invoice_uploaded_at"].isoformat()
+        if "paid_at" in service and isinstance(service["paid_at"], datetime):
+            service["paid_at"] = service["paid_at"].isoformat()
 
     return {
         "services": services,
@@ -564,6 +639,7 @@ async def get_all_services(
         "finances": finances,
         "sla": sla,
         "week_comparison": week_comparison,
+        "range_summary": range_summary,
         "total": total_for_filter,
         "limit": limit,
         "offset": offset,
