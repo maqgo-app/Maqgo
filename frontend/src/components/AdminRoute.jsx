@@ -199,7 +199,7 @@ function AdminRoute() {
     const em = String(adminEmail || '').trim().toLowerCase();
     const pw = String(adminPassword || '');
     if (!em || !pw) {
-      setAdminLoginError('Ingresa tu correo y contraseña.');
+      setAdminLoginError('Ingresa el correo y la contraseña de acceso.');
       return;
     }
     setAdminLoginLoading(true);
@@ -266,7 +266,7 @@ function AdminRoute() {
           </p>
           <form onSubmit={submitAdminLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>
-              Correo
+              Correo de acceso
               <input
                 type="email"
                 value={adminEmail}
@@ -286,7 +286,7 @@ function AdminRoute() {
               />
             </label>
             <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>
-              Contraseña
+              Contraseña de acceso
               <input
                 type="password"
                 value={adminPassword}

@@ -20,6 +20,16 @@ function Section({ title, children }) {
   );
 }
 
+const footerNoteStyle = {
+  color: 'rgba(255,255,255,0.58)',
+  fontSize: 12,
+  textAlign: 'center',
+  marginTop: 40,
+  paddingTop: 18,
+  lineHeight: 1.6,
+  borderTop: '1px solid rgba(255,255,255,0.10)',
+};
+
 function PrivacyScreen() {
   const navigate = useNavigate();
 
@@ -141,8 +151,8 @@ function PrivacyScreen() {
 
         <Section title="9. Contacto">
           <p>
-            Para ejercer tus derechos o realizar consultas sobre el tratamiento de tus 
-            datos personales, escríbenos a{' '}
+            Si tienes alguna consulta sobre esta Política de Privacidad o sobre el
+            tratamiento de tus datos personales, escríbenos a{' '}
             <a href="mailto:soporte@maqgo.cl" style={{ color: '#90BDD3' }}>
               soporte@maqgo.cl
             </a>
@@ -150,14 +160,12 @@ function PrivacyScreen() {
           </p>
         </Section>
 
-        <p style={{ 
-          color: 'rgba(255,255,255,0.5)', 
-          fontSize: 12, 
-          textAlign: 'center',
-          marginTop: 32 
-        }}>
-          Última actualización: Enero 2026
+        <p
+          style={footerNoteStyle}
+        >
+          Gracias por confiar en MAQGO. Trabajamos para ofrecerte una experiencia clara, segura y confiable.
         </p>
+
       </div>
     </div>
   );

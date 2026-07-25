@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { BackArrowIcon } from '../components/BackArrowIcon';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import BACKEND_URL, { fetchWithAuth, hasPersistedSessionCredentials } from '../utils/api';
 import { useAuth } from '../context/authHooks';
 
@@ -21,6 +21,27 @@ function Section({ title, children }) {
     </section>
   );
 }
+
+const footerNoteStyle = {
+  color: 'rgba(255,255,255,0.58)',
+  fontSize: 12,
+  textAlign: 'center',
+  marginTop: 40,
+  paddingTop: 18,
+  lineHeight: 1.6,
+  borderTop: '1px solid rgba(255,255,255,0.10)',
+};
+
+const acceptBarStyle = {
+  position: 'fixed',
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: 'rgba(18, 21, 27, 0.96)',
+  borderTop: '1px solid rgba(255,255,255,0.12)',
+  padding: 16,
+  zIndex: 50,
+};
 
 function TermsScreen() {
   const navigate = useNavigate();
@@ -268,30 +289,17 @@ function TermsScreen() {
           </p>
         </Section>
 
-        <p style={{ 
-          color: 'rgba(255,255,255,0.5)', 
-          fontSize: 12, 
-          textAlign: 'center',
-          marginTop: 32 
-        }}>
-          Última actualización: Marzo 2026
-        </p>
-      </div>
-      {acceptMode && (
-        <div
-          style={{
-            position: 'fixed',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(18, 21, 27, 0.96)',
-            borderTop: '1px solid rgba(255,255,255,0.12)',
-            padding: 16,
-            zIndex: 50,
-          }}
+        <p
+          style={footerNoteStyle}
         >
+          Gracias por confiar en MAQGO. Trabajamos para ofrecerte una experiencia clara, segura y confiable.
+        </p>
+
+      </div>
+      {acceptMode ? (
+        <div style={acceptBarStyle}>
           <div style={{ maxWidth: 520, margin: '0 auto' }}>
-            <div className="maqgo-checkbox-row" style={{ marginBottom: 10 }}>
+            <div className="maqgo-checkbox-row" style={{ marginBottom: 10, alignItems: 'flex-start' }}>
               <div
                 className={`maqgo-checkbox ${accepted ? 'checked' : ''}`}
                 onClick={() => {
@@ -313,16 +321,15 @@ function TermsScreen() {
                   </svg>
                 )}
               </div>
-              <span className="maqgo-checkbox-label" style={{ lineHeight: 1.35 }}>
+              <span className="maqgo-checkbox-label" style={{ lineHeight: 1.45 }}>
                 Acepto los Términos y Condiciones y{' '}
-                <button
-                  type="button"
+                <Link
+                  to="/privacy"
                   className="maqgo-link"
-                  onClick={() => navigate('/privacy')}
-                  style={{ padding: 0, border: 'none', background: 'none', font: 'inherit', cursor: 'pointer' }}
+                  style={{ display: 'inline', textDecoration: 'none' }}
                 >
                   Política de Privacidad
-                </button>
+                </Link>
               </span>
             </div>
 
@@ -343,7 +350,7 @@ function TermsScreen() {
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

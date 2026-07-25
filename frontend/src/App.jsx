@@ -164,6 +164,17 @@ const MasterJoinScreen = lazy(() => import('./screens/master/MasterJoinScreen.js
 
 // Admin
 const AdminDashboard = lazy(() => import('./screens/admin/AdminDashboard'));
+const AdminHomeScreen = lazy(() => import('./screens/admin/AdminHomeScreen'));
+const AdminShellLayout = lazy(() => import('./screens/admin/AdminShellLayout.jsx'));
+const AdminDomainBridgeScreen = lazy(() => import('./screens/admin/AdminDomainBridgeScreen.jsx'));
+const AdminLegacyAreaRedirect = lazy(() => import('./screens/admin/AdminLegacyAreaRedirect.jsx'));
+const AdminClientsDomainScreen = lazy(() => import('./screens/admin/AdminClientsDomainScreen.jsx'));
+const AdminGovernanceDomainScreen = lazy(() => import('./screens/admin/AdminGovernanceDomainScreen.jsx'));
+const AdminSupplyDomainScreen = lazy(() => import('./screens/admin/AdminSupplyDomainScreen.jsx'));
+const AdminReservationsDomainScreen = lazy(() => import('./screens/admin/AdminReservationsDomainScreen.jsx'));
+const AdminMatchingDomainScreen = lazy(() => import('./screens/admin/AdminMatchingDomainScreen.jsx'));
+const AdminReportsDomainScreen = lazy(() => import('./screens/admin/AdminReportsDomainScreen.jsx'));
+const AdminSupportDomainScreen = lazy(() => import('./screens/admin/AdminSupportDomainScreen.jsx'));
 const AdminPricingScreen = lazy(() => import('./screens/admin/AdminPricingScreen'));
 const AdminUsersScreen = lazy(() => import('./screens/admin/AdminUsersScreen'));
 const AdminMarketingScreen = lazy(() => import('./screens/admin/AdminMarketingScreen'));
@@ -351,24 +362,43 @@ function AppContent() {
 
         {/* Admin: puerta única en /admin (sin pasar por ProtectedRoute → no redirige a /login comercial). */}
         <Route path="/admin" element={<AdminRoute />}>
-          <Route index element={<AdminDashboard />} />
           <Route path="change-password" element={<AdminChangePasswordScreen />} />
-          <Route path="pricing" element={<AdminPricingScreen />} />
-          <Route path="users" element={<AdminUsersScreen />} />
-          <Route path="marketing" element={<AdminMarketingScreen />} />
-          <Route path="growth-ai" element={<AdminGrowthAIFrame />}>
-            <Route index element={<AdminGrowthAIOverviewScreen />} />
-            <Route path="comunas" element={<AdminGrowthAIComunasScreen />} />
-            <Route path="map" element={<AdminGrowthAIMapScreen />} />
-            <Route path="nodes/:nodeId" element={<AdminGrowthAINodeScreen />} />
-            <Route path="programs" element={<AdminGrowthAIProgramsScreen />} />
-            <Route path="opportunities" element={<AdminGrowthAIOpportunitiesScreen />} />
-            <Route path="discovery" element={<AdminGrowthAIDiscoveryScreen />} />
-            <Route path="automations" element={<AdminGrowthAIAutomationsScreen />} />
-            <Route path="actions" element={<AdminGrowthAIActionsScreen />} />
-          <Route path="contacts" element={<AdminGrowthAIContactsScreen />} />
-            <Route path="config" element={<AdminGrowthAIConfigScreen />} />
-            <Route path="audit" element={<AdminGrowthAIAuditScreen />} />
+          <Route element={<AdminShellLayout />}>
+            <Route index element={<AdminHomeScreen />} />
+            <Route path="dashboard" element={<Navigate to="/admin" replace />} />
+            <Route path="clientes" element={<AdminClientsDomainScreen />} />
+            <Route path="proveedores" element={<AdminSupplyDomainScreen mode="providers" />} />
+            <Route path="operadores" element={<AdminSupplyDomainScreen mode="operators" />} />
+            <Route path="maquinarias" element={<AdminSupplyDomainScreen mode="maquinarias" />} />
+            <Route path="reservas" element={<AdminReservationsDomainScreen mode="reservas" />} />
+            <Route path="matching" element={<AdminMatchingDomainScreen />} />
+            <Route path="pagos" element={<AdminReservationsDomainScreen mode="payments" />} />
+            <Route path="facturacion" element={<AdminReservationsDomainScreen mode="facturacion" />} />
+            <Route path="soporte" element={<AdminSupportDomainScreen />} />
+            <Route path="reportes" element={<AdminReportsDomainScreen />} />
+            <Route path="logs" element={<AdminGovernanceDomainScreen mode="logs" />} />
+            <Route path="configuracion" element={<AdminGovernanceDomainScreen mode="configuracion" />} />
+            <Route path="parametros" element={<AdminGovernanceDomainScreen mode="parametros" />} />
+            <Route path="roles-permisos" element={<AdminGovernanceDomainScreen mode="roles-permisos" />} />
+            <Route path="legacy/dashboard" element={<AdminDashboard />} />
+            <Route path="legacy/area/:areaId" element={<AdminLegacyAreaRedirect />} />
+            <Route path="users" element={<AdminUsersScreen />} />
+            <Route path="pricing" element={<AdminPricingScreen />} />
+            <Route path="marketing" element={<AdminMarketingScreen />} />
+            <Route path="growth-ai" element={<AdminGrowthAIFrame />}>
+              <Route index element={<AdminGrowthAIOverviewScreen />} />
+              <Route path="comunas" element={<AdminGrowthAIComunasScreen />} />
+              <Route path="map" element={<AdminGrowthAIMapScreen />} />
+              <Route path="nodes/:nodeId" element={<AdminGrowthAINodeScreen />} />
+              <Route path="programs" element={<AdminGrowthAIProgramsScreen />} />
+              <Route path="opportunities" element={<AdminGrowthAIOpportunitiesScreen />} />
+              <Route path="discovery" element={<AdminGrowthAIDiscoveryScreen />} />
+              <Route path="automations" element={<AdminGrowthAIAutomationsScreen />} />
+              <Route path="actions" element={<AdminGrowthAIActionsScreen />} />
+              <Route path="contacts" element={<AdminGrowthAIContactsScreen />} />
+              <Route path="config" element={<AdminGrowthAIConfigScreen />} />
+              <Route path="audit" element={<AdminGrowthAIAuditScreen />} />
+            </Route>
           </Route>
         </Route>
 

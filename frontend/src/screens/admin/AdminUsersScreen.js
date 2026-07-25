@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -44,6 +44,7 @@ function maqgoPublicId(rawId, kind) {
 
 function AdminUsersScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const [data, setData] = useState({ clients: [], providers: [], machines: [], total_clients: 0, total_providers: 0 });
   const [loading, setLoading] = useState(true);
@@ -59,13 +60,25 @@ function AdminUsersScreen() {
   const [photoModalUrl, setPhotoModalUrl] = useState('');
   const [expandedProviderIds, setExpandedProviderIds] = useState(() => new Set());
 
+  useEffect(() => {
+    try {
+      const qs = new URLSearchParams(location.search || '');
+      const raw = String(qs.get('tab') || '').trim().toLowerCase();
+      if (raw === 'clients' || raw === 'providers' || raw === 'machines') {
+        setTab(raw);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [location.search]);
+
   const goDashboardArea = (area) => {
     try {
       localStorage.setItem('maqgo_admin_area', area);
     } catch {
       void 0;
     }
-    navigate('/admin');
+    navigate('/admin/legacy/dashboard');
   };
 
   async function fetchUsers() {

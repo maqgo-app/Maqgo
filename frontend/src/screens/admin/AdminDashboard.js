@@ -162,10 +162,10 @@ function AdminDashboard() {
     try {
       const res = await fetchWithAuth(`${BACKEND_URL}/api/support/tickets?status=open`, { method: 'GET' }, 15000);
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.detail || `No se pudieron cargar tickets (${res.status})`);
+      if (!res.ok) throw new Error(data?.detail || `No se pudieron cargar los casos (${res.status})`);
       setAccessTickets(Array.isArray(data?.items) ? data.items : []);
     } catch (e) {
-      setAccessTicketsError(friendlyFetchError(e, 'No se pudieron cargar tickets de acceso.'));
+      setAccessTicketsError(friendlyFetchError(e, 'No se pudieron cargar los casos de acceso.'));
       setAccessTickets(null);
     } finally {
       setAccessTicketsLoading(false);
@@ -828,7 +828,7 @@ function AdminDashboard() {
     if (usingOfflineDemo) return;
     setReportSubsLoading(true);
     try {
-      const DEFAULT_REPORT_EMAIL = 'tomas@maqgo.cl';
+      const DEFAULT_REPORT_EMAIL = 'soporte@maqgo.cl';
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reports/subscriptions`, { method: 'GET' }, 12000);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -2796,10 +2796,10 @@ function AdminDashboard() {
                 fontFamily: "'Space Grotesk', sans-serif",
               }}
             >
-              Acceso (bloqueos y tickets)
+              Acceso (bloqueos y casos)
             </h2>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '0 0 10px' }}>
-              Bandeja operacional de ingresos bloqueados/sospechosos y solicitudes de revisión. Se genera solo cuando el sistema bloquea el acceso.
+              Bandeja operacional de ingresos bloqueados o sospechosos y solicitudes de revisión. Se genera solo cuando el sistema bloquea el acceso.
             </p>
 
             <div
@@ -2812,7 +2812,7 @@ function AdminDashboard() {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ color: '#fff', fontSize: 14, fontWeight: 800 }}>Tickets abiertos</div>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 800 }}>Casos abiertos</div>
                 <button
                   type="button"
                   onClick={fetchAccessTickets}
@@ -2852,7 +2852,7 @@ function AdminDashboard() {
 
               {!accessTicketsLoading && Array.isArray(accessTickets) && accessTickets.length === 0 ? (
                 <div style={{ marginTop: 12, color: ADMIN_THEME.textMuted, fontSize: 13 }}>
-                  No hay tickets abiertos.
+                  No hay casos abiertos.
                 </div>
               ) : null}
 
@@ -2899,10 +2899,10 @@ function AdminDashboard() {
                                   );
                                   const data = await res.json().catch(() => ({}));
                                   if (!res.ok) throw new Error(data?.detail || `No se pudo resolver (${res.status})`);
-                                  toast.success('Ticket resuelto.');
+                                  toast.success('Caso resuelto.');
                                   fetchAccessTickets();
                                 } catch (e) {
-                                  toast.error(friendlyFetchError(e, 'No se pudo resolver el ticket.'));
+                                  toast.error(friendlyFetchError(e, 'No se pudo resolver el caso.'));
                                 }
                               }}
                               style={{
@@ -3549,7 +3549,7 @@ function AdminDashboard() {
               <textarea
                 value={weeklyReportEmailsText}
                 onChange={(e) => setWeeklyReportEmailsText(e.target.value)}
-                placeholder="ej: tomas@maqgo.cl, finanzas@maqgo.cl"
+                placeholder="ej: soporte@maqgo.cl, finanzas@maqgo.cl"
                 rows={3}
                 disabled={reportSubsLoading || actionsLocked}
                 style={{

@@ -86,7 +86,7 @@ function AdminMarketingScreen() {
     } catch {
       void 0;
     }
-    navigate('/admin');
+    navigate('/admin/legacy/dashboard');
   };
 
   const weekEffective = useMemo(() => mondayISOFromCalendarDate(weekInput), [weekInput]);

@@ -43,7 +43,7 @@ function AdminPricingScreen() {
     } catch {
       void 0;
     }
-    navigate('/admin');
+    navigate('/admin/legacy/dashboard');
   };
 
   async function fetchPrices() {
