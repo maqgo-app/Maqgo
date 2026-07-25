@@ -69,6 +69,14 @@ export default function AdminGrowthAIMapScreen() {
     return items;
   }, [data]);
 
+  const summary = useMemo(() => {
+    const total = nodes.length;
+    const green = nodes.filter((item) => String(item?.traffic_tone || '') === 'green').length;
+    const amber = nodes.filter((item) => String(item?.traffic_tone || '') === 'amber').length;
+    const red = nodes.filter((item) => String(item?.traffic_tone || '') === 'red').length;
+    return { total, green, amber, red };
+  }, [nodes]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div
@@ -86,6 +94,12 @@ export default function AdminGrowthAIMapScreen() {
         <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Orden de apertura por comuna para construir oferta y activar mercado.</div>
         <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.74)', lineHeight: 1.5 }}>
           Esta vista muestra la secuencia de expansión priorizada por Growth AI para decidir dónde concentrar prospección, preparación y GO LIVE.
+        </div>
+        <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Pill label={`Nodos ${summary.total}`} tone="neutral" />
+          <Pill label={`Listos ${summary.amber}`} tone={summary.amber ? 'amber' : 'neutral'} />
+          <Pill label={`Abiertos ${summary.green}`} tone={summary.green ? 'green' : 'neutral'} />
+          <Pill label={`En riesgo ${summary.red}`} tone={summary.red ? 'red' : 'neutral'} />
         </div>
       </div>
 
@@ -111,7 +125,7 @@ export default function AdminGrowthAIMapScreen() {
           ) : null}
         </div>
         <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
-          Secuencia priorizada por comuna objetivo, lista para bajar a decisión comercial por nodo.
+          Secuencia priorizada por comuna objetivo, lista para bajar a ejecución comercial con la misma lógica premium del Admin.
         </div>
       </div>
 
@@ -127,7 +141,7 @@ export default function AdminGrowthAIMapScreen() {
       ) : nodes.length === 0 ? (
         <div style={{ border: `1px solid ${THEME.border}`, background: THEME.panelBg, borderRadius: 16, padding: 16 }}>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
-            No hay nodos configurados todavía. Define al menos un nodo en Configuración para iniciar el mapa comercial.
+            No hay nodos configurados todavía. Define cobertura inicial para que el mapa comercial pueda ordenar la expansión.
           </div>
         </div>
       ) : (

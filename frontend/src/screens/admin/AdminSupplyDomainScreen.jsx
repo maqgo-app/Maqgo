@@ -133,7 +133,7 @@ export default function AdminSupplyDomainScreen({ mode }) {
       <AdminSurface
         title={title}
         subtitle={subtitle}
-        right={<AdminActionLink to={legacyLink} label="Abrir dominio" tone="secondary" />}
+        right={<AdminActionLink to={legacyLink} label="Abrir gestion" tone="secondary" />}
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {stats.map((item) => (
@@ -144,7 +144,7 @@ export default function AdminSupplyDomainScreen({ mode }) {
 
       <AdminSurface
         title="Superficie operativa"
-        subtitle="Esta vista separa la lectura por dominio usando datos reales del Admin actual, sin depender del dashboard legado como unica casa."
+        subtitle="Esta vista separa la lectura por dominio usando datos reales del Admin oficial, sin volver a mezclar oferta con una vista monolítica."
       >
         {loading ? (
           <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando dominio…</div>
@@ -172,7 +172,7 @@ export default function AdminSupplyDomainScreen({ mode }) {
 
       <AdminSurface
         title="Riesgos visibles"
-        subtitle="El shell oficial expone riesgos estructurales de la oferta sin volver a esconderlos en Users o en un dashboard monolitico."
+        subtitle="El shell oficial expone riesgos estructurales de la oferta sin volver a esconderlos dentro de otras áreas."
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
           <AdminDomainCard
@@ -205,7 +205,7 @@ export default function AdminSupplyDomainScreen({ mode }) {
       {mode === 'maquinarias' ? (
         <AdminSurface
           title="Regla activa"
-          subtitle="Maquinarias ya queda separada de Parametros y de Usuarios, aun cuando la edicion profunda siga viviendo temporalmente en la herramienta actual."
+          subtitle="Maquinarias ya queda separada de Parametros y de Usuarios, mientras la gestion detallada se mantiene centralizada sin romper la experiencia oficial."
         >
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <AdminStatChip label="Lifecycle explicito" value="Activo" tone="brand" />

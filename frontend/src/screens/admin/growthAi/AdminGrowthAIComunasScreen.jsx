@@ -113,6 +113,17 @@ export default function AdminGrowthAIComunasScreen() {
     return out;
   }, [items]);
 
+  const summary = useMemo(() => {
+    const rows = Array.isArray(items) ? items : [];
+    const ready = rows.reduce((acc, item) => acc + (Number(item?.ready_not_live_total || 0) || 0), 0);
+    const live = rows.reduce((acc, item) => acc + (Number(item?.live_machines?.total || 0) || 0), 0);
+    return {
+      total: rows.length,
+      ready,
+      live,
+    };
+  }, [items]);
+
   const isEmpty = !loading && !error && Array.isArray(items) && items.length === 0;
 
   const selected = useMemo(() => {
@@ -303,7 +314,7 @@ export default function AdminGrowthAIComunasScreen() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div className="maqgo-admin-title">Comunas</div>
-          <div className="maqgo-admin-subtitle">Pipeline comercial por comuna, desde captación hasta apertura.</div>
+          <div className="maqgo-admin-subtitle">Gobierno comercial por comuna, desde captación hasta apertura automática bajo reglas MAQGO.</div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button
@@ -313,7 +324,7 @@ export default function AdminGrowthAIComunasScreen() {
             onClick={() => setBatchOpen(true)}
             disabled={loading || posting}
           >
-            Apertura masiva segura
+            Supervisión masiva
           </button>
           <button
             type="button"
@@ -342,6 +353,25 @@ export default function AdminGrowthAIComunasScreen() {
             >
               {bootstrapping ? 'Inicializando…' : 'Inicializar comunas base RM'}
             </button>
+          </div>
+        </Card>
+      ) : null}
+
+      {!isEmpty ? (
+        <Card
+          theme={THEME}
+          title="Pulso por comuna"
+          right={<Pill theme={THEME} label={`Cobertura ${summary.total}`} tone="neutral" />}
+        >
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
+            El autopiloto abre mercado solo cuando la maquinaria alcanza el mínimo de oferta. Usa la supervisión manual solo para corregir o forzar excepciones.
+          </div>
+          <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Pill theme={THEME} label={`Captando ${byStage.captando.length}`} tone="neutral" />
+            <Pill theme={THEME} label={`Por abrir ${byStage.por_abrir.length}`} tone={byStage.por_abrir.length ? 'amber' : 'neutral'} />
+            <Pill theme={THEME} label={`Abiertas ${byStage.abierta.length}`} tone={byStage.abierta.length ? 'green' : 'neutral'} />
+            <Pill theme={THEME} label={`LIVE ${summary.live}`} tone={summary.live ? 'green' : 'neutral'} />
+            <Pill theme={THEME} label={`LISTA ${summary.ready}`} tone={summary.ready ? 'amber' : 'neutral'} />
           </div>
         </Card>
       ) : null}
@@ -380,9 +410,9 @@ export default function AdminGrowthAIComunasScreen() {
           <div className="maqgo-modal-dialog" style={{ width: 'min(92vw, 720px)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ color: '#fff', fontSize: 18, fontWeight: 900 }}>Apertura masiva segura</div>
+                <div style={{ color: '#fff', fontSize: 18, fontWeight: 900 }}>Supervisión masiva</div>
                 <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 1.35 }}>
-                  Aprueba en bloque las maquinarias listas por comuna. Requiere motivo y confirmación para mantener control comercial.
+                  Interviene en bloque solo cuando quieras corregir o acelerar excepciones. Requiere motivo y confirmación para mantener control comercial.
                 </div>
               </div>
               <button
@@ -410,7 +440,7 @@ export default function AdminGrowthAIComunasScreen() {
               }}
             >
               {batchCandidates.length === 0 ? (
-                <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12 }}>No hay comunas con LISTA(s) sin LIVE.</div>
+                <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12 }}>No hay comunas con maquinarias listas pendientes de LIVE.</div>
               ) : (
                 <div style={{ display: 'grid', gap: 10 }}>
                   {batchCandidates.map((c) => {
@@ -471,7 +501,7 @@ export default function AdminGrowthAIComunasScreen() {
               <input
                 value={batchConfirm}
                 onChange={(e) => setBatchConfirm(e.target.value)}
-                placeholder="Escribe APROBAR para confirmar la apertura"
+                placeholder="Escribe APROBAR para confirmar la intervención"
                 style={{
                   width: '100%',
                   borderRadius: 12,
@@ -525,14 +555,14 @@ export default function AdminGrowthAIComunasScreen() {
                       await load();
                       setBatchOpen(false);
                     } catch (e) {
-                      setError(friendlyFetchError(e, 'La apertura masiva segura falló.'));
+                      setError(friendlyFetchError(e, 'La supervisión masiva falló.'));
                     } finally {
                       setBatchRunning(false);
                       setBatchProgress(null);
                     }
                   }}
                 >
-                  Ejecutar
+                  Ejecutar intervención
                 </button>
               </div>
             </div>

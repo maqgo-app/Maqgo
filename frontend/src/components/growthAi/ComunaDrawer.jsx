@@ -126,6 +126,10 @@ export default function ComunaDrawer({
           {minSupply ? <Pill theme={theme} label={`Mínimo ${minSupply}`} tone="neutral" /> : null}
         </div>
 
+        <div style={{ marginTop: 12, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.4 }}>
+          Growth AI abre mercado en automático cuando la oferta mínima se cumple. Esta capa queda para supervisar o forzar una excepción comercial.
+        </div>
+
         <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button
             type="button"
@@ -137,7 +141,7 @@ export default function ComunaDrawer({
               onApproveGoLiveBulk({ machine_keys: selectedKeys, reason: bulkReason });
             }}
           >
-            Aprobar LISTAS ({selectedKeys.length})
+            Forzar LIVE ({selectedKeys.length})
           </button>
           <button type="button" className="maqgo-btn-secondary" style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 800 }} onClick={onOpenNode}>
             Ver nodo
@@ -229,10 +233,10 @@ export default function ComunaDrawer({
           </details>
 
           <details style={{ border: `1px solid ${theme.border}`, borderRadius: 14, padding: 12, background: theme.panelBgSoft }}>
-            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 900, color: 'rgba(255,255,255,0.9)' }}>GO LIVE</summary>
+            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 900, color: 'rgba(255,255,255,0.9)' }}>Supervisión de LIVE</summary>
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>
-                Selecciona maquinarias LISTA para pasar a LIVE.
+                Selecciona maquinarias listas para forzar apertura solo cuando necesites intervenir por excepción.
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button

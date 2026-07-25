@@ -297,7 +297,7 @@ export default function AdminGrowthAIOverviewScreen() {
         subtitle: 'Ideas y hallazgos para priorizar expansión',
         bullets: [
           `${executive.oportunidadesNuevas} nuevas por revisar`,
-          `${loadCountByStatus(rollups.opportunities, 'status', 'triaged')} ya triageadas`,
+          `${loadCountByStatus(rollups.opportunities, 'status', 'triaged')} ya priorizadas`,
           'Convierte señales en decisiones concretas',
         ],
         actionLabel: 'Abrir bandeja',
@@ -321,7 +321,7 @@ export default function AdminGrowthAIOverviewScreen() {
         subtitle: 'Outreach listo para aprobar o ejecutar',
         bullets: [
           `${executive.contactosListos} contactos en preparación`,
-          `${loadCountByStatus(rollups.contacts, 'status', 'manual_required')} requieren paso manual`,
+          `${loadCountByStatus(rollups.contacts, 'status', 'manual_required')} requieren intervención`,
           'Reduce fricción entre hallazgo y contacto',
         ],
         actionLabel: 'Abrir contactos',
@@ -417,7 +417,7 @@ export default function AdminGrowthAIOverviewScreen() {
                     <Pill theme={THEME} label={`Demanda ${runtime?.daily?.demand_created ?? 0}/${runtime?.daily?.limits?.demand ?? '—'}`} tone="neutral" />
                   <Pill
                     theme={THEME}
-                    label={runtime?.autopilot?.require_go_live_approval_for_demand ? 'GO LIVE manual' : 'GO LIVE automatico'}
+                    label={runtime?.autopilot?.require_go_live_approval_for_demand ? 'GO LIVE supervisado' : 'GO LIVE automatico'}
                     tone={runtime?.autopilot?.require_go_live_approval_for_demand ? 'amber' : 'green'}
                   />
                   </div>
@@ -691,7 +691,7 @@ export default function AdminGrowthAIOverviewScreen() {
                 </div>
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>Sin pipeline todavía.</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>Sin flujo comercial todavía.</div>
             )}
           </Card>
 

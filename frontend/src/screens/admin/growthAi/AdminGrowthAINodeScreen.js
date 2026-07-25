@@ -387,7 +387,7 @@ export default function AdminGrowthAINodeScreen() {
               </details>
             </div>
             <div>
-              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>Decision comercial</div>
+              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>Gobierno comercial</div>
               <details style={{ marginTop: 8 }}>
                 <summary style={{ cursor: 'pointer', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900 }}>
                   Gestionar estado
@@ -422,7 +422,7 @@ export default function AdminGrowthAINodeScreen() {
                   </button>
                 </div>
                 <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.35 }}>
-                  Cada decision queda auditada y alimenta el aprendizaje de Growth AI.
+                  Cada decisión queda auditada y alimenta el aprendizaje del autopiloto comercial.
                 </div>
               </details>
             </div>
@@ -451,7 +451,7 @@ export default function AdminGrowthAINodeScreen() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {listMachineKeys.length ? (
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>Aprobar en bloque para abrir demanda controlada con oferta suficiente.</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>Growth AI abre sola al cumplir el mínimo. Usa esta acción solo para intervenir por excepción.</div>
                 <button
                   type="button"
                   className="maqgo-btn-primary"
@@ -459,7 +459,7 @@ export default function AdminGrowthAINodeScreen() {
                   disabled={posting}
                   onClick={() => setBulkModal({ title: 'Aprobar apertura por maquinaria', machineKeys: listMachineKeys })}
                 >
-                  Aprobar LISTAS ({listMachineKeys.length})
+                  Forzar LIVE ({listMachineKeys.length})
                 </button>
               </div>
             ) : null}
@@ -515,11 +515,11 @@ export default function AdminGrowthAINodeScreen() {
                             kind: 'go_live_on',
                             machineKey,
                             title: `Aprobar apertura: ${machineKey}`,
-                            label: 'Aprobar apertura',
+                            label: 'Forzar apertura',
                           })
                         }
                       >
-                        Abrir
+                        Forzar LIVE
                       </button>
                     )}
                   </div>
@@ -531,7 +531,7 @@ export default function AdminGrowthAINodeScreen() {
                 ¿Qué significa LISTA/LIVE?
               </summary>
               <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.35 }}>
-                LISTA = cumple el minimo de oferta activa detectada. LIVE = aprobado para abrir demanda y mostrarse al cliente con seguridad.
+                LISTA = cumple el mínimo de oferta activa detectada. LIVE = apertura comercial habilitada, sea por autopiloto o por una excepción supervisada.
               </div>
             </details>
           </div>
