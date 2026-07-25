@@ -54,7 +54,7 @@ export default function AdminSupplyDomainScreen({ mode }) {
         subtitle: `${operator?.email || 'Sin email'} · ${operator?.phone || 'Sin telefono'}`,
         bullets: [
           `Titular: ${operator?.owner_id || 'Sin owner_id'}`,
-          `Provider role: ${operator?.provider_role || 'operator'}`,
+          `Rol operativo: ${operator?.provider_role || 'operator'}`,
           `Estado: ${operator?.status || 'active'}`,
         ],
       }));
@@ -144,7 +144,7 @@ export default function AdminSupplyDomainScreen({ mode }) {
 
       <AdminSurface
         title="Superficie operativa"
-        subtitle="Esta vista separa la lectura por dominio usando datos reales del Admin oficial, sin volver a mezclar oferta con una vista monolítica."
+        subtitle="Esta vista separa la lectura por area usando datos reales del Admin oficial, sin volver a mezclar oferta en una sola pantalla."
       >
         {loading ? (
           <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando dominio…</div>
@@ -184,7 +184,7 @@ export default function AdminSupplyDomainScreen({ mode }) {
             ]}
           />
           <AdminDomainCard
-            title="Cobertura humana"
+            title="Equipo operativo"
             subtitle="Visibilidad del operador como ejecutor real"
             bullets={[
               `Operadores sin proveedor visible: ${risks.operatorsWithoutOwner}`,
@@ -193,10 +193,10 @@ export default function AdminSupplyDomainScreen({ mode }) {
           />
           <AdminDomainCard
             title="Catalogo"
-            subtitle="Readiness y publicacion del activo"
+            subtitle="Preparacion y publicacion del activo"
             bullets={[
               `Maquinarias no publicadas: ${risks.unpublishedMachines}`,
-              'El lifecycle explicito ya queda reservado para la siguiente profundidad del modulo',
+              'La etapa comercial de cada maquinaria debe quedar clara antes de abrirla al mercado',
             ]}
           />
         </div>
@@ -205,12 +205,12 @@ export default function AdminSupplyDomainScreen({ mode }) {
       {mode === 'maquinarias' ? (
         <AdminSurface
           title="Regla activa"
-          subtitle="Maquinarias ya queda separada de Parametros y de Usuarios, mientras la gestion detallada se mantiene centralizada sin romper la experiencia oficial."
+          subtitle="Maquinarias ya queda separada de Reglas de negocio y de Usuarios, mientras la gestion detallada se mantiene centralizada sin romper la experiencia oficial."
         >
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <AdminStatChip label="Lifecycle explicito" value="Activo" tone="brand" />
-            <AdminStatChip label="Puente a parametros" value="Si" tone="neutral" />
-            <AdminStatChip label="Separada de usuarios" value="Si" tone="success" />
+            <AdminStatChip label="Etapa comercial" value="Visible" tone="brand" />
+            <AdminStatChip label="Puente a precios" value="Si" tone="neutral" />
+            <AdminStatChip label="Puente a reglas" value="Si" tone="neutral" />
           </div>
         </AdminSurface>
       ) : null}

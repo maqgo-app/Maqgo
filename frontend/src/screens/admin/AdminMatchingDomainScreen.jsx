@@ -142,13 +142,13 @@ export default function AdminMatchingDomainScreen() {
       </AdminSurface>
 
       <AdminSurface
-        title="Lectura del rango"
-        subtitle="Interpretación rápida para entender presión de matching y cobertura en el período."
+        title="Resumen del periodo"
+        subtitle="Interpretacion rapida para entender avance, volumen y resultado de la asignacion en el periodo."
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
           <AdminDomainCard
-            title="Cobertura"
-            subtitle="Casos que avanzaron o quedaron pendientes"
+            title="Avance de casos"
+            subtitle="Casos que avanzaron o siguen pendientes"
             bullets={[
               `Buscando oferta: ${stats.matching}`,
               `Ofertas enviadas: ${stats.offers}`,
@@ -156,8 +156,8 @@ export default function AdminMatchingDomainScreen() {
             ]}
           />
           <AdminDomainCard
-            title="Carga operativa"
-            subtitle="Volumen e intensidad de matching"
+            title="Volumen de trabajo"
+            subtitle="Cantidad e intensidad de la asignacion"
             bullets={[
               `Solicitudes en rango: ${stats.total}`,
               `Intentos acumulados: ${stats.attempts}`,
@@ -165,12 +165,12 @@ export default function AdminMatchingDomainScreen() {
             ]}
           />
           <AdminDomainCard
-            title="Cierre"
-            subtitle="Casos fuera de la cola activa"
+            title="Casos resueltos"
+            subtitle="Casos que ya salieron de la cola activa"
             bullets={[
               `Cerradas: ${stats.closed}`,
-              statusScope === 'active' ? 'El filtro actual deja fuera cierres' : 'Incluye estados fuera de la cola activa',
-              'Útil para entender si matching resuelve o acumula fricción',
+              statusScope === 'active' ? 'El filtro actual deja fuera los casos ya resueltos' : 'Incluye estados fuera de la cola activa',
+              'Sirve para entender si la asignacion resuelve o acumula friccion',
             ]}
           />
         </div>

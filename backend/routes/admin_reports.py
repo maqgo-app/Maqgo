@@ -544,7 +544,7 @@ def _render_admin_email_shell(*, title: str, subtitle: str, kpis: list[dict], se
 
                   <div style="margin-top:6px;padding:16px 16px;border:1px solid #DCE5F0;border-radius:18px;background:#F8FAFD;">
                     <div style="font-size:12px;color:#0B1220;line-height:18px;">
-                      Adjuntamos el reporte en PDF (onepager) para lectura rápida. ID: <span style="font-weight:900;">{safe_report_id}</span>
+                      Adjuntamos el informe en PDF para lectura rápida. ID: <span style="font-weight:900;">{safe_report_id}</span>
                     </div>
                     <div style="margin-top:12px;">
                       <a href="{safe_cta_url}" style="display:inline-block;background:#0B1220;color:#ffffff;text-decoration:none;padding:12px 16px;border-radius:14px;font-weight:900;font-size:13px;">
@@ -1300,7 +1300,7 @@ def _render_admin_monthly_intelligence_email(*, report: dict, report_id: str, ct
 """
     return html
 
-def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
+def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
     if not REPORTLAB_AVAILABLE:
         raise RuntimeError("reportlab_missing")
     from reportlab.lib import colors
@@ -1676,7 +1676,7 @@ def _build_weekly_onepager_pdf_bytes(report: dict) -> bytes:
     return buffer.getvalue()
 
 
-def _build_monthly_onepager_pdf_bytes(report: dict) -> bytes:
+def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
     if not REPORTLAB_AVAILABLE:
         raise RuntimeError("reportlab_missing")
     from reportlab.lib import colors
@@ -3250,10 +3250,10 @@ async def get_weekly_report(
     if not REPORTLAB_AVAILABLE:
         raise HTTPException(status_code=501, detail="PDF no disponible (dependencia reportlab no instalada)")
 
-    pdf_bytes = _build_weekly_onepager_pdf_bytes(report)
+    pdf_bytes = _build_weekly_report_pdf_bytes(report)
     inicio = str((report.get("periodo", {}) or {}).get("inicio") or "")[:10] or "semana"
     buffer = io.BytesIO(pdf_bytes)
-    filename = f"maqgo_onepager_semanal_{inicio}.pdf"
+    filename = f"maqgo_informe_semanal_{inicio}.pdf"
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
 
@@ -3278,10 +3278,10 @@ async def get_monthly_finance(
         return report
     if not REPORTLAB_AVAILABLE:
         raise HTTPException(status_code=501, detail="PDF no disponible (dependencia reportlab no instalada)")
-    pdf_bytes = _build_monthly_onepager_pdf_bytes(report)
+    pdf_bytes = _build_monthly_report_pdf_bytes(report)
     buffer = io.BytesIO(pdf_bytes)
     label = str((report.get("periodo", {}) or {}).get("label") or "").strip() or f"{y}-{m:02d}"
-    filename = f"maqgo_onepager_mensual_{label}.pdf"
+    filename = f"maqgo_informe_mensual_{label}.pdf"
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
 

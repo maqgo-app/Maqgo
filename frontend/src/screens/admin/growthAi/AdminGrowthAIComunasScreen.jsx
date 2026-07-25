@@ -361,7 +361,7 @@ export default function AdminGrowthAIComunasScreen() {
         <Card
           theme={THEME}
           title="Pulso por comuna"
-          right={<Pill theme={THEME} label={`Cobertura ${summary.total}`} tone="neutral" />}
+          right={<Pill theme={THEME} label={`Comunas ${summary.total}`} tone="neutral" />}
         >
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
             El autopiloto abre mercado solo cuando la maquinaria alcanza el mínimo de oferta. Usa la supervisión manual solo para corregir o forzar excepciones.

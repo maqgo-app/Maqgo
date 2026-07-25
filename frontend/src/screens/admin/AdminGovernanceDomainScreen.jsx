@@ -3,62 +3,62 @@ import { AdminActionLink, AdminDomainCard, AdminStatChip, AdminSurface } from '.
 
 const CONFIG = {
   logs: {
-    title: 'Logs',
-    subtitle: 'Dominio transversal de trazabilidad y eventos auditables del Admin.',
+    title: 'Actividad',
+    subtitle: 'Eventos y seguimiento del Admin.',
     chips: [
-      { label: 'Dominio oficial', value: 'Si', tone: 'brand' },
-      { label: 'Entidad base', value: 'Evento de Auditoria', tone: 'neutral' },
-      { label: 'Fase', value: 'Gobierno inicial', tone: 'success' },
+      { label: 'Disponible', value: 'Si', tone: 'brand' },
+      { label: 'Base', value: 'Eventos del sistema', tone: 'neutral' },
+      { label: 'Estado', value: 'Base inicial', tone: 'success' },
     ],
     bullets: [
       'Relacionar actor, entidad, accion y severidad',
       'Evitar depender de memoria humana para investigar',
-      'Servir a negocio, soporte y gobierno',
+      'Servir a negocio, soporte y seguimiento interno',
     ],
     action: null,
   },
   configuracion: {
     title: 'Configuracion',
-    subtitle: 'Settings globales y sensibles del sistema, separados de Parametros.',
+    subtitle: 'Integraciones y ajustes globales, separados de las reglas de negocio.',
     chips: [
-      { label: 'Dominio oficial', value: 'Si', tone: 'brand' },
+      { label: 'Disponible', value: 'Si', tone: 'brand' },
       { label: 'Alcance', value: 'Global', tone: 'warning' },
       { label: 'Tamano esperado', value: 'Pequeno', tone: 'success' },
     ],
     bullets: [
-      'Gobernar integraciones y toggles estructurales',
+      'Controlar integraciones y ajustes globales',
       'Evitar absorber reglas variables del negocio',
       'Mantener toda modificacion sensible bajo control',
     ],
     action: { to: '/admin/growth-ai/config', label: 'Abrir config existente' },
   },
   parametros: {
-    title: 'Parametros',
-    subtitle: 'Reglas variables del negocio y pricing de referencia, separados de Configuracion.',
+    title: 'Reglas de negocio',
+    subtitle: 'Reglas variables del negocio y precios de referencia, separadas de Configuracion.',
     chips: [
-      { label: 'Dominio oficial', value: 'Si', tone: 'brand' },
-      { label: 'Fuente actual', value: 'Pricing', tone: 'neutral' },
+      { label: 'Disponible', value: 'Si', tone: 'brand' },
+      { label: 'Fuente actual', value: 'Precios', tone: 'neutral' },
       { label: 'Impacta', value: 'Operacion', tone: 'success' },
     ],
     bullets: [
       'Centralizar reglas ajustables del negocio',
-      'Separar pricing y criterios de elegibilidad del codigo',
-      'Servir como casa oficial de reglas variables',
+      'Separar precios y criterios de seleccion del codigo',
+      'Servir como espacio central de reglas variables',
     ],
-    action: { to: '/admin/pricing', label: 'Abrir parametros actuales' },
+    action: { to: '/admin/pricing', label: 'Abrir reglas actuales' },
   },
   'roles-permisos': {
-    title: 'Roles y permisos',
-    subtitle: 'Gobierno de acceso por dominio y accion, construido sobre la arquitectura oficial.',
+    title: 'Equipo y accesos',
+    subtitle: 'Accesos del equipo por area y accion.',
     chips: [
-      { label: 'Dominio oficial', value: 'Si', tone: 'brand' },
+      { label: 'Disponible', value: 'Si', tone: 'brand' },
       { label: 'Estado', value: 'Base lista', tone: 'success' },
-      { label: 'Dependencia', value: 'Dominios oficiales', tone: 'neutral' },
+      { label: 'Dependencia', value: 'Areas del panel', tone: 'neutral' },
     ],
     bullets: [
       'Separar quien ve, decide y ejecuta',
-      'Crecimiento del equipo sin rol admin omnipotente',
-      'Alinear permisos con modulos reales y no con rutas heredadas',
+      'Hacer crecer el equipo sin dar acceso total a todos',
+      'Alinear permisos con areas reales y no con rutas heredadas',
     ],
     action: null,
   },
@@ -82,7 +82,7 @@ export default function AdminGovernanceDomainScreen({ mode }) {
         </div>
       </AdminSurface>
 
-      <AdminSurface title="Base del dominio" subtitle="Resumen claro del rol que cumple esta área dentro del Admin.">
+      <AdminSurface title="Base del area" subtitle="Resumen claro del rol que cumple esta area dentro del Admin.">
         <AdminDomainCard title={meta.title} subtitle={meta.subtitle} bullets={meta.bullets} />
       </AdminSurface>
     </div>

@@ -210,11 +210,20 @@ function MyMachinesScreen() {
       setDefaultOperator(mid, getEffectiveDefaultOperatorId(machine, defaultByMachinery));
     }
 
+    const needsActivation =
+      !machine.published || !machine.available || !Array.isArray(machine.operators) || machine.operators.length === 0;
+    const updates = needsActivation
+      ? { operators: nextOperators, published: true, available: true, status: 'active' }
+      : { operators: nextOperators };
+
     try {
-      await updateMachineInApi(machineId, { operators: nextOperators });
-      updateMachine(machineId, { operators: nextOperators });
+      await updateMachineInApi(machineId, updates);
+      updateMachine(machineId, updates);
       loadMachines();
       setOperatorModal(null);
+      if (needsActivation) {
+        toast.success('Maquinaria activada y lista para operar.');
+      }
       if (activationEdit) navigate(returnTo, { replace: true });
     } catch (e) {
       toast.error(e?.message || 'No se pudieron asignar operadores.');

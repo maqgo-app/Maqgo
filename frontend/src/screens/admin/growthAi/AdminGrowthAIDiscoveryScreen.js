@@ -158,7 +158,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.detail || `HTTP ${res.status}`);
-      toast.show(`Sources guardadas (${data?.count ?? sources.length})`, { tone: 'success' });
+      toast.show(`Fuentes guardadas (${data?.count ?? sources.length})`, { tone: 'success' });
       fetchAll();
     } catch (e) {
       toast.show(`Error: ${String(e?.message || e)}`, { tone: 'danger' });
@@ -173,7 +173,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/growth-ai/discovery/run`, { method: 'POST' }, 30000);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.detail || `HTTP ${res.status}`);
-      toast.show(`Discovery OK: +${data?.items_created ?? 0} items`, { tone: 'success' });
+      toast.show(`Busqueda completada: +${data?.items_created ?? 0} oportunidades`, { tone: 'success' });
       fetchAll();
     } catch (e) {
       toast.show(`Error: ${String(e?.message || e)}`, { tone: 'danger' });
@@ -224,9 +224,9 @@ export default function AdminGrowthAIDiscoveryScreen() {
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ minWidth: 0, maxWidth: 760 }}>
             <div style={{ fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: 'rgba(255,255,255,0.56)', fontWeight: 900 }}>
-              Radar comercial autonomo
+              Busqueda comercial automatica
             </div>
-            <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Autopiloto para detectar proveedores, clientes y nuevas aperturas del nicho MAQGO.</div>
+            <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Motor para detectar proveedores, clientes y nuevas aperturas del nicho MAQGO.</div>
             <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.74)', lineHeight: 1.5 }}>
               Growth AI monitorea señales del mercado, las convierte en oportunidades accionables y mantiene expansión continua sin depender de marketing manual.
             </div>
@@ -242,13 +242,13 @@ export default function AdminGrowthAIDiscoveryScreen() {
               onClick={runDiscovery}
               disabled={running}
             >
-              {running ? 'Ejecutando…' : 'Activar radar ahora'}
+              {running ? 'Ejecutando…' : 'Ejecutar busqueda ahora'}
             </button>
           </div>
         </div>
 
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-          <StatCard label="Fuentes activas" value={`${summary.enabled}/${summary.totalSources}`} subtitle="Cobertura actualmente habilitada" tone="green" />
+          <StatCard label="Fuentes activas" value={`${summary.enabled}/${summary.totalSources}`} subtitle="Fuentes hoy habilitadas" tone="green" />
           <StatCard label="Oferta vs demanda" value={`${summary.supply} / ${summary.demand}`} subtitle="Balance por tipo de senal comercial" />
           <StatCard label="Ultima corrida" value={String(summary.lastCreated)} subtitle={`Hallazgos creados · capturados ${summary.lastFetched}`} tone={healthTone} />
           <StatCard label="Oportunidades nuevas" value={String(summary.newItems)} subtitle="Bandeja lista para priorización" tone={opportunityTone} />
@@ -263,7 +263,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
       <Section
         theme={THEME}
         title="Pulso ejecutivo"
-        subtitle="Lectura rapida del radar comercial y de su capacidad de abrir oferta y demanda utiles."
+        subtitle="Resumen rapido de la busqueda comercial y de su capacidad de abrir oferta y demanda utiles."
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1.2fr) minmax(260px, 1fr)', gap: 12 }}>
           <div style={{ padding: 14, borderRadius: 16, border: `1px solid ${THEME.border}`, background: 'rgba(255,255,255,0.04)' }}>
@@ -272,8 +272,8 @@ export default function AdminGrowthAIDiscoveryScreen() {
               {summary.totalSources === 0
                 ? 'Growth AI aun no tiene fuentes configuradas para abrir nuevas oportunidades.'
                 : summary.lastCreated > 0
-                  ? `La última corrida abrió ${summary.lastCreated} nuevos hallazgos desde ${summary.enabled} fuentes activas.`
-                  : 'El radar está activo, pero la última corrida no convirtió hallazgos en nuevas oportunidades.'}
+                  ? `La ultima ejecucion abrio ${summary.lastCreated} nuevas oportunidades desde ${summary.enabled} fuentes activas.`
+                  : 'La busqueda esta activa, pero la ultima ejecucion no convirtio senales en nuevas oportunidades.'}
             </div>
             <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
               Última ejecución: {summary.lastRunAt}
@@ -284,7 +284,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
             <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.5, color: '#fff' }}>
               {summary.newItems > 0
                 ? 'Existe inventario nuevo para priorizar y convertir en expansión real.'
-                : 'No hay oportunidad nueva pendiente; conviene revisar cobertura o activar una corrida manual del radar.'}
+                : 'No hay oportunidad nueva pendiente; conviene revisar las fuentes activas o ejecutar una busqueda manual.'}
             </div>
             <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
               Errores acumulados en historial reciente: {summary.totalErrors}
@@ -295,8 +295,8 @@ export default function AdminGrowthAIDiscoveryScreen() {
 
       <Section
         theme={THEME}
-        title="Fuentes del radar"
-        subtitle="Configura de donde aprende el autopiloto y que tipo de senal comercial debe capturar."
+        title="Fuentes de busqueda"
+        subtitle="Configura de dónde aprende el motor y qué tipo de señal comercial debe capturar."
         right={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <select
@@ -499,8 +499,8 @@ export default function AdminGrowthAIDiscoveryScreen() {
 
       <Section
         theme={THEME}
-        title="Historial del autopiloto"
-        subtitle="Controla si el radar trae senal util y detecta friccion antes de que impacte la expansion."
+        title="Actividad reciente"
+        subtitle="Revisa si la busqueda trae señal útil y detecta fricción antes de que impacte la expansion."
       >
         <div style={{ display: 'grid', gap: 10 }}>
           {runs.slice(0, 10).map((r) => (

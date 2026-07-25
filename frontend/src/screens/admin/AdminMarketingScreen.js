@@ -492,7 +492,7 @@ function AdminMarketingScreen() {
             </button>
             <button
               type="button"
-              onClick={() => navigate('/admin/pricing')}
+              onClick={() => navigate('/admin/maquinarias')}
               style={{
                 padding: '8px 16px',
                 background: 'transparent',
@@ -504,7 +504,7 @@ function AdminMarketingScreen() {
                 fontWeight: 800,
               }}
             >
-              Precios
+              Maquinarias
             </button>
             <button
               type="button"

@@ -157,12 +157,12 @@ export default function AdminReportsDomainScreen() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <AdminSurface
         title="Reportes"
-        subtitle="Consulta reportes semanales y mensuales, revisa suscriptores y descarga los one-pagers del equipo desde una sola vista."
+        subtitle="Consulta informes semanales y mensuales, revisa destinatarios y descarga los PDF ejecutivos desde una sola vista."
         right={<AdminActionLink to="/admin/marketing" label="Abrir marketing" tone="secondary" />}
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <AdminStatChip label="Suscriptores semanales" value={String(stats.weeklyEmails)} tone="brand" />
-          <AdminStatChip label="Suscriptores mensuales" value={String(stats.monthlyEmails)} tone="neutral" />
+          <AdminStatChip label="Destinatarios semanales" value={String(stats.weeklyEmails)} tone="brand" />
+          <AdminStatChip label="Destinatarios mensuales" value={String(stats.monthlyEmails)} tone="neutral" />
           <AdminStatChip label="Servicios semanales" value={String(stats.totalServices)} tone="success" />
           <AdminStatChip label="Margen mensual" value={String(stats.margin || 0)} tone="warning" />
         </div>
@@ -171,7 +171,7 @@ export default function AdminReportsDomainScreen() {
       <AdminSurface title="Plantillas activas" subtitle="Los reportes semanales y mensuales mantienen el formato MAQGO ya desarrollado y siguen disponibles como PDF para distribución interna.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
           <AdminDomainCard
-            title="One-pager semanal"
+            title="Informe semanal"
             subtitle="Misma lógica del reporte operativo que ya venía usando el equipo"
             bullets={[
               'Incluye resumen, negocio, operación, demanda e insights',
@@ -180,7 +180,7 @@ export default function AdminReportsDomainScreen() {
             ]}
           />
           <AdminDomainCard
-            title="One-pager mensual"
+            title="Informe mensual"
             subtitle="Mantiene la lectura financiera consolidada del mes"
             bullets={[
               'Incluye ventas, contribución, IVA, ingresos MAQGO y volumen',
@@ -189,12 +189,12 @@ export default function AdminReportsDomainScreen() {
             ]}
           />
           <AdminDomainCard
-            title="Suscriptores"
+            title="Destinatarios"
             subtitle="La distribución semanal y mensual sigue vigente"
             bullets={[
-              `Semanal: ${stats.weeklyEmails}`,
-              `Mensual: ${stats.monthlyEmails}`,
-              'Marketing mantiene el control de destinatarios y workflow',
+              `Informe semanal: ${stats.weeklyEmails}`,
+              `Informe mensual: ${stats.monthlyEmails}`,
+              'Marketing mantiene el control de destinatarios y del flujo de envio',
             ]}
           />
         </div>
@@ -297,7 +297,7 @@ export default function AdminReportsDomainScreen() {
         )}
       </AdminSurface>
 
-      <AdminSurface title="Suscripciones y envíos" subtitle="Control visible de quién recibe cada reporte y qué superficie sigue vinculada al workflow actual.">
+      <AdminSurface title="Destinatarios y envíos" subtitle="Control visible de quién recibe cada informe y qué pantalla sigue gestionando el envio actual.">
         {loading ? (
           <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando reportes…</div>
         ) : error ? (
@@ -308,7 +308,7 @@ export default function AdminReportsDomainScreen() {
               title="Distribución semanal"
               subtitle="Destinatarios del informe semanal"
               bullets={[
-                `Suscriptores: ${stats.weeklyEmails}`,
+                `Destinatarios: ${stats.weeklyEmails}`,
                 'El envío sigue utilizando la plantilla MAQGO semanal',
                 'Marketing permite administrar continuidad y distribución',
               ]}
@@ -317,9 +317,9 @@ export default function AdminReportsDomainScreen() {
               title="Distribución mensual"
               subtitle="Destinatarios del informe mensual"
               bullets={[
-                `Suscriptores: ${stats.monthlyEmails}`,
+                `Destinatarios: ${stats.monthlyEmails}`,
                 'El envío sigue utilizando la plantilla MAQGO mensual',
-                'Conserva el workflow ejecutivo ya desarrollado',
+                'Conserva el flujo ejecutivo ya desarrollado',
               ]}
             />
             <AdminDomainCard
@@ -327,8 +327,8 @@ export default function AdminReportsDomainScreen() {
               subtitle="Superficie disponible para la operación actual"
               bullets={[
                 'Marketing concentra acciones auxiliares de distribución',
-                'Reportes queda como casa de consulta y descarga',
-                'Dashboard resume, pero no reemplaza este dominio',
+                'Reportes queda como espacio de consulta y descarga',
+                'El panel resume, pero no reemplaza esta area',
               ]}
               to="/admin/marketing"
               actionLabel="Ir a marketing"

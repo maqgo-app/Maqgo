@@ -26,8 +26,9 @@ export const ADMIN_NAV_GROUPS = [
       { key: 'proveedores', label: 'Proveedores', path: '/admin/proveedores' },
       { key: 'operadores', label: 'Operadores', path: '/admin/operadores' },
       { key: 'maquinarias', label: 'Maquinarias', path: '/admin/maquinarias' },
+      { key: 'precios', label: 'Precios', path: '/admin/pricing' },
       { key: 'reservas', label: 'Reservas', path: '/admin/reservas' },
-      { key: 'matching', label: 'Matching', path: '/admin/matching' },
+      { key: 'matching', label: 'Asignacion', path: '/admin/matching' },
     ],
   },
   {
@@ -36,16 +37,16 @@ export const ADMIN_NAV_GROUPS = [
       { key: 'pagos', label: 'Pagos', path: '/admin/pagos' },
       { key: 'facturacion', label: 'Facturacion', path: '/admin/facturacion' },
       { key: 'soporte', label: 'Soporte', path: '/admin/soporte' },
-      { key: 'logs', label: 'Logs', path: '/admin/logs' },
+      { key: 'logs', label: 'Actividad', path: '/admin/logs' },
     ],
   },
   {
-    label: 'Gobierno',
+    label: 'Ajustes',
     items: [
       { key: 'growth-ai', label: 'Growth AI', path: '/admin/growth-ai' },
       { key: 'configuracion', label: 'Configuracion', path: '/admin/configuracion' },
-      { key: 'parametros', label: 'Parametros', path: '/admin/parametros' },
-      { key: 'roles-permisos', label: 'Roles y permisos', path: '/admin/roles-permisos' },
+      { key: 'parametros', label: 'Reglas de negocio', path: '/admin/parametros' },
+      { key: 'roles-permisos', label: 'Equipo y accesos', path: '/admin/roles-permisos' },
     ],
   },
 ];
@@ -92,17 +93,31 @@ export const ADMIN_DOMAIN_META = {
   },
   maquinarias: {
     title: 'Maquinarias',
-    subtitle: 'Catalogo publicable y operable',
+    subtitle: 'Catalogo listo para publicar y operar',
     summary:
       'Centraliza catálogo, publicación, completitud y relación de cada maquinaria con la oferta.',
     responsibilities: [
-      'Administrar el activo y su lifecycle',
-      'Separar completitud, readiness y publicacion',
+      'Administrar cada maquinaria y su estado',
+      'Separar completitud, disponibilidad y publicacion',
       'Expresar relaciones con proveedor y operadores habilitados',
     ],
     actions: [
       { label: 'Ver maquinarias actuales', to: '/admin/users?tab=machines', tone: 'primary' },
-      { label: 'Ver reglas actuales', to: '/admin/pricing', tone: 'secondary' },
+      { label: 'Abrir precios de maquinarias', to: '/admin/pricing', tone: 'secondary' },
+    ],
+  },
+  precios: {
+    title: 'Precios',
+    subtitle: 'Tarifas base y referencia de traslado por maquinaria',
+    summary:
+      'Concentra los precios de referencia que ordenan la publicacion y la operacion comercial de cada maquinaria.',
+    responsibilities: [
+      'Definir tarifa base por maquinaria',
+      'Mantener referencias por capacidad y traslado',
+      'Alinear publicacion comercial con reglas de negocio',
+    ],
+    actions: [
+      { label: 'Abrir precios', to: '/admin/pricing', tone: 'primary' },
     ],
   },
   reservas: {
@@ -120,7 +135,7 @@ export const ADMIN_DOMAIN_META = {
     ],
   },
   matching: {
-    title: 'Matching',
+    title: 'Asignacion',
     subtitle: 'Asignacion separada de la ejecucion',
     summary:
       'Muestra la cola de asignación y los intentos de cobertura antes de la ejecución.',
@@ -130,18 +145,18 @@ export const ADMIN_DOMAIN_META = {
       'Escalar senales estructurales de cobertura',
     ],
     actions: [
-      { label: 'Abrir matching', to: '/admin/matching', tone: 'primary' },
+      { label: 'Abrir asignacion', to: '/admin/matching', tone: 'primary' },
     ],
   },
   pagos: {
     title: 'Pagos',
-    subtitle: 'Dominio monetario del marketplace',
+    subtitle: 'Cobros, pagos y comisiones',
     summary:
       'Concentra cobros, pagos, comisiones y alertas financieras del marketplace.',
     responsibilities: [
       'Gobernar cobros, pagos y comisiones',
-      'Mostrar discrepancias y conciliacion operativa',
-      'Separar dinero de documentos fiscales',
+      'Mostrar diferencias y conciliacion operativa',
+      'Separar dinero de facturas y documentos tributarios',
     ],
     actions: [
       { label: 'Abrir pagos', to: '/admin/pagos', tone: 'primary' },
@@ -149,13 +164,13 @@ export const ADMIN_DOMAIN_META = {
   },
   facturacion: {
     title: 'Facturacion',
-    subtitle: 'Gobierno documental y fiscal',
+    subtitle: 'Facturas y documentos tributarios',
     summary:
-      'Ordena documentos, validaciones y seguimiento fiscal de cada servicio.',
+      'Ordena facturas, validaciones y documentos tributarios de cada servicio.',
     responsibilities: [
       'Gestionar documentos esperados y recibidos',
-      'Separar aprobacion documental del flujo monetario',
-      'Hacer visible el estado fiscal por reserva y actor',
+      'Separar revision de facturas del flujo de pagos',
+      'Hacer visible el estado de facturas por reserva y actor',
     ],
     actions: [
       { label: 'Abrir facturación', to: '/admin/facturacion', tone: 'primary' },
@@ -168,8 +183,8 @@ export const ADMIN_DOMAIN_META = {
       'Reúne tickets, bloqueos y excepciones que requieren seguimiento del equipo.',
     responsibilities: [
       'Gobernar tickets, bloqueos y accesos',
-      'Escalar al dominio correcto sin absorber su verdad',
-      'Mantener trazabilidad y SLA de incidencias',
+      'Escalar al area correcta sin mezclar responsabilidades',
+      'Mantener historial y tiempos de respuesta de incidencias',
     ],
     actions: [
       { label: 'Abrir soporte', to: '/admin/soporte', tone: 'primary' },
@@ -179,11 +194,11 @@ export const ADMIN_DOMAIN_META = {
     title: 'Reportes',
     subtitle: 'Informes semanales, mensuales y distribucion',
     summary:
-      'Consulta reportes semanales y mensuales, suscriptores y descargas desde una sola superficie.',
+      'Consulta informes semanales y mensuales, destinatarios y descargas desde una sola superficie.',
     responsibilities: [
-      'Administrar semanal, mensual, suscriptores e historial',
+      'Administrar informes semanales, mensuales y destinatarios',
       'Conservar una sola superficie de generacion y envio',
-      'Permitir al Dashboard resumir sin absorber workflow',
+      'Permitir al panel resumir sin absorber el flujo completo',
     ],
     actions: [
       { label: 'Abrir reportes', to: '/admin/reportes', tone: 'primary' },
@@ -191,52 +206,52 @@ export const ADMIN_DOMAIN_META = {
     ],
   },
   logs: {
-    title: 'Logs',
-    subtitle: 'Dominio transversal de trazabilidad',
+    title: 'Actividad',
+    subtitle: 'Eventos y seguimiento del sistema',
     summary:
-      'Reserva una vista clara para trazabilidad y auditoría del sistema.',
+      'Reserva una vista clara para revisar eventos y seguimiento del sistema.',
     responsibilities: [
-      'Registrar eventos auditables de negocio',
+      'Registrar eventos clave del negocio',
       'Relacionar actor, entidad, accion y severidad',
-      'Dar soporte a investigacion y gobierno',
+      'Dar soporte a investigacion y seguimiento interno',
     ],
     actions: [],
   },
   configuracion: {
     title: 'Configuracion',
-    subtitle: 'Settings globales y sensibles del sistema',
+    subtitle: 'Integraciones y ajustes globales',
     summary:
       'Centraliza integraciones y ajustes globales sensibles del sistema.',
     responsibilities: [
-      'Gobernar integraciones y toggles estructurales',
+      'Controlar integraciones y ajustes globales',
       'Mantener minima la configuracion global',
       'Evitar absorber reglas variables del negocio',
     ],
     actions: [],
   },
   parametros: {
-    title: 'Parametros',
-    subtitle: 'Reglas variables del negocio',
+    title: 'Reglas de negocio',
+    subtitle: 'Precios de referencia y reglas variables del negocio',
     summary:
-      'Concentra pricing y reglas variables del negocio en una sola vista.',
+      'Concentra precios de referencia y reglas variables del negocio en una sola vista.',
     responsibilities: [
       'Centralizar reglas ajustables del negocio',
-      'Separar parametros operativos de configuracion tecnica',
-      'Alimentar pricing, matching y criterios de elegibilidad',
+      'Separar reglas operativas de configuracion tecnica',
+      'Alimentar precios, asignacion y criterios de seleccion',
     ],
     actions: [
-      { label: 'Ver parámetros actuales', to: '/admin/pricing', tone: 'primary' },
+      { label: 'Ver reglas actuales', to: '/admin/pricing', tone: 'primary' },
     ],
   },
   'roles-permisos': {
-    title: 'Roles y permisos',
-    subtitle: 'Gobierno de acceso y segregacion de funciones',
+    title: 'Equipo y accesos',
+    subtitle: 'Personas del equipo y permisos de acceso',
     summary:
-      'Prepara una administración de acceso por rol, dominio y responsabilidad.',
+      'Ordena los accesos del equipo segun rol, area y responsabilidad.',
     responsibilities: [
-      'Definir perfiles y grants por dominio',
+      'Definir perfiles y permisos por area',
       'Separar quien ve, decide y ejecuta',
-      'Hacer crecer el equipo sin perder gobierno',
+      'Hacer crecer el equipo sin perder control',
     ],
     actions: [],
   },
@@ -247,7 +262,7 @@ export const ADMIN_DOMAIN_META = {
       'Growth AI queda integrado al Admin para expansión y activación comercial.',
     responsibilities: [
       'Gobernar expansion y activacion de oferta',
-      'Relacionarse con reportes y parametros sin absorber catalogo base',
+      'Relacionarse con reportes y reglas de negocio sin absorber catalogo base',
       'Converger a la misma gramatica del Admin oficial',
     ],
     actions: [

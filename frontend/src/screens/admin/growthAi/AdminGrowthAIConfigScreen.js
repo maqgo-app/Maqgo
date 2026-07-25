@@ -140,16 +140,16 @@ export default function AdminGrowthAIConfigScreen() {
         }}
       >
         <div style={{ fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: 'rgba(255,255,255,0.56)', fontWeight: 900 }}>
-          Gobierno del autopiloto
+          Configuracion del motor
         </div>
-        <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Configuracion premium para operar el autopiloto comercial unico de MAQGO.</div>
+        <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Configuracion del motor comercial de MAQGO.</div>
         <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.74)', lineHeight: 1.5, maxWidth: 760 }}>
-          Esta superficie resume la estructura activa del motor comercial y mantiene el editor JSON como capa experta, no como experiencia principal.
+          Esta vista resume la estructura activa del motor comercial y mantiene la edicion JSON solo como capa avanzada, no como experiencia principal.
         </div>
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-          <StatCard label="Bloques de config" value={String(summary.keys)} subtitle="Secciones detectadas en la configuración" />
-          <StatCard label="Fuentes radar" value={String(summary.discoverySources)} subtitle={`${summary.enabledSources} activas para el mercado`} tone={summary.enabledSources > 0 ? 'green' : 'amber'} />
-          <StatCard label="Cobertura nodos" value={String(summary.nodeCoverage)} subtitle="Nodos declarados para expansion" />
+          <StatCard label="Bloques" value={String(summary.keys)} subtitle="Secciones detectadas en la configuración" />
+          <StatCard label="Fuentes de busqueda" value={String(summary.discoverySources)} subtitle={`${summary.enabledSources} activas para el mercado`} tone={summary.enabledSources > 0 ? 'green' : 'amber'} />
+          <StatCard label="Nodos activos" value={String(summary.nodeCoverage)} subtitle="Nodos declarados para expansion" />
           <StatCard label="Validez del borrador" value={parsedDraft.ok ? 'OK' : 'Error'} subtitle={parsedDraft.ok ? 'Listo para guardar' : parsedDraft.message} tone={parsedDraft.ok ? 'green' : 'red'} />
         </div>
       </div>
@@ -163,11 +163,11 @@ export default function AdminGrowthAIConfigScreen() {
             <div style={{ fontSize: 12, fontWeight: 900, color: 'rgba(255,255,255,0.60)', textTransform: 'uppercase', letterSpacing: 0.7 }}>Lectura ejecutiva</div>
             <div style={{ marginTop: 8, fontSize: 16, fontWeight: 900, lineHeight: 1.35 }}>
               {summary.discoverySources > 0
-                ? `Growth AI opera con ${summary.discoverySources} fuentes configuradas y cobertura declarada en ${summary.nodeCoverage} nodo(s).`
-                : 'Growth AI no tiene aun fuentes del radar registradas en la configuracion global.'}
+                ? `Growth AI opera con ${summary.discoverySources} fuentes configuradas y ${summary.nodeCoverage} nodo(s) declarados para expansion.`
+                : 'Growth AI no tiene aun fuentes de busqueda registradas en la configuracion general.'}
             </div>
             <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
-              El editor experto permanece disponible, pero esta vista prioriza lectura ejecutiva y seguridad operativa.
+              La configuracion avanzada sigue disponible, pero esta vista prioriza lectura ejecutiva y seguridad operativa.
             </div>
           </div>
           <div style={{ padding: 14, borderRadius: 16, border: `1px solid ${THEME.border}`, background: 'rgba(255,255,255,0.04)' }}>
@@ -189,7 +189,7 @@ export default function AdminGrowthAIConfigScreen() {
 
       <Section
         theme={THEME}
-        title="Editor experto"
+        title="Configuracion avanzada"
         right={
           <div style={{ display: 'flex', gap: 10 }}>
             <button type="button" className="maqgo-btn-secondary" style={{ padding: '8px 10px', borderRadius: 10, fontWeight: 900, fontSize: 12 }} onClick={() => void load()} disabled={loading || saving}>
@@ -223,7 +223,7 @@ export default function AdminGrowthAIConfigScreen() {
         {error ? <div style={{ marginTop: 10, color: '#E57373', fontSize: 13, lineHeight: 1.45 }}>{error}</div> : null}
       </Section>
 
-      <Section theme={THEME} title="Vista rápida del payload">
+      <Section theme={THEME} title="Vista rapida">
         <div style={{ display: 'grid', gap: 10 }}>
           {summary.topKeys.length > 0 ? (
             summary.topKeys.map((key) => {

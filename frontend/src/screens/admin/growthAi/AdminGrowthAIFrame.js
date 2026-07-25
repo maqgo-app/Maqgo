@@ -1,6 +1,5 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import MaqgoLogo from '../../../components/MaqgoLogo';
 
 const THEME = {
   appBg: '#070B12',
@@ -61,27 +60,24 @@ export default function AdminGrowthAIFrame() {
             boxShadow: '0 20px 40px rgba(0,0,0,0.20)',
           }}
         >
-          <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <MaqgoLogo size="mini" style={{ minHeight: 44, height: 44 }} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-                <h1 className="maqgo-admin-title" style={{ margin: 0, fontSize: 20 }}>Growth AI</h1>
-                <span className="maqgo-admin-subtitle" style={{ color: THEME.textMuted, fontWeight: 700 }}>
-                  Autopiloto comercial único de MAQGO
-                </span>
-              </div>
-              <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.78)', lineHeight: 1.45, maxWidth: 720 }}>
-                Detecta proveedores y clientes del nicho MAQGO, prioriza expansión por comuna y ejecuta activación comercial continua sin depender de marketing manual.
-              </div>
-              <details style={{ marginTop: 8 }}>
-                <summary className="maqgo-admin-subtitle" style={{ cursor: 'pointer' }}>
-                  Principios
-                </summary>
-                <div className="maqgo-admin-help" style={{ marginTop: 6 }}>
-                  Autonomía con reglas MAQGO · Expansión con disciplina · Aprendizaje por resultados
-                </div>
-              </details>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <h1 className="maqgo-admin-title" style={{ margin: 0, fontSize: 20 }}>Growth AI</h1>
+              <span className="maqgo-admin-subtitle" style={{ color: THEME.textMuted, fontWeight: 700 }}>
+                Motor comercial unico de MAQGO
+              </span>
             </div>
+            <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.78)', lineHeight: 1.45, maxWidth: 720 }}>
+              Detecta proveedores y clientes del nicho MAQGO, prioriza expansión por comuna y ejecuta activación comercial continua sin depender de marketing manual.
+            </div>
+            <details style={{ marginTop: 8 }}>
+              <summary className="maqgo-admin-subtitle" style={{ cursor: 'pointer' }}>
+                Principios
+              </summary>
+              <div className="maqgo-admin-help" style={{ marginTop: 6 }}>
+                Autonomía con reglas MAQGO · Expansión con disciplina · Aprendizaje por resultados
+              </div>
+            </details>
           </div>
           <button
             type="button"
@@ -111,9 +107,9 @@ export default function AdminGrowthAIFrame() {
           <Tab to="comunas" label="Comunas" />
           <Tab to="map" label="Mapa" />
           <Tab to="opportunities" label="Oportunidades" />
-          <Tab to="discovery" label="Radar" />
+          <Tab to="discovery" label="Busqueda" />
           <Tab to="config" label="Configuración" />
-          <Tab to="audit" label="Auditoría" />
+          <Tab to="audit" label="Actividad" />
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             <select

@@ -121,7 +121,7 @@ export default function AdminReservationsDomainScreen({ mode }) {
   const subtitleMap = {
     reservas: 'Servicio, contexto transaccional y estados del flujo operacional.',
     payments: 'Vista monetaria del servicio, separada de la documentacion tributaria.',
-    facturacion: 'Vista documental y fiscal del servicio, separada del dinero.',
+    facturacion: 'Vista de facturas y documentos tributarios del servicio, separada del dinero.',
   };
 
   const filteredServices = useMemo(() => {
@@ -399,12 +399,12 @@ export default function AdminReservationsDomainScreen({ mode }) {
               ]}
             />
             <AdminDomainCard
-              title="Cobertura del flujo"
+              title="Avance del flujo"
               subtitle="Cómo avanza la documentación después de aprobar"
               bullets={[
-                `Approved en rango: ${payload?.range_summary?.approved || 0}`,
-                `Invoiced en rango: ${payload?.range_summary?.invoiced || 0}`,
-                `Paid en rango: ${payload?.range_summary?.paid || 0}`,
+                `Aprobadas en el periodo: ${payload?.range_summary?.approved || 0}`,
+                `Facturadas en el periodo: ${payload?.range_summary?.invoiced || 0}`,
+                `Pagadas en el periodo: ${payload?.range_summary?.paid || 0}`,
               ]}
             />
           </div>
@@ -413,7 +413,7 @@ export default function AdminReservationsDomainScreen({ mode }) {
 
       <AdminSurface
         title="Lectura por estados"
-        subtitle="Esta capa ayuda a decidir desde el dominio correcto antes de entrar al caso puntual."
+          subtitle="Esta capa ayuda a decidir desde el area correcta antes de entrar al caso puntual."
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
           {statusBreakdown.map((item) => (

@@ -7,7 +7,7 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from routes.admin_reports import _build_weekly_onepager_pdf_bytes, _build_monthly_onepager_pdf_bytes
+from routes.admin_reports import _build_weekly_report_pdf_bytes, _build_monthly_report_pdf_bytes
 
 
 def main() -> None:
@@ -146,11 +146,11 @@ def main() -> None:
         ],
     }
 
-    weekly_pdf = _build_weekly_onepager_pdf_bytes(weekly_report)
-    monthly_pdf = _build_monthly_onepager_pdf_bytes(monthly_report)
+    weekly_pdf = _build_weekly_report_pdf_bytes(weekly_report)
+    monthly_pdf = _build_monthly_report_pdf_bytes(monthly_report)
 
-    weekly_path = out_dir / "onepager_semanal_sample.pdf"
-    monthly_path = out_dir / "onepager_mensual_sample.pdf"
+    weekly_path = out_dir / "informe_semanal_sample.pdf"
+    monthly_path = out_dir / "informe_mensual_sample.pdf"
     weekly_path.write_bytes(weekly_pdf)
     monthly_path.write_bytes(monthly_pdf)
 
@@ -165,7 +165,7 @@ def main() -> None:
                 "2400",
                 str(weekly_path),
                 "--out",
-                str(out_dir / "onepager_semanal_sample_2400.png"),
+                str(out_dir / "informe_semanal_sample_2400.png"),
             ],
             check=True,
             stdout=subprocess.DEVNULL,
@@ -181,7 +181,7 @@ def main() -> None:
                 "2400",
                 str(monthly_path),
                 "--out",
-                str(out_dir / "onepager_mensual_sample_2400.png"),
+                str(out_dir / "informe_mensual_sample_2400.png"),
             ],
             check=True,
             stdout=subprocess.DEVNULL,

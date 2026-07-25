@@ -196,6 +196,12 @@ def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, exis
 
     operators = payload.get("operators", existing.get("operators", []))
     doc["operators"] = operators if isinstance(operators, list) else []
+    has_assigned_operators = len(doc["operators"]) > 0
+    if not has_assigned_operators:
+        doc["available"] = False
+        doc["published"] = False
+        current_status = _clean_str(doc.get("status") or existing.get("status") or "draft")
+        doc["status"] = current_status if current_status in {"draft", "deleted"} else "draft"
 
     for key in ("photos", "machinePhotos", "images"):
         value = payload.get(key, existing.get(key))

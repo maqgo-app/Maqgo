@@ -1128,6 +1128,9 @@ function MachineDataScreen() {
         transportSameComuna: needsTransport ? sameComunaTransport : 0,
         transportSameRegion: needsTransport ? sameRegionTransport : 0,
         transportOtherRegion: needsTransport ? otherRegionTransport : 0,
+        available: false,
+        published: false,
+        status: 'draft',
         operators: [],
         ...resolveOriginFields(form),
       };
@@ -1150,7 +1153,7 @@ function MachineDataScreen() {
         void 0;
       }
 
-      toast.success('Maquinaria guardada');
+      toast.success('Maquinaria guardada. Falta asignar operador para publicarla.');
       navigate('/provider/machines', {
         replace: true,
         state: { activationEdit: true, returnTo: '/provider/home', openOperatorForMachineId: created.id },
@@ -1817,7 +1820,7 @@ function MachineDataScreen() {
                               letterSpacing: 0.2,
                             }}
                           >
-                            Operador incluido
+                            Operador pendiente
                           </span>
                         </div>
                         <div
@@ -1919,7 +1922,7 @@ function MachineDataScreen() {
                           </span>
                         </div>
                         <p style={{ margin: '10px 0 0', color: 'rgba(255,255,255,0.62)', fontSize: 12, lineHeight: 1.4 }}>
-                          Valores referenciales netos. El total para el cliente puede incluir IVA.
+                          Valores referenciales netos. El total para el cliente puede incluir IVA. Esta maquinaria no se publica hasta asignarle al menos un operador.
                         </p>
                       </div>
                     </div>
