@@ -45,7 +45,7 @@ export default function AdminSupportDomainScreen() {
       <AdminSurface
         title="Soporte"
         subtitle="Incidencias, accesos y bloqueos del marketplace en una sola bandeja visible."
-        right={<AdminActionLink to="/admin/legacy/area/access" label="Ver soporte actual" tone="secondary" />}
+        right={<AdminActionLink to="/admin/reportes" label="Abrir reportes" tone="secondary" />}
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <AdminStatChip label="Tickets abiertos" value={String(stats.tickets)} tone="brand" />

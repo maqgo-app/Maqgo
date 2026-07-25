@@ -116,7 +116,7 @@ export const ADMIN_DOMAIN_META = {
       'Referenciar pagos, facturacion y soporte sin absorberlos',
     ],
     actions: [
-      { label: 'Ver reservas actuales', to: '/admin/legacy/area/today', tone: 'primary' },
+      { label: 'Abrir reservas', to: '/admin/reservas', tone: 'primary' },
     ],
   },
   matching: {
@@ -130,7 +130,7 @@ export const ADMIN_DOMAIN_META = {
       'Escalar senales estructurales de cobertura',
     ],
     actions: [
-      { label: 'Ver matching actual', to: '/admin/legacy/area/system', tone: 'primary' },
+      { label: 'Abrir matching', to: '/admin/matching', tone: 'primary' },
     ],
   },
   pagos: {
@@ -144,7 +144,7 @@ export const ADMIN_DOMAIN_META = {
       'Separar dinero de documentos fiscales',
     ],
     actions: [
-      { label: 'Ver pagos actuales', to: '/admin/legacy/area/money', tone: 'primary' },
+      { label: 'Abrir pagos', to: '/admin/pagos', tone: 'primary' },
     ],
   },
   facturacion: {
@@ -158,7 +158,7 @@ export const ADMIN_DOMAIN_META = {
       'Hacer visible el estado fiscal por reserva y actor',
     ],
     actions: [
-      { label: 'Ver facturación actual', to: '/admin/legacy/area/money', tone: 'primary' },
+      { label: 'Abrir facturación', to: '/admin/facturacion', tone: 'primary' },
     ],
   },
   soporte: {
@@ -172,7 +172,7 @@ export const ADMIN_DOMAIN_META = {
       'Mantener trazabilidad y SLA de incidencias',
     ],
     actions: [
-      { label: 'Ver soporte actual', to: '/admin/legacy/area/access', tone: 'primary' },
+      { label: 'Abrir soporte', to: '/admin/soporte', tone: 'primary' },
     ],
   },
   reportes: {
@@ -186,7 +186,7 @@ export const ADMIN_DOMAIN_META = {
       'Permitir al Dashboard resumir sin absorber workflow',
     ],
     actions: [
-      { label: 'Ver reportes históricos', to: '/admin/legacy/dashboard', tone: 'primary' },
+      { label: 'Abrir reportes', to: '/admin/reportes', tone: 'primary' },
       { label: 'Ir a marketing', to: '/admin/marketing', tone: 'secondary' },
     ],
   },

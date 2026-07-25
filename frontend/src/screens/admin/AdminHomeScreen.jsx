@@ -48,8 +48,9 @@ export default function AdminHomeScreen() {
     const services = snapshot?.services || {};
     const matching = Array.isArray(snapshot?.matching) ? snapshot.matching : [];
     const support = snapshot?.support || {};
+    const officialDomains = topGroups.reduce((count, group) => count + (Array.isArray(group.items) ? group.items.length : 0), 0);
     return {
-      domains: 16,
+      domains: officialDomains,
       providers: (users.providers || []).length,
       operators: (users.operators || []).length,
       machines: (users.machines || []).length,
@@ -60,7 +61,7 @@ export default function AdminHomeScreen() {
       tickets: Array.isArray(support?.tickets) ? support.tickets.length : 0,
       blockedPhones: Array.isArray(support?.blockedPhones) ? support.blockedPhones.length : 0,
     };
-  }, [snapshot]);
+  }, [snapshot, topGroups]);
 
   const queueCards = [
     {

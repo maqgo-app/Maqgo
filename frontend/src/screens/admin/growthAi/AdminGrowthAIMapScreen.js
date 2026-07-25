@@ -74,6 +74,24 @@ export default function AdminGrowthAIMapScreen() {
       <div
         style={{
           border: `1px solid ${THEME.border}`,
+          background: 'linear-gradient(135deg, rgba(236,104,25,0.10), rgba(15,23,42,0.96) 42%, rgba(143,179,201,0.08))',
+          borderRadius: 18,
+          padding: 18,
+          boxShadow: '0 20px 40px rgba(0,0,0,0.18)',
+        }}
+      >
+        <div style={{ fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: 'rgba(255,255,255,0.56)', fontWeight: 900 }}>
+          Mapa comercial
+        </div>
+        <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Orden de apertura por comuna para construir oferta y activar mercado.</div>
+        <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.74)', lineHeight: 1.5 }}>
+          Esta vista muestra la secuencia de expansión priorizada por Growth AI para decidir dónde concentrar prospección, preparación y GO LIVE.
+        </div>
+      </div>
+
+      <div
+        style={{
+          border: `1px solid ${THEME.border}`,
           background: THEME.panelBg,
           borderRadius: 16,
           padding: 16,
@@ -93,7 +111,7 @@ export default function AdminGrowthAIMapScreen() {
           ) : null}
         </div>
         <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
-          Vista ordenada por comuna objetivo. No es geolocalización; es secuencia estratégica.
+          Secuencia priorizada por comuna objetivo, lista para bajar a decisión comercial por nodo.
         </div>
       </div>
 
@@ -109,7 +127,7 @@ export default function AdminGrowthAIMapScreen() {
       ) : nodes.length === 0 ? (
         <div style={{ border: `1px solid ${THEME.border}`, background: THEME.panelBg, borderRadius: 16, padding: 16 }}>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
-            No hay nodos configurados. Define al menos un nodo en Config.
+            No hay nodos configurados todavía. Define al menos un nodo en Configuración para iniciar el mapa comercial.
           </div>
         </div>
       ) : (

@@ -67,18 +67,18 @@ export default function AdminGrowthAIFrame() {
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
                 <h1 className="maqgo-admin-title" style={{ margin: 0, fontSize: 20 }}>Growth AI</h1>
                 <span className="maqgo-admin-subtitle" style={{ color: THEME.textMuted, fontWeight: 700 }}>
-                  Motor comercial y de growth hacking de MAQGO
+                  Autopiloto comercial único de MAQGO
                 </span>
               </div>
               <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.78)', lineHeight: 1.45, maxWidth: 720 }}>
-                Detecta oferta y demanda, ordena oportunidades, coordina outreach y acelera apertura por comuna sin romper la lógica del marketplace.
+                Detecta proveedores y clientes del nicho MAQGO, prioriza expansión por comuna y ejecuta activación comercial continua sin depender de marketing manual.
               </div>
               <details style={{ marginTop: 8 }}>
                 <summary className="maqgo-admin-subtitle" style={{ cursor: 'pointer' }}>
                   Principios
                 </summary>
                 <div className="maqgo-admin-help" style={{ marginTop: 6 }}>
-                  Expansión con disciplina · Una sola verdad operativa · Aprendizaje por resultados
+                  Autonomía con reglas MAQGO · Expansión con disciplina · Aprendizaje por resultados
                 </div>
               </details>
             </div>

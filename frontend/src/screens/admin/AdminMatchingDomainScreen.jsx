@@ -74,7 +74,7 @@ export default function AdminMatchingDomainScreen() {
       <AdminSurface
         title="Matching"
         subtitle="Revisa la asignación de oferta por rango, desde búsqueda hasta cierre del caso."
-        right={<AdminActionLink to="/admin/legacy/area/system" label="Ver matching actual" tone="secondary" />}
+        right={<AdminActionLink to="/admin/growth-ai" label="Abrir Growth AI" tone="secondary" />}
       >
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
           <input

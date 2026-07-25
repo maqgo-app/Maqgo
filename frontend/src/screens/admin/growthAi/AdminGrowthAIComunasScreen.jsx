@@ -303,7 +303,7 @@ export default function AdminGrowthAIComunasScreen() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div className="maqgo-admin-title">Comunas</div>
-          <div className="maqgo-admin-subtitle">Estado por comuna (oferta y GO LIVE).</div>
+          <div className="maqgo-admin-subtitle">Pipeline comercial por comuna, desde captación hasta apertura.</div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button
@@ -313,7 +313,7 @@ export default function AdminGrowthAIComunasScreen() {
             onClick={() => setBatchOpen(true)}
             disabled={loading || posting}
           >
-            Batch GO LIVE
+            Apertura masiva segura
           </button>
           <button
             type="button"
@@ -340,7 +340,7 @@ export default function AdminGrowthAIComunasScreen() {
               disabled={bootstrapping}
               onClick={forceBootstrap}
             >
-              {bootstrapping ? 'Inicializando…' : 'Inicializar RM (3 comunas)'}
+              {bootstrapping ? 'Inicializando…' : 'Inicializar comunas base RM'}
             </button>
           </div>
         </Card>
@@ -380,9 +380,9 @@ export default function AdminGrowthAIComunasScreen() {
           <div className="maqgo-modal-dialog" style={{ width: 'min(92vw, 720px)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ color: '#fff', fontSize: 18, fontWeight: 900 }}>Batch GO LIVE (seguro)</div>
+                <div style={{ color: '#fff', fontSize: 18, fontWeight: 900 }}>Apertura masiva segura</div>
                 <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 1.35 }}>
-                  Aprueba en bloque las maquinarias LISTA por comuna. Requiere motivo y confirmación.
+                  Aprueba en bloque las maquinarias listas por comuna. Requiere motivo y confirmación para mantener control comercial.
                 </div>
               </div>
               <button
@@ -471,7 +471,7 @@ export default function AdminGrowthAIComunasScreen() {
               <input
                 value={batchConfirm}
                 onChange={(e) => setBatchConfirm(e.target.value)}
-                placeholder="Escribe APROBAR para confirmar"
+                placeholder="Escribe APROBAR para confirmar la apertura"
                 style={{
                   width: '100%',
                   borderRadius: 12,
@@ -525,7 +525,7 @@ export default function AdminGrowthAIComunasScreen() {
                       await load();
                       setBatchOpen(false);
                     } catch (e) {
-                      setError(friendlyFetchError(e, 'Batch GO LIVE falló.'));
+                      setError(friendlyFetchError(e, 'La apertura masiva segura falló.'));
                     } finally {
                       setBatchRunning(false);
                       setBatchProgress(null);
@@ -543,4 +543,3 @@ export default function AdminGrowthAIComunasScreen() {
     </div>
   );
 }
-

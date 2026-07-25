@@ -349,7 +349,7 @@ export default function AdminGrowthAIOverviewScreen() {
       <Card
         theme={THEME}
         title="Pulso Growth AI"
-        subtitle="Controla expansión, motor y ejecución comercial desde una sola vista ejecutiva."
+        subtitle="Controla el autopiloto comercial de MAQGO desde una sola vista ejecutiva, sin depender de marketing manual."
         right={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button
@@ -391,8 +391,8 @@ export default function AdminGrowthAIOverviewScreen() {
           <Card
             theme={THEME}
             title="Motor comercial"
-            subtitle="Activa o detiene discovery y outreach sin salir del overview."
-            right={runtime?.autopilot ? <Pill theme={THEME} label={runtime.autopilot.enabled ? 'Autopilot ON' : 'Autopilot OFF'} tone={runtime.autopilot.enabled ? 'green' : 'neutral'} /> : null}
+            subtitle="Activa o detiene el radar comercial y el outreach sin salir de la vista ejecutiva."
+            right={runtime?.autopilot ? <Pill theme={THEME} label={runtime.autopilot.enabled ? 'Motor automatico activo' : 'Motor automatico detenido'} tone={runtime.autopilot.enabled ? 'green' : 'neutral'} /> : null}
           >
             {runtimeLoading ? (
               <ListSkeleton rows={2} />
@@ -403,12 +403,12 @@ export default function AdminGrowthAIOverviewScreen() {
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.4 }}>
                   {runtime?.autopilot?.enabled
                     ? 'Growth AI está autorizado para descubrir y preparar expansión sobre la configuración vigente.'
-                    : 'Growth AI está detenido. Puedes activarlo para poblar discovery y disparar el primer ciclo de expansión.'}
+                    : 'Growth AI está detenido. Puedes activarlo para poblar el radar comercial y disparar el primer ciclo de expansión.'}
                 </div>
                 <div className="maqgo-admin-chip-row">
                   <Pill theme={THEME} label={`Intervalo ${runtime?.scheduler?.interval_sec ?? '—'}s`} tone="neutral" />
                   <Pill theme={THEME} label={`Último tick ${String(runtime?.scheduler?.last_tick_at || '—').slice(0, 19).replace('T', ' ')}`} tone="neutral" />
-                  <Pill theme={THEME} label={`Último discovery ${String(runtime?.discovery?.last_discovery_at || '—').slice(0, 19).replace('T', ' ')}`} tone="neutral" />
+                  <Pill theme={THEME} label={`Ultimo radar ${String(runtime?.discovery?.last_discovery_at || '—').slice(0, 19).replace('T', ' ')}`} tone="neutral" />
                 </div>
                 {runtime?.daily?.limits ? (
                   <div className="maqgo-admin-chip-row">
@@ -442,10 +442,10 @@ export default function AdminGrowthAIOverviewScreen() {
                     style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 800 }}
                     onClick={() => navigate('/admin/growth-ai/discovery')}
                   >
-                    Ir a discovery
+                    Abrir radar
                   </button>
                 </div>
-                {runtime?.discovery?.last_discovery_error ? <div style={{ color: '#E57373', fontSize: 12, lineHeight: 1.35 }}>Discovery: {runtime.discovery.last_discovery_error}</div> : null}
+                {runtime?.discovery?.last_discovery_error ? <div style={{ color: '#E57373', fontSize: 12, lineHeight: 1.35 }}>Radar: {runtime.discovery.last_discovery_error}</div> : null}
                 {runtime?.inventory?.inventory_error ? <div style={{ color: '#E57373', fontSize: 12, lineHeight: 1.35 }}>Inventario: {runtime.inventory.inventory_error}</div> : null}
               </div>
             )}
@@ -500,7 +500,7 @@ export default function AdminGrowthAIOverviewScreen() {
                     disabled={bootstrapping}
                     onClick={forceBootstrap}
                   >
-                    {bootstrapping ? 'Inicializando…' : 'Inicializar RM (3 comunas)'}
+                    {bootstrapping ? 'Inicializando…' : 'Inicializar comunas base RM'}
                   </button>
                 </div>
               </div>
@@ -689,7 +689,7 @@ export default function AdminGrowthAIOverviewScreen() {
 
           <Card
             theme={THEME}
-            title="Discovery"
+            title="Radar comercial"
             subtitle="Prospección automática de proveedores con límites diarios y alcance controlado."
             right={<Pill theme={THEME} label={starting ? 'Buscando…' : 'Listo'} tone={starting ? 'amber' : 'neutral'} />}
           >
@@ -709,7 +709,7 @@ export default function AdminGrowthAIOverviewScreen() {
                   disabled={starting}
                   onClick={startSearch}
                 >
-                  {starting ? 'Ejecutando…' : 'Correr discovery'}
+                  {starting ? 'Ejecutando…' : 'Ejecutar radar'}
                 </button>
                 <button
                   type="button"
@@ -717,7 +717,7 @@ export default function AdminGrowthAIOverviewScreen() {
                   style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 800 }}
                   onClick={() => navigate('/admin/growth-ai/discovery')}
                 >
-                  Ver leads
+                  Ver hallazgos
                 </button>
               </div>
             </div>

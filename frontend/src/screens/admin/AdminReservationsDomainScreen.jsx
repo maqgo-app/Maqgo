@@ -182,18 +182,18 @@ export default function AdminReservationsDomainScreen({ mode }) {
     const raw = payload?.range_summary || payload?.stats || {};
     return [
       { title: 'Pendiente revision', value: String(raw.pending_review || 0), subtitle: 'Servicios por aprobar en el rango', tone: 'warning' },
-      { title: 'Approved', value: String(raw.approved || 0), subtitle: 'Listos para avanzar a documento', tone: 'neutral' },
-      { title: 'Invoiced', value: String(raw.invoiced || 0), subtitle: 'Factura proveedor ya subida', tone: 'success' },
-      { title: 'Disputed', value: String(raw.disputed || 0), subtitle: 'Excepciones dentro del rango', tone: 'warning' },
+      { title: 'Aprobados', value: String(raw.approved || 0), subtitle: 'Listos para avanzar a documento', tone: 'neutral' },
+      { title: 'Facturados', value: String(raw.invoiced || 0), subtitle: 'Factura proveedor ya subida', tone: 'success' },
+      { title: 'Disputados', value: String(raw.disputed || 0), subtitle: 'Excepciones dentro del rango', tone: 'warning' },
     ];
   }, [payload]);
 
-  const legacyTo =
+  const linkedTo =
     mode === 'reservas'
-      ? '/admin/legacy/area/today'
+      ? '/admin/matching'
       : mode === 'payments'
-        ? '/admin/legacy/area/money'
-        : '/admin/legacy/area/money';
+        ? '/admin/reportes'
+        : '/admin/reportes';
 
   const focusOptions =
     mode === 'payments'
@@ -222,7 +222,7 @@ export default function AdminReservationsDomainScreen({ mode }) {
       <AdminSurface
         title={titleMap[mode]}
         subtitle={subtitleMap[mode]}
-        right={<AdminActionLink to={legacyTo} label="Ver herramienta actual" tone="secondary" />}
+        right={<AdminActionLink to={linkedTo} label={mode === 'reservas' ? 'Ver matching' : 'Abrir reportes'} tone="secondary" />}
       >
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
           <input
