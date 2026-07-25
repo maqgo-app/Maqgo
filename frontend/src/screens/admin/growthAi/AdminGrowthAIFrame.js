@@ -111,7 +111,7 @@ export default function AdminGrowthAIFrame() {
           <Tab to="comunas" label="Comunas" />
           <Tab to="map" label="Mapa" />
           <Tab to="opportunities" label="Oportunidades" />
-          <Tab to="discovery" label="Discovery" />
+          <Tab to="discovery" label="Radar" />
           <Tab to="config" label="Configuración" />
           <Tab to="audit" label="Auditoría" />
 
@@ -136,7 +136,7 @@ export default function AdminGrowthAIFrame() {
                 outline: 'none',
               }}
             >
-              <option value="">Más…</option>
+              <option value="">Más módulos…</option>
               <option value="/admin/growth-ai/programs">Programas</option>
               <option value="/admin/growth-ai/automations">Automatizaciones</option>
               <option value="/admin/growth-ai/actions">Acciones</option>
