@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AdminActionLink, AdminDomainCard, AdminStatChip, AdminSurface } from './AdminShellBlocks.jsx';
-import { fetchAdminServices } from './adminDomainData';
+import { fetchAdminMonthlyReport, fetchAdminServices } from './adminDomainData';
 
 function formatPrice(value) {
   try {
@@ -10,10 +10,40 @@ function formatPrice(value) {
   }
 }
 
+function buildRecentMonthOptions(total = 12) {
+  const now = new Date();
+  const options = [];
+  for (let index = 0; index < total; index += 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
+    options.push({
+      key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      label: date.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' }),
+    });
+  }
+  return options;
+}
+
+const INPUT_STYLE = {
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.12)',
+  color: '#fff',
+  borderRadius: 12,
+  padding: '10px 12px',
+  fontSize: 13,
+  fontWeight: 700,
+};
+
 export default function AdminReservationsDomainScreen({ mode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [payload, setPayload] = useState({ services: [], stats: {}, finances: {}, sla: {}, total: 0 });
+  const monthOptions = useMemo(() => buildRecentMonthOptions(12), []);
+  const [selectedMonthKey, setSelectedMonthKey] = useState(() => buildRecentMonthOptions(12)[0]?.key || '');
+  const [monthlyFinance, setMonthlyFinance] = useState(null);
+  const [monthlyFinanceLoading, setMonthlyFinanceLoading] = useState(false);
+  const [monthlyFinanceError, setMonthlyFinanceError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -34,6 +64,31 @@ export default function AdminReservationsDomainScreen({ mode }) {
       active = false;
     };
   }, [mode]);
+
+  const selectedMonth = useMemo(
+    () => monthOptions.find((item) => item.key === selectedMonthKey) || monthOptions[0] || null,
+    [monthOptions, selectedMonthKey]
+  );
+
+  useEffect(() => {
+    if (mode !== 'payments' || !selectedMonth) return () => {};
+    let active = true;
+    (async () => {
+      try {
+        setMonthlyFinanceLoading(true);
+        setMonthlyFinanceError('');
+        const report = await fetchAdminMonthlyReport(selectedMonth.year, selectedMonth.month);
+        if (active) setMonthlyFinance(report);
+      } catch (err) {
+        if (active) setMonthlyFinanceError(err?.message || 'No se pudo cargar el histórico de ingresos.');
+      } finally {
+        if (active) setMonthlyFinanceLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [mode, selectedMonth]);
 
   const titleMap = {
     reservas: 'Reservas',
@@ -127,7 +182,7 @@ export default function AdminReservationsDomainScreen({ mode }) {
 
       <AdminSurface
         title="Bandeja actual"
-        subtitle="La vista ya trabaja con la fuente operativa actual, pero la presenta desde el dominio oficial y no desde el dashboard monolitico."
+        subtitle="Vista operativa del dominio con los casos visibles hoy."
       >
         {loading ? (
           <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando dominio…</div>
@@ -147,6 +202,58 @@ export default function AdminReservationsDomainScreen({ mode }) {
           </div>
         )}
       </AdminSurface>
+
+      {mode === 'payments' ? (
+        <AdminSurface
+          title="Ingresos por periodo"
+          subtitle="Consulta meses anteriores para revisar ventas, ingreso MAQGO y margen sin depender solo del dato spot."
+        >
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+            <select value={selectedMonthKey} onChange={(e) => setSelectedMonthKey(e.target.value)} style={INPUT_STYLE}>
+              {monthOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {monthlyFinanceLoading ? (
+            <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando histórico de ingresos…</div>
+          ) : monthlyFinanceError ? (
+            <div style={{ color: '#E8A34B', fontSize: 13 }}>{monthlyFinanceError}</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+              <AdminDomainCard
+                title="Ventas netas"
+                subtitle={monthlyFinance?.periodo?.label || 'Periodo seleccionado'}
+                bullets={[
+                  `Ventas netas: ${formatPrice(monthlyFinance?.sales?.net || 0)}`,
+                  `Servicios pagados: ${monthlyFinance?.sales?.services_paid ?? 0}`,
+                  `Ingreso MAQGO: ${formatPrice(monthlyFinance?.maqgo_revenue?.total_net || 0)}`,
+                ]}
+              />
+              <AdminDomainCard
+                title="Contribución"
+                subtitle="Lectura financiera del periodo"
+                bullets={[
+                  `Margen: ${formatPrice(monthlyFinance?.contribution?.margin || 0)}`,
+                  `Costo de venta: ${formatPrice(monthlyFinance?.contribution?.cost_of_sales || 0)}`,
+                  `Take rate: ${monthlyFinance?.maqgo_revenue?.take_rate_pct ?? 0}%`,
+                ]}
+              />
+              <AdminDomainCard
+                title="Documentos e IVA"
+                subtitle="Contexto de cierre mensual"
+                bullets={[
+                  `IVA débito: ${formatPrice(monthlyFinance?.iva?.debito || 0)}`,
+                  `IVA crédito: ${formatPrice(monthlyFinance?.iva?.credito_estimado || 0)}`,
+                  `IVA neto: ${formatPrice(monthlyFinance?.iva?.neto_estimado || 0)}`,
+                ]}
+              />
+            </div>
+          )}
+        </AdminSurface>
+      ) : null}
 
       <AdminSurface
         title="Lectura por estados"

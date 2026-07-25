@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AdminActionLink, AdminDomainCard, AdminStatChip, AdminSurface } from './AdminShellBlocks.jsx';
 import { fetchAdminUsersAndMachines } from './adminDomainData';
 
+function getTimeMs(value) {
+  const raw = value ? new Date(value).getTime() : NaN;
+  return Number.isFinite(raw) ? raw : 0;
+}
+
 export default function AdminSupplyDomainScreen({ mode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -66,25 +71,32 @@ export default function AdminSupplyDomainScreen({ mode }) {
   }, [data, mode]);
 
   const stats = useMemo(() => {
+    const last30d = Date.now() - 30 * 24 * 60 * 60 * 1000;
     if (mode === 'providers') {
+      const newProviders = data.providers.filter((item) => getTimeMs(item?.createdAt || item?.created_at) >= last30d).length;
       return [
         { label: 'Cuentas proveedoras', value: String(data.providers.length), tone: 'brand' },
+        { label: 'Altas 30 dias', value: String(newProviders), tone: 'warning' },
         { label: 'Operadores vinculados', value: String(data.operators.length), tone: 'neutral' },
         { label: 'Maquinarias', value: String(data.machines.length), tone: 'success' },
       ];
     }
     if (mode === 'operators') {
       const withOwner = data.operators.filter((item) => String(item?.owner_id || '').trim()).length;
+      const newOperators = data.operators.filter((item) => getTimeMs(item?.createdAt || item?.created_at) >= last30d).length;
       return [
         { label: 'Operadores', value: String(data.operators.length), tone: 'brand' },
+        { label: 'Altas 30 dias', value: String(newOperators), tone: 'warning' },
         { label: 'Con proveedor', value: String(withOwner), tone: 'success' },
         { label: 'Sin proveedor visible', value: String(Math.max(0, data.operators.length - withOwner)), tone: 'warning' },
       ];
     }
     const published = data.machines.filter((item) => item?.published).length;
     const available = data.machines.filter((item) => item?.available).length;
+    const newMachines = data.machines.filter((item) => getTimeMs(item?.createdAt || item?.created_at) >= last30d).length;
     return [
       { label: 'Maquinarias', value: String(data.machines.length), tone: 'brand' },
+      { label: 'Altas 30 dias', value: String(newMachines), tone: 'warning' },
       { label: 'Publicadas', value: String(published), tone: 'success' },
       { label: 'Disponibles', value: String(available), tone: 'neutral' },
     ];

@@ -100,6 +100,68 @@ export async function fetchAdminReportsSummary() {
   };
 }
 
+export async function fetchAdminWeeklyReport(weeksAgo = 1) {
+  const qs = new URLSearchParams();
+  qs.set('weeks_ago', String(Math.max(0, Number(weeksAgo) || 0)));
+  const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reports/weekly?${qs.toString()}`);
+  return res.json();
+}
+
+export async function fetchAdminMonthlyReport(year, month) {
+  const now = new Date();
+  const safeYear = Number(year) || now.getFullYear();
+  const safeMonth = Math.min(12, Math.max(1, Number(month) || now.getMonth() + 1));
+  const qs = new URLSearchParams();
+  qs.set('year', String(safeYear));
+  qs.set('month', String(safeMonth));
+  const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reports/monthly-finance?${qs.toString()}`);
+  return res.json();
+}
+
+export async function downloadAdminReportPdf(kind, params = {}) {
+  const qs = new URLSearchParams();
+  let endpoint = '';
+  let filename = 'maqgo_reporte.pdf';
+
+  if (kind === 'weekly') {
+    const weeksAgo = Math.max(0, Number(params.weeksAgo) || 0);
+    qs.set('weeks_ago', String(weeksAgo));
+    qs.set('format', 'pdf');
+    endpoint = `${BACKEND_URL}/api/admin/reports/weekly?${qs.toString()}`;
+    filename = `maqgo_reporte_semanal_${weeksAgo}.pdf`;
+  } else {
+    const now = new Date();
+    const safeYear = Number(params.year) || now.getFullYear();
+    const safeMonth = Math.min(12, Math.max(1, Number(params.month) || now.getMonth() + 1));
+    qs.set('year', String(safeYear));
+    qs.set('month', String(safeMonth));
+    qs.set('format', 'pdf');
+    endpoint = `${BACKEND_URL}/api/admin/reports/monthly-finance?${qs.toString()}`;
+    filename = `maqgo_reporte_mensual_${safeYear}-${String(safeMonth).padStart(2, '0')}.pdf`;
+  }
+
+  const res = await fetchWithAuth(endpoint);
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const json = await res.json();
+      detail = String(json?.detail || '').trim();
+    } catch {
+      detail = '';
+    }
+    throw new Error(detail || `No se pudo descargar el reporte (${res.status}).`);
+  }
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 800);
+}
+
 export async function fetchAdminDashboardSnapshot() {
   const [users, services, matching, support, reports] = await Promise.all([
     fetchAdminUsersAndMachines(),

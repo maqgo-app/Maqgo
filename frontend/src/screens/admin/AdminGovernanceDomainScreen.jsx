@@ -82,7 +82,7 @@ export default function AdminGovernanceDomainScreen({ mode }) {
         </div>
       </AdminSurface>
 
-      <AdminSurface title="Base de gobierno" subtitle="La arquitectura oficial ya fija la frontera del dominio y evita que vuelva a quedar implicito dentro del sistema.">
+      <AdminSurface title="Base del dominio" subtitle="Resumen claro del rol que cumple esta área dentro del Admin.">
         <AdminDomainCard title={meta.title} subtitle={meta.subtitle} bullets={meta.bullets} />
       </AdminSurface>
     </div>

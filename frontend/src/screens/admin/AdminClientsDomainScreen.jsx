@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AdminActionLink, AdminDomainCard, AdminStatChip, AdminSurface } from './AdminShellBlocks.jsx';
 import { fetchAdminUsersAndMachines } from './adminDomainData';
 
+function getTimeMs(value) {
+  const raw = value ? new Date(value).getTime() : NaN;
+  return Number.isFinite(raw) ? raw : 0;
+}
+
 export default function AdminClientsDomainScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,7 +36,9 @@ export default function AdminClientsDomainScreen() {
     const active = list.filter((item) => ['active', ''].includes(String(item?.status || 'active')) && !item?.deleted).length;
     const inactive = list.filter((item) => ['inactive', 'suspended'].includes(String(item?.status || ''))).length;
     const test = list.filter((item) => String(item?.status || '') === 'test').length;
-    return { total: list.length, active, inactive, test };
+    const last30d = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const recent = list.filter((item) => getTimeMs(item?.createdAt || item?.created_at) >= last30d).length;
+    return { total: list.length, active, inactive, test, recent };
   }, [clients]);
 
   return (
@@ -45,6 +52,7 @@ export default function AdminClientsDomainScreen() {
           <AdminStatChip label="Clientes" value={String(stats.total)} tone="brand" />
           <AdminStatChip label="Activos" value={String(stats.active)} tone="success" />
           <AdminStatChip label="Inactivos" value={String(stats.inactive)} tone="warning" />
+          <AdminStatChip label="Alta 30 dias" value={String(stats.recent)} tone="neutral" />
           <AdminStatChip label="Test" value={String(stats.test)} tone="neutral" />
         </div>
       </AdminSurface>

@@ -57,61 +57,61 @@ export default function AdminHomeScreen() {
   const queueCards = [
     {
       title: 'Oferta',
-      subtitle: 'Cerrar Proveedores, Operadores y Maquinarias como base operativa del marketplace.',
+      subtitle: 'Monitorea la calidad y cobertura de la base proveedora.',
       bullets: [
         `Proveedores visibles: ${stats.providers}`,
         `Operadores visibles: ${stats.operators}`,
         `Maquinarias visibles: ${stats.machines}`,
       ],
       to: '/admin/proveedores',
-      actionLabel: 'Abrir base de oferta',
+      actionLabel: 'Revisar oferta',
     },
     {
       title: 'Servicio',
-      subtitle: 'Separar Reservas de Matching para observar servicio y asignacion como procesos distintos.',
+      subtitle: 'Sigue reservas, incidencias y solicitudes en asignación.',
       bullets: [
         `Pendientes de revision: ${stats.pendingReview}`,
         `Disputas: ${stats.disputes}`,
         `Solicitudes en matching: ${stats.matching}`,
       ],
       to: '/admin/reservas',
-      actionLabel: 'Abrir dominio de servicio',
+      actionLabel: 'Revisar servicio',
     },
     {
       title: 'Dinero',
-      subtitle: 'Separar Pagos y Facturacion para que el equipo entienda dinero y documentos sin ambiguedad.',
+      subtitle: 'Controla pagos, documentos y señales financieras del marketplace.',
       bullets: [
         `Servicios invoiced: ${stats.invoiced}`,
         `Tickets soporte: ${stats.tickets}`,
         `Telefonos bloqueados: ${stats.blockedPhones}`,
       ],
       to: '/admin/pagos',
-      actionLabel: 'Abrir dominio financiero',
+      actionLabel: 'Revisar dinero',
     },
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <AdminSurface title="Dashboard oficial" subtitle="Entrada del sistema y torre de control del marketplace. Resume prioridades, deja visible la salud del negocio y deriva a los dominios oficiales sin volver a mezclar operacion profunda.">
+      <AdminSurface title="Dashboard" subtitle="Centro de control del marketplace para seguir operación, oferta, servicio y dinero desde una sola entrada.">
         <div style={{ fontSize: 12, fontWeight: 900, color: theme.brand, textTransform: 'uppercase', letterSpacing: 0.45 }}>
-          Dashboard
+          Admin MAQGO
         </div>
         <div style={{ marginTop: 8, fontSize: 22, fontWeight: 900, letterSpacing: '-0.02em' }}>
-          Entrada operativa del Admin
+          Vista ejecutiva del día
         </div>
         <p style={{ marginTop: 10, maxWidth: 860, fontSize: 14, lineHeight: 1.55, color: theme.textMuted }}>
-          Esta vista reemplaza el acceso ambiguo al panel antiguo y organiza el trabajo por dominios oficiales. El panel
-          legado sigue disponible como puente controlado mientras se materializan los modulos definitivos del MVP.
+          Aquí parte la operación diaria del equipo. La navegación está organizada por dominios claros para que cada tarea
+          tenga una casa propia y el panel sea entendible de principio a fin.
         </p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
-          <AdminActionLink to="/admin/legacy/dashboard" label="Abrir panel legado actual" tone="primary" />
+          <AdminActionLink to="/admin/reportes" label="Abrir reportes" tone="primary" />
           <AdminActionLink to="/admin/growth-ai" label="Abrir Growth AI" tone="secondary" />
         </div>
       </AdminSurface>
 
       <AdminSurface
         title="Salud del sistema"
-        subtitle="Resumen ejecutivo de las prioridades que esta arquitectura busca hacer visibles desde el primer nivel."
+        subtitle="Indicadores clave para detectar qué requiere atención inmediata."
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <AdminStatChip label="Dominios oficiales" value={String(stats.domains)} tone="brand" />
@@ -124,8 +124,8 @@ export default function AdminHomeScreen() {
       </AdminSurface>
 
       <AdminSurface
-        title="Work queues del MVP"
-        subtitle="Secuencia priorizada para construir el Admin definitivo sin volver a concentrar trabajo profundo en el Dashboard."
+        title="Focos prioritarios"
+        subtitle="Tres frentes que concentran el seguimiento operativo más sensible del día."
       >
         <div
           style={{
@@ -141,7 +141,7 @@ export default function AdminHomeScreen() {
       </AdminSurface>
 
       {topGroups.map((group) => (
-        <AdminSurface key={group.label} title={group.label} subtitle="Accesos oficiales del shell y dominios ya reservados para el MVP.">
+        <AdminSurface key={group.label} title={group.label} subtitle="Accesos disponibles del Admin por área de trabajo.">
           <div style={{ fontSize: 12, fontWeight: 900, color: 'rgba(255,255,255,0.52)', textTransform: 'uppercase', letterSpacing: 0.45 }}>
             {group.label}
           </div>

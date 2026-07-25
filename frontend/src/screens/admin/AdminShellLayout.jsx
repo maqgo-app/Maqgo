@@ -16,8 +16,8 @@ function getCurrentMeta(pathname) {
   if (match) return match[1];
   if (pathname.startsWith('/admin/legacy/')) {
     return {
-      title: 'Herramientas legado',
-      subtitle: 'Superficies transitorias mientras se materializan los modulos oficiales',
+      title: 'Vista histórica',
+      subtitle: 'Acceso a herramientas anteriores que siguen disponibles para continuidad operativa',
     };
   }
   return {
@@ -76,7 +76,7 @@ export default function AdminShellLayout() {
             <div>
               <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.02em' }}>Admin MAQGO</div>
               <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.45, color: theme.textMuted }}>
-                Arquitectura oficial por dominios para cerrar el MVP sin volver a mezclar responsabilidades.
+                Navegación clara por dominios para operar el marketplace con una sola lógica de producto.
               </div>
             </div>
           </div>
@@ -139,7 +139,7 @@ export default function AdminShellLayout() {
           >
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 900, color: theme.brand, textTransform: 'uppercase', letterSpacing: 0.45 }}>
-                Shell oficial
+                Panel premium
               </div>
               <h1 style={{ margin: '8px 0 0', fontSize: 24, fontWeight: 900, letterSpacing: '-0.02em' }}>{meta.title}</h1>
               <p style={{ margin: '8px 0 0', fontSize: 13, lineHeight: 1.5, color: theme.textMuted, maxWidth: 760 }}>
@@ -160,7 +160,7 @@ export default function AdminShellLayout() {
                 fontWeight: 800,
               }}
             >
-              Dominio oficial
+              MAQGO Admin
             </div>
           </section>
 

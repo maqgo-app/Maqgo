@@ -2,6 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AdminActionLink, AdminDomainCard, AdminStatChip, AdminSurface } from './AdminShellBlocks.jsx';
 import { fetchAdminSupport } from './adminDomainData';
 
+function getTimeMs(value) {
+  const raw = value ? new Date(value).getTime() : NaN;
+  return Number.isFinite(raw) ? raw : 0;
+}
+
 export default function AdminSupportDomainScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -30,23 +35,27 @@ export default function AdminSupportDomainScreen() {
     tickets: Array.isArray(data.tickets) ? data.tickets.length : 0,
     blocked: Array.isArray(data.blockedPhones) ? data.blockedPhones.length : 0,
     phoneIssues: Array.isArray(data.tickets) ? data.tickets.filter((item) => item?.phone9).length : 0,
+    recentTickets: Array.isArray(data.tickets)
+      ? data.tickets.filter((item) => getTimeMs(item?.created_at || item?.createdAt) >= Date.now() - 7 * 24 * 60 * 60 * 1000).length
+      : 0,
   }), [data]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <AdminSurface
         title="Soporte"
-        subtitle="Incidencias, accesos y bloqueos visibles como dominio propio, separados del dashboard legado."
-        right={<AdminActionLink to="/admin/legacy/area/access" label="Abrir superficie legado" tone="secondary" />}
+        subtitle="Incidencias, accesos y bloqueos del marketplace en una sola bandeja visible."
+        right={<AdminActionLink to="/admin/legacy/area/access" label="Ver soporte actual" tone="secondary" />}
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <AdminStatChip label="Tickets abiertos" value={String(stats.tickets)} tone="brand" />
+          <AdminStatChip label="Ultimos 7 dias" value={String(stats.recentTickets)} tone="success" />
           <AdminStatChip label="Telefonos bloqueados" value={String(stats.blocked)} tone="warning" />
           <AdminStatChip label="Casos con telefono" value={String(stats.phoneIssues)} tone="neutral" />
         </div>
       </AdminSurface>
 
-      <AdminSurface title="Bandeja visible" subtitle="El dominio ya muestra sus casos principales desde una casa propia.">
+      <AdminSurface title="Bandeja visible" subtitle="Casos principales para seguimiento inmediato del equipo.">
         {loading ? (
           <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando soporte…</div>
         ) : error ? (

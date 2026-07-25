@@ -22,8 +22,8 @@ export default function AdminDomainBridgeScreen({ domainKey }) {
 
       {meta.responsibilities?.length ? (
         <AdminSurface
-          title="Responsabilidad del dominio"
-          subtitle="Estas reglas ya quedan fijadas desde el shell y deben preservarse cuando el modulo se implemente en profundidad."
+          title="Claves del dominio"
+          subtitle="Puntos que este módulo debe resolver con claridad para el equipo."
         >
           <div
             style={{
@@ -45,19 +45,19 @@ export default function AdminDomainBridgeScreen({ domainKey }) {
       ) : null}
 
       <AdminSurface
-        title="Estado de materializacion"
-        subtitle="El dominio ya existe arquitectonicamente. Esta vista mantiene la frontera oficial mientras la implementacion profunda se completa en los siguientes lotes."
+        title="Estado del módulo"
+        subtitle="Resumen del avance y del alcance disponible hoy para este dominio."
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <AdminStatChip label="Dominio oficial" value="Si" tone="success" />
-          <AdminStatChip label="Modulo profundo" value={meta.actions?.length ? 'En transicion' : 'Pendiente'} tone="warning" />
-          <AdminStatChip label="Frontera fija" value="Activa" tone="brand" />
+          <AdminStatChip label="Dominio activo" value="Si" tone="success" />
+          <AdminStatChip label="Cobertura actual" value={meta.actions?.length ? 'Disponible' : 'En preparación'} tone="warning" />
+          <AdminStatChip label="Base lista" value="Si" tone="brand" />
         </div>
       </AdminSurface>
 
       <AdminSurface
-        title="Puente de transicion"
-        subtitle="Las capacidades existentes se exponen desde aqui mientras se construye el modulo definitivo. El puente mantiene acceso sin renunciar a la arquitectura oficial."
+        title="Accesos disponibles"
+        subtitle="Entradas que hoy ya puedes usar para operar este dominio."
       >
         {meta.actions?.length ? (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -77,8 +77,8 @@ export default function AdminDomainBridgeScreen({ domainKey }) {
               color: theme.textMuted,
             }}
           >
-            Este dominio ya queda reservado y visible dentro del shell. Su implementacion profunda continua en los lotes
-            siguientes sin volver a mezclar responsabilidades con otros modulos.
+            Este dominio ya tiene su lugar dentro del Admin. La siguiente etapa es completar herramientas y flujos sin
+            mezclar responsabilidades con otras áreas.
           </div>
         )}
       </AdminSurface>
