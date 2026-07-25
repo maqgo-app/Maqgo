@@ -224,11 +224,11 @@ export default function AdminGrowthAIDiscoveryScreen() {
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ minWidth: 0, maxWidth: 760 }}>
             <div style={{ fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: 'rgba(255,255,255,0.56)', fontWeight: 900 }}>
-              Discovery comercial
+              Radar comercial autonomo
             </div>
-            <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Radar premium para detectar oferta, demanda y nuevas aperturas.</div>
+            <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Autopiloto para detectar proveedores, clientes y nuevas aperturas del nicho MAQGO.</div>
             <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.74)', lineHeight: 1.5 }}>
-              Growth AI monitorea fuentes, ejecuta scouting y convierte hallazgos en oportunidades accionables para expansión.
+              Growth AI monitorea señales del mercado, las convierte en oportunidades accionables y mantiene expansión continua sin depender de marketing manual.
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -242,15 +242,15 @@ export default function AdminGrowthAIDiscoveryScreen() {
               onClick={runDiscovery}
               disabled={running}
             >
-              {running ? 'Ejecutando…' : 'Ejecutar scouting'}
+              {running ? 'Ejecutando…' : 'Activar radar ahora'}
             </button>
           </div>
         </div>
 
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
           <StatCard label="Fuentes activas" value={`${summary.enabled}/${summary.totalSources}`} subtitle="Cobertura actualmente habilitada" tone="green" />
-          <StatCard label="Oferta vs demanda" value={`${summary.supply} / ${summary.demand}`} subtitle="Balance de scouting por tipo de señal" />
-          <StatCard label="Última corrida" value={String(summary.lastCreated)} subtitle={`Items creados · fetched ${summary.lastFetched}`} tone={healthTone} />
+          <StatCard label="Oferta vs demanda" value={`${summary.supply} / ${summary.demand}`} subtitle="Balance por tipo de senal comercial" />
+          <StatCard label="Ultima corrida" value={String(summary.lastCreated)} subtitle={`Hallazgos creados · capturados ${summary.lastFetched}`} tone={healthTone} />
           <StatCard label="Oportunidades nuevas" value={String(summary.newItems)} subtitle="Bandeja lista para priorización" tone={opportunityTone} />
         </div>
 
@@ -263,14 +263,14 @@ export default function AdminGrowthAIDiscoveryScreen() {
       <Section
         theme={THEME}
         title="Pulso ejecutivo"
-        subtitle="Lectura rápida del estado del radar comercial y su capacidad de generar pipeline nuevo."
+        subtitle="Lectura rapida del radar comercial y de su capacidad de abrir oferta y demanda utiles."
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1.2fr) minmax(260px, 1fr)', gap: 12 }}>
           <div style={{ padding: 14, borderRadius: 16, border: `1px solid ${THEME.border}`, background: 'rgba(255,255,255,0.04)' }}>
             <div style={{ fontSize: 12, fontWeight: 900, color: 'rgba(255,255,255,0.60)', textTransform: 'uppercase', letterSpacing: 0.7 }}>Lectura actual</div>
             <div style={{ marginTop: 8, fontSize: 16, fontWeight: 900, lineHeight: 1.35 }}>
               {summary.totalSources === 0
-                ? 'Growth AI aún no tiene fuentes configuradas para abrir nuevas oportunidades.'
+                ? 'Growth AI aun no tiene fuentes configuradas para abrir nuevas oportunidades.'
                 : summary.lastCreated > 0
                   ? `La última corrida abrió ${summary.lastCreated} nuevos hallazgos desde ${summary.enabled} fuentes activas.`
                   : 'El radar está activo, pero la última corrida no convirtió hallazgos en nuevas oportunidades.'}
@@ -284,7 +284,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
             <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.5, color: '#fff' }}>
               {summary.newItems > 0
                 ? 'Existe inventario nuevo para priorizar y convertir en expansión real.'
-                : 'No hay oportunidad nueva pendiente; conviene revisar cobertura o lanzar una corrida manual.'}
+                : 'No hay oportunidad nueva pendiente; conviene revisar cobertura o activar una corrida manual del radar.'}
             </div>
             <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
               Errores acumulados en historial reciente: {summary.totalErrors}
@@ -295,8 +295,8 @@ export default function AdminGrowthAIDiscoveryScreen() {
 
       <Section
         theme={THEME}
-        title="Fuentes de scouting"
-        subtitle="Configura de dónde aprende el motor y qué tipo de señal comercial debe capturar."
+        title="Fuentes del radar"
+        subtitle="Configura de donde aprende el autopiloto y que tipo de senal comercial debe capturar."
         right={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <select
@@ -377,7 +377,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
                     }}
                   />
                 </Field>
-                <Field label="Tipo">
+                <Field label="Canal">
                   <select
                     value={s.type || 'rss'}
                     onChange={(e) =>
@@ -398,7 +398,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
                     <option value="html">HTML</option>
                   </select>
                 </Field>
-                <Field label="Kind">
+                <Field label="Tipo de senal">
                   <select
                     value={s.kind || 'supply'}
                     onChange={(e) =>
@@ -419,7 +419,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
                     <option value="demand">Demanda</option>
                   </select>
                 </Field>
-                <Field label="Node ID">
+                <Field label="Nodo objetivo">
                   <input
                     value={s.node_id || ''}
                     onChange={(e) =>
@@ -457,7 +457,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
                     }}
                   />
                 </Field>
-                <Field label="Max items">
+                <Field label="Maximo por corrida">
                   <input
                     type="number"
                     value={s.max_items ?? 25}
@@ -478,7 +478,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
                     }}
                   />
                 </Field>
-                <Field label="Enabled">
+                <Field label="Estado">
                   <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 800 }}>
                     <input
                       type="checkbox"
@@ -487,7 +487,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
                         setSources((prev) => prev.map((x) => (x.id === s.id ? { ...x, enabled: e.target.checked } : x)))
                       }
                     />
-                    Activo
+                    Fuente activa
                   </label>
                 </Field>
               </div>
@@ -499,21 +499,21 @@ export default function AdminGrowthAIDiscoveryScreen() {
 
       <Section
         theme={THEME}
-        title="Historial de corridas"
-        subtitle="Controla si el radar está trayendo señal útil y detecta fricción antes de que impacte el pipeline."
+        title="Historial del autopiloto"
+        subtitle="Controla si el radar trae senal util y detecta friccion antes de que impacte la expansion."
       >
         <div style={{ display: 'grid', gap: 10 }}>
           {runs.slice(0, 10).map((r) => (
             <div key={r.id} style={{ padding: 14, borderRadius: 16, border: `1px solid ${Array.isArray(r?.errors) && r.errors.length ? 'rgba(217,161,90,0.22)' : THEME.border}`, background: 'rgba(255,255,255,0.04)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontWeight: 900, fontSize: 13 }}>Corrida {String(r.id).slice(0, 10)}</div>
+                  <div style={{ fontWeight: 900, fontSize: 13 }}>Ciclo {String(r.id).slice(0, 10)}</div>
                   <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ padding: '4px 8px', borderRadius: 999, border: `1px solid ${THEME.border}`, fontSize: 11, color: 'rgba(255,255,255,0.70)', fontWeight: 800 }}>
                       Fuentes {r.sources}
                     </span>
                     <span style={{ padding: '4px 8px', borderRadius: 999, border: `1px solid ${THEME.border}`, fontSize: 11, color: 'rgba(255,255,255,0.70)', fontWeight: 800 }}>
-                      Fetched {r.fetched}
+                      Capturados {r.fetched}
                     </span>
                     <span style={{ padding: '4px 8px', borderRadius: 999, border: `1px solid ${Number(r.items_created || 0) > 0 ? 'rgba(102,187,106,0.28)' : THEME.border}`, fontSize: 11, color: Number(r.items_created || 0) > 0 ? '#CFF3D1' : 'rgba(255,255,255,0.70)', fontWeight: 800, background: Number(r.items_created || 0) > 0 ? 'rgba(102,187,106,0.12)' : 'transparent' }}>
                       Nuevas {r.items_created}
@@ -536,7 +536,7 @@ export default function AdminGrowthAIDiscoveryScreen() {
       <Section
         theme={THEME}
         title="Bandeja nueva"
-        subtitle="Preview de los hallazgos recién capturados para convertirlos en oportunidad comercial."
+        subtitle="Vista previa de hallazgos recien capturados para convertirlos en oportunidad comercial."
       >
         <div style={{ display: 'grid', gap: 10 }}>
           {newItems.map((it) => (

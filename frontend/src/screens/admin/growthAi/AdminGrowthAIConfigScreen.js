@@ -140,16 +140,16 @@ export default function AdminGrowthAIConfigScreen() {
         }}
       >
         <div style={{ fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: 'rgba(255,255,255,0.56)', fontWeight: 900 }}>
-          Gobierno del motor
+          Gobierno del autopiloto
         </div>
-        <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Configuración premium para operar Growth AI con claridad y control.</div>
+        <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Configuracion premium para operar el autopiloto comercial unico de MAQGO.</div>
         <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.74)', lineHeight: 1.5, maxWidth: 760 }}>
-          Esta superficie resume la estructura activa del motor y mantiene el editor JSON como capa experta, no como experiencia principal.
+          Esta superficie resume la estructura activa del motor comercial y mantiene el editor JSON como capa experta, no como experiencia principal.
         </div>
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
           <StatCard label="Bloques de config" value={String(summary.keys)} subtitle="Secciones detectadas en la configuración" />
-          <StatCard label="Fuentes discovery" value={String(summary.discoverySources)} subtitle={`${summary.enabledSources} activas para scouting`} tone={summary.enabledSources > 0 ? 'green' : 'amber'} />
-          <StatCard label="Cobertura nodos" value={String(summary.nodeCoverage)} subtitle="Nodos declarados en discovery" />
+          <StatCard label="Fuentes radar" value={String(summary.discoverySources)} subtitle={`${summary.enabledSources} activas para el mercado`} tone={summary.enabledSources > 0 ? 'green' : 'amber'} />
+          <StatCard label="Cobertura nodos" value={String(summary.nodeCoverage)} subtitle="Nodos declarados para expansion" />
           <StatCard label="Validez del borrador" value={parsedDraft.ok ? 'OK' : 'Error'} subtitle={parsedDraft.ok ? 'Listo para guardar' : parsedDraft.message} tone={parsedDraft.ok ? 'green' : 'red'} />
         </div>
       </div>
@@ -164,10 +164,10 @@ export default function AdminGrowthAIConfigScreen() {
             <div style={{ marginTop: 8, fontSize: 16, fontWeight: 900, lineHeight: 1.35 }}>
               {summary.discoverySources > 0
                 ? `Growth AI opera con ${summary.discoverySources} fuentes configuradas y cobertura declarada en ${summary.nodeCoverage} nodo(s).`
-                : 'Growth AI no tiene aún discovery sources registradas en la configuración global.'}
+                : 'Growth AI no tiene aun fuentes del radar registradas en la configuracion global.'}
             </div>
             <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
-              El editor experto permanece disponible, pero esta vista prioriza lectura y seguridad operativa.
+              El editor experto permanece disponible, pero esta vista prioriza lectura ejecutiva y seguridad operativa.
             </div>
           </div>
           <div style={{ padding: 14, borderRadius: 16, border: `1px solid ${THEME.border}`, background: 'rgba(255,255,255,0.04)' }}>
