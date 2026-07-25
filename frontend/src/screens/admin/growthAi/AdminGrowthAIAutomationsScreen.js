@@ -131,14 +131,14 @@ export default function AdminGrowthAIAutomationsScreen() {
         <div style={{ fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: 'rgba(255,255,255,0.56)', fontWeight: 900 }}>
           Orquestación comercial
         </div>
-        <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Automatizaciones que aceleran growth sin perder control operativo.</div>
+        <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Playbooks autonomos que aceleran expansion sin perder control operativo.</div>
         <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.74)', lineHeight: 1.5, maxWidth: 760 }}>
-          Esta capa define qué automatizaciones están habilitadas, cuánto del motor está corriendo y dónde conviene intervenir manualmente.
+          Esta capa define que playbooks del autopiloto comercial estan activos, cuanto del motor esta corriendo y donde conviene intervenir manualmente.
         </div>
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-          <StatCard label="Automatizaciones" value={String(summary.total)} subtitle="Playbooks disponibles en Growth AI" />
-          <StatCard label="Activas" value={String(summary.active)} subtitle="Flujos habilitados hoy" tone={summary.active > 0 ? 'green' : 'amber'} />
-          <StatCard label="Pausadas" value={String(summary.paused)} subtitle="Flujos detenidos o sin uso" tone={summary.paused > 0 ? 'amber' : 'green'} />
+          <StatCard label="Playbooks" value={String(summary.total)} subtitle="Capacidades activables de Growth AI" />
+          <StatCard label="Activas" value={String(summary.active)} subtitle="Rutinas habilitadas hoy" tone={summary.active > 0 ? 'green' : 'amber'} />
+          <StatCard label="Pausadas" value={String(summary.paused)} subtitle="Rutinas detenidas o en espera" tone={summary.paused > 0 ? 'amber' : 'green'} />
           <StatCard label="Con actividad" value={String(summary.withRun)} subtitle={status?.summary || 'Sin estado reportado'} />
         </div>
       </div>
@@ -163,18 +163,18 @@ export default function AdminGrowthAIAutomationsScreen() {
             <option value="paused">Solo pausadas</option>
           </select>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.70)', fontWeight: 800 }}>
-            {filteredItems.length} automatización{filteredItems.length === 1 ? '' : 'es'} en vista
+            {filteredItems.length} automatizacion{filteredItems.length === 1 ? '' : 'es'} en vista
           </div>
           {status?.summary ? <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.70)', fontWeight: 800 }}>{status.summary}</div> : null}
         </div>
         {error ? <div style={{ marginTop: 10, color: '#E57373', fontSize: 13, lineHeight: 1.45 }}>{error}</div> : null}
       </Section>
 
-      <Section theme={THEME} title="Portafolio automatizado">
+      <Section theme={THEME} title="Portafolio autonomo">
         {loading ? (
           <ListSkeleton rows={10} />
         ) : filteredItems.length === 0 ? (
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>Sin automatizaciones configuradas.</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>Sin playbooks configurados.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {filteredItems.map((a) => (
@@ -184,20 +184,20 @@ export default function AdminGrowthAIAutomationsScreen() {
                     <div style={{ fontSize: 14, fontWeight: 900 }}>{a.title}</div>
                     <Toggle enabled={Boolean(a.enabled)} />
                   </div>
-                  <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>{a.description || '—'}</div>
+                  <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>{a.description || 'Sin descripcion operativa.'}</div>
                   <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ padding: '4px 8px', borderRadius: 999, border: `1px solid ${THEME.border}`, fontSize: 11, color: 'rgba(255,255,255,0.70)', fontWeight: 800 }}>
-                      ID {a.id}
+                      Flujo {a.id}
                     </span>
                     <span style={{ padding: '4px 8px', borderRadius: 999, border: `1px solid ${a.last_run_at ? 'rgba(102,187,106,0.22)' : THEME.border}`, fontSize: 11, color: a.last_run_at ? '#CFF3D1' : 'rgba(255,255,255,0.70)', fontWeight: 800, background: a.last_run_at ? 'rgba(102,187,106,0.10)' : 'transparent' }}>
                       {a.last_run_at ? 'Con actividad' : 'Sin actividad'}
                     </span>
                   </div>
-                  {a.last_run_at ? <div style={{ marginTop: 6, fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Última ejecución: {a.last_run_at}</div> : null}
+                  {a.last_run_at ? <div style={{ marginTop: 6, fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Ultima actividad: {a.last_run_at}</div> : null}
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   <button type="button" className="maqgo-btn-primary" style={{ padding: '9px 10px', borderRadius: 12, fontWeight: 900, fontSize: 12 }} disabled={posting} onClick={() => void setEnabled(a.id, !a.enabled)}>
-                    {a.enabled ? 'Desactivar' : 'Activar'}
+                    {a.enabled ? 'Pausar' : 'Activar'}
                   </button>
                 </div>
               </div>

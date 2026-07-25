@@ -45,8 +45,8 @@ export default function AdminClientsDomainScreen() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <AdminSurface
         title="Clientes"
-        subtitle="Dominio oficial de la demanda, separado de Proveedores y del contenedor generico de usuarios."
-        right={<AdminActionLink to="/admin/users?tab=clients" label="Abrir herramienta actual" tone="secondary" />}
+        subtitle="Dominio oficial de la demanda, integrado al Admin premium y separado de Proveedores."
+        right={<AdminActionLink to="/admin/users?tab=clients" label="Abrir clientes" tone="secondary" />}
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <AdminStatChip label="Clientes" value={String(stats.total)} tone="brand" />
@@ -59,7 +59,7 @@ export default function AdminClientsDomainScreen() {
 
       <AdminSurface
         title="Lectura actual"
-        subtitle="La demanda ya tiene casa oficial dentro del shell. La ficha canonica profunda puede construirse despues sin volver a esconder clientes dentro del modulo generico."
+        subtitle="La demanda ya tiene su casa oficial dentro del shell y deja de vivir escondida dentro de un contenedor generico."
       >
         {loading ? (
           <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando clientes…</div>

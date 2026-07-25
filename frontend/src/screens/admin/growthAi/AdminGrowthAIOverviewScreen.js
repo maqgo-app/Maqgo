@@ -574,8 +574,8 @@ export default function AdminGrowthAIOverviewScreen() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
           <Card
             theme={THEME}
-            title="GO LIVE semanal"
-            subtitle="Señal de apertura comercial y readiness de oferta."
+            title="Apertura semanal"
+            subtitle="Senal de apertura comercial y readiness de oferta."
             right={goLive ? <Pill theme={THEME} label={`GO LIVE ${goLive.status || '—'}`} tone={goLive.tone || 'neutral'} /> : null}
           >
             {loading ? (
@@ -593,7 +593,7 @@ export default function AdminGrowthAIOverviewScreen() {
                 </div>
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>Sin datos de GO LIVE todavía.</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>Sin datos de apertura todavia.</div>
             )}
           </Card>
 
@@ -690,12 +690,12 @@ export default function AdminGrowthAIOverviewScreen() {
           <Card
             theme={THEME}
             title="Radar comercial"
-            subtitle="Prospección automática de proveedores con límites diarios y alcance controlado."
+            subtitle="Prospeccion automatica del nicho con limites diarios y alcance controlado."
             right={<Pill theme={THEME} label={starting ? 'Buscando…' : 'Listo'} tone={starting ? 'amber' : 'neutral'} />}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.35 }}>
-                El foco actual está en oferta. Clientes permanecen bloqueados hasta que GO LIVE tenga oferta suficiente por comuna.
+                El foco actual esta en oferta. Clientes permanecen bloqueados hasta que cada comuna tenga oferta suficiente para abrir mercado.
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <Pill theme={THEME} label="Región RM" tone="neutral" />
@@ -717,7 +717,7 @@ export default function AdminGrowthAIOverviewScreen() {
                   style={{ padding: '10px 12px', borderRadius: 12, fontWeight: 800 }}
                   onClick={() => navigate('/admin/growth-ai/discovery')}
                 >
-                  Ver hallazgos
+                    Abrir hallazgos
                 </button>
               </div>
             </div>
@@ -744,7 +744,7 @@ export default function AdminGrowthAIOverviewScreen() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
                   <StatCard label="Riesgos P0" value={String(risks.length)} subtitle="Incidencias activas" tone={risks.length ? 'red' : 'green'} />
-                  <StatCard label="Runs recientes" value={String(workingNow.length)} subtitle="Eventos relevantes del motor" tone="neutral" />
+                  <StatCard label="Actividad reciente" value={String(workingNow.length)} subtitle="Eventos relevantes del motor" tone="neutral" />
                 </div>
                 {risks.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
