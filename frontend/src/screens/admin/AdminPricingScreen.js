@@ -940,10 +940,10 @@ function AdminPricingScreen() {
                 fontWeight: 600,
                 textTransform: 'uppercase'
               }}>
-                Traslado referencial (legacy)
+                Traslado referencial general
               </div>
               <div style={{ padding: '10px 16px', color: ADMIN_THEME.textMuted, fontSize: 12, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
-                Compatibilidad: este bloque se mantiene para lectura/edición simple. El desglose intra/inter está en “Vista por maquinaria”.
+                Este bloque se mantiene para lectura y edicion general. El desglose intra/inter esta en "Vista por maquinaria".
               </div>
               <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
                 <span>Concepto</span>

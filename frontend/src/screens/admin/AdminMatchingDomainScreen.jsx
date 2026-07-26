@@ -166,10 +166,10 @@ export default function AdminMatchingDomainScreen() {
           />
           <AdminDomainCard
             title="Casos resueltos"
-            subtitle="Casos que ya salieron de la cola activa"
+            subtitle="Casos que ya salieron del trabajo activo"
             bullets={[
               `Cerradas: ${stats.closed}`,
-              statusScope === 'active' ? 'El filtro actual deja fuera los casos ya resueltos' : 'Incluye estados fuera de la cola activa',
+              statusScope === 'active' ? 'El filtro actual deja fuera los casos ya resueltos' : 'Incluye estados que ya no requieren gestion activa',
               'Sirve para entender si la asignacion resuelve o acumula friccion',
             ]}
           />

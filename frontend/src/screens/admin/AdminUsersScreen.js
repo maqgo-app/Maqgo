@@ -28,6 +28,7 @@ const ADMIN_THEME = {
 const MAQGO_PUBLIC_ID_PREFIX = '0019702204';
 const MAQGO_PUBLIC_ID_SUFFIX_MOD = 10000000n;
 const MAQGO_PUBLIC_ID_SUFFIX_LEN = 7;
+const ADMIN_USER_TABS = ['clients', 'providers', 'operators', 'machines'];
 
 function maqgoPublicId(rawId, kind) {
   if (!rawId) return '-';
@@ -42,13 +43,29 @@ function maqgoPublicId(rawId, kind) {
   return `${MAQGO_PUBLIC_ID_PREFIX}${kindDigit}${suffix}`;
 }
 
-function AdminUsersScreen() {
+function AdminUsersScreen({
+  initialTab = null,
+  allowedTabs = null,
+  embedded = false,
+  title = 'Usuarios',
+  subtitle = 'Clientes, proveedores, operadores y maquinarias.',
+}) {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
+  const enabledTabs = useMemo(() => {
+    const raw = Array.isArray(allowedTabs) && allowedTabs.length > 0 ? allowedTabs : ADMIN_USER_TABS;
+    const unique = raw.filter((item, index) => ADMIN_USER_TABS.includes(item) && raw.indexOf(item) === index);
+    return unique.length > 0 ? unique : ADMIN_USER_TABS;
+  }, [allowedTabs]);
+  const resolveTab = (candidate) => {
+    const raw = String(candidate || '').trim().toLowerCase();
+    if (enabledTabs.includes(raw)) return raw;
+    return enabledTabs[0] || 'clients';
+  };
   const [data, setData] = useState({ clients: [], providers: [], machines: [], total_clients: 0, total_providers: 0 });
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('clients'); // 'clients' | 'providers' | 'machines'
+  const [tab, setTab] = useState(() => resolveTab(initialTab || 'clients'));
   const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'inactive' | 'test' | 'deleted'
   const [editKind, setEditKind] = useState('client'); // 'client' | 'provider' | 'machine'
   const [editingUser, setEditingUser] = useState(null);
@@ -61,16 +78,17 @@ function AdminUsersScreen() {
   const [expandedProviderIds, setExpandedProviderIds] = useState(() => new Set());
 
   useEffect(() => {
+    if (initialTab) {
+      setTab(resolveTab(initialTab));
+      return;
+    }
     try {
       const qs = new URLSearchParams(location.search || '');
-      const raw = String(qs.get('tab') || '').trim().toLowerCase();
-      if (raw === 'clients' || raw === 'providers' || raw === 'machines') {
-        setTab(raw);
-      }
+      setTab(resolveTab(qs.get('tab') || 'clients'));
     } catch {
-      /* ignore */
+      setTab(resolveTab('clients'));
     }
-  }, [location.search]);
+  }, [initialTab, location.search, enabledTabs]);
 
   const goDashboardArea = (area) => {
     const routeByArea = {
@@ -144,11 +162,21 @@ function AdminUsersScreen() {
     return user?.role ? String(user.role) : '-';
   };
 
+  const operatorUsers = useMemo(() => {
+    const list = Array.isArray(data.providers) ? data.providers : [];
+    return list.filter((u) => {
+      const providerRole = String(u?.provider_role || '').trim();
+      const ownerId = String(u?.owner_id || '').trim();
+      return providerRole === 'operator' || ownerId;
+    });
+  }, [data.providers]);
+
   const users = useMemo(() => {
     if (tab === 'clients') return data.clients;
     if (tab === 'providers') return data.providers;
+    if (tab === 'operators') return operatorUsers;
     return [];
-  }, [tab, data.clients, data.providers]);
+  }, [tab, data.clients, data.providers, operatorUsers]);
 
   const normalizedUsers = useMemo(() => {
     return (Array.isArray(users) ? users : []).map((u) => {
@@ -169,6 +197,9 @@ function AdminUsersScreen() {
       if (statusFilter === 'inactive') return st === 'inactive' || st === 'suspended';
       return st === 'active' || !u?.status;
     });
+    if (tab === 'operators') {
+      return filtered.filter((u) => String(u?.provider_role || '').trim() === 'operator' || String(u?.owner_id || '').trim());
+    }
     if (tab !== 'providers') return filtered;
     return filtered.filter((u) => {
       const providerRole = String(u?.provider_role || '').trim();
@@ -348,11 +379,20 @@ function AdminUsersScreen() {
     return m;
   }, [providerGroups]);
 
+  const providerOwnerById = useMemo(() => {
+    const next = new Map();
+    providerGroups.forEach((group) => {
+      const providerId = String(group?.providerId || '').trim();
+      if (providerId) next.set(providerId, group?.rootUser || null);
+    });
+    return next;
+  }, [providerGroups]);
+
   const openEdit = (u, kindOverride = null) => {
     const md = kindOverride === 'machine' ? u : (u?.machineData && typeof u.machineData === 'object' ? u.machineData : {});
     const kind =
       kindOverride ||
-      (tab === 'clients' ? 'client' : tab === 'providers' ? 'provider' : 'machine');
+      (tab === 'clients' ? 'client' : tab === 'machines' ? 'machine' : 'provider');
     setEditKind(kind);
     setEditingUser(u);
     setEditForm({
@@ -564,8 +604,12 @@ function AdminUsersScreen() {
     }
   };
 
+  const showTabSelector = enabledTabs.length > 1;
+  const isProviderFamilyTab = tab === 'providers' || tab === 'operators';
+
   return (
-    <div className="maqgo-admin-page" style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
+    <div className="maqgo-admin-page" style={{ minHeight: embedded ? 'auto' : '100dvh', background: embedded ? 'transparent' : ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
+      {!embedded ? (
       <div className="maqgo-admin-topbar" style={{ background: ADMIN_THEME.panelBg, padding: '20px 24px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
         <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -788,14 +832,15 @@ function AdminUsersScreen() {
           </div>
         </div>
       </div>
+      ) : null}
 
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: embedded ? 0 : 24 }}>
         <div style={{ marginBottom: 14 }}>
-          <div className="maqgo-admin-title">Usuarios</div>
-          <div className="maqgo-admin-subtitle">Clientes, proveedores y maquinaria.</div>
+          <div className="maqgo-admin-title">{title}</div>
+          <div className="maqgo-admin-subtitle">{subtitle}</div>
         </div>
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {showTabSelector ? (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
           <button
             onClick={() => setTab('clients')}
             style={{
@@ -827,6 +872,21 @@ function AdminUsersScreen() {
             Proveedores ({providerGroups.length})
           </button>
           <button
+            onClick={() => setTab('operators')}
+            style={{
+              padding: '10px 20px',
+              background: tab === 'operators' ? 'rgba(255,255,255,0.06)' : ADMIN_THEME.panelBg,
+              border: `1px solid ${tab === 'operators' ? 'rgba(236, 104, 25, 0.55)' : ADMIN_THEME.border}`,
+              borderRadius: 8,
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 600
+            }}
+          >
+            Operadores ({operatorUsers.length})
+          </button>
+          <button
             onClick={() => setTab('machines')}
             style={{
               padding: '10px 20px',
@@ -842,6 +902,7 @@ function AdminUsersScreen() {
             Maquinarias ({machinesCount})
           </button>
         </div>
+        ) : null}
 
         {tab !== 'machines' && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -927,6 +988,8 @@ function AdminUsersScreen() {
                   ? 'No hay clientes registrados'
                   : tab === 'providers'
                     ? 'No hay proveedores registrados'
+                    : tab === 'operators'
+                      ? 'No hay operadores registrados'
                     : 'No hay maquinarias registradas'}
               </p>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 8 }}>
@@ -1074,16 +1137,24 @@ function AdminUsersScreen() {
                       {tab === 'providers' && (
                         <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>RUT</th>
                       )}
+                      {tab === 'operators' && (
+                        <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Titular</th>
+                      )}
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Email</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Teléfono</th>
                       <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Estado</th>
-                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Diagnóstico acceso</th>
+                      <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Acceso y estado</th>
                       {tab === 'providers' && (
                         <>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Maquinarias</th>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Operadores</th>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Onboarding</th>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Disponible</th>
+                          <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Rol</th>
+                        </>
+                      )}
+                      {tab === 'operators' && (
+                        <>
                           <th style={{ padding: 14, textAlign: 'left', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Rol</th>
                         </>
                       )}
@@ -1101,6 +1172,11 @@ function AdminUsersScreen() {
                         <td style={{ padding: 14, color: '#fff', fontSize: 13 }}>{u.name || '-'}</td>
                         {tab === 'providers' && (
                           <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{displayRut(u)}</td>
+                        )}
+                        {tab === 'operators' && (
+                          <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
+                            {providerOwnerById.get(String(u?.owner_id || '').trim())?.name || providerOwnerById.get(String(u?.owner_id || '').trim())?.email || '-'}
+                          </td>
                         )}
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.email || '-'}</td>
                         <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{u.phone || '-'}</td>
@@ -1122,7 +1198,7 @@ function AdminUsersScreen() {
                                 <div><strong style={{ color: '#fff' }}>status:</strong> {meta.st}</div>
                                 <div><strong style={{ color: '#fff' }}>deleted:</strong> {meta.isDel ? 'true' : 'false'}</div>
                                 <div><strong style={{ color: '#fff' }}>roles:</strong> {getRolesLabel(u)}</div>
-                                {tab === 'providers' ? (
+                                {isProviderFamilyTab ? (
                                   <div><strong style={{ color: '#fff' }}>provider_role:</strong> {u?.provider_role || '-'}</div>
                                 ) : null}
                               </>
@@ -1165,6 +1241,13 @@ function AdminUsersScreen() {
                                 {u.isAvailable ? 'Sí' : 'No'}
                               </span>
                             </td>
+                            <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
+                              {getProviderRoleLabel(u.provider_role)}
+                            </td>
+                          </>
+                        )}
+                        {tab === 'operators' && (
+                          <>
                             <td style={{ padding: 14, color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
                               {getProviderRoleLabel(u.provider_role)}
                             </td>
@@ -1561,29 +1644,31 @@ function AdminUsersScreen() {
           )}
         </div>
 
+        {!embedded ? (
         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 20 }}>
           Los usuarios se almacenan en MongoDB (<code style={{ background: '#333', padding: '2px 6px', borderRadius: 4 }}>users</code>) y el inventario en <code style={{ background: '#333', padding: '2px 6px', borderRadius: 4 }}>machines</code>.
           El registro se realiza desde la app (Empezar ahora / Ya tengo cuenta).
         </p>
+        ) : null}
       </div>
 
       {editingUser && editForm && (
         <div className="maqgo-modal-overlay" role="dialog" aria-modal="true">
-          <div className="maqgo-modal-dialog" style={{ width: 'min(92vw, 540px)' }}>
+      <div className="maqgo-modal-dialog" style={{ width: 'min(92vw, 540px)' }}>
             <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 800, margin: '0 0 14px' }}>
-              {editKind === 'machine' ? 'Editar maquinaria' : `Editar ${tab === 'clients' ? 'cliente' : 'proveedor'}`}
+              {editKind === 'machine' ? 'Editar maquinaria' : `Editar ${tab === 'clients' ? 'cliente' : tab === 'operators' ? 'operador' : 'proveedor'}`}
             </h3>
             <div style={{ display: 'grid', gap: 12 }}>
               {editKind !== 'machine' ? (
                 <div style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 10, padding: 12 }}>
-                  <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 8 }}>Diagnóstico de acceso</div>
+                  <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 8 }}>Acceso y estado</div>
                   <div style={{ display: 'grid', gap: 4, color: 'rgba(255,255,255,0.88)', fontSize: 13, lineHeight: 1.45 }}>
                     <div><strong style={{ color: '#fff' }}>user.id:</strong> {editingUser?.id || '-'}</div>
                     <div><strong style={{ color: '#fff' }}>phone:</strong> {editingUser?.phone || '-'}</div>
                     <div><strong style={{ color: '#fff' }}>status:</strong> {String(editingUser?.status || 'active')}</div>
                     <div><strong style={{ color: '#fff' }}>deleted:</strong> {editingUser?.deleted ? 'true' : 'false'}</div>
                     <div><strong style={{ color: '#fff' }}>roles:</strong> {getRolesLabel(editingUser)}</div>
-                    {tab === 'providers' ? (
+                    {isProviderFamilyTab ? (
                       <div><strong style={{ color: '#fff' }}>provider_role:</strong> {editingUser?.provider_role || '-'}</div>
                     ) : null}
                   </div>
@@ -1627,12 +1712,12 @@ function AdminUsersScreen() {
                 </div>
               )}
 
-              {(tab === 'providers' || editKind === 'machine') && (
+              {(isProviderFamilyTab || editKind === 'machine') && (
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     {editKind !== 'machine' ? (
                       <label style={{ display: 'grid', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Rol proveedor</span>
+                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Rol operativo</span>
                         <select
                           value={editForm.provider_role}
                           onChange={(e) => setEditForm((p) => ({ ...p, provider_role: e.target.value }))}

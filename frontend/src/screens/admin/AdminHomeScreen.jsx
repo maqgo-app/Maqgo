@@ -7,7 +7,7 @@ import { buildAdminQuery, buildRecentRange } from './adminTimeContext';
 export default function AdminHomeScreen() {
   const theme = ADMIN_SHELL_THEME;
   const [loading, setLoading] = useState(true);
-  const [snapshot, setSnapshot] = useState(null);
+  const [dashboardState, setDashboardState] = useState(null);
   const [error, setError] = useState('');
   const sharedRange = useMemo(() => buildRecentRange(30), []);
   const reservationsQuery = buildAdminQuery(sharedRange);
@@ -31,9 +31,9 @@ export default function AdminHomeScreen() {
         setLoading(true);
         setError('');
         const data = await fetchAdminDashboardSnapshot();
-        if (active) setSnapshot(data);
+        if (active) setDashboardState(data);
       } catch (err) {
-        if (active) setError(err?.message || 'No se pudo cargar el snapshot del Admin.');
+        if (active) setError(err?.message || 'No se pudo cargar el estado actual del Admin.');
       } finally {
         if (active) setLoading(false);
       }
@@ -44,10 +44,10 @@ export default function AdminHomeScreen() {
   }, []);
 
   const stats = useMemo(() => {
-    const users = snapshot?.users || {};
-    const services = snapshot?.services || {};
-    const matching = Array.isArray(snapshot?.matching) ? snapshot.matching : [];
-    const support = snapshot?.support || {};
+    const users = dashboardState?.users || {};
+    const services = dashboardState?.services || {};
+    const matching = Array.isArray(dashboardState?.matching) ? dashboardState.matching : [];
+    const support = dashboardState?.support || {};
     const officialDomains = topGroups.reduce((count, group) => count + (Array.isArray(group.items) ? group.items.length : 0), 0);
     return {
       domains: officialDomains,
@@ -61,12 +61,12 @@ export default function AdminHomeScreen() {
       tickets: Array.isArray(support?.tickets) ? support.tickets.length : 0,
       blockedPhones: Array.isArray(support?.blockedPhones) ? support.blockedPhones.length : 0,
     };
-  }, [snapshot, topGroups]);
+  }, [dashboardState, topGroups]);
 
   const queueCards = [
     {
       title: 'Oferta',
-      subtitle: 'Monitorea la calidad y cobertura de la base proveedora.',
+      subtitle: 'Monitorea la calidad y avance de la base proveedora.',
       bullets: [
         `Proveedores visibles: ${stats.providers}`,
         `Operadores visibles: ${stats.operators}`,
@@ -81,7 +81,7 @@ export default function AdminHomeScreen() {
       bullets: [
         `Pendientes de revision: ${stats.pendingReview}`,
         `Disputas: ${stats.disputes}`,
-        `Solicitudes en matching: ${stats.matching}`,
+        `Solicitudes en asignacion: ${stats.matching}`,
       ],
       to: `/admin/reservas${reviewsQuery}`,
       actionLabel: 'Revisar servicio',
@@ -90,7 +90,7 @@ export default function AdminHomeScreen() {
       title: 'Dinero',
       subtitle: 'Controla pagos, documentos y señales financieras del marketplace.',
       bullets: [
-        `Servicios invoiced: ${stats.invoiced}`,
+        `Servicios facturados: ${stats.invoiced}`,
         `Tickets soporte: ${stats.tickets}`,
         `Telefonos bloqueados: ${stats.blockedPhones}`,
       ],
@@ -109,7 +109,7 @@ export default function AdminHomeScreen() {
           Vista ejecutiva del día
         </div>
         <p style={{ marginTop: 10, maxWidth: 860, fontSize: 14, lineHeight: 1.55, color: theme.textMuted }}>
-          Aquí parte la operación diaria del equipo. La navegación está organizada por dominios claros para que cada tarea
+          Aquí parte la operación diaria del equipo. La navegación está organizada por áreas claras para que cada tarea
           tenga una casa propia y el panel sea entendible de principio a fin.
         </p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
@@ -123,12 +123,12 @@ export default function AdminHomeScreen() {
         subtitle="Indicadores clave para detectar qué requiere atención inmediata."
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <AdminStatChip label="Dominios oficiales" value={String(stats.domains)} tone="brand" />
-          <AdminStatChip label="Matching activo" value={String(stats.matching)} tone="neutral" to={`/admin/matching${matchingQuery}`} />
+          <AdminStatChip label="Areas oficiales" value={String(stats.domains)} tone="brand" />
+          <AdminStatChip label="Asignacion activa" value={String(stats.matching)} tone="neutral" to={`/admin/matching${matchingQuery}`} />
           <AdminStatChip label="Pendientes revision" value={String(stats.pendingReview)} tone="warning" to={`/admin/reservas${reviewsQuery}`} />
           <AdminStatChip label="Soporte abierto" value={String(stats.tickets)} tone="success" to="/admin/soporte" />
         </div>
-        {loading ? <div style={{ marginTop: 12, fontSize: 12, color: theme.textMuted }}>Actualizando snapshot…</div> : null}
+        {loading ? <div style={{ marginTop: 12, fontSize: 12, color: theme.textMuted }}>Actualizando estado actual…</div> : null}
         {error ? <div style={{ marginTop: 12, fontSize: 12, color: '#E8A34B' }}>{error}</div> : null}
       </AdminSurface>
 
@@ -149,7 +149,7 @@ export default function AdminHomeScreen() {
             bullets={[
               `Casos visibles: ${stats.pendingReview}`,
               'Abre la bandeja de reservas ya filtrada al foco correcto',
-              'Usa el mismo rango base entre servicio, matching y dinero',
+              'Usa el mismo rango base entre servicio, asignacion y dinero',
             ]}
             to={`/admin/reservas${reviewsQuery}`}
             actionLabel="Abrir pendientes"
@@ -166,21 +166,21 @@ export default function AdminHomeScreen() {
             actionLabel="Abrir disputas"
           />
           <AdminDomainCard
-            title="Matching del periodo"
+            title="Asignacion del periodo"
             subtitle="Asignación"
             bullets={[
               `Solicitudes visibles: ${stats.matching}`,
-              'Abre matching con el mismo rango operativo del Admin',
+              'Abre asignacion con el mismo rango operativo del Admin',
               'Permite revisar búsqueda, oferta y cierre sin perder contexto',
             ]}
             to={`/admin/matching${matchingQuery}`}
-            actionLabel="Abrir matching"
+            actionLabel="Abrir asignacion"
           />
           <AdminDomainCard
             title="Facturación cargada"
             subtitle="Dinero"
             bullets={[
-              `Servicios invoiced: ${stats.invoiced}`,
+              `Servicios facturados: ${stats.invoiced}`,
               'Abre la capa documental con foco en facturas del periodo',
               'Ayuda a cerrar caja y documentación en el mismo flujo',
             ]}

@@ -158,7 +158,7 @@ export default function AdminReportsDomainScreen() {
       <AdminSurface
         title="Reportes"
         subtitle="Consulta informes semanales y mensuales, revisa destinatarios y descarga los PDF ejecutivos desde una sola vista."
-        right={<AdminActionLink to="/admin/marketing" label="Abrir marketing" tone="secondary" />}
+        right={<AdminActionLink to="/admin/marketing" label="Abrir distribucion" tone="secondary" />}
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <AdminStatChip label="Destinatarios semanales" value={String(stats.weeklyEmails)} tone="brand" />
@@ -194,7 +194,7 @@ export default function AdminReportsDomainScreen() {
             bullets={[
               `Informe semanal: ${stats.weeklyEmails}`,
               `Informe mensual: ${stats.monthlyEmails}`,
-              'Marketing mantiene el control de destinatarios y del flujo de envio',
+              'La distribucion vigente mantiene el control de destinatarios y del flujo de envio',
             ]}
           />
         </div>
@@ -310,7 +310,7 @@ export default function AdminReportsDomainScreen() {
               bullets={[
                 `Destinatarios: ${stats.weeklyEmails}`,
                 'El envío sigue utilizando la plantilla MAQGO semanal',
-                'Marketing permite administrar continuidad y distribución',
+                'La distribucion vigente permite administrar continuidad y envio',
               ]}
             />
             <AdminDomainCard
@@ -326,12 +326,12 @@ export default function AdminReportsDomainScreen() {
               title="Acceso complementario"
               subtitle="Superficie disponible para la operación actual"
               bullets={[
-                'Marketing concentra acciones auxiliares de distribución',
+                'La pantalla vigente concentra las acciones auxiliares de distribucion',
                 'Reportes queda como espacio de consulta y descarga',
                 'El panel resume, pero no reemplaza esta area',
               ]}
               to="/admin/marketing"
-              actionLabel="Ir a marketing"
+              actionLabel="Abrir distribucion vigente"
             />
           </div>
         )}

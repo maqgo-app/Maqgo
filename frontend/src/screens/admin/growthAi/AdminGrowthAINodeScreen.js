@@ -330,7 +330,7 @@ export default function AdminGrowthAINodeScreen() {
             style={{ padding: '10px 12px', borderRadius: 12 }}
             onClick={() => navigate('/admin/growth-ai/discovery')}
           >
-            Abrir radar
+            Abrir busqueda
           </button>
         </div>
         <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 12, fontWeight: 800 }}>
@@ -387,7 +387,7 @@ export default function AdminGrowthAINodeScreen() {
               </details>
             </div>
             <div>
-              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>Gobierno comercial</div>
+              <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 900 }}>Control comercial</div>
               <details style={{ marginTop: 8 }}>
                 <summary style={{ cursor: 'pointer', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900 }}>
                   Gestionar estado
@@ -422,7 +422,7 @@ export default function AdminGrowthAINodeScreen() {
                   </button>
                 </div>
                 <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.35 }}>
-                  Cada decisión queda auditada y alimenta el aprendizaje del autopiloto comercial.
+                  Cada decision queda registrada y alimenta el aprendizaje del motor comercial.
                 </div>
               </details>
             </div>
@@ -531,7 +531,7 @@ export default function AdminGrowthAINodeScreen() {
                 ¿Qué significa LISTA/LIVE?
               </summary>
               <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.35 }}>
-                LISTA = cumple el mínimo de oferta activa detectada. LIVE = apertura comercial habilitada, sea por autopiloto o por una excepción supervisada.
+                LISTA = cumple el minimo de oferta activa detectada. LIVE = apertura comercial habilitada, sea por el motor o por una excepcion supervisada.
               </div>
             </details>
           </div>

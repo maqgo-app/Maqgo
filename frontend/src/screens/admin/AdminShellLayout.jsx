@@ -16,8 +16,8 @@ function getCurrentMeta(pathname) {
   if (match) return match[1];
   if (pathname.startsWith('/admin/legacy/')) {
     return {
-      title: 'Vista histórica',
-      subtitle: 'Acceso a herramientas anteriores que siguen disponibles para continuidad operativa',
+      title: 'Compatibilidad operativa',
+      subtitle: 'Acceso a herramientas anteriores que siguen disponibles mientras termina la convergencia al Admin oficial',
     };
   }
   return {
@@ -76,7 +76,7 @@ export default function AdminShellLayout() {
             <div>
               <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.02em' }}>Admin MAQGO</div>
               <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.45, color: theme.textMuted }}>
-                Navegación clara por dominios para operar el marketplace con una sola lógica de producto.
+                Navegación clara por áreas para operar el marketplace con una sola lógica de producto.
               </div>
             </div>
           </div>

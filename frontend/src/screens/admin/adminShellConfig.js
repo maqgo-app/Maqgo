@@ -138,11 +138,11 @@ export const ADMIN_DOMAIN_META = {
     title: 'Asignacion',
     subtitle: 'Asignacion separada de la ejecucion',
     summary:
-      'Muestra la cola de asignación y los intentos de cobertura antes de la ejecución.',
+      'Muestra la carga de asignacion y los intentos realizados antes de la ejecucion.',
     responsibilities: [
-      'Gobernar la cola de asignacion',
+      'Gobernar la carga activa de asignacion',
       'Registrar intentos, fallos y reintentos',
-      'Escalar senales estructurales de cobertura',
+      'Escalar senales estructurales de avance insuficiente',
     ],
     actions: [
       { label: 'Abrir asignacion', to: '/admin/matching', tone: 'primary' },

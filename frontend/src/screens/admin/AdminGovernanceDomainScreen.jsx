@@ -30,7 +30,7 @@ const CONFIG = {
       'Evitar absorber reglas variables del negocio',
       'Mantener toda modificacion sensible bajo control',
     ],
-    action: { to: '/admin/growth-ai/config', label: 'Abrir config existente' },
+    action: null,
   },
   parametros: {
     title: 'Reglas de negocio',

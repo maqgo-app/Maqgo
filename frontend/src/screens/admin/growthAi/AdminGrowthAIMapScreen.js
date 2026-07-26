@@ -141,7 +141,7 @@ export default function AdminGrowthAIMapScreen() {
       ) : nodes.length === 0 ? (
         <div style={{ border: `1px solid ${THEME.border}`, background: THEME.panelBg, borderRadius: 16, padding: 16 }}>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
-            No hay nodos configurados todavía. Define cobertura inicial para que el mapa comercial pueda ordenar la expansión.
+            No hay nodos configurados todavía. Define los primeros nodos para que el mapa comercial pueda ordenar la expansion.
           </div>
         </div>
       ) : (

@@ -314,7 +314,7 @@ export default function AdminGrowthAIComunasScreen() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div className="maqgo-admin-title">Comunas</div>
-          <div className="maqgo-admin-subtitle">Gobierno comercial por comuna, desde captación hasta apertura automática bajo reglas MAQGO.</div>
+          <div className="maqgo-admin-subtitle">Control comercial por comuna, desde captacion hasta apertura automatica bajo reglas MAQGO.</div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button
@@ -364,7 +364,7 @@ export default function AdminGrowthAIComunasScreen() {
           right={<Pill theme={THEME} label={`Comunas ${summary.total}`} tone="neutral" />}
         >
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.45 }}>
-            El autopiloto abre mercado solo cuando la maquinaria alcanza el mínimo de oferta. Usa la supervisión manual solo para corregir o forzar excepciones.
+            El motor abre mercado solo cuando la maquinaria alcanza el minimo de oferta. Usa la supervision manual solo para corregir o forzar excepciones.
           </div>
           <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Pill theme={THEME} label={`Captando ${byStage.captando.length}`} tone="neutral" />

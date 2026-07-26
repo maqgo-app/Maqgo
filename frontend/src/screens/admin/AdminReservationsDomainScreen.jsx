@@ -267,7 +267,7 @@ export default function AdminReservationsDomainScreen({ mode }) {
         subtitle="Bandeja operativa filtrada por el período seleccionado."
       >
         {loading ? (
-          <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando dominio…</div>
+          <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando area…</div>
         ) : error ? (
           <div style={{ color: '#E8A34B', fontSize: 13 }}>{error}</div>
         ) : (

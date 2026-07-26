@@ -133,7 +133,7 @@ export default function AdminGrowthAIAutomationsScreen() {
         </div>
         <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>Playbooks autonomos que aceleran expansion sin perder control operativo.</div>
         <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(255,255,255,0.74)', lineHeight: 1.5, maxWidth: 760 }}>
-          Esta capa define que playbooks del autopiloto comercial estan activos, cuanto del motor esta corriendo y donde conviene intervenir manualmente.
+          Esta capa define que playbooks del motor comercial estan activos, cuanto del motor esta corriendo y donde conviene intervenir manualmente.
         </div>
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
           <StatCard label="Playbooks" value={String(summary.total)} subtitle="Capacidades activables de Growth AI" />
