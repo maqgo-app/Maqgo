@@ -680,8 +680,8 @@ def _render_admin_weekly_brief_email(*, report: dict, report_id: str, cta_url: s
     resumen = report.get("resumen", {}) or {}
     business = report.get("business", {}) or {}
     ops = report.get("ops", {}) or {}
-    growth = report.get("growth", {}) or {}
     growth_ai = report.get("growth_ai", {}) or {}
+    growth = report.get("growth", {}) or {}
     demand = report.get("demand", {}) or {}
     integrations = report.get("integrations", {}) or {}
 
@@ -1323,6 +1323,7 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
     integrations = report.get("integrations", {}) or {}
     business = report.get("business", {}) or {}
     ops = report.get("ops", {}) or {}
+    growth_ai = report.get("growth_ai", {}) or {}
 
     def fmt_int(val):
         try:
@@ -1424,6 +1425,15 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
         sign = "+" if n > 0 else ""
         return f"{sign}{n:.1f}%"
 
+    def fmt_days(val) -> str:
+        try:
+            num = float(val)
+        except Exception:
+            return "—"
+        if num <= 0:
+            return "—"
+        return f"{num:.1f} dias"
+
     top_zones = demand.get("top_zones") or []
     zone_rows = []
     if isinstance(top_zones, list) and top_zones:
@@ -1457,6 +1467,8 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
         "row_label": ParagraphStyle("rl", fontName="Helvetica", fontSize=9, leading=11, textColor=INK),
         "row_value": ParagraphStyle("rv", fontName="Helvetica", fontSize=9, leading=11, textColor=MUTED, alignment=2),
         "alert": ParagraphStyle("al", fontName="Helvetica", fontSize=9, leading=12, textColor=colors.HexColor("#334155")),
+        "body": ParagraphStyle("bd", fontName="Helvetica", fontSize=9.1, leading=12.5, textColor=INK),
+        "body_muted": ParagraphStyle("bm", fontName="Helvetica", fontSize=8.8, leading=12, textColor=MUTED),
     }
 
     class ProgressBar(Flowable):
@@ -1539,6 +1551,18 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
         inner.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
         return card(inner=inner, pad=12)
 
+    def detail_card(title: str, items: list[str], empty_text: str = "Sin novedades relevantes"):
+        flow = [Paragraph(html_escape(str(title or "")), styles["card_title"]), Spacer(1, 7)]
+        cleaned = [str(item or "").strip() for item in (items or []) if str(item or "").strip()]
+        if not cleaned:
+            flow.append(Paragraph(html_escape(empty_text), styles["body_muted"]))
+            return card(inner=flow, pad=12)
+        for idx, item in enumerate(cleaned[:6]):
+            flow.append(Paragraph(f"- {html_escape(item)[:260]}", styles["body"]))
+            if idx < min(len(cleaned), 6) - 1:
+                flow.append(Spacer(1, 4))
+        return card(inner=flow, pad=12)
+
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
@@ -1590,11 +1614,11 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
 
         canv.setFillColor(colors.HexColor("#64748B"))
         canv.setFont("Helvetica", 8)
-        canv.drawString(24, 24, "MAQGO · Reporte operativo semanal")
+        canv.drawString(24, 24, "MAQGO · Informe ejecutivo semanal")
         canv.restoreState()
 
     story = []
-    story.append(Paragraph("INTELIGENCIA SEMANAL", styles["eyebrow"]))
+    story.append(Paragraph("INFORME EJECUTIVO SEMANAL", styles["eyebrow"]))
     story.append(Paragraph("Informe semanal", styles["title"]))
     story.append(Paragraph(html_escape(subtitle), styles["sub"]))
     executive_summary = (
@@ -1653,6 +1677,118 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
         story.append(section_card("Zonas con mayor demanda (WoW)", zone_rows))
     story.append(Spacer(1, 12))
 
+    gmv_wow = fmt_wow_pct(business.get("wow_gmv_pct")) or "—"
+    maqgo_rev_wow = fmt_wow_pct(business.get("wow_maqgo_revenue_pct")) or "—"
+    completed_wow = fmt_wow_pct(business.get("wow_completed_pct")) or "—"
+    maqgo_rev_label = fmt_clp(business.get("maqgo_revenue_net_clp") or 0)
+    ticket_label = fmt_clp(business.get("ticket_promedio_clp") or 0)
+    avg_days_label = fmt_days(business.get("avg_rental_days"))
+    take_rate_delta = business.get("take_rate_delta_pp")
+    take_rate_delta_label = "—"
+    try:
+        if take_rate_delta is not None:
+            delta_num = float(take_rate_delta)
+            delta_sign = "+" if delta_num > 0 else ""
+            take_rate_delta_label = f"{delta_sign}{delta_num:.2f} pp"
+    except Exception:
+        take_rate_delta_label = "—"
+
+    health_score = ops.get("health_score")
+    try:
+        health_score = int(health_score)
+    except Exception:
+        health_score = None
+    health_label = "—"
+    if health_score is not None:
+        if health_score >= 85:
+            health_label = "Sano"
+        elif health_score >= 70:
+            health_label = "Atencion"
+        else:
+            health_label = "Critico"
+
+    reviewed_total = int(ops.get("reviewed_total") or 0)
+    sla_72 = ops.get("review_within_72h_pct")
+    sla_72_label = f"{float(sla_72):.1f}%" if sla_72 is not None else "—"
+    doc_comp = ops.get("provider_doc_compliance") or {}
+    inv_buckets = ops.get("invoiced_by_amount_bucket") or {}
+    inv_precheck = ops.get("invoiced_precheck") or {}
+    mk = report.get("marketing") or {}
+    mk_funnel = (mk.get("funnel") or {}) if isinstance(mk, dict) else {}
+    fc = (mk_funnel.get("clientes") or {}) if isinstance(mk_funnel.get("clientes"), dict) else {}
+    fp = (mk_funnel.get("proveedores") or {}) if isinstance(mk_funnel.get("proveedores"), dict) else {}
+
+    negocio_items = [
+        f"GMV pagado: {fmt_clp(gmv_paid)} ({gmv_wow} vs semana anterior)",
+        f"Ingreso neto MAQGO estimado: {maqgo_rev_label} ({maqgo_rev_wow} vs semana anterior)",
+        f"Take rate neto: {take_rate_label} (variacion {take_rate_delta_label})",
+        f"Servicios completados: {paid_count} ({completed_wow} vs semana anterior)",
+        f"Ticket promedio: {ticket_label}",
+        f"Arriendo promedio: {avg_days_label}",
+    ]
+    operacion_items = [
+        f"Salud operacional: {f'{health_score}/100 · {health_label}' if health_score is not None else '—'}",
+        f"Revision promedio: {review_min} min · SLA <24h {sla_24_label or '—'} · <72h {sla_72_label}",
+        f"Servicios aprobados en la semana: {reviewed_total}",
+        f"Backlog en revision: {int(ops.get('pending_review_total') or 0)} · detenidos >72h: {int(ops.get('stuck_over_72h') or 0)}",
+        f"Disputas abiertas: {int(ops.get('disputed_total') or 0)} · documentos proveedor recibidos: {int(ops.get('invoiced_total') or por_pagar_count)}",
+        (
+            "Cumplimiento documento proveedor: "
+            f"con factura {int(doc_comp.get('with_provider_invoice') or 0)} · "
+            f"sin factura {int(doc_comp.get('paid_without_invoice') or 0)} · "
+            f"pendiente {int(doc_comp.get('missing') or 0)}"
+        ),
+        (
+            "Tramos documentos proveedor pendientes: "
+            f"<500k {int(inv_buckets.get('lt_500k') or 0)} · "
+            f"500k-1M {int(inv_buckets.get('500k_1m') or 0)} · "
+            f">=1M {int(inv_buckets.get('gte_1m') or 0)} · "
+            f"sin monto {int(inv_buckets.get('missing') or 0)}"
+        ),
+        (
+            f"Precheck de documentos: ok {int(inv_precheck.get('ok') or 0)} · "
+            f"warning {int(inv_precheck.get('warning') or 0)} · "
+            f"sin lectura {int(inv_precheck.get('missing') or 0)}"
+        ),
+    ]
+    crecimiento_items = [
+        f"Nuevos clientes: {nuevos_clientes} · CAC {fmt_clp(cac_c_v) if cac_c_v is not None else '—'}",
+        f"Nuevos proveedores: {nuevos_proveedores} · CAC {fmt_clp(cac_p_v) if cac_p_v is not None else '—'}",
+        f"Nuevas maquinarias publicadas en la semana: {nuevas_maquinarias}",
+        (
+            f"Embudo clientes ({int(fc.get('registrados') or 0)}): activados {int(fc.get('con_tarjeta_oneclick') or 0)} · "
+            f"con solicitud {int(fc.get('con_solicitud_servicio') or 0)} · "
+            f"pagaron {int(fc.get('con_servicio_pagado_semana') or 0)}"
+        ),
+        (
+            f"Embudo proveedores ({int(fp.get('registrados') or 0)}): onboarding {int(fp.get('onboarding_completado') or 0)} · "
+            f"disponibles {int(fp.get('disponibles') or 0)} · "
+            f"primer servicio {int(fp.get('con_primer_servicio_semana') or 0)}"
+        ),
+        (
+            "Growth AI: "
+            f"leads oferta {int(growth_ai.get('new_supply_leads') or 0)} · "
+            f"leads demanda {int(growth_ai.get('new_demand_leads') or 0)} · "
+            f"contactos email {int((((growth_ai.get('contacts') or {}).get('email') or {}).get('sent') or 0))} · "
+            f"sms {int((((growth_ai.get('contacts') or {}).get('sms') or {}).get('sent') or 0))}"
+        ),
+    ]
+    plataforma_items = [
+        f"Solicitudes creadas en la semana: {int(demand.get('requests_created') or 0)}",
+        f"Maquinarias incorporadas en la semana: {nuevas_maquinarias}",
+        f"Komatsu: conectadas {k_total} · actualizadas 24h {k_ok} · sin actualizar >72h {k_stale} · nunca sincronizadas {k_never}",
+    ]
+    summary_grid = Table(
+        [
+            [detail_card("Negocio", negocio_items), detail_card("Operacion y cumplimiento", operacion_items)],
+            [detail_card("Crecimiento comercial", crecimiento_items), detail_card("Mercado y plataforma", plataforma_items)],
+        ],
+        colWidths=["50%", "50%"],
+    )
+    summary_grid.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    story.append(summary_grid)
+    story.append(Spacer(1, 12))
+
     shown_alerts = []
     for a in alertas:
         msg = str((a or {}).get("mensaje") or "").strip()
@@ -1701,6 +1837,9 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
     demand = report.get("demand", {}) or {}
     integrations = report.get("integrations", {}) or {}
     insights = (report.get("insights") or []) if isinstance(report.get("insights"), list) else []
+    market = report.get("market", {}) or {}
+    growth_ai = report.get("growth_ai", {}) or {}
+    marketing = report.get("marketing") or {}
 
     def fmt_clp(val):
         try:
@@ -1723,6 +1862,8 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
         "row_label": ParagraphStyle("rl", fontName="Helvetica", fontSize=9, leading=11, textColor=INK),
         "row_value": ParagraphStyle("rv", fontName="Helvetica", fontSize=9, leading=11, textColor=MUTED, alignment=2, splitLongWords=0),
         "alert": ParagraphStyle("al", fontName="Helvetica", fontSize=9, leading=12, textColor=colors.HexColor("#334155")),
+        "body": ParagraphStyle("bd", fontName="Helvetica", fontSize=9.1, leading=12.5, textColor=INK),
+        "body_muted": ParagraphStyle("bm", fontName="Helvetica", fontSize=8.8, leading=12, textColor=MUTED),
     }
 
     class ProgressBar(Flowable):
@@ -1805,6 +1946,18 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
         inner.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
         return card(inner=inner, pad=12)
 
+    def detail_card(title: str, items: list[str], empty_text: str = "Sin novedades relevantes"):
+        flow = [Paragraph(html_escape(str(title or "")), styles["card_title"]), Spacer(1, 7)]
+        cleaned = [str(item or "").strip() for item in (items or []) if str(item or "").strip()]
+        if not cleaned:
+            flow.append(Paragraph(html_escape(empty_text), styles["body_muted"]))
+            return card(inner=flow, pad=12)
+        for idx, item in enumerate(cleaned[:6]):
+            flow.append(Paragraph(f"- {html_escape(item)[:260]}", styles["body"]))
+            if idx < min(len(cleaned), 6) - 1:
+                flow.append(Spacer(1, 4))
+        return card(inner=flow, pad=12)
+
     label = str(periodo.get("label") or "").strip()
     subtitle = f"Periodo: {label} · {datetime.utcnow().strftime('Generado %Y-%m-%d %H:%M UTC')}"
 
@@ -1880,6 +2033,24 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
                 continue
             zone_rows.append({"label": name, "value": str(n), "pct": float(n) / float(max_zone) * 100.0, "color": "#8FB3C9"})
 
+    top_machinery = (market.get("top_machinery_by_gmv") or []) if isinstance(market.get("top_machinery_by_gmv"), list) else []
+    machinery_rows = []
+    if top_machinery:
+        max_machinery = max([float((m or {}).get("gmv_clp") or 0) for m in top_machinery] + [1.0])
+        for row in top_machinery[:5]:
+            label_row = str((row or {}).get("machinery") or "—").strip()
+            gmv_row = float((row or {}).get("gmv_clp") or 0)
+            if not label_row or gmv_row <= 0:
+                continue
+            machinery_rows.append(
+                {
+                    "label": label_row,
+                    "value": fmt_clp(gmv_row),
+                    "pct": float(gmv_row) / float(max_machinery) * 100.0,
+                    "color": "#0B1220",
+                }
+            )
+
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
@@ -1935,7 +2106,7 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
         canv.restoreState()
 
     story = []
-    story.append(Paragraph("INTELIGENCIA MENSUAL", styles["eyebrow"]))
+    story.append(Paragraph("INFORME EJECUTIVO MENSUAL", styles["eyebrow"]))
     story.append(Paragraph("Informe mensual", styles["title"]))
     story.append(Paragraph(html_escape(subtitle), styles["sub"]))
     executive_summary = (
@@ -1997,6 +2168,34 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
     mom_maqgo = fmt_delta(mom.get("maqgo_revenue_pct")) if mom.get("maqgo_revenue_pct") is not None else "—"
     take_rate_pct = (report.get("maqgo_revenue") or {}).get("take_rate_pct")
     take_rate_label = f"{float(take_rate_pct):.2f}%" if take_rate_pct is not None else "—"
+    spend = (marketing.get("spend_clp") or {}) if isinstance(marketing, dict) else {}
+    growth_contacts = growth_ai.get("contacts") or {}
+    email_contacts = int((((growth_contacts.get("email") or {}).get("sent")) or 0))
+    sms_contacts = int((((growth_contacts.get("sms") or {}).get("sent")) or 0))
+    finance_items = [
+        f"Ventas brutas: {fmt_clp(sales_gross)}",
+        f"Costo directo del servicio: {fmt_clp(cost)}",
+        f"IVA debito: {fmt_clp(iva.get('debito') or 0)} · credito estimado: {fmt_clp(iva.get('credito_estimado') or 0)}",
+        f"Facturas MAQGO a cliente: por emitir {int(volume.get('maqgo_client_invoice_pending') or 0)} · marcadas {int(volume.get('maqgo_client_invoiced_marked') or 0)}",
+        f"Arriendo promedio: {f'{float(volume.get('avg_rental_days')):.1f} dias' if volume.get('avg_rental_days') is not None else '—'}",
+    ]
+    comercial_items = [
+        f"Nuevos clientes: {new_clients} · CAC {fmt_clp(cac_c_v) if cac_c_v is not None else '—'}",
+        f"Nuevos proveedores: {new_providers} · CAC {fmt_clp(cac_p_v) if cac_p_v is not None else '—'}",
+        f"Inversion de marketing: total {fmt_clp(spend.get('total') or 0)} · clientes {fmt_clp(spend.get('clientes') or 0)} · proveedores {fmt_clp(spend.get('proveedores') or 0)}",
+        f"Growth AI: leads oferta {int(growth_ai.get('new_supply_leads') or 0)} · leads demanda {int(growth_ai.get('new_demand_leads') or 0)}",
+        f"Growth AI contactos: email {email_contacts} · sms {sms_contacts}",
+    ]
+    mercado_items = [
+        f"Solicitudes creadas: {int(demand.get('requests_created') or 0)} · servicios pagados: {services_paid}",
+        f"MoM ventas netas: {mom_sales} · margen: {mom_margin} · ingreso MAQGO: {mom_maqgo}",
+        f"Nuevas maquinarias del mes: {new_machines}",
+    ]
+    plataforma_items = [
+        f"Maquinarias publicadas activas: {machines_published_total}",
+        f"Komatsu: conectadas {k_total} · actualizadas 24h {k_ok} · sin actualizar >72h {k_stale} · nunca sincronizadas {k_never}",
+        f"Documentacion proveedor: con factura {with_inv} · factura de compra {without_inv} · pendiente {other}",
+    ]
 
     kpis = [
         ("Ventas netas", fmt_clp(sales_net), f"Servicios pagados: {services_paid} · MoM: {mom_sales}"),
@@ -2028,10 +2227,24 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
     two = Table([[section_card("Flujo mensual (neto)", flow_rows), section_card("Documentación proveedor", docs_rows)]], colWidths=["50%", "50%"])
     two.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
     story.append(two)
+    story.append(Spacer(1, 12))
+
+    detail_grid = Table(
+        [
+            [detail_card("Finanzas y facturacion", finance_items), detail_card("Crecimiento comercial", comercial_items)],
+            [detail_card("Mercado", mercado_items), detail_card("Plataforma", plataforma_items)],
+        ],
+        colWidths=["50%", "50%"],
+    )
+    detail_grid.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    story.append(detail_grid)
 
     if zone_rows:
         story.append(Spacer(1, 12))
         story.append(section_card("Zonas con mayor demanda (solicitudes)", zone_rows))
+    if machinery_rows:
+        story.append(Spacer(1, 12))
+        story.append(section_card("Top maquinaria por ventas", machinery_rows))
 
     doc.build(story, onFirstPage=paint_frame, onLaterPages=paint_frame)
     buffer.seek(0)
