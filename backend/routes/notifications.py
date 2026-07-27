@@ -4,7 +4,7 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorClient
-from typing import Optional, List
+from typing import Optional, List, Dict, Tuple
 
 from auth_dependency import get_current_user
 from db_config import get_db_name, get_mongo_url
@@ -19,6 +19,8 @@ from services.notification_items_service import (
 )
 
 logger = logging.getLogger(__name__)
+_BACKFILL_TTL_SECONDS = 45.0
+_recent_backfill_by_user_role: Dict[Tuple[str, str], float] = {}
 
 
 def _audience_role_for_user(user: dict) -> str:
@@ -54,6 +56,18 @@ async def _run_backfill_in_batches(coros: List[object], *, batch_size: int = 10)
         await asyncio.gather(*pending[start : start + size])
 
 
+def _should_run_feed_backfill(*, user_id: str, audience_role: str, cursor: Optional[str]) -> bool:
+    if cursor:
+        return False
+    key = (str(user_id), str(audience_role or 'client'))
+    now = time.monotonic()
+    last = _recent_backfill_by_user_role.get(key)
+    if last is not None and (now - last) < _BACKFILL_TTL_SECONDS:
+        return False
+    _recent_backfill_by_user_role[key] = now
+    return True
+
+
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 client = AsyncIOMotorClient(get_mongo_url())
@@ -71,8 +85,14 @@ async def get_notifications(
         raise HTTPException(status_code=401, detail='Sesión inválida')
 
     audience_role = _audience_role_for_user(current_user)
+    should_backfill = _should_run_feed_backfill(
+        user_id=str(uid),
+        audience_role=audience_role,
+        cursor=cursor,
+    )
+    started_at = time.perf_counter()
 
-    if audience_role == 'client':
+    if should_backfill and audience_role == 'client':
         srs = await db.service_requests.find(
             {'clientId': str(uid)},
             {'_id': 0},
@@ -81,7 +101,7 @@ async def get_notifications(
             [backfill_service_notifications_for_client(db, str(uid), sr) for sr in srs]
         )
 
-    elif audience_role == 'provider':
+    elif should_backfill and audience_role == 'provider':
         provider_account_id = _effective_provider_account_id(current_user) or str(uid)
         base = {
             '$or': [
@@ -95,7 +115,7 @@ async def get_notifications(
             [backfill_service_notifications_for_provider(db, str(uid), sr) for sr in srs]
         )
 
-    else:
+    elif should_backfill:
         assigned_srs = await db.service_requests.find(
             {'operator_id': str(uid)},
             {'_id': 0},
@@ -105,7 +125,19 @@ async def get_notifications(
             [backfill_service_notifications_for_operator(db, str(uid), sr) for sr in assigned_srs]
         )
 
-    return await list_notifications(db, str(uid), audience_role, limit=limit, cursor=cursor)
+    result = await list_notifications(db, str(uid), audience_role, limit=limit, cursor=cursor)
+    elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+    logger.info(
+        "notifications.feed_ok audience_role=%s user_id=%s limit=%s cursor=%s backfill=%s items=%s elapsed_ms=%s",
+        audience_role,
+        str(uid),
+        int(limit),
+        bool(cursor),
+        should_backfill,
+        len(result.get('items') or []),
+        elapsed_ms,
+    )
+    return result
 
 
 @router.get("/unread-count", response_model=dict)
