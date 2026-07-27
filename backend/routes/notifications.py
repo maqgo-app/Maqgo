@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 
@@ -44,6 +45,15 @@ def _effective_provider_account_id(user: dict) -> Optional[str]:
     return uid
 
 
+async def _run_backfill_in_batches(coros: List[object], *, batch_size: int = 10) -> None:
+    pending = [c for c in coros if c is not None]
+    if not pending:
+        return
+    size = max(1, int(batch_size or 1))
+    for start in range(0, len(pending), size):
+        await asyncio.gather(*pending[start : start + size])
+
+
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 client = AsyncIOMotorClient(get_mongo_url())
@@ -67,8 +77,9 @@ async def get_notifications(
             {'clientId': str(uid)},
             {'_id': 0},
         ).sort('createdAt', -1).limit(20).to_list(20)
-        for sr in srs:
-            await backfill_service_notifications_for_client(db, str(uid), sr)
+        await _run_backfill_in_batches(
+            [backfill_service_notifications_for_client(db, str(uid), sr) for sr in srs]
+        )
 
     elif audience_role == 'provider':
         provider_account_id = _effective_provider_account_id(current_user) or str(uid)
@@ -80,8 +91,9 @@ async def get_notifications(
             ]
         }
         srs = await db.service_requests.find(base, {'_id': 0}).sort('createdAt', -1).limit(40).to_list(40)
-        for sr in srs:
-            await backfill_service_notifications_for_provider(db, str(uid), sr)
+        await _run_backfill_in_batches(
+            [backfill_service_notifications_for_provider(db, str(uid), sr) for sr in srs]
+        )
 
     else:
         assigned_srs = await db.service_requests.find(
@@ -89,8 +101,9 @@ async def get_notifications(
             {'_id': 0},
         ).sort('createdAt', -1).limit(40).to_list(40)
 
-        for sr in assigned_srs:
-            await backfill_service_notifications_for_operator(db, str(uid), sr)
+        await _run_backfill_in_batches(
+            [backfill_service_notifications_for_operator(db, str(uid), sr) for sr in assigned_srs]
+        )
 
     return await list_notifications(db, str(uid), audience_role, limit=limit, cursor=cursor)
 

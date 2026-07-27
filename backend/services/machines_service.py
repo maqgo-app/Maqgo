@@ -96,6 +96,14 @@ def serialize_machine(doc: Optional[dict]) -> Optional[dict]:
         return None
     out = {k: _serialize_value(v) for k, v in doc.items() if k != "_id"}
     out["id"] = out.get("id") or out.get("machine_id")
+    normalized_operators = normalize_machine_operators(out.get("operators"))
+    out["operators"] = normalized_operators
+    primary_operator = next((op for op in normalized_operators if op.get("isPrimary")), None)
+    if primary_operator and primary_operator.get("id"):
+        out["primaryOperatorId"] = primary_operator.get("id")
+    else:
+        out.pop("primaryOperatorId", None)
+    out["operatorCount"] = len(normalized_operators)
     return out
 
 
@@ -111,6 +119,131 @@ def _normalize_license_plate(value: str) -> str:
     if len(compact) == 6 and compact[:2].isalpha() and compact[2:].isdigit():
         return f"{compact[:2]}-{compact[2:]}"
     return compact or raw
+
+
+_PLACEHOLDER_OPERATOR_NAMES = {
+    "operador",
+    "operator",
+    "operador rc",
+    "sin operador",
+    "no asignado",
+    "no asignada",
+    "por asignar",
+    "pendiente",
+}
+
+_TEMP_OPERATOR_ID_PREFIXES = (
+    "op-onboarding-",
+    "op-manual-",
+    "op-selected-",
+    "op-current-",
+    "op-option-",
+    "op-missing-",
+    "op-toggle-",
+)
+
+
+def _clean_operator_name(operator: Any) -> str:
+    if not isinstance(operator, dict):
+        return ""
+    full_name = _clean_str(
+        operator.get("name")
+        or f"{_clean_str(operator.get('nombre'))} {_clean_str(operator.get('apellido'))}".strip()
+    )
+    collapsed = re.sub(r"\s+", " ", full_name).strip()
+    return collapsed
+
+
+def _operator_name_is_placeholder(name: str) -> bool:
+    normalized = re.sub(r"\s+", " ", _clean_str(name).lower())
+    return normalized in _PLACEHOLDER_OPERATOR_NAMES
+
+
+def _normalize_operator_phone(value: Any) -> str:
+    raw = _clean_str(value)
+    if not raw:
+        return ""
+    digits = re.sub(r"\D", "", raw)
+    if len(digits) >= 9:
+        digits = digits[-9:]
+        return f"+569{digits[-8:]}" if digits.startswith("9") else f"+56{digits}"
+    return raw
+
+
+def _operator_raw_id(operator: dict) -> str:
+    return _clean_str(
+        operator.get("id")
+        or operator.get("user_id")
+        or operator.get("userId")
+        or operator.get("operator_id")
+        or operator.get("operatorId")
+    )
+
+
+def _has_stable_operator_id(raw_id: str) -> bool:
+    rid = _clean_str(raw_id)
+    if not rid:
+        return False
+    lower = rid.lower()
+    if lower.startswith("op-rut-") or lower.startswith("op-phone-"):
+        return True
+    return not any(lower.startswith(prefix) for prefix in _TEMP_OPERATOR_ID_PREFIXES)
+
+
+def normalize_machine_operators(operators: Any) -> List[dict]:
+    if not isinstance(operators, list):
+        return []
+    normalized: List[dict] = []
+    for item in operators:
+        if not isinstance(item, dict):
+            continue
+        name = _clean_operator_name(item)
+        if not name or _operator_name_is_placeholder(name):
+            continue
+        raw_id = _operator_raw_id(item)
+        rut = _clean_str(item.get("rut") or item.get("operator_rut") or item.get("operatorRut"))
+        phone = _normalize_operator_phone(item.get("phone") or item.get("telefono"))
+        stable_id = raw_id if _has_stable_operator_id(raw_id) else ""
+        if not stable_id:
+            if rut:
+                stable_id = f"op-rut-{rut.lower()}"
+            elif phone:
+                stable_id = f"op-phone-{re.sub(r'\D', '', phone)}"
+        if not stable_id:
+            continue
+        normalized_item = dict(item)
+        normalized_item["id"] = stable_id
+        normalized_item["name"] = name
+        if phone:
+            normalized_item["phone"] = phone
+        elif "phone" in normalized_item:
+            normalized_item["phone"] = ""
+        if rut:
+            normalized_item["rut"] = rut
+        elif "rut" in normalized_item:
+            normalized_item["rut"] = ""
+        normalized_item["isOwner"] = bool(item.get("isOwner"))
+        normalized_item["isPrimary"] = bool(
+            item.get("isPrimary") or item.get("primary") or item.get("principal")
+        )
+        normalized.append(normalized_item)
+    if not normalized:
+        return []
+    primary_index = next((idx for idx, op in enumerate(normalized) if op.get("isPrimary")), 0)
+    for idx, op in enumerate(normalized):
+        op["isPrimary"] = idx == primary_index
+    return normalized
+
+
+def get_primary_machine_operator(machine: Optional[dict]) -> Optional[dict]:
+    if not isinstance(machine, dict):
+        return None
+    operators = normalize_machine_operators(machine.get("operators"))
+    return next((op for op in operators if op.get("isPrimary")), None) or (operators[0] if operators else None)
+
+
+def machine_has_real_assigned_operator(machine: Optional[dict]) -> bool:
+    return get_primary_machine_operator(machine) is not None
 
 
 def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, existing: Optional[dict] = None) -> Dict[str, Any]:
@@ -195,8 +328,13 @@ def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, exis
             doc[key] = existing.get(key)
 
     operators = payload.get("operators", existing.get("operators", []))
-    doc["operators"] = operators if isinstance(operators, list) else []
-    has_assigned_operators = len(doc["operators"]) > 0
+    doc["operators"] = normalize_machine_operators(operators)
+    primary_operator = get_primary_machine_operator(doc)
+    if primary_operator:
+        doc["primaryOperatorId"] = primary_operator.get("id")
+    else:
+        doc.pop("primaryOperatorId", None)
+    has_assigned_operators = primary_operator is not None
     if not has_assigned_operators:
         doc["available"] = False
         doc["published"] = False

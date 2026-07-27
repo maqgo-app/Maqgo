@@ -20,7 +20,13 @@ from services.provider_match_list import (
     calculate_match_score,
     enforce_diversity_ranked,
 )
-from services.machines_service import is_recent_machine, migrate_legacy_machine_data, serialize_machine
+from services.machines_service import (
+    get_primary_machine_operator,
+    is_recent_machine,
+    machine_has_real_assigned_operator,
+    migrate_legacy_machine_data,
+    serialize_machine,
+)
 from services.provider_activation_service import (
     is_provider_activation_complete,
     is_provider_activation_complete_for_machine,
@@ -89,29 +95,11 @@ def get_db():
 
 def _get_operator_display_name(provider: dict, machine_data: Optional[dict] = None) -> str:
     """Nombre del operador para mostrar al cliente. Nunca empresa."""
-    if isinstance(machine_data, dict):
-        mops = machine_data.get('operators')
-        if isinstance(mops, list) and len(mops) > 0:
-            first = mops[0]
-            if isinstance(first, dict) and first.get('name'):
-                return first['name']
-            if isinstance(first, str):
-                return first
-    if not provider:
-        return 'Operador'
-    ops = provider.get('machineData', {}).get('operators', [])
-    if ops and isinstance(ops, list) and len(ops) > 0:
-        first = ops[0]
-        if isinstance(first, dict) and first.get('name'):
-            return first['name']
-        if isinstance(first, str):
-            return first
-    default_op = provider.get('providerData', {}).get('defaultOperatorName')
-    if default_op:
-        return default_op
-    owner_name = provider.get('name')
-    if owner_name and owner_name != provider.get('providerData', {}).get('businessName'):
-        return owner_name
+    primary = get_primary_machine_operator(machine_data)
+    if not primary and isinstance(provider, dict):
+        primary = get_primary_machine_operator(provider.get('machineData'))
+    if primary and primary.get('name'):
+        return str(primary.get('name')).strip()
     return 'Operador'
 
 
@@ -242,8 +230,7 @@ def _has_any_operator(provider: dict) -> bool:
 
 
 def _has_any_operator_for_machine(provider: dict, machine_data: dict) -> bool:
-    ops = machine_data.get("operators")
-    return isinstance(ops, list) and len(ops) > 0
+    return machine_has_real_assigned_operator(machine_data)
 
 
 def _is_provider_activation_complete(provider: dict) -> bool:
@@ -376,6 +363,7 @@ async def match_providers(
                 continue
             if not _is_provider_activation_complete_for_machine(provider, machine):
                 continue
+            serialized_machine = serialize_machine(machine) or {}
             provider_lat, provider_lng = _get_provider_coords(provider)
             distance = haversine_distance(client_lat, client_lng, provider_lat, provider_lng)
 
@@ -394,7 +382,7 @@ async def match_providers(
             rejected_services = int(provider.get('rejectedServices', 0) or 0)
             response_time_avg = provider.get('responseTimeAvg', None)
 
-            operator_name = _get_operator_display_name(provider, machine)
+            operator_name = _get_operator_display_name(provider, serialized_machine)
             emits_invoice = provider.get('providerData', {}).get('emitsInvoice', False)
             row = {
                 "id": _provider_response_id(provider),
@@ -413,8 +401,10 @@ async def match_providers(
                 "accepted_services": accepted_services,
                 "rejected_services": rejected_services,
                 "response_time_avg": response_time_avg,
+                "operator_count": int(serialized_machine.get("operatorCount") or 0),
+                "primary_operator_id": serialized_machine.get("primaryOperatorId") or "",
                 "license_plate": machine.get("licensePlate") or machine.get("license_plate"),
-                "machineData": serialize_machine(machine),
+                "machineData": serialized_machine,
                 "_is_new_machine": is_recent_machine(machine),
             }
             spec_info = MACHINERY_SPEC_FIELD.get(machinery_type)
