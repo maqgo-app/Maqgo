@@ -51,12 +51,24 @@ async def idempotency_distributed_lock(
         return
     name = f"maqgo:idem:{tenant_id}:{idempotency_key}"
     lock = r.lock(name, timeout=timeout_sec, blocking_timeout=blocking_timeout_sec)
+    acquired = False
     try:
-        async with lock:
-            yield
+        acquired = bool(await lock.acquire())
     except Exception as e:
         logger.warning("Redis lock idempotencia falló: %s", e)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="No se pudo adquirir bloqueo distribuido de idempotencia; reintenta con la misma Idempotency-Key.",
         ) from e
+    if not acquired:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No se pudo adquirir bloqueo distribuido de idempotencia; reintenta con la misma Idempotency-Key.",
+        )
+    try:
+        yield
+    finally:
+        try:
+            await lock.release()
+        except Exception as e:
+            logger.warning("Redis lock idempotencia release falló: %s", e)

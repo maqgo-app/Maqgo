@@ -439,9 +439,20 @@ def _provider_matches_user(user: dict, provider_account_id: str) -> bool:
     return False
 
 
+def _effective_user_role(user: dict) -> str:
+    session = user.get("_session") if isinstance(user, dict) else None
+    session_role = str((session or {}).get("activeRole") or "").strip().lower()
+    role = session_role or str((user or {}).get("role") or "").strip().lower()
+    return role or "client"
+
+
+def _is_admin_session(user: dict) -> bool:
+    return _effective_user_role(user) == "admin"
+
+
 def _effective_provider_account_id(user: dict) -> Optional[str]:
     """ID de cuenta proveedor para listados (titular u operador bajo un dueño)."""
-    role = user.get("role")
+    role = _effective_user_role(user)
     uid = user.get("id")
     owner_id = user.get("owner_id")
     if role == "client" or role == "admin":
@@ -454,7 +465,7 @@ def _effective_provider_account_id(user: dict) -> Optional[str]:
 
 
 def _can_read_service_request(user: dict, req: dict) -> bool:
-    if user.get("role") == "admin":
+    if _is_admin_session(user):
         return True
     uid = user.get("id")
     if req.get("clientId") == uid:
@@ -613,7 +624,7 @@ async def create_service_request(
                 "type": "created",
                 "at": now_iso,
                 "byUserId": current_user.get("id"),
-                "byRole": current_user.get("role"),
+                "byRole": _effective_user_role(current_user),
             }
         ]
 
@@ -698,7 +709,7 @@ async def get_service_requests(
 ):
     """Listado acotado al usuario autenticado (admin puede filtrar con cuidado)."""
     try:
-        role = current_user.get("role")
+        role = _effective_user_role(current_user)
         if role == "admin":
             query = {}
             if service_status:
@@ -748,7 +759,7 @@ async def get_pending_requests_for_provider(
     try:
         now = datetime.now(timezone.utc)
         query = {"status": "offer_sent"}
-        if current_user.get("role") == "admin":
+        if _is_admin_session(current_user):
             if providerId:
                 query["matchingAttempts"] = {
                     "$elemMatch": {"providerId": providerId, "status": "pending"}
@@ -806,7 +817,7 @@ async def get_assigned_requests_for_operator(
     activeOnly: bool = True,
     current_user: dict = Depends(get_current_user),
 ):
-    if str(current_user.get("role") or "").strip().lower() == "admin":
+    if _is_admin_session(current_user):
         raise HTTPException(status_code=403, detail="Ruta no disponible para admin")
     if str(current_user.get("provider_role") or "").strip().lower() != "operator":
         raise HTTPException(status_code=403, detail="Ruta solo para operador")
@@ -936,7 +947,7 @@ async def get_service_request(
                     str(sr.get('offerExpiresAt')),
                 )
 
-    role = str(current_user.get("role") or "").strip().lower()
+    role = _effective_user_role(current_user)
     if role != "admin":
         effective_provider_id = _effective_provider_account_id(current_user)
         if effective_provider_id:
@@ -985,7 +996,7 @@ async def provider_intent(
     if req.get("status") != "offer_sent":
         raise HTTPException(status_code=400, detail="Esta solicitud ya no está disponible")
 
-    if current_user.get("role") != "admin":
+    if not _is_admin_session(current_user):
         if str(current_user.get("provider_role") or "").strip().lower() == "operator":
             raise HTTPException(status_code=403, detail="Como operador no puedes confirmar ofertas")
         ep = _effective_provider_account_id(current_user)
@@ -1026,15 +1037,22 @@ async def provider_intent(
         for a in (req.get("matchingAttempts") or [])
         if str(a.get("status") or "").strip().lower() == "pending"
     ]
+    update_filter = {
+        "id": request_id,
+        "status": "offer_sent",
+        "matchingAttempts": {
+            "$elemMatch": {"providerId": effective_provider_id, "status": "pending"}
+        },
+    }
     set_doc = {
-        "matchingAttempts.$[provider_attempt].providerIntentAt": now.isoformat(),
-        "matchingAttempts.$[provider_attempt].providerIntentByUserId": current_user.get("id"),
-        "matchingAttempts.$[provider_attempt].providerIntentByRole": role,
-        "matchingAttempts.$[provider_attempt].confirmedDepartureLocation": confirmed_loc,
-        "matchingAttempts.$[provider_attempt].etaCommitMinutes": eta,
-        "matchingAttempts.$[provider_attempt].etaConfirmedAt": now.isoformat(),
-        "matchingAttempts.$[provider_attempt].etaConfirmedByUserId": current_user.get("id"),
-        "matchingAttempts.$[provider_attempt].etaConfirmedByRole": role,
+        "matchingAttempts.$.providerIntentAt": now.isoformat(),
+        "matchingAttempts.$.providerIntentByUserId": current_user.get("id"),
+        "matchingAttempts.$.providerIntentByRole": role,
+        "matchingAttempts.$.confirmedDepartureLocation": confirmed_loc,
+        "matchingAttempts.$.etaCommitMinutes": eta,
+        "matchingAttempts.$.etaConfirmedAt": now.isoformat(),
+        "matchingAttempts.$.etaConfirmedByUserId": current_user.get("id"),
+        "matchingAttempts.$.etaConfirmedByRole": role,
     }
     if req.get("currentOfferId") == effective_provider_id or len(pending_provider_ids) <= 1:
         set_doc.update(
@@ -1050,8 +1068,8 @@ async def provider_intent(
             }
         )
 
-    await db.service_requests.update_one(
-        {"id": request_id, "status": "offer_sent"},
+    result = await db.service_requests.update_one(
+        update_filter,
         {
             "$set": set_doc,
             "$push": {
@@ -1065,8 +1083,9 @@ async def provider_intent(
                 }
             },
         },
-        array_filters=[{"provider_attempt.providerId": effective_provider_id, "provider_attempt.status": "pending"}],
     )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=409, detail="La oferta ya no está disponible para confirmar.")
 
     urgency_window = req.get("urgencyWindowMinutes")
     ready = True
@@ -1104,7 +1123,7 @@ async def accept_service_request(
     )
 
     provider_id = body.get("providerId")
-    if current_user.get("role") != "admin":
+    if not _is_admin_session(current_user):
         effective = _effective_provider_account_id(current_user)
         if effective:
             provider_id = effective
@@ -1118,6 +1137,7 @@ async def accept_service_request(
         if not req:
             raise HTTPException(status_code=404, detail="Solicitud no encontrada")
 
+        offered_provider_id = provider_id
         reservation_type = str(req.get("reservationType") or "").lower()
         if reservation_type == "immediate":
             loc, eta, _ = _resolve_provider_offer_operational_context(req, offered_provider_id)
@@ -1134,7 +1154,6 @@ async def accept_service_request(
                     detail="El tiempo de llegada informado no cumple la urgencia del cliente.",
                 )
 
-        offered_provider_id = provider_id
         pending_ids = [
             a.get("providerId")
             for a in (req.get("matchingAttempts") or [])
@@ -1154,7 +1173,7 @@ async def accept_service_request(
         provider_role = current_user.get("provider_role") or (
             "operator" if current_user.get("owner_id") else "super_master"
         )
-        if current_user.get("role") != "admin":
+        if not _is_admin_session(current_user):
             if provider_role == "operator":
                 raise HTTPException(
                     status_code=403,
@@ -1345,7 +1364,7 @@ async def cancel_service_client(
     base_cancel_event = {
         "at": now.isoformat(),
         "byUserId": current_user.get("id"),
-        "byRole": current_user.get("role"),
+        "byRole": _effective_user_role(current_user),
         "fromStatus": status,
     }
 
@@ -1448,7 +1467,7 @@ async def reject_service_request(
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
 
     provider_id = body.get('providerId')
-    if current_user.get("role") != "admin":
+    if not _is_admin_session(current_user):
         if str(current_user.get("provider_role") or "").strip().lower() == "operator":
             raise HTTPException(status_code=403, detail="Como operador no puedes rechazar solicitudes")
         effective = _effective_provider_account_id(current_user)
@@ -1471,7 +1490,7 @@ async def reject_service_request(
     role = current_user.get("provider_role") or (
         "operator" if current_user.get("owner_id") else "super_master"
     )
-    if current_user.get("role") == "admin":
+    if _is_admin_session(current_user):
         role = "admin"
 
     result = await handle_offer_response(
@@ -2038,7 +2057,7 @@ async def finish_service(
     current_user: dict = Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc)
-    role = "admin" if str(current_user.get("role") or "").strip().lower() == "admin" else "provider"
+    role = "admin" if _is_admin_session(current_user) else "provider"
     service_request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
     if not service_request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
