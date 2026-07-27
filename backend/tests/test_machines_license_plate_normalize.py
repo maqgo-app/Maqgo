@@ -99,3 +99,23 @@ def test_serialize_machine_sanitizes_operator_payload_for_public_responses() -> 
     assert machine["operatorCount"] == 1
     assert machine["primaryOperatorId"] == machine["operators"][0]["id"]
     assert machine["operators"][0]["name"] == "Ana Perez"
+
+
+def test_serialize_machine_exposes_operatorless_machine_as_draft() -> None:
+    machine = serialize_machine(
+        {
+            "id": "mach_2",
+            "machineryType": "retroexcavadora",
+            "licensePlate": "ABCD-34",
+            "operators": [{"name": "Operador RC", "id": "op-onboarding-2"}],
+            "available": True,
+            "published": True,
+            "status": "active",
+        }
+    )
+    assert machine is not None
+    assert machine["operators"] == []
+    assert machine["operatorCount"] == 0
+    assert machine["available"] is False
+    assert machine["published"] is False
+    assert machine["status"] == "draft"

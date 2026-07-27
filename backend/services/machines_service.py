@@ -104,6 +104,11 @@ def serialize_machine(doc: Optional[dict]) -> Optional[dict]:
     else:
         out.pop("primaryOperatorId", None)
     out["operatorCount"] = len(normalized_operators)
+    if out["operatorCount"] == 0:
+        out["available"] = False
+        out["published"] = False
+        current_status = _clean_str(out.get("status") or "draft")
+        out["status"] = current_status if current_status in {"draft", "deleted"} else "draft"
     return out
 
 
