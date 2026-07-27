@@ -1,3 +1,6 @@
+import logging
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorClient
 from typing import Optional, List
@@ -13,6 +16,8 @@ from services.notification_items_service import (
     mark_read,
     unread_count,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _audience_role_for_user(user: dict) -> str:
@@ -66,11 +71,12 @@ async def get_notifications(
             await backfill_service_notifications_for_client(db, str(uid), sr)
 
     elif audience_role == 'provider':
+        provider_account_id = _effective_provider_account_id(current_user) or str(uid)
         base = {
             '$or': [
-                {'providerId': str(uid)},
-                {'currentOfferId': str(uid)},
-                {'matchingAttempts': {'$elemMatch': {'providerId': str(uid), 'status': 'pending'}}},
+                {'providerId': str(provider_account_id)},
+                {'currentOfferId': str(provider_account_id)},
+                {'matchingAttempts': {'$elemMatch': {'providerId': str(provider_account_id), 'status': 'pending'}}},
             ]
         }
         srs = await db.service_requests.find(base, {'_id': 0}).sort('createdAt', -1).limit(40).to_list(40)
@@ -95,7 +101,27 @@ async def get_unread_count(current_user: dict = Depends(get_current_user)):
     if not uid:
         raise HTTPException(status_code=401, detail='Sesión inválida')
     audience_role = _audience_role_for_user(current_user)
-    return await unread_count(db, str(uid), audience_role)
+    started_at = time.perf_counter()
+    try:
+        result = await unread_count(db, str(uid), audience_role)
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        logger.info(
+            "notifications.unread_count_ok audience_role=%s user_id=%s unread=%s elapsed_ms=%s",
+            audience_role,
+            str(uid),
+            result.get('unread'),
+            elapsed_ms,
+        )
+        return result
+    except Exception:
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        logger.exception(
+            "notifications.unread_count_failed audience_role=%s user_id=%s elapsed_ms=%s",
+            audience_role,
+            str(uid),
+            elapsed_ms,
+        )
+        raise
 
 
 @router.post("/{notification_id}/read", response_model=dict)

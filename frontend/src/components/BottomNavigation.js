@@ -3,7 +3,7 @@ import { Z_INDEX } from '../constants/zIndex';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getProviderLandingPath } from '../utils/providerOnboardingStatus';
 import { useAuth } from '../context/authHooks';
-import { fetchUnreadCount } from '../utils/notificationsClient';
+import { fetchUnreadCount, readCachedUnreadCount } from '../utils/notificationsClient';
 
 /**
  * Ítem de navegación
@@ -161,7 +161,7 @@ export function ClientNavigation() {
   const auth = useAuth();
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
 
-  const [unreadAvisos, setUnreadAvisos] = useState(0);
+  const [unreadAvisos, setUnreadAvisos] = useState(() => readCachedUnreadCount('client'));
 
   const isClientSession = Boolean(!auth.loading && auth.user?.id && auth.user.role === 'client');
   
@@ -180,13 +180,16 @@ export function ClientNavigation() {
 
     const load = async () => {
       try {
-        const res = await fetchUnreadCount();
+        const res = await fetchUnreadCount('client');
         if (!mounted) return;
         const nextVal = Number(res?.unread || 0);
         setUnreadAvisos(Number.isFinite(nextVal) ? nextVal : 0);
       } catch {
         if (!mounted) return;
-        setUnreadAvisos(0);
+        setUnreadAvisos((prev) => {
+          const fallback = readCachedUnreadCount('client');
+          return Number.isFinite(prev) && prev >= 0 ? prev : fallback;
+        });
       }
     };
 
@@ -254,7 +257,7 @@ export function ProviderNavigation() {
   const providerRole = auth.providerRole;
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
 
-  const [unreadAvisos, setUnreadAvisos] = useState(0);
+  const [unreadAvisos, setUnreadAvisos] = useState(() => readCachedUnreadCount('provider'));
 
   const isProviderSessionOk = Boolean(!auth.loading && auth.user?.id && auth.user.role === 'provider');
   
@@ -277,13 +280,16 @@ export function ProviderNavigation() {
 
     const load = async () => {
       try {
-        const res = await fetchUnreadCount();
+        const res = await fetchUnreadCount('provider');
         if (!mounted) return;
         const nextVal = Number(res?.unread || 0);
         setUnreadAvisos(Number.isFinite(nextVal) ? nextVal : 0);
       } catch {
         if (!mounted) return;
-        setUnreadAvisos(0);
+        setUnreadAvisos((prev) => {
+          const fallback = readCachedUnreadCount('provider');
+          return Number.isFinite(prev) && prev >= 0 ? prev : fallback;
+        });
       }
     };
 

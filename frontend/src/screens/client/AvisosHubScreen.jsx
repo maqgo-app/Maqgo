@@ -8,6 +8,8 @@ import {
   fetchNotifications,
   fetchUnreadCount,
   markNotificationRead,
+  readCachedUnreadCount,
+  writeCachedUnreadCount,
 } from '../../utils/notificationsClient';
 
 function formatTimeLabel(iso) {
@@ -55,7 +57,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
     return window.Notification.permission;
   });
   const [items, setItems] = useState([]);
-  const [unread, setUnread] = useState(0);
+  const [unread, setUnread] = useState(() => readCachedUnreadCount(audienceRole));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pushBusy, setPushBusy] = useState(false);
@@ -96,10 +98,20 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
       try {
         setLoading(true);
         setError('');
-        const [listRes, unreadRes] = await Promise.all([fetchNotifications({ limit: 80 }), fetchUnreadCount()]);
+        const listRes = await fetchNotifications({ limit: 80 });
         if (!mounted) return;
         setItems(Array.isArray(listRes?.items) ? listRes.items : []);
-        setUnread(Number(unreadRes?.unread || 0));
+        try {
+          const unreadRes = await fetchUnreadCount(audienceRole);
+          if (!mounted) return;
+          setUnread(Number(unreadRes?.unread || 0));
+        } catch {
+          if (!mounted) return;
+          setUnread((prev) => {
+            const fallback = readCachedUnreadCount(audienceRole);
+            return Number.isFinite(prev) && prev >= 0 ? prev : fallback;
+          });
+        }
         setLoading(false);
       } catch (e) {
         if (!mounted) return;
@@ -259,7 +271,11 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
         } catch {
           void 0;
         }
-        setUnread((v) => Math.max(0, Number(v || 0) - 1));
+        setUnread((v) => {
+          const next = Math.max(0, Number(v || 0) - 1);
+          writeCachedUnreadCount(audienceRole, next);
+          return next;
+        });
         setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
       }
       await openOperatorAssigned(a);
@@ -273,7 +289,11 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
         } catch {
           void 0;
         }
-        setUnread((v) => Math.max(0, Number(v || 0) - 1));
+        setUnread((v) => {
+          const next = Math.max(0, Number(v || 0) - 1);
+          writeCachedUnreadCount(audienceRole, next);
+          return next;
+        });
         setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
       }
       await openProviderService(a);
@@ -287,7 +307,11 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
         } catch {
           void 0;
         }
-        setUnread((v) => Math.max(0, Number(v || 0) - 1));
+        setUnread((v) => {
+          const next = Math.max(0, Number(v || 0) - 1);
+          writeCachedUnreadCount(audienceRole, next);
+          return next;
+        });
         setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
       }
       navigate(String(a.deepLink));
@@ -301,7 +325,11 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
       } catch {
         void 0;
       }
-      setUnread((v) => Math.max(0, Number(v || 0) - 1));
+      setUnread((v) => {
+        const next = Math.max(0, Number(v || 0) - 1);
+        writeCachedUnreadCount(audienceRole, next);
+        return next;
+      });
       setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
     }
   };
