@@ -233,17 +233,20 @@ async def lifespan(app: FastAPI):
         from motor.motor_asyncio import AsyncIOMotorClient
         from db_config import get_db_name, get_mongo_url
         from services.idempotency import ensure_indexes as ensure_idempotency_indexes
+        from services.operational_kpis_store import ensure_indexes as ensure_operational_kpi_indexes
         from services.payment_metrics_store import ensure_indexes as ensure_payment_metrics_indexes
         from services.notification_items_service import ensure_indexes as ensure_notification_indexes
 
         _ic = AsyncIOMotorClient(get_mongo_url())
         _db = _ic[get_db_name()]
         await ensure_idempotency_indexes(_db)
+        await ensure_operational_kpi_indexes(_db)
         await ensure_payment_metrics_indexes(_db)
         await ensure_notification_indexes(_db)
 
         # Índices service_requests
         await _db.service_requests.create_index([("id", 1)])
+        await _db.service_requests.create_index([("createdAt", -1)], name="idx_service_requests_created_at_desc")
         await _db.service_requests.create_index([("bookingId", 1)], sparse=True, name="idx_booking_id")
         await _db.service_requests.create_index([("status", 1), ("currentOfferId", 1)])
         await _db.service_requests.create_index([("providerId", 1), ("status", 1)])
@@ -379,6 +382,7 @@ admin_reports_cron_router = None
 admin_config_router = None
 admin_access_router = None
 admin_notifications_router = None
+admin_observability_router = None
 admin_growth_ai_router = None
 marketing_kpi_router = None
 marketing_cron_router = None
@@ -484,6 +488,11 @@ try:
     logger.info("ROUTER LOADED: admin_notifications")
 except Exception as e:
     logger.error(f"ROUTER FAILED: admin_notifications - {e}")
+try:
+    from routes.admin_observability import router as admin_observability_router  # type: ignore
+    logger.info("ROUTER LOADED: admin_observability")
+except Exception as e:
+    logger.error(f"ROUTER FAILED: admin_observability - {e}")
 
 try:
     from routes.admin_growth_ai import router as admin_growth_ai_router  # type: ignore
@@ -608,6 +617,7 @@ _include_if_present(admin_reports_cron_router, "admin_reports_cron")
 _include_if_present(admin_config_router, "admin_config")
 _include_if_present(admin_access_router, "admin_access")
 _include_if_present(admin_notifications_router, "admin_notifications")
+_include_if_present(admin_observability_router, "admin_observability")
 _include_if_present(admin_growth_ai_router, "admin_growth_ai")
 _include_if_present(marketing_kpi_router, "marketing_kpi")
 _include_if_present(marketing_cron_router, "marketing_cron")

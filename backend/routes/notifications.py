@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Tuple
 
 from auth_dependency import get_current_user
 from db_config import get_db_name, get_mongo_url
+from services.operational_kpis_store import inc_metric
 from services.notification_items_service import (
     ack,
     backfill_service_notifications_for_client,
@@ -137,6 +138,11 @@ async def get_notifications(
         len(result.get('items') or []),
         elapsed_ms,
     )
+    if not cursor:
+        try:
+            await inc_metric(db, "notifications_opened")
+        except Exception as e:
+            logger.warning("notifications.feed_open_metric_failed user_id=%s err=%s", str(uid), e)
     return result
 
 

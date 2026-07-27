@@ -173,6 +173,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db.notification_items.create_index([('dedupeKey', 1)], unique=True, name='uniq_dedupe_key')
     await db.notification_items.create_index([('recipientUserId', 1), ('readAt', 1)])
     await db.notification_items.create_index([('recipientUserId', 1), ('audienceRole', 1), ('readAt', 1)])
+    await db.notification_items.create_index([('ackAt', 1)])
     await db.notification_deliveries.create_index([('notificationId', 1), ('createdAt', -1)])
     await db.notification_deliveries.create_index([('notificationId', 1), ('channel', 1), ('createdAt', -1)])
 
