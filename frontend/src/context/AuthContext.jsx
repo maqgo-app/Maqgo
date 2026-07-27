@@ -325,14 +325,15 @@ export function AuthProvider({ children }) {
         const userId = String(data.id);
         const apiRoles = Array.isArray(data.roles) ? data.roles : [];
         const storedRole = localStorage.getItem('userRole');
-        const isAdmin = data.role === 'admin' || apiRoles.includes('admin');
+        const apiActiveRole = String(data.active_role || data.role || '').trim();
+        const isAdmin = apiActiveRole === 'admin' || apiRoles.includes('admin');
         let userRole = 'client';
         if (isAdmin) {
           userRole = 'admin';
+        } else if (apiActiveRole && (apiActiveRole === 'client' || apiRoles.includes(apiActiveRole))) {
+          userRole = apiActiveRole;
         } else if (storedRole && (storedRole === 'client' || apiRoles.includes(storedRole))) {
           userRole = storedRole;
-        } else {
-          userRole = 'client';
         }
         const rawProviderRole = apiRoles.includes('provider')
           ? (data.provider_role || localStorage.getItem('providerRole') || 'super_master')

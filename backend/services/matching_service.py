@@ -18,7 +18,10 @@ from services.matching_score import (
     responsiveness_rate_from_provider,
 )
 from services.provider_match_list import get_response_penalty
-from services.provider_activation_service import is_provider_activation_complete as _is_activation_complete
+from services.provider_activation_service import (
+    is_provider_activation_complete as _is_activation_complete,
+    is_provider_activation_complete_for_machine as _is_activation_complete_for_machine,
+)
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import math
@@ -402,6 +405,13 @@ def _has_any_operator(provider: dict) -> bool:
     return False
 
 
+def _machine_has_assigned_operator(machine: Optional[dict]) -> bool:
+    if not isinstance(machine, dict):
+        return False
+    ops = machine.get('operators')
+    return isinstance(ops, list) and len(ops) > 0
+
+
 def _is_provider_activation_complete(provider: dict) -> bool:
     if not isinstance(provider, dict):
         return False
@@ -410,6 +420,44 @@ def _is_provider_activation_complete(provider: dict) -> bool:
     if provider.get('provider_role') == 'operator':
         return False
     return _is_activation_complete(provider)
+
+
+def _is_provider_activation_complete_for_machine(provider: dict, machine_data: dict) -> bool:
+    if not isinstance(provider, dict) or not isinstance(machine_data, dict):
+        return False
+    if provider.get('owner_id'):
+        return False
+    if provider.get('provider_role') == 'operator':
+        return False
+    if not _machine_has_assigned_operator(machine_data):
+        return False
+    return _is_activation_complete_for_machine(provider, machine_data)
+
+
+async def _eligible_machines_by_provider(
+    db: AsyncIOMotorDatabase,
+    machinery_type: str,
+    *,
+    selected_machine_id: Optional[str] = None,
+) -> Dict[str, dict]:
+    query: Dict[str, Any] = {
+        'machineryType': machinery_type,
+        'available': True,
+        'published': True,
+        'status': {'$ne': 'deleted'},
+    }
+    machine_id = str(selected_machine_id or '').strip()
+    if machine_id:
+        query['id'] = machine_id
+
+    machines = await db.machines.find(query, {'_id': 0}).to_list(500 if not machine_id else 10)
+    by_provider: Dict[str, dict] = {}
+    for machine in machines:
+        provider_id = str(machine.get('provider_id') or '').strip()
+        if not provider_id or not _machine_has_assigned_operator(machine):
+            continue
+        by_provider.setdefault(provider_id, machine)
+    return by_provider
 
 
 def _distance_to_provider_km(provider: dict, request_location: dict) -> float:
@@ -536,6 +584,7 @@ async def get_available_providers(
     request_location: dict,
     excluded_provider_ids: List[str] = None,
     max_distance_km: Optional[float] = None,
+    selected_machine_id: Optional[str] = None,
 ) -> List[dict]:
     """
     Obtiene proveedores disponibles que pasan el filtro duro:
@@ -545,8 +594,18 @@ async def get_available_providers(
     - No están en la lista de excluidos
     - NO tienen servicio activo (confirmed, in_progress, last_30)
     """
+    eligible_machines_by_provider = await _eligible_machines_by_provider(
+        db,
+        machinery_type,
+        selected_machine_id=selected_machine_id,
+    )
+    eligible_provider_ids = list(eligible_machines_by_provider.keys())
+    if not eligible_provider_ids:
+        return []
+
     query = {
         '$or': [{'role': 'provider'}, {'roles': 'provider'}],
+        'id': {'$in': eligible_provider_ids},
         'isAvailable': True,
         '$and': [
             {'$or': [{'status': {'$exists': False}}, {'status': 'active'}]},
@@ -555,30 +614,24 @@ async def get_available_providers(
             {'$or': [{'provider_role': {'$exists': False}}, {'provider_role': None}, {'provider_role': {'$ne': 'operator'}}]},
         ],
     }
-    if machinery_type:
-        query['machineryType'] = machinery_type
     if excluded_provider_ids:
-        query['id'] = {'$nin': excluded_provider_ids}
+        query['id'] = {'$in': eligible_provider_ids, '$nin': excluded_provider_ids}
     providers = await db.users.find(query, PROVIDER_MATCH_PROJECTION).to_list(100)
 
-    if not providers and machinery_type:
-        query_fallback = {
-            '$or': [{'role': 'provider'}, {'roles': 'provider'}],
-            'isAvailable': True,
-            '$and': [
-                {'$or': [{'status': {'$exists': False}}, {'status': 'active'}]},
-                {'$or': [{'deleted': {'$exists': False}}, {'deleted': False}]},
-                {'$or': [{'owner_id': {'$exists': False}}, {'owner_id': None}, {'owner_id': ''}]},
-                {'$or': [{'provider_role': {'$exists': False}}, {'provider_role': None}, {'provider_role': {'$ne': 'operator'}}]},
-            ],
-        }
-        if excluded_provider_ids:
-            query_fallback['id'] = {'$nin': excluded_provider_ids}
-        providers = await db.users.find(query_fallback, PROVIDER_MATCH_PROJECTION).to_list(100)
-        if providers:
-            logger.info(f"Usando fallback sin machineryType (encontrados {len(providers)})")
-    
-    providers = [p for p in providers if _is_provider_activation_complete(p)]
+    providers_with_machine: List[dict] = []
+    for provider in providers:
+        provider_id = str(provider.get('id') or '').strip()
+        matched_machine = eligible_machines_by_provider.get(provider_id)
+        if not matched_machine:
+            continue
+        enriched = dict(provider)
+        enriched['machineData'] = matched_machine
+        if matched_machine.get('licensePlate') or matched_machine.get('license_plate'):
+            enriched['licensePlate'] = matched_machine.get('licensePlate') or matched_machine.get('license_plate')
+        if _is_provider_activation_complete_for_machine(enriched, matched_machine):
+            providers_with_machine.append(enriched)
+
+    providers = providers_with_machine
 
     candidate_ids = [str(p.get('id') or '').strip() for p in providers if str(p.get('id') or '').strip()]
     busy_ids = await _busy_provider_ids(db, candidate_ids)
@@ -1257,6 +1310,7 @@ async def start_matching(
             request.get('machineryType'),
             request_location,
             excluded_ids,
+            selected_machine_id=request.get('machineId') or request.get('machine_id'),
         )
 
         if excluded_ids and len(providers) < int(MATCHING_CONFIG.get('expand_min_providers') or 0):
@@ -1266,6 +1320,7 @@ async def start_matching(
                 request_location,
                 excluded_ids,
                 max_distance_km=float(MATCHING_CONFIG.get('expanded_distance_km') or MATCHING_CONFIG['max_distance_km']),
+                selected_machine_id=request.get('machineId') or request.get('machine_id'),
             )
             if len(expanded) > len(providers):
                 providers = expanded
@@ -1362,6 +1417,26 @@ async def handle_offer_response(
     Si rechaza: marca la oferta y busca siguiente proveedor
     """
     now = datetime.now(timezone.utc)
+    sr = await db.service_requests.find_one(
+        {"id": service_request_id},
+        {
+            "_id": 0,
+            "matchingAttempts": 1,
+            "confirmedDepartureLocation": 1,
+            "etaCommitMinutes": 1,
+            "etaConfirmedAt": 1,
+            "etaConfirmedByUserId": 1,
+            "etaConfirmedByRole": 1,
+            "providerIntentAt": 1,
+            "providerIntentByUserId": 1,
+            "providerIntentByRole": 1,
+        },
+    )
+    winning_attempt = None
+    for attempt in (sr or {}).get("matchingAttempts") or []:
+        if str(attempt.get("providerId") or "").strip() == str(provider_id):
+            winning_attempt = attempt
+            break
     
     if accepted:
         # Calcular tiempos de jornada (8h trabajo + 1h colación = 9h total)
@@ -1369,17 +1444,30 @@ async def handle_offer_response(
         last_30_time = end_time - timedelta(minutes=30)
         
         provider = await db.users.find_one({'id': provider_id}, {'_id': 0})
+        selected_machine = None
+        selected_machine_id = str(((sr or {}).get('machineId') or (sr or {}).get('machine_id') or '')).strip()
+        if selected_machine_id:
+            selected_machine = await db.machines.find_one(
+                {'id': selected_machine_id, 'provider_id': provider_id},
+                {'_id': 0},
+            )
+        provider_for_service = dict(provider or {})
+        if selected_machine:
+            provider_for_service['machineData'] = selected_machine
+            if selected_machine.get('licensePlate') or selected_machine.get('license_plate'):
+                provider_for_service['licensePlate'] = selected_machine.get('licensePlate') or selected_machine.get('license_plate')
         # Cliente ve solo operador, nunca empresa (providerName interno para facturas)
-        operator_display = _get_operator_display_name(provider) if provider else 'Operador'
-        license_plate = _get_license_plate_for_service(provider)
-        operator_rut = _get_operator_rut_for_service(provider)
-        op_first, op_last = _get_operator_name_parts_for_service(provider)
+        operator_display = _get_operator_display_name(provider_for_service) if provider_for_service else 'Operador'
+        license_plate = _get_license_plate_for_service(provider_for_service)
+        operator_rut = _get_operator_rut_for_service(provider_for_service)
+        op_first, op_last = _get_operator_name_parts_for_service(provider_for_service)
 
         # paymentStatus=charging hasta que PaymentService.charge_service confirme TBK (evita "cobrado" sin pago).
         set_confirmed: Dict[str, Any] = {
             'status': 'confirmed',
             'providerId': provider_id,
-            'providerName': provider.get('providerData', {}).get('businessName', 'Proveedor') if provider else 'Proveedor',
+            'currentOfferId': provider_id,
+            'providerName': provider_for_service.get('providerData', {}).get('businessName', 'Proveedor') if provider_for_service else 'Proveedor',
             'providerOperatorName': operator_display,
             **({'license_plate': license_plate} if license_plate else {}),
             'confirmedAt': now.isoformat(),
@@ -1389,6 +1477,31 @@ async def handle_offer_response(
             'matchingAttempts.$[elem].status': 'accepted',
             'paymentStatus': 'charging',
         }
+        attempt_loc = winning_attempt.get("confirmedDepartureLocation") if isinstance(winning_attempt, dict) else None
+        if isinstance(attempt_loc, dict) and attempt_loc:
+            set_confirmed["confirmedDepartureLocation"] = attempt_loc
+        elif isinstance((sr or {}).get("confirmedDepartureLocation"), dict) and (sr or {}).get("confirmedDepartureLocation"):
+            set_confirmed["confirmedDepartureLocation"] = (sr or {}).get("confirmedDepartureLocation")
+
+        attempt_eta = winning_attempt.get("etaCommitMinutes") if isinstance(winning_attempt, dict) else None
+        if isinstance(attempt_eta, int) and attempt_eta > 0:
+            set_confirmed["etaCommitMinutes"] = attempt_eta
+        elif isinstance((sr or {}).get("etaCommitMinutes"), int) and (sr or {}).get("etaCommitMinutes") > 0:
+            set_confirmed["etaCommitMinutes"] = (sr or {}).get("etaCommitMinutes")
+
+        for field in (
+            "etaConfirmedAt",
+            "etaConfirmedByUserId",
+            "etaConfirmedByRole",
+            "providerIntentAt",
+            "providerIntentByUserId",
+            "providerIntentByRole",
+        ):
+            attempt_value = winning_attempt.get(field) if isinstance(winning_attempt, dict) else None
+            if attempt_value:
+                set_confirmed[field] = attempt_value
+            elif (sr or {}).get(field):
+                set_confirmed[field] = (sr or {}).get(field)
         if operator_rut:
             set_confirmed['operatorRut'] = operator_rut
         if op_first:

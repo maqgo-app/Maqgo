@@ -261,6 +261,10 @@ class CheckDeviceRequest(BaseModel):
     device_id: str = Field(..., min_length=8, description="Identificador estable del dispositivo")
 
 
+class ActiveRoleRequest(BaseModel):
+    role: str = Field(..., description="Rol activo de sesión: client/provider")
+
+
 def hash_password(password: str) -> str:
     """Hash seguro con bcrypt."""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -311,6 +315,16 @@ def _effective_session_role(roles: list, legacy_role: Optional[str], requested_r
     if "provider" in roles:
         return "provider"
     return (legacy_role or "client") or "client"
+
+
+def _active_role_for_session(user: dict, roles: list, requested_role: Optional[str] = None) -> str:
+    session = user.get("_session") if isinstance(user, dict) else None
+    session_role = None
+    if isinstance(session, dict):
+        raw = str(session.get("activeRole") or "").strip().lower()
+        if raw:
+            session_role = raw
+    return _effective_session_role(roles, user.get("role") if isinstance(user, dict) else "client", requested_role or session_role)
 
 
 def _provider_role_for_api(user: dict, roles: list) -> Optional[str]:
@@ -846,6 +860,7 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
                 {
                     "userId": existing["id"],
                     "token": token,
+                    "activeRole": _effective_session_role(_user_roles(existing), existing.get("role"), req_role or None),
                     "createdAt": datetime.now(timezone.utc).isoformat(),
                 }
             )
@@ -1181,6 +1196,7 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
             {
                 "userId": user["id"],
                 "token": token,
+                "activeRole": _effective_session_role(roles, user.get("role"), req_role),
                 "createdAt": datetime.now(timezone.utc).isoformat(),
             }
         )
@@ -1232,6 +1248,7 @@ class StepUpVerifyRequest(BaseModel):
     phone: str
     password: str
     device_id: Optional[str] = None
+    requested_role: Optional[str] = None
 
 
 @router.post("/login-sms/verify-password")
@@ -1270,6 +1287,7 @@ async def verify_sms_password(request: Request, body: StepUpVerifyRequest):
         {
             "userId": user["id"],
             "token": token,
+            "activeRole": _effective_session_role(roles, user.get("role"), body.requested_role),
             "createdAt": datetime.now(timezone.utc).isoformat(),
         }
     )
@@ -1293,7 +1311,7 @@ async def verify_sms_password(request: Request, body: StepUpVerifyRequest):
         success=True,
     )
 
-    return _build_login_sms_session_payload(user, token, requires_otp=False)
+    return _build_login_sms_session_payload(user, token, requires_otp=False, requested_role=body.requested_role)
 
 
 @router.post("/check-device")
@@ -1429,10 +1447,7 @@ def _client_profile_status(user_doc: dict) -> dict:
 async def auth_me(current_user: dict = Depends(get_current_user)):
     """Valida Bearer y devuelve perfil mínimo (hidratación de sesión en el cliente)."""
     roles = _user_roles(current_user)
-    legacy_role = current_user.get("role") or "client"
-    # /me no debe forzar contexto de uso (cliente vs proveedor).
-    # El rol activo lo decide el cliente (Welcome / elección de modo) dentro de una sesión válida.
-    effective_role = "admin" if "admin" in roles else "client"
+    effective_role = _active_role_for_session(current_user, roles)
     pr = _provider_role_for_api(current_user, roles)
     ctx = build_access_context(current_user, roles, effective_role)
     provider_permissions = ctx.get("permissions") if ctx.get("provider_role") else None
@@ -1446,6 +1461,43 @@ async def auth_me(current_user: dict = Depends(get_current_user)):
         "clientBilling": current_user.get("clientBilling"),
         "legalAcceptedAt": current_user.get("legalAcceptedAt"),
         "role": effective_role,
+        "roles": roles,
+        "provider_role": pr,
+        "owner_id": ctx.get("owner_id"),
+        "provider_permissions": provider_permissions,
+        "active_role": effective_role,
+    }
+
+
+@router.post("/me/active-role")
+async def auth_set_active_role(
+    body: ActiveRoleRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    roles = _user_roles(current_user)
+    requested_role = str(body.role or "").strip().lower()
+    if requested_role not in {"client", "provider"}:
+        raise HTTPException(status_code=400, detail="Rol inválido")
+    if requested_role not in roles:
+        raise HTTPException(status_code=403, detail="No tienes acceso a este rol")
+
+    session = current_user.get("_session") or {}
+    token = str(session.get("token") or "").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Sesión inválida")
+
+    await db.sessions.update_one(
+        {"token": token},
+        {"$set": {"activeRole": requested_role}},
+    )
+    effective_role = _active_role_for_session({**current_user, "_session": {**session, "activeRole": requested_role}}, roles)
+    pr = _provider_role_for_api(current_user, roles)
+    ctx = build_access_context(current_user, roles, effective_role)
+    provider_permissions = ctx.get("permissions") if ctx.get("provider_role") else None
+    return {
+        "id": current_user["id"],
+        "role": effective_role,
+        "active_role": effective_role,
         "roles": roles,
         "provider_role": pr,
         "owner_id": ctx.get("owner_id"),
@@ -1930,7 +1982,7 @@ async def _send_recovery_otp_email(email_to: str) -> dict:
     r.setex(key, RECOVERY_OTP_EXPIRY_SECONDS, otp)
     r.setex(attempts_key, RECOVERY_OTP_EXPIRY_SECONDS, "0")
 
-    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+    sender = os.environ.get("SENDER_EMAIL", "soporte@maqgo.cl")
     subject = "Tu código MAQGO"
     text = f"Tu código MAQGO es: {otp}"
     html = f"<p>Tu código MAQGO es: <strong>{otp}</strong></p>"
@@ -2027,7 +2079,7 @@ async def _find_user_for_password_reset(identifier: str) -> Optional[dict]:
 
 async def _send_password_reset_fallback_email(email_to: str) -> bool:
     """Envía aviso de recuperación por email cuando SMS queda temporalmente bloqueado."""
-    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+    sender = os.environ.get("SENDER_EMAIL", "soporte@maqgo.cl")
     frontend_url = os.environ.get("FRONTEND_URL", "https://www.maqgo.cl").rstrip("/")
     subject = "Recuperación de cuenta (SMS temporalmente bloqueado)"
     text = (

@@ -243,9 +243,7 @@ def _has_any_operator(provider: dict) -> bool:
 
 def _has_any_operator_for_machine(provider: dict, machine_data: dict) -> bool:
     ops = machine_data.get("operators")
-    if isinstance(ops, list) and len(ops) > 0:
-        return True
-    return _has_any_operator(provider)
+    return isinstance(ops, list) and len(ops) > 0
 
 
 def _is_provider_activation_complete(provider: dict) -> bool:
@@ -260,6 +258,8 @@ def _is_provider_activation_complete_for_machine(provider: dict, machine_data: d
     if provider.get("owner_id"):
         return False
     if provider.get("provider_role") == "operator":
+        return False
+    if not _has_any_operator_for_machine(provider, machine_data):
         return False
     return is_provider_activation_complete_for_machine(provider, machine_data)
 

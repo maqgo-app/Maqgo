@@ -121,6 +121,36 @@ def _operator_gps_confirmed_for_accept(user: dict, req: dict) -> bool:
         age_sec = 0
     return age_sec <= 15 * 60
 
+
+def _find_matching_attempt(req: dict, provider_id: Optional[str], *, statuses: Optional[set[str]] = None) -> Optional[dict]:
+    pid = str(provider_id or "").strip()
+    if not pid:
+        return None
+    allowed = {str(s).strip().lower() for s in (statuses or set()) if str(s).strip()}
+    for attempt in req.get("matchingAttempts") or []:
+        if str(attempt.get("providerId") or "").strip() != pid:
+            continue
+        attempt_status = str(attempt.get("status") or "").strip().lower()
+        if allowed and attempt_status not in allowed:
+            continue
+        return attempt
+    return None
+
+
+def _resolve_provider_offer_operational_context(req: dict, provider_id: Optional[str]) -> tuple[dict, Optional[int], Optional[str]]:
+    attempt = _find_matching_attempt(req, provider_id, statuses={"pending", "accepted"})
+    loc = attempt.get("confirmedDepartureLocation") if isinstance(attempt, dict) else None
+    eta = attempt.get("etaCommitMinutes") if isinstance(attempt, dict) else None
+    confirmed_at = attempt.get("etaConfirmedAt") if isinstance(attempt, dict) else None
+    if not isinstance(loc, dict) or not loc:
+        loc = req.get("confirmedDepartureLocation") if isinstance(req.get("confirmedDepartureLocation"), dict) else {}
+    if not isinstance(eta, int) or eta <= 0:
+        raw_eta = req.get("etaCommitMinutes")
+        eta = raw_eta if isinstance(raw_eta, int) and raw_eta > 0 else None
+    if not confirmed_at:
+        confirmed_at = req.get("etaConfirmedAt")
+    return loc or {}, eta, confirmed_at
+
 def _format_cl_phone_e164(value: Optional[str]) -> Optional[str]:
     if value is None:
         return None
@@ -906,6 +936,26 @@ async def get_service_request(
                     str(sr.get('offerExpiresAt')),
                 )
 
+    role = str(current_user.get("role") or "").strip().lower()
+    if role != "admin":
+        effective_provider_id = _effective_provider_account_id(current_user)
+        if effective_provider_id:
+            loc, eta, confirmed_at = _resolve_provider_offer_operational_context(sr, effective_provider_id)
+            attempt = _find_matching_attempt(sr, effective_provider_id, statuses={"pending", "accepted"})
+            if attempt:
+                if loc:
+                    sr["confirmedDepartureLocation"] = loc
+                if isinstance(eta, int) and eta > 0:
+                    sr["etaCommitMinutes"] = eta
+                if confirmed_at:
+                    sr["etaConfirmedAt"] = confirmed_at
+                if attempt.get("providerIntentAt"):
+                    sr["providerIntentAt"] = attempt.get("providerIntentAt")
+                if attempt.get("providerIntentByUserId"):
+                    sr["providerIntentByUserId"] = attempt.get("providerIntentByUserId")
+                if attempt.get("providerIntentByRole"):
+                    sr["providerIntentByRole"] = attempt.get("providerIntentByRole")
+
     _attach_client_matching_view(sr)
     await _attach_approx_provider_location(current_user, sr)
     
@@ -939,7 +989,7 @@ async def provider_intent(
         if str(current_user.get("provider_role") or "").strip().lower() == "operator":
             raise HTTPException(status_code=403, detail="Como operador no puedes confirmar ofertas")
         ep = _effective_provider_account_id(current_user)
-        if not ep or req.get("currentOfferId") != ep:
+        if not ep or not _find_matching_attempt(req, ep, statuses={"pending"}):
             raise HTTPException(status_code=403, detail="Sin permiso para confirmar esta oferta")
 
     loc = body.departureLocation or {}
@@ -970,10 +1020,25 @@ async def provider_intent(
         "confirmedByRole": role,
     }
 
-    await db.service_requests.update_one(
-        {"id": request_id, "status": "offer_sent"},
-        {
-            "$set": {
+    effective_provider_id = _effective_provider_account_id(current_user)
+    pending_provider_ids = [
+        str(a.get("providerId") or "").strip()
+        for a in (req.get("matchingAttempts") or [])
+        if str(a.get("status") or "").strip().lower() == "pending"
+    ]
+    set_doc = {
+        "matchingAttempts.$[provider_attempt].providerIntentAt": now.isoformat(),
+        "matchingAttempts.$[provider_attempt].providerIntentByUserId": current_user.get("id"),
+        "matchingAttempts.$[provider_attempt].providerIntentByRole": role,
+        "matchingAttempts.$[provider_attempt].confirmedDepartureLocation": confirmed_loc,
+        "matchingAttempts.$[provider_attempt].etaCommitMinutes": eta,
+        "matchingAttempts.$[provider_attempt].etaConfirmedAt": now.isoformat(),
+        "matchingAttempts.$[provider_attempt].etaConfirmedByUserId": current_user.get("id"),
+        "matchingAttempts.$[provider_attempt].etaConfirmedByRole": role,
+    }
+    if req.get("currentOfferId") == effective_provider_id or len(pending_provider_ids) <= 1:
+        set_doc.update(
+            {
                 "providerIntentAt": now.isoformat(),
                 "providerIntentByUserId": current_user.get("id"),
                 "providerIntentByRole": role,
@@ -983,17 +1048,24 @@ async def provider_intent(
                 "etaConfirmedByUserId": current_user.get("id"),
                 "etaConfirmedByRole": role,
             }
-            ,
+        )
+
+    await db.service_requests.update_one(
+        {"id": request_id, "status": "offer_sent"},
+        {
+            "$set": set_doc,
             "$push": {
                 "events": {
                     "type": "provider_intent",
                     "at": now.isoformat(),
                     "byUserId": current_user.get("id"),
                     "byRole": role,
+                    "providerId": effective_provider_id,
                     "etaCommitMinutes": eta,
                 }
             },
         },
+        array_filters=[{"provider_attempt.providerId": effective_provider_id, "provider_attempt.status": "pending"}],
     )
 
     urgency_window = req.get("urgencyWindowMinutes")
@@ -1048,9 +1120,8 @@ async def accept_service_request(
 
         reservation_type = str(req.get("reservationType") or "").lower()
         if reservation_type == "immediate":
-            loc = req.get("confirmedDepartureLocation") or {}
+            loc, eta, _ = _resolve_provider_offer_operational_context(req, offered_provider_id)
             has_coords = loc.get("lat") is not None and loc.get("lng") is not None
-            eta = req.get("etaCommitMinutes")
             if not has_coords or not isinstance(eta, int) or eta <= 0:
                 raise HTTPException(
                     status_code=409,
@@ -1964,16 +2035,29 @@ async def clear_incident(
 async def finish_service(
     request_id: str,
     body: dict = Body(default={}),
-    current_admin: dict = Depends(get_current_admin_strict),
+    current_user: dict = Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc)
-    role = "admin"
+    role = "admin" if str(current_user.get("role") or "").strip().lower() == "admin" else "provider"
+    service_request = await db.service_requests.find_one({'id': request_id}, {'_id': 0})
+    if not service_request:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+    if role != "admin":
+        provider_role = str(current_user.get("provider_role") or "").strip().lower()
+        if provider_role == "operator":
+            raise HTTPException(status_code=403, detail="Como operador no puedes finalizar servicios")
+        provider_id = str(service_request.get("providerId") or "").strip()
+        effective_provider_id = _effective_provider_account_id(current_user)
+        if not provider_id or provider_id != effective_provider_id:
+            raise HTTPException(status_code=403, detail="Sin permiso para finalizar este servicio")
+
     finished_event = {
         "type": "finished",
         "at": now.isoformat(),
-        "byUserId": current_admin.get("id"),
-        "byRole": "admin",
-        "source": "admin_override",
+        "byUserId": current_user.get("id"),
+        "byRole": role,
+        "source": "admin_override" if role == "admin" else "provider_app",
     }
 
     override_reason = None
@@ -1987,26 +2071,29 @@ async def finish_service(
     override_event = {
         "type": "finished_override",
         "at": now.isoformat(),
-        "byUserId": current_admin.get("id"),
+        "byUserId": current_user.get("id"),
         "reason": override_reason,
     }
 
     update_data = {
         'status': 'finished',
         'finishedAt': now.isoformat(),
-        "finishedByUserId": current_admin.get("id"),
+        "finishedByUserId": current_user.get("id"),
         "finishedByRole": role,
-        "finishedOverrideAt": now.isoformat(),
-        "finishedOverrideByUserId": current_admin.get("id"),
-        "finishedOverrideReason": override_reason,
         'autoFinished': False  # Cierre manual
     }
+    events = [finished_event]
+    if role == "admin":
+        update_data["finishedOverrideAt"] = now.isoformat()
+        update_data["finishedOverrideByUserId"] = current_user.get("id")
+        update_data["finishedOverrideReason"] = override_reason
+        events.append(override_event)
     if body.get('endLocation'):
         update_data['finalLocation'] = body['endLocation']
 
     result = await db.service_requests.update_one(
         {'id': request_id, 'status': {'$in': ['in_progress', 'last_30']}},
-        {'$set': update_data, '$push': {'events': {'$each': [finished_event, override_event]}}}
+        {'$set': update_data, '$push': {'events': {'$each': events}}}
     )
     
     if result.matched_count == 0:

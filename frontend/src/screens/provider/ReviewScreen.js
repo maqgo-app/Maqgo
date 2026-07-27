@@ -8,7 +8,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import BACKEND_URL, { clearLocalSession } from '../../utils/api';
 import { MACHINERY_NAMES, getMachineryCapacityOptions, getProviderSpecLabelShort } from '../../utils/machineryNames';
 import { getObject } from '../../utils/safeStorage';
-import { createMachineInApi, upsertOnboardingMachine } from '../../utils/providerMachines';
+import { createMachineInApi } from '../../utils/providerMachines';
 import { useToast } from '../../components/Toast';
 import {
   getProviderDraftArray,
@@ -81,6 +81,11 @@ function ReviewScreen() {
       const operatorsPayload = Array.isArray(operators)
         ? operators.map(op => ({ ...op, photo: undefined }))
         : [];
+      if (operatorsPayload.length === 0) {
+        toast.error('Debes registrar al menos un operador para continuar.');
+        navigate('/provider/operator-data');
+        return;
+      }
       const payloadBase = {
         providerData,
         machineData: machinePayload,
@@ -101,7 +106,7 @@ function ReviewScreen() {
           await axios.patch(`${BACKEND_URL}/api/users/${userId}`, payloadBase, { timeout: 20000 });
           toast.warning('El correo ya está asociado a otra cuenta. Finalizamos tu registro sin correo; puedes actualizarlo luego en Perfil.');
         } else if (status === 403 && detailText.toLowerCase().includes('inactivo')) {
-          toast.error('Tu cuenta está desactivada. Usa otro número o solicita reactivación.');
+          toast.error('Tu cuenta está desactivada. Usa otro número o revisa la ayuda de acceso.');
           clearLocalSession();
           navigate('/login?inactive=1', { replace: true });
           return;
@@ -122,6 +127,7 @@ function ReviewScreen() {
 
       const pricing = getObject('machinePricing', {});
       const priceBase = Number(pricing?.priceBase || 0);
+      const hasAssignedOperators = operatorsPayload.length > 0;
       const machineForInventory = {
         ...machinePayload,
         operators: operatorsPayload,
@@ -131,33 +137,39 @@ function ReviewScreen() {
         transportSameComuna: Number(pricing?.transportSameComuna || pricing?.transportCost || 0),
         transportSameRegion: Number(pricing?.transportSameRegion || pricing?.transportCost || 0),
         transportOtherRegion: Number(pricing?.transportOtherRegion || pricing?.transportSameRegion || pricing?.transportCost || 0),
+        photos,
+        machinePhotos: photos,
+        ...(hasAssignedOperators ? {} : { available: false, published: false, status: 'draft' }),
       };
+      let createdMachine = null;
       if (machineForInventory?.machineryType && machineForInventory?.licensePlate) {
         try {
-          await createMachineInApi(machineForInventory);
+          createdMachine = await createMachineInApi(machineForInventory);
         } catch (e) {
-          try {
-            localStorage.setItem('providerMachineSyncFailed', 'true');
-          } catch {
-            void 0;
-          }
           const msg = String(e?.message || '').trim();
-          toast.warning(
+          toast.error(
             msg
-              ? `Tu perfil quedó guardado, pero falta registrar la máquina: ${msg}`
-              : 'Tu perfil quedó guardado, pero falta registrar la máquina. Intenta de nuevo desde “Mis Máquinas”.'
+              ? `No pudimos guardar la maquinaria: ${msg}`
+              : 'No pudimos guardar la maquinaria. Revisa los datos e intenta nuevamente.'
           );
+          return;
         }
       }
 
-      // Sincronizar onboarding -> Mis Máquinas (fuente de UI local del proveedor)
-      upsertOnboardingMachine(machineData, pricing, operatorsPayload);
       try {
         localStorage.removeItem('machineData');
       } catch {
         void 0;
       }
       localStorage.setItem('providerOnboardingStep', '7');
+      if (createdMachine && !hasAssignedOperators) {
+        toast.success('Maquinaria guardada. Falta asignar operador para publicarla.');
+        navigate('/provider/machines', {
+          replace: true,
+          state: { activationEdit: true, returnTo: '/provider/home', openOperatorForMachineId: createdMachine.id },
+        });
+        return;
+      }
       navigate('/provider/home', { replace: true, state: { finalizeOnboarding: true } });
     } catch (e) {
       if (import.meta.env.PROD) {
@@ -165,7 +177,7 @@ function ReviewScreen() {
         const detail = e?.response?.data?.detail;
         const detailText = typeof detail === 'string' ? detail : '';
         if (status === 403 && detailText.toLowerCase().includes('inactivo')) {
-          toast.error('Tu cuenta está desactivada. Usa otro número o solicita reactivación.');
+          toast.error('Tu cuenta está desactivada. Usa otro número o revisa la ayuda de acceso.');
           clearLocalSession();
           navigate('/login?inactive=1', { replace: true });
           return;

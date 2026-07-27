@@ -5,6 +5,7 @@ import { getAndClearReturnUrl, peekReturnUrl, saveProviderReturnUrl } from '../u
 import MaqgoLogo from '../components/MaqgoLogo';
 
 import BACKEND_URL from '../utils/api';
+import { fetchWithAuth } from '../utils/api';
 import { clearPersistedCheckoutState } from '../domain/checkout/checkoutPersistence';
 import { getObject } from '../utils/safeStorage';
 import { rememberLoginEmail } from '../utils/loginHints';
@@ -94,6 +95,17 @@ function RoleSelection({ setUserRole, setUserId }) {
         storedRoles.includes('provider');
 
       if (isSessionMultiRole) {
+        const res = await fetchWithAuth(`${BACKEND_URL}/api/auth/me/active-role`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: roleToUse }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(
+            String(data?.detail || 'No se pudo cambiar el modo de uso.')
+          );
+        }
         localStorage.removeItem('desiredRole');
         setUserRole(roleToUse);
         setUserId(existingUserId);

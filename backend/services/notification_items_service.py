@@ -169,8 +169,10 @@ def _dedupe_key(recipient_user_id: str, service_request_id: str, kind: str, audi
 
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db.notification_items.create_index([('recipientUserId', 1), ('createdAt', -1)])
+    await db.notification_items.create_index([('recipientUserId', 1), ('audienceRole', 1), ('createdAt', -1)])
     await db.notification_items.create_index([('dedupeKey', 1)], unique=True, name='uniq_dedupe_key')
     await db.notification_items.create_index([('recipientUserId', 1), ('readAt', 1)])
+    await db.notification_items.create_index([('recipientUserId', 1), ('audienceRole', 1), ('readAt', 1)])
     await db.notification_deliveries.create_index([('notificationId', 1), ('createdAt', -1)])
     await db.notification_deliveries.create_index([('notificationId', 1), ('channel', 1), ('createdAt', -1)])
 
@@ -222,36 +224,53 @@ async def upsert_notification_item(
     return {'id': dedupe}
 
 
-async def mark_read(db: AsyncIOMotorDatabase, recipient_user_id: str, notification_id: str) -> dict:
+async def mark_read(
+    db: AsyncIOMotorDatabase,
+    recipient_user_id: str,
+    notification_id: str,
+    audience_role: str,
+) -> dict:
     now = _now_iso()
+    ar = str(audience_role or '').strip().lower() or 'client'
     res = await db.notification_items.update_one(
-        {'id': str(notification_id), 'recipientUserId': str(recipient_user_id)},
+        {'id': str(notification_id), 'recipientUserId': str(recipient_user_id), 'audienceRole': ar},
         {'$set': {'readAt': now, 'updatedAt': now}},
     )
     return {'success': bool(res.matched_count)}
 
 
-async def ack(db: AsyncIOMotorDatabase, recipient_user_id: str, notification_id: str) -> dict:
+async def ack(
+    db: AsyncIOMotorDatabase,
+    recipient_user_id: str,
+    notification_id: str,
+    audience_role: str,
+) -> dict:
     now = _now_iso()
+    ar = str(audience_role or '').strip().lower() or 'client'
     res = await db.notification_items.update_one(
-        {'id': str(notification_id), 'recipientUserId': str(recipient_user_id)},
+        {'id': str(notification_id), 'recipientUserId': str(recipient_user_id), 'audienceRole': ar},
         {'$set': {'ackAt': now, 'readAt': now, 'pinned': False, 'updatedAt': now}},
     )
     return {'success': bool(res.matched_count)}
 
 
-async def unread_count(db: AsyncIOMotorDatabase, recipient_user_id: str) -> dict:
-    n = await db.notification_items.count_documents({'recipientUserId': str(recipient_user_id), 'readAt': None})
+async def unread_count(db: AsyncIOMotorDatabase, recipient_user_id: str, audience_role: str) -> dict:
+    ar = str(audience_role or '').strip().lower() or 'client'
+    n = await db.notification_items.count_documents(
+        {'recipientUserId': str(recipient_user_id), 'audienceRole': ar, 'readAt': None}
+    )
     return {'unread': int(n)}
 
 
 async def list_notifications(
     db: AsyncIOMotorDatabase,
     recipient_user_id: str,
+    audience_role: str,
     limit: int = 50,
     cursor: Optional[str] = None,
 ) -> dict:
-    q: Dict[str, Any] = {'recipientUserId': str(recipient_user_id)}
+    ar = str(audience_role or '').strip().lower() or 'client'
+    q: Dict[str, Any] = {'recipientUserId': str(recipient_user_id), 'audienceRole': ar}
     if cursor:
         q['createdAt'] = {'$lt': str(cursor)}
     cur = db.notification_items.find(q, {'_id': 0}).sort('createdAt', -1).limit(int(limit))

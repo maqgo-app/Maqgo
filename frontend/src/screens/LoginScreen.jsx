@@ -673,6 +673,7 @@ function LoginScreen({ setUserRole, setUserId }) {
         phone: stepUpPhone,
         password: password,
         device_id: deviceId,
+        requested_role: localStorage.getItem('desiredRole') || location.state?.entry || null,
       };
       const res = await axios.post(
         `${BACKEND_URL}/api/auth/login-sms/verify-password`,
@@ -1001,8 +1002,8 @@ function LoginScreen({ setUserRole, setUserId }) {
                   }}
                 >
                   {stepUpRequiresPasswordSetup
-                    ? 'Por seguridad, debes crear o restablecer tu clave para continuar.'
-                    : 'Por seguridad, como este dispositivo es nuevo o no reconocido, ingresa tu clave para continuar.'}
+                    ? 'Por seguridad, debes crear o restablecer tu contraseña para continuar.'
+                    : 'Por seguridad, como este dispositivo es nuevo o no reconocido, ingresa tu contraseña para continuar.'}
                 </p>
               </div>
 
@@ -1028,10 +1029,10 @@ function LoginScreen({ setUserRole, setUserId }) {
                       });
                     }}
                   >
-                    Crear o restablecer clave
+                    Crear o restablecer contraseña
                   </button>
                   <p style={{ textAlign: 'center', margin: 0, color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>
-                    Te enviaremos un código para crear una nueva clave.
+                    Te enviaremos un código para crear una nueva contraseña.
                   </p>
                 </div>
               ) : (
@@ -1056,7 +1057,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                       setPassword(ev.target.value);
                     }}
                     autoComplete="current-password"
-                    placeholder="Ingresa tu clave"
+                    placeholder="Ingresa tu contraseña"
                     style={{
                       width: '100%',
                       boxSizing: 'border-box',
@@ -1120,7 +1121,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                 No pudimos validar tu acceso
               </p>
               <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.45 }}>
-                Tu acceso requiere revisión. Si el número está mal escrito, corrígelo. Si es tu número real, solicita revisión y lo revisamos.
+                Tu acceso requiere revisión. Si el número está mal escrito, corrígelo. Si es tu número real, revisa la ayuda de acceso y escríbenos si lo necesitas.
               </p>
               <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
                 <button
@@ -1160,7 +1161,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                     cursor: 'pointer',
                   }}
                 >
-                  Solicitar revisión
+                  Ver ayuda de acceso
                 </button>
               </div>
             </div>
@@ -1243,7 +1244,7 @@ function LoginScreen({ setUserRole, setUserId }) {
                     ? 'Comprobando tu número'
                     : 'Iniciando sesión'
                 : loginMode === 'email'
-                  ? 'Iniciar sesión proveedor con correo'
+                  ? 'Iniciar sesión proveedor'
                   : step === 'phone'
                     ? 'Continuar con tu celular'
                     : step === 'otp'

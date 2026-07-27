@@ -10,6 +10,8 @@ function Last30MinutesProvider() {
   const navigate = useNavigate();
   const [remainingTime, setRemainingTime] = useState(30 * 60);
   const [showExtendOption, setShowExtendOption] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [finishError, setFinishError] = useState('');
 
   const serviceId = useMemo(() => {
     const raw = localStorage.getItem('currentServiceId') || localStorage.getItem('currentServiceRequestId') || '';
@@ -56,6 +58,21 @@ function Last30MinutesProvider() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleFinishService = async () => {
+    if (!serviceId || String(serviceId).startsWith('demo-') || finishing) return;
+    setFinishing(true);
+    setFinishError('');
+    try {
+      await axios.put(`${BACKEND_URL}/api/service-requests/${serviceId}/finish`, {});
+      navigate('/provider/service-finished');
+    } catch (error) {
+      const detail = error?.response?.data?.detail;
+      setFinishError(typeof detail === 'string' && detail.trim() ? detail : 'No se pudo finalizar el servicio.');
+    } finally {
+      setFinishing(false);
+    }
   };
 
   return (
@@ -134,6 +151,22 @@ function Last30MinutesProvider() {
             <span className="action-icon">➕</span>
             <span className="action-text">Solicitar extensión de tiempo</span>
           </button>
+
+          <button
+            className="action-btn finish"
+            onClick={handleFinishService}
+            disabled={!serviceId || String(serviceId).startsWith('demo-') || finishing}
+          >
+            <span className="action-icon">✓</span>
+            <span className="action-text">{finishing ? 'Finalizando...' : 'Finalizar servicio'}</span>
+          </button>
+
+          {finishError ? (
+            <div className="info-card" style={{ marginTop: 12, border: '1px solid rgba(255,107,107,0.28)' }}>
+              <span className="info-icon">!</span>
+              <span className="info-text">{finishError}</span>
+            </div>
+          ) : null}
 
         </div>
 

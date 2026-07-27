@@ -1,6 +1,7 @@
 import React, { useState, useLayoutEffect, useEffect, useCallback, useRef } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
+import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import { useToast } from '../../components/Toast';
@@ -11,6 +12,7 @@ import { getMachineryCapacityOptions, getProviderSpecLabel } from '../../utils/m
 import { getObject } from '../../utils/safeStorage';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
 import { validateCelularChile } from '../../utils/chileanValidation';
+import BACKEND_URL from '../../utils/api';
 import { getUserAuthState } from '../../utils/userAuthState';
 import { submitBecomeProviderMinimal, hasProviderRoleInStorage } from '../../utils/providerBecomeApi';
 import { persistProviderOnboardingDraft } from '../../utils/providerOnboardingDraft';
@@ -54,9 +56,24 @@ const LICENSE_PLATE_REGEX = /^[A-Z]{4}-\d{2}$/;
 const MIN_PRICE_HOUR = 20000;
 const MIN_PRICE_SERVICE = 100000;
 const MIN_TRANSPORT = 15000;
+const DEFAULT_OPERATOR_BY_MACHINERY_KEY = 'defaultOperatorByMachinery';
 
 function formatClpRangeEs(minVal, maxVal) {
   return `${minVal.toLocaleString('es-CL')} y ${maxVal.toLocaleString('es-CL')}`;
+}
+
+function normalizeRequiredOperator(operator = {}, fallback = '') {
+  if (!operator || typeof operator !== 'object') return null;
+  const id = String(operator.id || operator.user_id || operator.operator_id || fallback || '').trim();
+  const name = String(operator.name || `${operator.nombre || ''} ${operator.apellido || ''}`.trim()).trim();
+  if (!id || !name) return null;
+  return {
+    id,
+    name,
+    phone: String(operator.phone || operator.telefono || '').trim(),
+    rut: String(operator.rut || '').trim(),
+    isOwner: Boolean(operator.isOwner),
+  };
 }
 
 /** Evita el copy vago "Precio entre X e Y" en hint/footer: deja claro si es /hora o por servicio y neto sin IVA. */
@@ -1113,6 +1130,14 @@ function MachineDataScreen() {
 
     const capOpts = getMachineryCapacityOptions(machineryType);
 
+    let requiredOperators = [];
+    try {
+      requiredOperators = await resolveRequiredOperators(machineryType);
+    } catch (e) {
+      setPublishError(e?.message || 'Debes registrar al menos un operador antes de guardar la maquinaria.');
+      return;
+    }
+
     setPublishLoading(true);
     try {
       const brandDisplay = [form.brand, form.model].filter(Boolean).join(' ').trim();
@@ -1128,10 +1153,10 @@ function MachineDataScreen() {
         transportSameComuna: needsTransport ? sameComunaTransport : 0,
         transportSameRegion: needsTransport ? sameRegionTransport : 0,
         transportOtherRegion: needsTransport ? otherRegionTransport : 0,
-        available: false,
-        published: false,
-        status: 'draft',
-        operators: [],
+        available: true,
+        published: true,
+        status: 'active',
+        operators: requiredOperators,
         ...resolveOriginFields(form),
       };
       if (capOpts?.providerField) {
@@ -1153,11 +1178,8 @@ function MachineDataScreen() {
         void 0;
       }
 
-      toast.success('Maquinaria guardada. Falta asignar operador para publicarla.');
-      navigate('/provider/machines', {
-        replace: true,
-        state: { activationEdit: true, returnTo: '/provider/home', openOperatorForMachineId: created.id },
-      });
+      toast.success('Maquinaria guardada y lista para operar.');
+      navigate('/provider/machines', { replace: true });
     } catch (e) {
       setPublishError(e?.message || 'No se pudo guardar la maquinaria. Intenta de nuevo.');
     } finally {
@@ -1173,6 +1195,7 @@ function MachineDataScreen() {
     transportOtherRegionWizard,
     transportSameComunaWizard,
     transportSameRegionWizard,
+    resolveRequiredOperators,
   ]);
 
   const currentYear = new Date().getFullYear();
@@ -1231,6 +1254,43 @@ function MachineDataScreen() {
     },
     [providerBaseData]
   );
+
+  const resolveRequiredOperators = useCallback(async (machineryType) => {
+    const onboardingOperators = getProviderDraftArray('operatorsData', [])
+      .map((op, index) => normalizeRequiredOperator(op, `op-onboarding-${index}`))
+      .filter(Boolean);
+    if (onboardingOperators.length > 0) return onboardingOperators;
+
+    const ownerId = String(localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+    if (!ownerId) {
+      throw new Error('Debes registrar al menos un operador antes de guardar la maquinaria.');
+    }
+
+    let response;
+    try {
+      response = await axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 8000 });
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      throw new Error(
+        typeof detail === 'string' && detail.trim()
+          ? detail.trim()
+          : 'No pudimos cargar los operadores de tu empresa. Registra uno antes de guardar la maquinaria.'
+      );
+    }
+
+    const teamOperators = (response.data?.operators || [])
+      .filter((op) => (op?.provider_role || '') === 'operator' || !op?.provider_role)
+      .map((op, index) => normalizeRequiredOperator(op, `op-team-${index}`))
+      .filter(Boolean);
+
+    if (teamOperators.length === 0) {
+      throw new Error('Debes registrar al menos un operador antes de guardar la maquinaria.');
+    }
+
+    const preferredId = String(getObject(DEFAULT_OPERATOR_BY_MACHINERY_KEY, {})?.[machineryType] || '').trim();
+    const preferred = preferredId ? teamOperators.find((op) => op.id === preferredId) : null;
+    return [preferred || teamOperators[0]];
+  }, []);
 
   const yearError = form.year && !validateYear();
 
@@ -1820,7 +1880,7 @@ function MachineDataScreen() {
                               letterSpacing: 0.2,
                             }}
                           >
-                            Operador pendiente
+                            Operador obligatorio
                           </span>
                         </div>
                         <div
@@ -1922,7 +1982,7 @@ function MachineDataScreen() {
                           </span>
                         </div>
                         <p style={{ margin: '10px 0 0', color: 'rgba(255,255,255,0.62)', fontSize: 12, lineHeight: 1.4 }}>
-                          Valores referenciales netos. El total para el cliente puede incluir IVA. Esta maquinaria no se publica hasta asignarle al menos un operador.
+                          Valores referenciales netos. El total para el cliente puede incluir IVA. Esta maquinaria solo se guarda si sale con al menos un operador asignado.
                         </p>
                       </div>
                     </div>

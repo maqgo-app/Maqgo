@@ -15,6 +15,14 @@ from services.notification_items_service import (
 )
 
 
+def _audience_role_for_user(user: dict) -> str:
+    role = str(user.get('role') or '').strip().lower()
+    provider_role = str(user.get('provider_role') or '').strip().lower()
+    if role != 'client':
+        return 'operator' if provider_role == 'operator' else 'provider'
+    return 'client'
+
+
 def _effective_provider_account_id(user: dict) -> Optional[str]:
     role = user.get('role')
     uid = user.get('id')
@@ -44,11 +52,7 @@ async def get_notifications(
     if not uid:
         raise HTTPException(status_code=401, detail='Sesión inválida')
 
-    role = str(current_user.get('role') or '').strip().lower()
-    provider_role = str(current_user.get('provider_role') or '').strip().lower()
-    audience_role = 'client'
-    if role != 'client':
-        audience_role = 'operator' if provider_role == 'operator' else 'provider'
+    audience_role = _audience_role_for_user(current_user)
 
     if audience_role == 'client':
         srs = await db.service_requests.find(
@@ -79,7 +83,7 @@ async def get_notifications(
         for sr in assigned_srs:
             await backfill_service_notifications_for_operator(db, str(uid), sr)
 
-    return await list_notifications(db, str(uid), limit=limit, cursor=cursor)
+    return await list_notifications(db, str(uid), audience_role, limit=limit, cursor=cursor)
 
 
 @router.get("/unread-count", response_model=dict)
@@ -87,7 +91,8 @@ async def get_unread_count(current_user: dict = Depends(get_current_user)):
     uid = current_user.get('id')
     if not uid:
         raise HTTPException(status_code=401, detail='Sesión inválida')
-    return await unread_count(db, str(uid))
+    audience_role = _audience_role_for_user(current_user)
+    return await unread_count(db, str(uid), audience_role)
 
 
 @router.post("/{notification_id}/read", response_model=dict)
@@ -95,7 +100,8 @@ async def post_mark_read(notification_id: str, current_user: dict = Depends(get_
     uid = current_user.get('id')
     if not uid:
         raise HTTPException(status_code=401, detail='Sesión inválida')
-    return await mark_read(db, str(uid), notification_id)
+    audience_role = _audience_role_for_user(current_user)
+    return await mark_read(db, str(uid), notification_id, audience_role)
 
 
 @router.post("/{notification_id}/ack", response_model=dict)
@@ -103,4 +109,5 @@ async def post_ack(notification_id: str, current_user: dict = Depends(get_curren
     uid = current_user.get('id')
     if not uid:
         raise HTTPException(status_code=401, detail='Sesión inválida')
-    return await ack(db, str(uid), notification_id)
+    audience_role = _audience_role_for_user(current_user)
+    return await ack(db, str(uid), notification_id, audience_role)

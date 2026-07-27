@@ -27,17 +27,21 @@ def _normalize_phone(phone: str) -> str:
     return f"+56{digits}" if digits else ""
 
 
-async def create_session_for_user(user_id: str) -> str:
+async def create_session_for_user(user_id: str, *, active_role: str | None = None) -> str:
     """
     Crea una sesión para el usuario y retorna el token.
     Usado tras verificación OTP, creación de usuario o join de operador.
     """
     token = secrets.token_urlsafe(32)
-    await db.sessions.insert_one({
+    payload = {
         "userId": user_id,
         "token": token,
         "createdAt": datetime.now(timezone.utc).isoformat(),
-    })
+    }
+    role = str(active_role or "").strip().lower()
+    if role in {"client", "provider", "admin"}:
+        payload["activeRole"] = role
+    await db.sessions.insert_one(payload)
     return token
 
 
@@ -90,6 +94,11 @@ async def get_current_user(
                 detail="Usuario inactivo",
             )
 
+    user["_session"] = {
+        "token": token,
+        "activeRole": session.get("activeRole"),
+        "createdAt": session.get("createdAt"),
+    }
     return user
 
 
@@ -123,6 +132,11 @@ async def get_current_user_optional(
         if user.get("deleted") is True or u_status != "active":
             return None
 
+    user["_session"] = {
+        "token": token,
+        "activeRole": session.get("activeRole"),
+        "createdAt": session.get("createdAt"),
+    }
     return user
 
 
