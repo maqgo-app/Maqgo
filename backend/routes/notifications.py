@@ -16,7 +16,9 @@ from services.notification_items_service import (
 
 
 def _audience_role_for_user(user: dict) -> str:
-    role = str(user.get('role') or '').strip().lower()
+    session = user.get('_session') if isinstance(user, dict) else None
+    session_role = str((session or {}).get('activeRole') or '').strip().lower()
+    role = session_role or str(user.get('role') or '').strip().lower()
     provider_role = str(user.get('provider_role') or '').strip().lower()
     if role != 'client':
         return 'operator' if provider_role == 'operator' else 'provider'
@@ -24,7 +26,8 @@ def _audience_role_for_user(user: dict) -> str:
 
 
 def _effective_provider_account_id(user: dict) -> Optional[str]:
-    role = user.get('role')
+    session = user.get('_session') if isinstance(user, dict) else None
+    role = str((session or {}).get('activeRole') or user.get('role') or '').strip().lower()
     uid = user.get('id')
     owner_id = user.get('owner_id')
     if role == 'client' or role == 'admin':
