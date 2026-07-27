@@ -110,7 +110,7 @@ class TestStartMatchingIdempotent(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        async def fake_get_available_providers(db_arg, machinery_type, request_location, excluded_ids):
+        async def fake_get_available_providers(db_arg, machinery_type, request_location, excluded_ids, **kwargs):
             return [{"id": "p1", "name": "Proveedor", "rating": 5.0, "_distance_km": 1.2}]
 
         call_count = {"n": 0}
@@ -165,7 +165,7 @@ class TestStartMatchingIdempotent(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        async def fake_get_available_providers(db_arg, machinery_type, request_location, excluded_ids):
+        async def fake_get_available_providers(db_arg, machinery_type, request_location, excluded_ids, **kwargs):
             return []
 
         from services.matching_service import start_matching
@@ -224,7 +224,7 @@ class TestStartMatchingIdempotent(unittest.IsolatedAsyncioTestCase):
 
         gate = asyncio.Event()
 
-        async def fake_get_available_providers(db_arg, machinery_type, request_location, excluded_ids):
+        async def fake_get_available_providers(db_arg, machinery_type, request_location, excluded_ids, **kwargs):
             await gate.wait()
             return [{"id": "p1", "name": "Proveedor", "rating": 5.0, "_distance_km": 1.2}]
 

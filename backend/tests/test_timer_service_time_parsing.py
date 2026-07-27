@@ -244,6 +244,35 @@ class TestTimerServiceTimeHotfix(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(by_id[sid].get("noArrivalAlert3SentAt"))
         self.assertIsNone(by_id["e"].get("noArrivalAlert1SentAt"))
 
+    async def test_check_confirmed_no_arrival_timeout_persists_alerts_for_en_route(self):
+        from services.timer_service import TimerService
+
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        past = (now - timedelta(hours=5)).isoformat()
+
+        db = FakeDB(
+            service_requests_docs=[
+                {"id": "en-route-1", "status": "en_route", "confirmedAt": past, "totalAmount": 0, "clientId": "c1"}
+            ]
+        )
+
+        svc = TimerService(db)
+        first = await svc.check_confirmed_no_arrival_timeout()
+        second = await svc.check_confirmed_no_arrival_timeout()
+
+        self.assertEqual(first, 3)
+        self.assertEqual(second, 0)
+
+        service = await db.service_requests.find_one({"id": "en-route-1"})
+        self.assertIsNotNone(service)
+        self.assertTrue(service.get("noArrivalAlert1SentAt"))
+        self.assertTrue(service.get("noArrivalAlert2SentAt"))
+        self.assertTrue(service.get("noArrivalAlert3SentAt"))
+        self.assertEqual(
+            [event.get("type") for event in service.get("events") or []],
+            ["no_arrival_alert_120", "no_arrival_alert_180", "no_arrival_alert_240"],
+        )
+
     async def test_check_auto_start_post_arrival_mixed_formats(self):
         from services.timer_service import TimerService
 

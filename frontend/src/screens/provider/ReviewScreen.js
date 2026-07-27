@@ -78,8 +78,13 @@ function ReviewScreen() {
       };
 
       // No enviar fotos base64 de operadores al backend (evita payload enorme y timeouts)
+      const hasExplicitPrimary = Array.isArray(operators) && operators.some((op) => op?.isPrimary === true);
       const operatorsPayload = Array.isArray(operators)
-        ? operators.map(op => ({ ...op, photo: undefined }))
+        ? operators.map((op, index) => ({
+            ...op,
+            photo: undefined,
+            isPrimary: op?.isPrimary === true || (!hasExplicitPrimary && index === 0),
+          }))
         : [];
       if (operatorsPayload.length === 0) {
         toast.error('Debes registrar al menos un operador para continuar.');

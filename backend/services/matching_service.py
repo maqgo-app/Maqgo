@@ -10,6 +10,7 @@ Lógica de matching:
 import os
 from typing import List, Optional, Tuple, Any, Dict, Mapping
 
+from services.machines_service import get_primary_machine_operator, machine_has_real_assigned_operator
 from services.matching_score import (
     acceptance_rate_from_provider,
     build_price_distance_context,
@@ -199,62 +200,31 @@ def _parse_iso_utc(raw: Any) -> Optional[datetime]:
 
 def _get_operator_display_name(provider: dict) -> str:
     """Nombre del operador para mostrar al cliente. Nunca empresa."""
-    if not provider:
-        return 'Operador'
-    # machineData.operators[0].name (operadores por máquina)
-    ops = provider.get('machineData', {}).get('operators', [])
-    if ops and isinstance(ops, list) and len(ops) > 0:
-        first = ops[0]
-        if isinstance(first, dict) and first.get('name'):
-            return first['name']
-        if isinstance(first, str):
-            return first
-    # providerData.defaultOperatorName
-    default_op = provider.get('providerData', {}).get('defaultOperatorName')
-    if default_op:
-        return default_op
-    # provider.name = dueño/titular (persona)
-    owner_name = provider.get('name')
-    if owner_name and owner_name != provider.get('providerData', {}).get('businessName'):
-        return owner_name
+    primary = get_primary_machine_operator((provider or {}).get('machineData'))
+    if primary and primary.get('name'):
+        return str(primary.get('name')).strip()
     return 'Operador'
 
 
 def _get_operator_rut_for_service(provider: Optional[dict]) -> Optional[str]:
     """RUT del operador en faena (misma fuente aproximada que el nombre)."""
-    if not provider:
-        return None
-    ops = provider.get('machineData', {}).get('operators', [])
-    if ops and isinstance(ops, list) and len(ops) > 0:
-        first = ops[0]
-        if isinstance(first, dict):
-            raw = first.get('rut') or first.get('operator_rut') or first.get('operatorRut')
-            if raw:
-                s = str(raw).strip()
-                if s and s.lower() not in ('no registrado', 'sin rut', '-'):
-                    return s
-    pd = provider.get('providerData') or {}
-    for key in ('defaultOperatorRut', 'operatorRut', 'operator_rut'):
-        raw = pd.get(key)
+    primary = get_primary_machine_operator((provider or {}).get('machineData'))
+    if primary:
+        raw = primary.get('rut') or primary.get('operator_rut') or primary.get('operatorRut')
         if raw:
             s = str(raw).strip()
-            if s:
+            if s and s.lower() not in ('no registrado', 'sin rut', '-'):
                 return s
     return None
 
 
 def _get_operator_name_parts_for_service(provider: Optional[dict]) -> Tuple[Optional[str], Optional[str]]:
     """nombre, apellido si vienen explícitos en machineData.operators[0]."""
-    if not provider:
+    primary = get_primary_machine_operator((provider or {}).get('machineData'))
+    if not isinstance(primary, dict):
         return None, None
-    ops = provider.get('machineData', {}).get('operators', [])
-    if not ops or not isinstance(ops, list) or len(ops) < 1:
-        return None, None
-    first = ops[0]
-    if not isinstance(first, dict):
-        return None, None
-    n = first.get('nombre') or first.get('firstName')
-    a = first.get('apellido') or first.get('lastName')
+    n = primary.get('nombre') or primary.get('firstName')
+    a = primary.get('apellido') or primary.get('lastName')
     if n or a:
         return (str(n).strip() if n else None, str(a).strip() if a else None)
     return None, None
@@ -406,10 +376,7 @@ def _has_any_operator(provider: dict) -> bool:
 
 
 def _machine_has_assigned_operator(machine: Optional[dict]) -> bool:
-    if not isinstance(machine, dict):
-        return False
-    ops = machine.get('operators')
-    return isinstance(ops, list) and len(ops) > 0
+    return machine_has_real_assigned_operator(machine)
 
 
 def _is_provider_activation_complete(provider: dict) -> bool:
@@ -877,7 +844,7 @@ async def send_rotation_wave_one(
                 "matchingRotationWave2At": wave2_at.isoformat(),
                 "matchingRotationWave3At": wave3_at.isoformat(),
                 "matchingWave2Applied": False,
-                "matchingWave3Applied": True,
+                "matchingWave3Applied": False,
             },
             "$push": {"matchingAttempts": {"$each": attempts}},
             "$inc": {"attemptCount": len(wave1)},
@@ -969,9 +936,9 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
     wave3_at = _parse_iso_utc(sr.get("matchingRotationWave3At"))
     t0 = _parse_iso_utc(sr.get("matchingRotationStartedAt")) or now
 
-    # Ola 2: agregar el resto del pool (índice 3 en adelante)
+    # Ola 2: agregar solo el cuarto proveedor del pool
     if not sr.get("matchingWave2Applied") and len(candidate_ids) > 3 and wave2_at and now >= wave2_at:
-        raw_ids = candidate_ids[3:]
+        raw_ids = candidate_ids[3:4]
         new_ids = await filter_valid_providers_for_wave(db, raw_ids)
         if not new_ids:
             await db.service_requests.update_one(
@@ -1138,6 +1105,14 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
                     }
                 },
             )
+            for pid in new_ids:
+                await _notify_provider_offer(
+                    db,
+                    provider_id=pid,
+                    service_request_id=service_request_id,
+                    kind='nueva_oferta',
+                    occurred_at=now.isoformat(),
+                )
             if _DEBUG_MATCH:
                 dt_s = (now - t0).total_seconds()
                 logger.info(

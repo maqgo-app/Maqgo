@@ -247,7 +247,7 @@ class TimerService:
                 update = {'$set': updates} if updates else {}
                 if event_list:
                     update['$push'] = {'events': {'$each': event_list}}
-                await self.db.service_requests.update_one({'id': srid, 'status': 'confirmed'}, update)
+                await self.db.service_requests.update_one({'id': srid, 'status': {'$in': ['confirmed', 'en_route']}}, update)
 
         return alerted
 

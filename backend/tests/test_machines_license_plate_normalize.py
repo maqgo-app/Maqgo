@@ -61,6 +61,40 @@ def test_normalize_machine_payload_keeps_multiple_real_operators_and_marks_one_p
     assert doc["primaryOperatorId"] == doc["operators"][1]["id"]
 
 
+def test_normalize_machine_payload_single_operator_becomes_primary() -> None:
+    doc = normalize_machine_payload(
+        {
+            "machineryType": "retroexcavadora",
+            "licensePlate": "ABCD12",
+            "operators": [
+                {"name": "Ana Perez", "phone": "+56 9 9876 5432"},
+            ],
+        },
+        "prov_1",
+    )
+    assert len(doc["operators"]) == 1
+    assert doc["operators"][0]["isPrimary"] is True
+    assert doc["primaryOperatorId"] == doc["operators"][0]["id"]
+
+
+def test_normalize_machine_payload_falls_back_to_first_operator_when_none_marked() -> None:
+    doc = normalize_machine_payload(
+        {
+            "machineryType": "retroexcavadora",
+            "licensePlate": "ABCD12",
+            "operators": [
+                {"name": "Ana Perez", "phone": "+56 9 9876 5432"},
+                {"name": "Luis Soto", "phone": "+56 9 9123 4567"},
+            ],
+        },
+        "prov_1",
+    )
+    assert len(doc["operators"]) == 2
+    assert doc["operators"][0]["isPrimary"] is True
+    assert doc["operators"][1]["isPrimary"] is False
+    assert doc["primaryOperatorId"] == doc["operators"][0]["id"]
+
+
 def test_normalize_machine_payload_discards_placeholder_operators_and_drafts_machine() -> None:
     doc = normalize_machine_payload(
         {
