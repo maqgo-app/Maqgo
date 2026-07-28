@@ -157,6 +157,70 @@ function LoginScreen({ setUserRole, setUserId }) {
   const [password, setPassword] = useState('');
   const [hasPersistedSession, setHasPersistedSession] = useState(false);
 
+  const navigateWithPersistedSession = () => {
+    const desiredRole = localStorage.getItem('desiredRole');
+    const entryRole = location.state?.entry;
+    const storedRole = localStorage.getItem('userRole');
+    const storedProviderRole = String(localStorage.getItem('providerRole') || '').trim();
+    const storedRoles = (() => {
+      try {
+        const raw = localStorage.getItem('userRoles');
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })();
+    const intentRole = (desiredRole || entryRole || '').trim() || null;
+
+    // Solo cuentas con rol admin van al panel; redirect=/admin sin rol admin debe mostrar login.
+    if (isAdminRoleStored()) {
+      if (localStorage.getItem('adminMustChangePassword') === '1') {
+        navigate('/admin/change-password', { replace: true });
+        return true;
+      }
+      navigate('/admin', { replace: true });
+      return true;
+    }
+
+    const hasValidStoredRole = Boolean(storedRole && storedRoles.includes(storedRole));
+    if (!intentRole && !redirectTo && storedRoles.includes('client') && storedRoles.includes('provider') && !hasValidStoredRole) {
+      navigate('/welcome', { replace: true });
+      return true;
+    }
+
+    if (!storedRole && intentRole && storedRoles.includes(intentRole)) {
+      localStorage.setItem('userRole', intentRole);
+      setUserRole(intentRole);
+    } else if (!storedRole && storedRoles.length === 1) {
+      const onlyRole = String(storedRoles[0] || '').trim();
+      if (onlyRole) {
+        localStorage.setItem('userRole', onlyRole);
+        setUserRole(onlyRole);
+      }
+    }
+
+    const role = localStorage.getItem('userRole') || '';
+    if (role === 'client') {
+      const target =
+        redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
+      navigate(target, { replace: true });
+      return true;
+    }
+
+    if (role === 'provider' && storedProviderRole === 'operator') {
+      const normalized = typeof redirectTo === 'string' ? redirectTo.replace(/\/$/, '') || '/' : null;
+      const target = normalized && normalized.startsWith('/operator') ? normalized : '/operator/home';
+      navigate(target, { replace: true });
+      return true;
+    }
+
+    const raw =
+      redirectTo && redirectTo.startsWith('/provider') ? redirectTo : getProviderLandingPath();
+    navigate(normalizeProviderPostLoginRedirect(raw), { replace: true });
+    return true;
+  };
+
   useEffect(() => {
     if (loading) return;
     if (loginMode !== 'sms') return;
@@ -223,44 +287,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     const token = localStorage.getItem('authToken') || localStorage.getItem('token');
     const userId = localStorage.getItem('userId');
     if (!token || !userId) return;
-    const desiredRole = localStorage.getItem('desiredRole');
-    const entryRole = location.state?.entry;
-    const storedRole = localStorage.getItem('userRole');
-    const storedRoles = (() => {
-      try {
-        const raw = localStorage.getItem('userRoles');
-        const parsed = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    })();
-    const intentRole = (desiredRole || entryRole || '').trim() || null;
-    // Solo cuentas con rol admin van al panel; redirect=/admin sin rol admin debe mostrar login (otra cuenta).
-    if (isAdminRoleStored()) {
-      navigate('/admin', { replace: true });
-      return;
-    }
-    const hasValidStoredRole = Boolean(storedRole && storedRoles.includes(storedRole));
-    if (!intentRole && !redirectTo && storedRoles.includes('client') && storedRoles.includes('provider') && !hasValidStoredRole) {
-      navigate('/welcome', { replace: true });
-      return;
-    }
-    if (!storedRole && intentRole && storedRoles.includes(intentRole)) {
-      localStorage.setItem('userRole', intentRole);
-      setUserRole(intentRole);
-    }
-
-    const role = localStorage.getItem('userRole') || '';
-    if (role === 'client') {
-      const target =
-        redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
-      navigate(target, { replace: true });
-      return;
-    }
-    const raw =
-      redirectTo && redirectTo.startsWith('/provider') ? redirectTo : getProviderLandingPath();
-    navigate(normalizeProviderPostLoginRedirect(raw), { replace: true });
+    navigateWithPersistedSession();
   }, [navigate, redirectTo, searchParams, location.state, setUserRole]);
 
   const applySessionAndNavigate = async (data, options = {}) => {
@@ -422,51 +449,7 @@ function LoginScreen({ setUserRole, setUserId }) {
     const existingToken = localStorage.getItem('authToken') || localStorage.getItem('token');
     const userId = localStorage.getItem('userId');
     if (existingToken && userId) {
-      const storedRole = localStorage.getItem('userRole');
-      const storedRoles = (() => {
-        try {
-          const raw = localStorage.getItem('userRoles');
-          const parsed = raw ? JSON.parse(raw) : [];
-          return Array.isArray(parsed) ? parsed : [];
-        } catch {
-          return [];
-        }
-      })();
-      // Sesión persistente: reutilizar navegación sin pedir OTP.
-      const isAdminStored = isAdminRoleStored();
-      if (isAdminStored) {
-        if (localStorage.getItem('adminMustChangePassword') === '1') {
-          navigate('/admin/change-password', { replace: true });
-          return;
-        }
-        navigate('/admin', { replace: true });
-        return;
-      }
-      const desiredRole = localStorage.getItem('desiredRole');
-      const entryRole = location.state?.entry;
-      const intentRole = (desiredRole || entryRole || '').trim() || null;
-      const hasValidStoredRole = Boolean(storedRole && storedRoles.includes(storedRole));
-      if (!intentRole && !redirectTo && storedRoles.includes('client') && storedRoles.includes('provider') && !hasValidStoredRole) {
-        navigate('/welcome', { replace: true });
-        return;
-      }
-      if (!storedRole && storedRoles.length === 1) {
-        const r = String(storedRoles[0] || '').trim();
-        if (r) {
-          localStorage.setItem('userRole', r);
-          setUserRole(r);
-        }
-      }
-      const role = localStorage.getItem('userRole') || '';
-      if (role === 'client') {
-        const target =
-          redirectTo && redirectTo.startsWith('/client') ? redirectTo : '/client/home';
-        navigate(target, { replace: true });
-        return;
-      }
-      const raw =
-        redirectTo && redirectTo.startsWith('/provider') ? redirectTo : getProviderLandingPath();
-      navigate(normalizeProviderPostLoginRedirect(raw), { replace: true });
+      navigateWithPersistedSession();
       return;
     }
     const nine = String(phone || '').replace(/\D/g, '');

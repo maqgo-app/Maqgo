@@ -394,9 +394,9 @@ def _has_any_operator(user_doc: dict) -> bool:
 def _is_provider_activation_complete(user_doc: dict) -> bool:
     if not isinstance(user_doc, dict):
         return False
-    if user_doc.get("owner_id"):
-        return False
     if user_doc.get("provider_role") == "operator":
+        return True
+    if user_doc.get("owner_id"):
         return False
     return is_provider_activation_complete(user_doc)
 

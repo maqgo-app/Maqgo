@@ -43,7 +43,20 @@ function OperatorJoinScreen() {
         state: { entry: 'provider', redirect: '/operator/home', activationCode: code.toUpperCase() },
       });
     } catch (err) {
-      setError(getActivationErrorMessage(err));
+      const activationError = getActivationErrorMessage(err);
+      if (activationError === 'Código ya utilizado') {
+        try {
+          localStorage.setItem('desiredRole', 'provider');
+        } catch {
+          /* ignore */
+        }
+        navigate('/login', {
+          replace: true,
+          state: { entry: 'provider', redirect: '/operator/home', activationCode: code.toUpperCase() },
+        });
+        return;
+      }
+      setError(activationError);
       setStatusMessage('');
     }
 
