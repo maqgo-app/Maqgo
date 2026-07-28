@@ -2714,7 +2714,11 @@ async def debug_test_sms(request: Request, body: dict = Body(...), _: dict = Dep
 
 @router.post("/debug/test-otp")
 @limiter.limit("10/minute")
-async def debug_send_otp_test(request: Request, body: dict = Body(...)):
+async def debug_send_otp_test(
+    request: Request,
+    body: dict = Body(...),
+    _: dict = Depends(get_current_admin_strict),
+):
     """
     Endpoint temporal SOLO ADMIN para test directo de OTP.
     Permite testear el flujo completo sin pasar por validaciones complejas.
