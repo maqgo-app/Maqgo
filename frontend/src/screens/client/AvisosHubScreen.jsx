@@ -47,6 +47,11 @@ function toneToColors(severity) {
   return { bg: 'rgba(144, 189, 211, 0.10)', border: 'rgba(144, 189, 211, 0.22)', dot: '#90BDD3' };
 }
 
+function unreadFromItems(items = []) {
+  if (!Array.isArray(items)) return 0;
+  return items.reduce((acc, item) => acc + (item?.readAt ? 0 : 1), 0);
+}
+
 function AvisosHubScreen({ audienceRole = 'client' }) {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
@@ -100,19 +105,24 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
         setError('');
         const listRes = await fetchNotifications({ limit: 80 });
         if (!mounted) return;
-        setItems(Array.isArray(listRes?.items) ? listRes.items : []);
-        try {
-          const unreadRes = await fetchUnreadCount(audienceRole);
-          if (!mounted) return;
-          setUnread(Number(unreadRes?.unread || 0));
-        } catch {
-          if (!mounted) return;
-          setUnread((prev) => {
-            const fallback = readCachedUnreadCount(audienceRole);
-            return Number.isFinite(prev) && prev >= 0 ? prev : fallback;
-          });
-        }
+        const nextItems = Array.isArray(listRes?.items) ? listRes.items : [];
+        setItems(nextItems);
+        const pageUnread = unreadFromItems(nextItems);
+        setUnread(pageUnread);
+        writeCachedUnreadCount(audienceRole, pageUnread);
         setLoading(false);
+        void fetchUnreadCount(audienceRole)
+          .then((unreadRes) => {
+            if (!mounted) return;
+            setUnread(Number(unreadRes?.unread || 0));
+          })
+          .catch(() => {
+            if (!mounted) return;
+            setUnread((prev) => {
+              const fallback = readCachedUnreadCount(audienceRole);
+              return Number.isFinite(prev) && prev >= 0 ? prev : fallback;
+            });
+          });
       } catch (e) {
         if (!mounted) return;
         setError(String(e?.message || e || 'Error cargando avisos'));

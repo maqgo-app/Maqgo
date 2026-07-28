@@ -22,7 +22,9 @@ from services.notification_items_service import (
 
 logger = logging.getLogger(__name__)
 _BACKFILL_TTL_SECONDS = 45.0
+_STALE_PROVIDER_CLEANUP_TTL_SECONDS = 45.0
 _recent_backfill_by_user_role: Dict[Tuple[str, str], float] = {}
+_recent_stale_cleanup_by_user_role: Dict[Tuple[str, str], float] = {}
 _PROVIDER_OFFER_EVENT_TYPES = {"nueva_oferta", "oferta_expira"}
 
 
@@ -194,6 +196,18 @@ def _should_run_feed_backfill(*, user_id: str, audience_role: str, cursor: Optio
     return True
 
 
+def _should_run_stale_provider_cleanup(*, user_id: str, audience_role: str) -> bool:
+    if str(audience_role or "").strip().lower() != "provider":
+        return False
+    key = (str(user_id), "provider-stale-cleanup")
+    now = time.monotonic()
+    last = _recent_stale_cleanup_by_user_role.get(key)
+    if last is not None and (now - last) < _STALE_PROVIDER_CLEANUP_TTL_SECONDS:
+        return False
+    _recent_stale_cleanup_by_user_role[key] = now
+    return True
+
+
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 client = AsyncIOMotorClient(get_mongo_url())
@@ -215,6 +229,10 @@ async def get_notifications(
         user_id=str(uid),
         audience_role=audience_role,
         cursor=cursor,
+    )
+    should_cleanup_stale_provider_offers = _should_run_stale_provider_cleanup(
+        user_id=str(uid),
+        audience_role=audience_role,
     )
     started_at = time.perf_counter()
 
@@ -240,10 +258,11 @@ async def get_notifications(
         await _run_backfill_in_batches(
             [backfill_service_notifications_for_provider(db, str(uid), sr) for sr in srs]
         )
-        await _close_stale_provider_offer_notifications(
-            recipient_user_id=str(uid),
-            provider_account_id=str(provider_account_id),
-        )
+        if should_cleanup_stale_provider_offers:
+            await _close_stale_provider_offer_notifications(
+                recipient_user_id=str(uid),
+                provider_account_id=str(provider_account_id),
+            )
 
     elif should_backfill:
         assigned_srs = await db.service_requests.find(
@@ -303,10 +322,11 @@ async def get_unread_count(current_user: dict = Depends(get_current_user)):
     try:
         if audience_role == 'provider':
             provider_account_id = _effective_provider_account_id(current_user) or str(uid)
-            await _close_stale_provider_offer_notifications(
-                recipient_user_id=str(uid),
-                provider_account_id=str(provider_account_id),
-            )
+            if _should_run_stale_provider_cleanup(user_id=str(uid), audience_role=audience_role):
+                await _close_stale_provider_offer_notifications(
+                    recipient_user_id=str(uid),
+                    provider_account_id=str(provider_account_id),
+                )
         result = await unread_count(db, str(uid), audience_role)
         elapsed_ms = int((time.perf_counter() - started_at) * 1000)
         logger.info(
