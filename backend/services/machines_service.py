@@ -208,6 +208,8 @@ def normalize_machine_operators(operators: Any) -> List[dict]:
         raw_id = _operator_raw_id(item)
         rut = _clean_str(item.get("rut") or item.get("operator_rut") or item.get("operatorRut"))
         phone = _normalize_operator_phone(item.get("phone") or item.get("telefono"))
+        if not phone:
+            continue
         stable_id = raw_id if _has_stable_operator_id(raw_id) else ""
         if not stable_id:
             if rut:
@@ -248,7 +250,8 @@ def get_primary_machine_operator(machine: Optional[dict]) -> Optional[dict]:
 
 
 def machine_has_real_assigned_operator(machine: Optional[dict]) -> bool:
-    return get_primary_machine_operator(machine) is not None
+    primary = get_primary_machine_operator(machine)
+    return bool(primary and _clean_str(primary.get("phone")))
 
 
 def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, existing: Optional[dict] = None) -> Dict[str, Any]:

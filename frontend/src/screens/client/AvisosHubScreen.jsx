@@ -259,66 +259,6 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
   }, [filtered]);
 
   const openItem = async (a) => {
-    const hasDeepLink = Boolean(String(a?.deepLink || '').trim());
-    const ackRequired = Boolean(a?.ackRequired);
-    const actionRequired = Boolean(a?.actionRequired);
-    const shouldDirectNavigate = hasDeepLink && !ackRequired && !actionRequired;
-
-    if (audienceRole === 'operator' && String(a?.eventType || '').toLowerCase() === 'assigned' && !a?.ackRequired) {
-      if (!a?.readAt && a?.id) {
-        try {
-          await markNotificationRead(a.id);
-        } catch {
-          void 0;
-        }
-        setUnread((v) => {
-          const next = Math.max(0, Number(v || 0) - 1);
-          writeCachedUnreadCount(audienceRole, next);
-          return next;
-        });
-        setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
-      }
-      await openOperatorAssigned(a);
-      return;
-    }
-
-    if (audienceRole === 'provider' && String(a?.eventType || '').toLowerCase() === 'assigned' && !a?.ackRequired) {
-      if (!a?.readAt && a?.id) {
-        try {
-          await markNotificationRead(a.id);
-        } catch {
-          void 0;
-        }
-        setUnread((v) => {
-          const next = Math.max(0, Number(v || 0) - 1);
-          writeCachedUnreadCount(audienceRole, next);
-          return next;
-        });
-        setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
-      }
-      await openProviderService(a);
-      return;
-    }
-
-    if (shouldDirectNavigate) {
-      if (!a?.readAt && a?.id) {
-        try {
-          await markNotificationRead(a.id);
-        } catch {
-          void 0;
-        }
-        setUnread((v) => {
-          const next = Math.max(0, Number(v || 0) - 1);
-          writeCachedUnreadCount(audienceRole, next);
-          return next;
-        });
-        setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
-      }
-      navigate(String(a.deepLink));
-      return;
-    }
-
-    setSelected(a);
     if (!a?.readAt && a?.id) {
       try {
         await markNotificationRead(a.id);
@@ -332,6 +272,7 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
       });
       setItems((prev) => prev.map((x) => (x?.id === a.id ? { ...x, readAt: new Date().toISOString() } : x)));
     }
+    setSelected(a);
   };
 
   const closeModal = () => setSelected(null);
@@ -690,6 +631,10 @@ function AvisosHubScreen({ audienceRole = 'client' }) {
                     type="button"
                     onClick={() => {
                       closeModal();
+                      if (audienceRole === 'provider' && String(selected?.eventType || '').toLowerCase() === 'assigned') {
+                        void openProviderService(selected);
+                        return;
+                      }
                       if (audienceRole === 'operator' && String(selected?.eventType || '').toLowerCase() === 'assigned') {
                         void openOperatorAssigned(selected);
                         return;

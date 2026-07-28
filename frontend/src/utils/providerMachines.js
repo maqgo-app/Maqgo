@@ -433,7 +433,8 @@ function normalizeOperators(operators = []) {
       if (!fullName || PLACEHOLDER_OPERATOR_NAMES.has(fullName.toLowerCase())) return null;
       const phone = String(op.phone || op.telefono || '').trim();
       const rut = String(op.rut || '').trim();
-      if (!rut && !phone && !op.id && !op.user_id && !op.operator_id) return null;
+      if (!phone) return null;
+      if (!rut && !op.id && !op.user_id && !op.operator_id) return null;
       return {
         id: buildOperatorStableId(op, index),
         name: fullName,

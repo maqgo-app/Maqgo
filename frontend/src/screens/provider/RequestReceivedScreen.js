@@ -56,6 +56,8 @@ function normalizeOperatorForAssignment(operator = {}, index = 0) {
     `${operator.firstName || operator.operatorFirstName || ''} ${operator.lastName || operator.operatorLastName || ''}`
   ).trim();
   if (!rawName) return null;
+  const phone = String(operator.phone || operator.telefono || '').trim();
+  if (!phone) return null;
   const nombre = String(operator.nombre || rawName).trim();
   const apellido = String(operator.apellido || '').trim();
   return {
@@ -64,7 +66,7 @@ function normalizeOperatorForAssignment(operator = {}, index = 0) {
     apellido,
     name: `${nombre} ${apellido}`.trim(),
     rut: String(operator.rut || operator.operatorRut || '').trim(),
-    phone: String(operator.phone || operator.telefono || '').trim(),
+    phone,
     isOwner: Boolean(operator.isOwner),
     licenseType: operator.licenseType || '',
     photo: operator.photo || null,
@@ -841,12 +843,12 @@ function RequestReceivedScreen() {
                 <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0 }}>
                   {hasRealAssignedOperator
                     ? `${preferredAssignedOperator.nombre || preferredAssignedOperator.name || ''} ${preferredAssignedOperator.apellido || ''}`.trim()
-                    : 'Sin operador asignado'}
+                    : 'Sin operador listo'}
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
                   {hasRealAssignedOperator
                     ? 'Ese es el operador que saldra por defecto con esta maquina. Puedes cambiarlo antes de aceptar.'
-                    : 'Esta maquina no tiene un operador real listo para salir. Agrégalo o cámbialo ahora para no trabar la reserva.'}
+                    : 'Esta maquina no tiene un operador real con celular asignado. Agrégalo o cámbialo ahora para no trabar la reserva.'}
                 </p>
               </div>
               <button

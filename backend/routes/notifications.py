@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -22,6 +23,7 @@ from services.notification_items_service import (
 logger = logging.getLogger(__name__)
 _BACKFILL_TTL_SECONDS = 45.0
 _recent_backfill_by_user_role: Dict[Tuple[str, str], float] = {}
+_PROVIDER_OFFER_EVENT_TYPES = {"nueva_oferta", "oferta_expira"}
 
 
 def _audience_role_for_user(user: dict) -> str:
@@ -46,6 +48,129 @@ def _effective_provider_account_id(user: dict) -> Optional[str]:
     if owner_id:
         return owner_id
     return uid
+
+
+def _parse_iso_utc(raw: Optional[str]) -> Optional[datetime]:
+    value = str(raw or "").strip()
+    if not value:
+        return None
+    try:
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        dt = datetime.fromisoformat(value)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _provider_offer_still_open(sr: Optional[dict], provider_account_id: str) -> bool:
+    if not isinstance(sr, dict):
+        return False
+    status = str(sr.get("status") or "").strip().lower()
+    if status != "offer_sent":
+        return False
+
+    now = datetime.now(timezone.utc)
+    global_exp = _parse_iso_utc(sr.get("offerExpiresAt"))
+    if not global_exp or global_exp <= now:
+        return False
+
+    provider_id = str(provider_account_id or "").strip()
+    if not provider_id:
+        return False
+
+    if str(sr.get("currentOfferId") or "").strip() == provider_id:
+        return True
+
+    attempts = sr.get("matchingAttempts") if isinstance(sr.get("matchingAttempts"), list) else []
+    for attempt in attempts:
+        if not isinstance(attempt, dict):
+            continue
+        if str(attempt.get("providerId") or "").strip() != provider_id:
+            continue
+        if str(attempt.get("status") or "").strip().lower() != "pending":
+            continue
+        attempt_exp = _parse_iso_utc(attempt.get("expiresAt")) or global_exp
+        if attempt_exp and attempt_exp > now:
+            return True
+    return False
+
+
+async def _close_stale_provider_offer_notifications(
+    *,
+    recipient_user_id: str,
+    provider_account_id: str,
+    items: Optional[List[dict]] = None,
+) -> None:
+    if not recipient_user_id or not provider_account_id:
+        return
+
+    candidate_items = list(items or [])
+    if not candidate_items:
+        candidate_items = await db.notification_items.find(
+            {
+                "recipientUserId": str(recipient_user_id),
+                "audienceRole": "provider",
+                "eventType": {"$in": list(_PROVIDER_OFFER_EVENT_TYPES)},
+                "readAt": None,
+            },
+            {"_id": 0, "id": 1, "subjectId": 1, "eventType": 1, "readAt": 1},
+        ).to_list(200)
+
+    if not candidate_items:
+        return
+
+    service_ids = list(
+        {
+            str(item.get("subjectId") or "").strip()
+            for item in candidate_items
+            if str(item.get("eventType") or "").strip().lower() in _PROVIDER_OFFER_EVENT_TYPES
+            and str(item.get("subjectId") or "").strip()
+        }
+    )
+    if not service_ids:
+        return
+
+    rows = await db.service_requests.find(
+        {"id": {"$in": service_ids}},
+        {"_id": 0, "id": 1, "status": 1, "currentOfferId": 1, "offerExpiresAt": 1, "matchingAttempts": 1},
+    ).to_list(len(service_ids))
+    services_by_id = {str(row.get("id") or ""): row for row in rows}
+
+    stale_ids = []
+    for item in candidate_items:
+        event_type = str(item.get("eventType") or "").strip().lower()
+        if event_type not in _PROVIDER_OFFER_EVENT_TYPES:
+            continue
+        service_id = str(item.get("subjectId") or "").strip()
+        sr = services_by_id.get(service_id)
+        if not _provider_offer_still_open(sr, provider_account_id):
+            stale_ids.append(str(item.get("id") or "").strip())
+
+    stale_ids = [item_id for item_id in stale_ids if item_id]
+    if not stale_ids:
+        return
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.notification_items.update_many(
+        {"id": {"$in": stale_ids}},
+        {"$set": {"readAt": now_iso, "ackAt": now_iso, "pinned": False, "updatedAt": now_iso}},
+    )
+
+
+def _filter_stale_provider_offer_items(items: List[dict], provider_account_id: str, services_by_id: Dict[str, dict]) -> List[dict]:
+    filtered: List[dict] = []
+    for item in items:
+        event_type = str(item.get("eventType") or "").strip().lower()
+        if event_type not in _PROVIDER_OFFER_EVENT_TYPES:
+            filtered.append(item)
+            continue
+        service_id = str(item.get("subjectId") or "").strip()
+        if _provider_offer_still_open(services_by_id.get(service_id), provider_account_id):
+            filtered.append(item)
+    return filtered
 
 
 async def _run_backfill_in_batches(coros: List[object], *, batch_size: int = 10) -> None:
@@ -115,6 +240,10 @@ async def get_notifications(
         await _run_backfill_in_batches(
             [backfill_service_notifications_for_provider(db, str(uid), sr) for sr in srs]
         )
+        await _close_stale_provider_offer_notifications(
+            recipient_user_id=str(uid),
+            provider_account_id=str(provider_account_id),
+        )
 
     elif should_backfill:
         assigned_srs = await db.service_requests.find(
@@ -127,6 +256,24 @@ async def get_notifications(
         )
 
     result = await list_notifications(db, str(uid), audience_role, limit=limit, cursor=cursor)
+    if audience_role == 'provider':
+        provider_account_id = _effective_provider_account_id(current_user) or str(uid)
+        items = list(result.get('items') or [])
+        service_ids = list(
+            {
+                str(item.get("subjectId") or "").strip()
+                for item in items
+                if str(item.get("eventType") or "").strip().lower() in _PROVIDER_OFFER_EVENT_TYPES
+                and str(item.get("subjectId") or "").strip()
+            }
+        )
+        if service_ids:
+            rows = await db.service_requests.find(
+                {"id": {"$in": service_ids}},
+                {"_id": 0, "id": 1, "status": 1, "currentOfferId": 1, "offerExpiresAt": 1, "matchingAttempts": 1},
+            ).to_list(len(service_ids))
+            services_by_id = {str(row.get("id") or ""): row for row in rows}
+            result["items"] = _filter_stale_provider_offer_items(items, str(provider_account_id), services_by_id)
     elapsed_ms = int((time.perf_counter() - started_at) * 1000)
     logger.info(
         "notifications.feed_ok audience_role=%s user_id=%s limit=%s cursor=%s backfill=%s items=%s elapsed_ms=%s",
@@ -154,6 +301,12 @@ async def get_unread_count(current_user: dict = Depends(get_current_user)):
     audience_role = _audience_role_for_user(current_user)
     started_at = time.perf_counter()
     try:
+        if audience_role == 'provider':
+            provider_account_id = _effective_provider_account_id(current_user) or str(uid)
+            await _close_stale_provider_offer_notifications(
+                recipient_user_id=str(uid),
+                provider_account_id=str(provider_account_id),
+            )
         result = await unread_count(db, str(uid), audience_role)
         elapsed_ms = int((time.perf_counter() - started_at) * 1000)
         logger.info(

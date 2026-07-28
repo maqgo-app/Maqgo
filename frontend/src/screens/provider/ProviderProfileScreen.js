@@ -250,7 +250,14 @@ function ProviderProfileScreen() {
         <SectionTitle title="Ayuda" />
         <MenuItem 
           label="Preguntas frecuentes" 
-          onClick={() => navigate('/faq')}
+          onClick={() =>
+            navigate('/faq', {
+              state: {
+                faqRole: isOperator ? 'operator' : 'provider',
+                returnTo: isOperator ? '/provider/profile' : '/provider/profile',
+              },
+            })
+          }
         />
         <MenuItem
           label="Escribir a soporte"

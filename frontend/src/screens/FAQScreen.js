@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BackArrowIcon } from '../components/BackArrowIcon';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { MAQGO_BILLING } from '../utils/commissions';
 import { useAuth } from '../context/authHooks';
 
@@ -212,9 +212,12 @@ const ROLE_GROUPS = {
 
 function FAQScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const auth = useAuth();
   const [openIndex, setOpenIndex] = useState(null);
   const [activeCategory, setActiveCategory] = useState('Clientes');
+  const forcedRole = String(location.state?.faqRole || '').trim().toLowerCase();
+  const forcedReturnTo = String(location.state?.returnTo || '').trim();
 
   const session = (() => {
     const isAuthenticated = Boolean(!auth.loading && auth.user?.id);
@@ -229,14 +232,19 @@ function FAQScreen() {
     return { isAuthenticated, role };
   })();
 
-  const roleCategory = session.role === 'provider' ? 'Proveedores' : session.role === 'operator' ? 'Operadores' : 'Clientes';
+  const effectiveRole = useMemo(() => {
+    if (forcedRole === 'provider' || forcedRole === 'operator' || forcedRole === 'client') return forcedRole;
+    return session.role;
+  }, [forcedRole, session.role]);
 
-  const selectedCategory = session.isAuthenticated ? roleCategory : activeCategory;
+  const roleCategory = effectiveRole === 'provider' ? 'Proveedores' : effectiveRole === 'operator' ? 'Operadores' : 'Clientes';
+
+  const selectedCategory = (session.isAuthenticated || forcedRole) ? roleCategory : activeCategory;
   const currentFAQ = FAQ_DATA.find((f) => f.category === selectedCategory);
 
   const grouped = (() => {
-    if (!session.isAuthenticated || !session.role) return null;
-    const groups = ROLE_GROUPS[session.role] || [];
+    if (!effectiveRole) return null;
+    const groups = ROLE_GROUPS[effectiveRole] || [];
     const byQuestion = new Map((currentFAQ?.questions ?? []).map((q) => [q.q, q]));
     return groups
       .map((g) => ({
@@ -247,6 +255,21 @@ function FAQScreen() {
   })();
 
   const isAuthLoading = Boolean(auth.loading);
+  const headerSubtitle = effectiveRole === 'provider'
+    ? 'Información para proveedores'
+    : effectiveRole === 'operator'
+      ? 'Información para operadores'
+      : effectiveRole === 'client'
+        ? 'Información para clientes'
+        : 'Información para clientes, proveedores y operadores';
+
+  const handleBack = () => {
+    if (forcedReturnTo) {
+      navigate(forcedReturnTo);
+      return;
+    }
+    navigate(-1);
+  };
 
   return (
     <div className="maqgo-app maqgo-client-funnel" style={{ minHeight: '100vh', background: 'var(--maqgo-bg)' }}>
@@ -254,7 +277,7 @@ function FAQScreen() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
           <button 
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             style={{
               background: 'none',
               border: 'none',
@@ -271,7 +294,7 @@ function FAQScreen() {
               Preguntas frecuentes
             </h1>
             <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 12, lineHeight: 1.25 }}>
-              Información para clientes, proveedores y operadores
+              {headerSubtitle}
             </div>
           </div>
         </div>
@@ -283,7 +306,7 @@ function FAQScreen() {
         ) : (
           <>
 
-            {!session.isAuthenticated && (
+            {!session.isAuthenticated && !forcedRole && (
               <div
                 style={{
                   display: 'flex',

@@ -27,6 +27,8 @@ function normalizeStoredOperator(operator = {}, index = 0) {
   const fallbackName = String(operator.name || '').trim();
   const finalName = fullName || fallbackName;
   if (!finalName) return null;
+  const phone = String(operator.phone || operator.telefono || '').trim();
+  if (!phone) return null;
   return {
     ...operator,
     id: String(operator.id || `op-${index}`),
@@ -34,7 +36,7 @@ function normalizeStoredOperator(operator = {}, index = 0) {
     apellido,
     name: finalName,
     rut: String(operator.rut || '').trim(),
-    phone: String(operator.phone || operator.telefono || '').trim(),
+    phone,
     isOwner: Boolean(operator.isOwner),
   };
 }
@@ -257,7 +259,7 @@ function SelectOperatorScreen() {
               }}
             >
               <p style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: 0 }}>
-                Esta maquina no tiene un operador real asignado
+                Esta maquina no tiene un operador real con celular asignado
               </p>
               <p style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
                 Agrega o cambia el operador de esta maquina antes de continuar para no perder la reserva.
