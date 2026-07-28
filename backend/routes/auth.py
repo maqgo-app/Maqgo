@@ -797,7 +797,8 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
         roles = _user_roles(existing)
         u_status = _normalized_user_status(existing)
         recoverable_deleted = _is_recoverable_deleted_user(existing)
-        if not _is_active_user_doc(existing) and not recoverable_deleted:
+        activation_pending = activation_code and _is_pending_activation_user(existing)
+        if not _is_active_user_doc(existing) and not recoverable_deleted and not activation_pending:
             log_ops_event(
                 logger,
                 event="login_sms_start_inactive_user",
@@ -1050,7 +1051,8 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
 
         u_status = _normalized_user_status(user)
         recoverable_deleted = _is_recoverable_deleted_user(user)
-        if not _is_active_user_doc(user) and not recoverable_deleted:
+        activation_pending = activation_code and _is_pending_activation_user(user)
+        if not _is_active_user_doc(user) and not recoverable_deleted and not activation_pending:
             log_ops_event(
                 logger,
                 event="login_sms_verify_inactive_user",
@@ -1112,10 +1114,25 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
             try:
                 await db.users.update_one(
                     {"id": user["id"]},
-                    {"$set": {"phone": raw_phone, "phoneVerified": True}},
+                    {
+                        "$set": {
+                            "phone": raw_phone,
+                            "phoneVerified": True,
+                            "status": "active",
+                            "activationStage": "enrollment_completed",
+                            "activatedAt": datetime.now(timezone.utc).isoformat(),
+                            "deleted": False,
+                        },
+                        "$unset": {
+                            "deletedAt": "",
+                            "deletedBy": "",
+                            "deleteReason": "",
+                        },
+                    },
                 )
                 user["phone"] = raw_phone
                 user["phoneVerified"] = True
+                user["status"] = "active"
             except DuplicateKeyError:
                 raise HTTPException(
                     status_code=409,
@@ -1714,6 +1731,12 @@ def _is_active_user_doc(user: dict) -> bool:
     if user.get("deleted") is True:
         return False
     return _normalized_user_status(user) == "active"
+
+
+def _is_pending_activation_user(user: dict) -> bool:
+    if not user or user.get("deleted") is True:
+        return False
+    return _normalized_user_status(user) == "pending_activation"
 
 
 def _is_recoverable_deleted_user(user: dict) -> bool:

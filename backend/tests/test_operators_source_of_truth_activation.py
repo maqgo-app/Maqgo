@@ -129,12 +129,14 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
                 "invite_type": "operator",
                 "owner_id": "owner",
                 "operator_name": "Op",
+                "operator_phone": "+56911111111",
                 "operator_rut": self._valid_rut(),
                 "expires_at": datetime.now(timezone.utc) + timedelta(days=1),
+                "target_user_id": "op-1",
             }
         )
         mock_db.invitations.update_one = AsyncMock()
-        mock_db.users.insert_one = AsyncMock(side_effect=DuplicateKeyError("dup"))
+        mock_db.users.update_one = AsyncMock(side_effect=DuplicateKeyError("dup"))
         mock_db.users.find_one = AsyncMock(return_value={"name": "Owner"})
         operators.db = mock_db
 
@@ -143,6 +145,102 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
 
         self.assertEqual(ctx.exception.status_code, 409)
         self.assertIn("registro duplicado", str(ctx.exception.detail).lower())
+
+    def test_ensure_pending_team_user_reuses_existing_inactive_identity(self):
+        mock_db = MagicMock()
+        mock_db.users = MagicMock()
+        mock_find_cursor = MagicMock()
+        mock_find_cursor.to_list = AsyncMock(
+            return_value=[
+                {
+                    "id": "op-existing",
+                    "owner_id": "owner-1",
+                    "provider_role": "operator",
+                    "name": "Juan Soto",
+                    "phone": "+56911111111",
+                    "rut": self._valid_rut(),
+                    "rut_norm": operators._normalize_rut(self._valid_rut()),
+                    "status": "inactive",
+                }
+            ]
+        )
+        mock_db.users.find.return_value = mock_find_cursor
+        mock_db.users.update_one = AsyncMock()
+        mock_db.users.find_one = AsyncMock(
+            return_value={
+                "id": "op-existing",
+                "owner_id": "owner-1",
+                "provider_role": "operator",
+                "name": "Juan Soto",
+                "phone": "+56911111111",
+                "rut": self._valid_rut(),
+                "rut_norm": operators._normalize_rut(self._valid_rut()),
+                "status": "pending_activation",
+                "activationCode": "ABC123",
+            }
+        )
+        operators.db = mock_db
+
+        result = _run(
+            operators._ensure_pending_team_user(
+                owner_id="owner-1",
+                provider_role="operator",
+                name="Juan Soto",
+                phone="+56911111111",
+                rut=self._valid_rut(),
+                invitation_code="ABC123",
+            )
+        )
+
+        self.assertEqual(result["id"], "op-existing")
+        self.assertEqual(result["status"], "pending_activation")
+        mock_db.users.insert_one.assert_not_called()
+        mock_db.users.update_one.assert_awaited()
+
+    def test_operator_join_reuses_target_user_id_instead_of_creating_new_identity(self):
+        mock_db = MagicMock()
+        mock_db.invitations = MagicMock()
+        mock_db.users = MagicMock()
+        mock_db.invitations.find_one = AsyncMock(
+            return_value={
+                "code": "ABC123",
+                "status": "pending",
+                "invite_type": "operator",
+                "owner_id": "owner-1",
+                "operator_name": "Juan Soto",
+                "operator_phone": "+56911111111",
+                "operator_rut": self._valid_rut(),
+                "expires_at": datetime.now(timezone.utc) + timedelta(days=1),
+                "target_user_id": "op-existing",
+            }
+        )
+        mock_db.invitations.update_one = AsyncMock()
+        mock_db.users.update_one = AsyncMock()
+        mock_db.users.find_one = AsyncMock(
+            side_effect=[
+                {
+                    "id": "op-existing",
+                    "owner_id": "owner-1",
+                    "provider_role": "operator",
+                    "name": "Juan Soto",
+                    "phone": "+56911111111",
+                    "rut": self._valid_rut(),
+                    "rut_norm": operators._normalize_rut(self._valid_rut()),
+                    "status": "pending_activation",
+                },
+                {"name": "Transportes Sur"},
+            ]
+        )
+        mock_db.users.insert_one = AsyncMock()
+        operators.db = mock_db
+
+        result = _run(operators.use_invitation(operators.InvitationUse(code="ABC123")))
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["operator_id"], "op-existing")
+        mock_db.users.insert_one.assert_not_called()
+        mock_db.users.update_one.assert_awaited()
+        mock_db.invitations.update_one.assert_awaited()
 
     def test_master_join_codigo_inexistente(self):
         mock_db = MagicMock()

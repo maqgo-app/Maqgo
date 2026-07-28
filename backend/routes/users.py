@@ -775,24 +775,14 @@ async def delete_operator(
     if not operator:
         raise HTTPException(status_code=404, detail="Operador no encontrado o no te pertenece")
     
-    now = datetime.now(timezone.utc).isoformat()
-    await db.users.update_one(
-        {"id": operator_id},
-        {
-            "$set": {
-                "status": "deleted",
-                "deleted": True,
-                "deletedAt": now,
-                "deletedBy": current_user.get("id"),
-                "deleteReason": "owner_delete_operator",
-                "isAvailable": False,
-            }
-        },
+    await _apply_member_inactive_state(
+        {**operator, "_id": None},
+        actor_id=current_user.get("id"),
     )
-    
+
     return {
         'success': True,
-        'message': f"Operador eliminado"
+        'message': "Operador desactivado"
     }
 
 
@@ -828,6 +818,117 @@ def _team_member_update_fields(body: dict, *, role_label: str) -> dict:
     return update_data
 
 
+def _normalized_team_member_status(user: dict) -> str:
+    raw = str((user or {}).get("status") or "active").strip().lower()
+    if raw == "deleted":
+        return "inactive"
+    if raw in {"active", "inactive", "pending_activation"}:
+        return raw
+    return "active"
+
+
+def _machine_operator_matches(operator_ref: Any, operator_id: str) -> bool:
+    if isinstance(operator_ref, dict):
+        ref_id = str(operator_ref.get("id") or operator_ref.get("operator_id") or "").strip()
+    else:
+        ref_id = str(operator_ref or "").strip()
+    return bool(ref_id) and ref_id == operator_id
+
+
+async def _operator_has_machine_assignment(owner_id: str, operator_id: str) -> bool:
+    machine = await db.machines.find_one(
+        {
+            "provider_id": owner_id,
+            "status": {"$ne": "deleted"},
+            "operators": {"$elemMatch": {"id": operator_id}},
+        },
+        {"_id": 0, "id": 1},
+    )
+    if machine:
+        return True
+    legacy = await db.machines.find_one(
+        {
+            "provider_id": owner_id,
+            "status": {"$ne": "deleted"},
+            "operators": operator_id,
+        },
+        {"_id": 0, "id": 1},
+    )
+    return bool(legacy)
+
+
+async def _detach_operator_from_machines(owner_id: str, operator_id: str, *, actor_id: str | None = None) -> None:
+    machines = await db.machines.find(
+        {"provider_id": owner_id, "status": {"$ne": "deleted"}},
+        {"_id": 0, "id": 1, "operators": 1, "primaryOperatorId": 1, "status": 1, "published": 1, "available": 1},
+    ).to_list(500)
+    now = datetime.now(timezone.utc).isoformat()
+    for machine in machines:
+        current_ops = machine.get("operators") if isinstance(machine.get("operators"), list) else []
+        if not any(_machine_operator_matches(op, operator_id) for op in current_ops):
+            continue
+        next_ops = [op for op in current_ops if not _machine_operator_matches(op, operator_id)]
+        next_primary = str(machine.get("primaryOperatorId") or "").strip()
+        if next_primary == operator_id:
+            replacement = ""
+            for op in next_ops:
+                if isinstance(op, dict):
+                    replacement = str(op.get("id") or op.get("operator_id") or "").strip()
+                else:
+                    replacement = str(op or "").strip()
+                if replacement:
+                    break
+            next_primary = replacement
+        update = {
+            "operators": next_ops,
+            "primaryOperatorId": next_primary,
+            "updatedAt": now,
+        }
+        if not next_ops:
+            update.update(
+                {
+                    "available": False,
+                    "published": False,
+                    "status": "draft",
+                    "deactivatedByLifecycle": "operator_inactive",
+                }
+            )
+        if actor_id:
+            update["lastOperatorLifecycleActorId"] = actor_id
+        await db.machines.update_one({"id": machine.get("id")}, {"$set": update})
+
+
+async def _apply_member_inactive_state(member: dict, *, actor_id: str | None = None) -> None:
+    status = _normalized_team_member_status(member)
+    now = datetime.now(timezone.utc).isoformat()
+    update = {
+        "status": "inactive",
+        "deleted": False,
+        "isAvailable": False,
+        "updatedAt": now,
+        "deactivatedAt": now,
+        "deactivatedBy": actor_id,
+        "activationStage": "inactive",
+    }
+    await db.users.update_one(
+        {"id": member.get("id")},
+        {
+            "$set": update,
+            "$unset": {
+                "deletedAt": "",
+                "deletedBy": "",
+                "deleteReason": "",
+            },
+        },
+    )
+    if member.get("provider_role") == "operator" and status != "inactive":
+        await _detach_operator_from_machines(
+            str(member.get("owner_id") or "").strip(),
+            str(member.get("id") or "").strip(),
+            actor_id=actor_id,
+        )
+
+
 @router.patch("/{owner_id}/operators/{operator_id}", response_model=dict)
 async def patch_operator(
     owner_id: str,
@@ -848,8 +949,31 @@ async def patch_operator(
         raise HTTPException(status_code=404, detail="Operador no encontrado o no te pertenece")
 
     update_data = _team_member_update_fields(body, role_label="operador")
+    if update_data.get("status") == "inactive":
+        full_operator = await db.users.find_one({"id": operator_id}, {"_id": 0})
+        await _apply_member_inactive_state(full_operator or {"id": operator_id, "owner_id": owner_id, "provider_role": "operator"}, actor_id=current_user.get("id"))
+        return {"success": True, "message": "Operador desactivado"}
+    if update_data.get("status") == "active":
+        has_assignment = await _operator_has_machine_assignment(owner_id, operator_id)
+        if not has_assignment:
+            raise HTTPException(status_code=400, detail="Un operador activo debe tener al menos una máquina asociada.")
+        update_data["activationStage"] = "reactivated"
+        update_data["deleted"] = False
+        update_data["isAvailable"] = False
     update_data["updatedAt"] = datetime.now(timezone.utc).isoformat()
-    await db.users.update_one({"id": operator_id}, {"$set": update_data})
+    await db.users.update_one(
+        {"id": operator_id},
+        {
+            "$set": update_data,
+            "$unset": {
+                "deletedAt": "",
+                "deletedBy": "",
+                "deleteReason": "",
+                "deactivatedAt": "",
+                "deactivatedBy": "",
+            },
+        },
+    )
     return {"success": True, "message": "Operador actualizado"}
 
 
@@ -873,8 +997,28 @@ async def patch_master(
         raise HTTPException(status_code=404, detail="Gerente no encontrado o no te pertenece")
 
     update_data = _team_member_update_fields(body, role_label="Gerente")
+    if update_data.get("status") == "inactive":
+        full_master = await db.users.find_one({"id": master_id}, {"_id": 0})
+        await _apply_member_inactive_state(full_master or {"id": master_id, "owner_id": owner_id, "provider_role": "master"}, actor_id=current_user.get("id"))
+        return {"success": True, "message": "Gerente desactivado"}
+    if update_data.get("status") == "active":
+        update_data["activationStage"] = "reactivated"
+        update_data["deleted"] = False
+        update_data["isAvailable"] = False
     update_data["updatedAt"] = datetime.now(timezone.utc).isoformat()
-    await db.users.update_one({"id": master_id}, {"$set": update_data})
+    await db.users.update_one(
+        {"id": master_id},
+        {
+            "$set": update_data,
+            "$unset": {
+                "deletedAt": "",
+                "deletedBy": "",
+                "deleteReason": "",
+                "deactivatedAt": "",
+                "deactivatedBy": "",
+            },
+        },
+    )
     return {"success": True, "message": "Gerente actualizado"}
 
 
@@ -896,21 +1040,11 @@ async def delete_master(
     if not master:
         raise HTTPException(status_code=404, detail="Gerente no encontrado o no te pertenece")
 
-    now = datetime.now(timezone.utc).isoformat()
-    await db.users.update_one(
-        {"id": master_id},
-        {
-            "$set": {
-                "status": "deleted",
-                "deleted": True,
-                "deletedAt": now,
-                "deletedBy": current_user.get("id"),
-                "deleteReason": "owner_delete_master",
-                "isAvailable": False,
-            }
-        },
+    await _apply_member_inactive_state(
+        {**master, "_id": None},
+        actor_id=current_user.get("id"),
     )
-    return {"success": True, "message": "Gerente eliminado"}
+    return {"success": True, "message": "Gerente desactivado"}
 
 
 @router.get("/{user_id}/role", response_model=dict)

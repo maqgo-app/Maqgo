@@ -202,6 +202,29 @@ function TeamManagementScreen() {
   const getTeamMemberEndpoint = (ownerId, memberType, memberId) =>
     `${BACKEND_URL}/api/users/${encodeURIComponent(ownerId)}/${memberType === 'master' ? 'masters' : 'operators'}/${encodeURIComponent(memberId)}`;
 
+  const getMemberStatusMeta = (member) => {
+    const raw = String(member?.visible_status || member?.status || '').trim().toLowerCase();
+    if (raw === 'pending' || raw === 'pending_activation') {
+      return {
+        label: 'Pendiente',
+        background: 'rgba(255, 167, 38, 0.18)',
+        color: '#FFA726',
+      };
+    }
+    if (raw === 'inactive') {
+      return {
+        label: 'Inactivo',
+        background: 'rgba(158, 158, 158, 0.18)',
+        color: '#BDBDBD',
+      };
+    }
+    return {
+      label: 'Activo',
+      background: 'rgba(76, 175, 80, 0.18)',
+      color: '#4CAF50',
+    };
+  };
+
   const buildMasterJoinLink = (code) => {
     const c = String(code || '').trim().toUpperCase();
     if (!c) return '';
@@ -876,7 +899,9 @@ function TeamManagementScreen() {
                 {inviteType === 'master' ? (
                   <div style={{ marginBottom: 20 }}>
                     {team.masters && team.masters.length > 0 ? (
-                      team.masters.map((member, idx) => (
+                      team.masters.map((member, idx) => {
+                        const statusMeta = getMemberStatusMeta(member);
+                        return (
                         <div
                           key={member.id || idx}
                           style={{
@@ -935,12 +960,12 @@ function TeamManagementScreen() {
                             <span style={{
                               padding: '4px 10px',
                               borderRadius: 20,
-                              background: 'rgba(76, 175, 80, 0.18)',
-                              color: '#4CAF50',
+                              background: statusMeta.background,
+                              color: statusMeta.color,
                               fontSize: 13,
                               fontWeight: 600,
                             }}>
-                              Activo
+                              {statusMeta.label}
                             </span>
                             <button
                               type="button"
@@ -974,25 +999,10 @@ function TeamManagementScreen() {
                             >
                               Desactivar
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmAction({ action: 'delete', memberType: 'master', memberId: member.id, memberName: member.name })}
-                              style={{
-                                padding: '6px 10px',
-                                background: 'rgba(244, 67, 54, 0.18)',
-                                border: '1px solid rgba(244, 67, 54, 0.35)',
-                                borderRadius: 8,
-                                color: '#F44336',
-                                fontSize: 12,
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              Eliminar
-                            </button>
                           </div>
                         </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 18 }}>
                         <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: 0 }}>
@@ -1010,6 +1020,7 @@ function TeamManagementScreen() {
                     team.operators.map((op, idx) => (
                       (() => {
                         const gpsBadge = getOperatorGpsBadge(op);
+                        const statusMeta = getMemberStatusMeta(op);
                         return (
                       <div 
                         key={op.id || idx}
@@ -1065,12 +1076,12 @@ function TeamManagementScreen() {
                           <span style={{
                             padding: '4px 10px',
                             borderRadius: 20,
-                            background: 'rgba(76, 175, 80, 0.18)',
-                            color: '#4CAF50',
+                            background: statusMeta.background,
+                            color: statusMeta.color,
                             fontSize: 13,
                             fontWeight: 600
                           }}>
-                            Activo
+                            {statusMeta.label}
                           </span>
                           <button
                             type="button"
@@ -1103,22 +1114,6 @@ function TeamManagementScreen() {
                             }}
                           >
                             Desactivar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmAction({ action: 'delete', memberType: 'operator', memberId: op.id, memberName: op.name })}
-                            style={{
-                              padding: '6px 10px',
-                              background: 'rgba(244, 67, 54, 0.18)',
-                              border: '1px solid rgba(244, 67, 54, 0.35)',
-                              borderRadius: 8,
-                              color: '#F44336',
-                              fontSize: 12,
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Eliminar
                           </button>
                         </div>
                       </div>
@@ -2085,20 +2080,12 @@ function TeamManagementScreen() {
         <ConfirmModal
           open={Boolean(confirmAction)}
           onClose={() => setConfirmAction(null)}
-          title={
-            confirmAction?.action === 'deactivate'
-              ? `Desactivar ${confirmAction?.memberType === 'master' ? 'Gerente' : 'Operador'}`
-              : `Eliminar ${confirmAction?.memberType === 'master' ? 'Gerente' : 'Operador'}`
-          }
-          message={
-            confirmAction?.action === 'deactivate'
-              ? `Desactivar a ${confirmAction?.memberName || 'este usuario'} para que ya no aparezca en la lista activa?`
-              : `Eliminar a ${confirmAction?.memberName || 'este usuario'}? Esta acción no se puede deshacer.`
-          }
-          confirmLabel={confirmAction?.action === 'deactivate' ? 'Desactivar' : 'Eliminar'}
+          title={`Desactivar ${confirmAction?.memberType === 'master' ? 'Gerente' : 'Operador'}`}
+          message={`Desactivar a ${confirmAction?.memberName || 'este usuario'} para que deje de estar disponible en la empresa?`}
+          confirmLabel="Desactivar"
           cancelLabel="Cancelar"
           onConfirm={executeConfirmAction}
-          variant={confirmAction?.action === 'deactivate' ? 'primary' : 'danger'}
+          variant="primary"
         />
       </div>
     </div>
