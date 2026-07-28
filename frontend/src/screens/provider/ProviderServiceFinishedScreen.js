@@ -185,6 +185,7 @@ function ProviderServiceFinishedScreen() {
     localStorage.removeItem('incomingRequest');
     localStorage.removeItem('currentServiceId');
     localStorage.removeItem('assignedOperator');
+    localStorage.removeItem('assignedOperators');
     localStorage.removeItem('providerArrived');
     localStorage.removeItem('serviceStarted');
     navigate(getProviderLandingPath());

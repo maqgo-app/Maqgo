@@ -14,6 +14,11 @@ import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/Addre
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
 import { getMachines } from '../../utils/providerMachines';
+import {
+  clearReservationAssignedOperators,
+  loadReservationAssignedOperators,
+  saveReservationAssignedOperators,
+} from '../../utils/reservationOperators';
 import { useAuth } from '../../context/authHooks';
 const MIN_HOURS_FOR_LUNCH = 6;
 
@@ -98,6 +103,117 @@ function getPreferredAssignedOperatorForRequest(request) {
     if (primary) return primary;
   }
   return assignableOperators[0] || null;
+}
+
+function uniqueOperatorsById(operators = []) {
+  const seen = new Set();
+  return (Array.isArray(operators) ? operators : []).filter((operator) => {
+    const id = String(operator?.id || '').trim();
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+function normalizeScheduledDateKey(value) {
+  const raw = String(value || '').trim();
+  return raw ? raw.slice(0, 10) : '';
+}
+
+function parseRequestStartMs(req) {
+  const direct = parseIsoToMs(req?.startTime);
+  if (direct != null) return direct;
+  const day = normalizeScheduledDateKey(req?.scheduledDate);
+  if (!day) return null;
+  return parseIsoToMs(`${day}T08:00:00Z`);
+}
+
+function getRequestDurationMs(req) {
+  const totalHours =
+    toNumber(req?.totalDurationHours) ??
+    ((toNumber(req?.workdayHours) ?? 0) + (toNumber(req?.breakHours) ?? 0)) ??
+    toNumber(req?.hours);
+  if (!totalHours || totalHours <= 0) return null;
+  return totalHours * 60 * 60 * 1000;
+}
+
+function hasScheduledOverlap(targetRequest, otherRequest) {
+  const targetDay = normalizeScheduledDateKey(targetRequest?.scheduledDate);
+  const otherDay = normalizeScheduledDateKey(otherRequest?.scheduledDate);
+  if (!targetDay || !otherDay || targetDay !== otherDay) return false;
+
+  const targetStart = parseRequestStartMs(targetRequest);
+  const otherStart = parseRequestStartMs(otherRequest);
+  const targetDuration = getRequestDurationMs(targetRequest);
+  const otherDuration = getRequestDurationMs(otherRequest);
+  if (targetStart == null || otherStart == null || !targetDuration || !otherDuration) {
+    return true;
+  }
+
+  const targetEnd = targetStart + targetDuration;
+  const otherEnd = otherStart + otherDuration;
+  return targetStart < otherEnd && otherStart < targetEnd;
+}
+
+async function validateAssignedOperatorsForReservation(request, assignedOperators = []) {
+  const selected = uniqueOperatorsById(assignedOperators);
+  if (!selected.length) {
+    return {
+      ok: false,
+      message: 'Debes tener al menos un operador asignado antes de aceptar la reserva.',
+    };
+  }
+
+  if (String(request?.reservationType || '').toLowerCase() !== 'scheduled') {
+    return { ok: true };
+  }
+
+  const operatorIds = new Set(
+    selected
+      .map((operator) => String(operator?.id || '').trim())
+      .filter(Boolean)
+  );
+  if (!operatorIds.size) {
+    return {
+      ok: false,
+      message: 'Los operadores asignados no tienen un identificador válido para validar disponibilidad.',
+    };
+  }
+
+  try {
+    const { data } = await axios.get(`${BACKEND_URL}/api/service-requests`, { timeout: 10000 });
+    const items = Array.isArray(data) ? data : [];
+    const activeStatuses = new Set(['confirmed', 'en_route', 'in_progress', 'last_30']);
+    const conflictingIds = new Set();
+
+    items.forEach((item) => {
+      if (String(item?.id || '').trim() === String(request?.id || '').trim()) return;
+      if (!activeStatuses.has(String(item?.status || '').trim().toLowerCase())) return;
+      if (!hasScheduledOverlap(request, item)) return;
+      const operatorId = String(item?.operator_id || item?.operatorId || '').trim();
+      if (operatorId && operatorIds.has(operatorId)) {
+        conflictingIds.add(operatorId);
+      }
+    });
+
+    if (!conflictingIds.size) return { ok: true };
+    const names = selected
+      .filter((operator) => conflictingIds.has(String(operator?.id || '').trim()))
+      .map((operator) => `${operator?.nombre || operator?.name || ''} ${operator?.apellido || ''}`.trim())
+      .filter(Boolean);
+    return {
+      ok: false,
+      message:
+        names.length > 0
+          ? `${names.join(', ')} ya tienen otra reserva activa para ese horario.`
+          : 'Uno o más operadores ya tienen otra reserva activa para ese horario.',
+    };
+  } catch {
+    return {
+      ok: false,
+      message: 'No pudimos validar la disponibilidad de los operadores. Intenta nuevamente.',
+    };
+  }
 }
 
 function parseIsoToMs(value) {
@@ -270,8 +386,13 @@ function RequestReceivedScreen() {
   const expirationHandledRef = useRef(false);
   const offerExpiringPlayedRef = useRef(false);
   const matchedMachine = useMemo(() => getMatchedMachineForRequest(request), [request]);
+  const requestId = String(request?.id || '').trim();
+  const assignableOperators = useMemo(() => getAssignableOperatorsForRequest(request), [request]);
   const preferredAssignedOperator = useMemo(() => getPreferredAssignedOperatorForRequest(request), [request]);
-  const hasRealAssignedOperator = Boolean(preferredAssignedOperator?.nombre || preferredAssignedOperator?.name);
+  const [assignedOperators, setAssignedOperators] = useState([]);
+  const primaryAssignedOperator = assignedOperators[0] || null;
+  const additionalAssignedOperators = assignedOperators.slice(1);
+  const hasRealAssignedOperator = Boolean(primaryAssignedOperator?.nombre || primaryAssignedOperator?.name);
 
   useEffect(() => {
     if (auth.providerRole === 'operator') {
@@ -298,6 +419,24 @@ function RequestReceivedScreen() {
   useEffect(() => {
     setCountdown(getOfferRemainingSeconds(request));
   }, [request]);
+
+  useEffect(() => {
+    const assignableIds = new Set(assignableOperators.map((operator) => String(operator?.id || '').trim()).filter(Boolean));
+    const stored = loadReservationAssignedOperators(requestId).filter((operator) =>
+      assignableIds.has(String(operator?.id || '').trim())
+    );
+    const next = stored.length > 0
+      ? uniqueOperatorsById(stored)
+      : (preferredAssignedOperator ? [preferredAssignedOperator] : []);
+    setAssignedOperators(next);
+    if (requestId) {
+      if (next.length > 0) {
+        saveReservationAssignedOperators(requestId, next);
+      } else {
+        clearReservationAssignedOperators(requestId);
+      }
+    }
+  }, [assignableOperators, preferredAssignedOperator, requestId]);
 
   useEffect(() => {
     if (countdown <= 0) {
@@ -340,6 +479,18 @@ function RequestReceivedScreen() {
     setAcceptError(null);
     setLoading(true);
     try {
+      const selectedOperators = uniqueOperatorsById(assignedOperators);
+      if (!selectedOperators.length) {
+        setAcceptError('Debes asignar al menos un operador antes de aceptar la reserva.');
+        setLoading(false);
+        return;
+      }
+      const availability = await validateAssignedOperatorsForReservation(request, selectedOperators);
+      if (!availability.ok) {
+        setAcceptError(availability.message);
+        setLoading(false);
+        return;
+      }
       if (request?.id && !request.id.startsWith('req-')) {
         await axios.put(
           `${BACKEND_URL}/api/service-requests/${request.id}/accept`,
@@ -353,19 +504,12 @@ function RequestReceivedScreen() {
       localStorage.setItem('acceptedRequest', JSON.stringify(request));
       localStorage.setItem('currentServiceId', request?.id || `demo-${Date.now()}`);
       localStorage.setItem('activeServiceRequest', JSON.stringify(request));
-
-      const assignableOperators = getAssignableOperatorsForRequest(request);
       localStorage.setItem('assignableServiceOperators', JSON.stringify(assignableOperators));
-
-      // Si hay varios operadores asociados a la máquina, el proveedor debe elegir cuál irá.
-      if (assignableOperators.length !== 1) {
-        navigate('/provider/select-operator');
-      } else {
-        const operator = assignableOperators[0];
-        localStorage.setItem('assignedOperator', JSON.stringify(operator));
-        void syncAssignedOperatorToApi(operator);
-        navigate('/provider/en-route');
-      }
+      localStorage.setItem('assignedOperator', JSON.stringify(selectedOperators[0]));
+      localStorage.setItem('assignedOperators', JSON.stringify(selectedOperators));
+      clearReservationAssignedOperators(requestId);
+      void syncAssignedOperatorToApi(selectedOperators[0]);
+      navigate('/provider/en-route');
     } catch (e) {
       console.error(e);
       const isPaymentError = e.response?.status === 400 && (e.response?.data?.detail || '').toString().toLowerCase().includes('pago');
@@ -399,6 +543,7 @@ function RequestReceivedScreen() {
     } catch {
       // Ya manejamos fallback de navegación aunque falle el rechazo.
     }
+    clearReservationAssignedOperators(requestId);
     localStorage.removeItem('incomingRequest');
     navigate(homeRoute);
   };
@@ -448,6 +593,17 @@ function RequestReceivedScreen() {
         activationEdit: true,
         returnTo: location.pathname || '/provider/request-received',
         openOperatorForMachineId: matchedMachine.id,
+      },
+    });
+  };
+
+  const handleManageReservationOperators = (mode) => {
+    navigate('/provider/select-operator', {
+      state: {
+        manageMode: mode,
+        fromRequestReceived: true,
+        returnTo: location.pathname || '/provider/request-received',
+        requestId,
       },
     });
   };
@@ -835,25 +991,35 @@ function RequestReceivedScreen() {
               border: '1px solid rgba(255,255,255,0.12)',
             }}
           >
+            <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, textTransform: 'uppercase', margin: 0, marginBottom: 12 }}>
+              Operador
+            </p>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
-              <div>
-                <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, textTransform: 'uppercase', margin: 0, marginBottom: 8 }}>
-                  Operador asignado a esta maquina
-                </p>
-                <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0 }}>
-                  {hasRealAssignedOperator
-                    ? `${preferredAssignedOperator.nombre || preferredAssignedOperator.name || ''} ${preferredAssignedOperator.apellido || ''}`.trim()
-                    : 'Sin operador listo'}
+              <div style={{ flex: 1 }}>
+                <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: '#90BDD3', fontSize: 15 }}>✓</span>
+                  <span>
+                    {hasRealAssignedOperator
+                      ? `${primaryAssignedOperator.nombre || primaryAssignedOperator.name || ''} ${primaryAssignedOperator.apellido || ''}`.trim()
+                      : 'Sin operador asignado'}
+                  </span>
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
                   {hasRealAssignedOperator
-                    ? 'Ese es el operador que saldra por defecto con esta maquina. Puedes cambiarlo antes de aceptar.'
-                    : 'Esta maquina no tiene un operador real con celular asignado. Agrégalo o cámbialo ahora para no trabar la reserva.'}
+                    ? 'Operador predeterminado de esta máquina.'
+                    : 'Esta máquina no tiene un operador real con celular asignado. Agrégalo ahora para no trabar la reserva.'}
                 </p>
+                {additionalAssignedOperators.length > 0 ? (
+                  <p style={{ color: '#90BDD3', fontSize: 13, margin: '10px 0 0', lineHeight: 1.45 }}>
+                    Operadores adicionales: {additionalAssignedOperators.map((operator) => `${operator?.nombre || operator?.name || ''} ${operator?.apellido || ''}`.trim()).join(', ')}
+                  </p>
+                ) : null}
               </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={handleEditMachineOperators}
+                onClick={() => handleManageReservationOperators('replace')}
                 style={{
                   padding: '10px 12px',
                   borderRadius: 10,
@@ -863,11 +1029,44 @@ function RequestReceivedScreen() {
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: 'pointer',
-                  whiteSpace: 'nowrap',
                 }}
               >
-                {hasRealAssignedOperator ? 'Cambiar' : 'Agregar'}
+                Cambiar operador
               </button>
+              <button
+                type="button"
+                onClick={() => handleManageReservationOperators('add')}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: '1px solid rgba(144, 189, 211, 0.40)',
+                  background: 'rgba(144, 189, 211, 0.10)',
+                  color: '#90BDD3',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Agregar operador
+              </button>
+              {!hasRealAssignedOperator ? (
+                <button
+                  type="button"
+                  onClick={handleEditMachineOperators}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    background: 'transparent',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Editar máquina
+                </button>
+              ) : null}
             </div>
           </div>
         ) : null}
