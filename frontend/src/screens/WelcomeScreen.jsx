@@ -328,14 +328,14 @@ function WelcomeScreen() {
                 className="welcome-cta-secondary welcome-reveal"
                 style={{ '--welcome-d': '340ms' }}
                 data-testid="operator-join-btn"
-                aria-label="Soy operador. Unirme con código de equipo."
+                aria-label="Soy operador. Unirme a mi empresa."
               >
                 <div className="welcome-cta-icon" style={{ background: 'rgba(255,255,255,0.08)', color: '#C8C8C8' }}>
                   <IconUser />
                 </div>
                 <div style={{ textAlign: 'left', minWidth: 0 }}>
                   <div style={{ marginBottom: 1, fontSize: 15, fontWeight: 600, lineHeight: 1.2, whiteSpace: 'normal' }}>Soy operador</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Unirme con código de equipo</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.86)', lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }}>Unirme a mi empresa</div>
                 </div>
               </button>
             </>

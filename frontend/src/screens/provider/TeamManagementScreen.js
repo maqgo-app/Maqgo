@@ -287,10 +287,10 @@ function TeamManagementScreen() {
     const c = String(code || '').trim().toUpperCase();
     if (type === 'master') {
       const link = buildMasterJoinLink(c);
-      return `Tu código de activación MAQGO para Gerente es: ${c}\n\nEste usuario debe ingresar su código de activación desde el link directo de invitación:\n${link}\n\nAhí completará su identidad y quedará activado con los permisos definidos por el Titular.\n\nLuego iniciará sesión con su celular usando un código SMS (MAQGO).\n\nVálido por 7 días.\nUso único (1 persona).`;
+      return `Tu invitación MAQGO para Gerente es: ${c}\n\nEste usuario debe abrir su invitación desde este link:\n${link}\n\nAhí completará su identidad, continuará con el SMS de verificación y quedará activo con los permisos definidos por el Titular.\n\nVálido por 7 días.\nUso único (1 persona).`;
     }
     const link = buildOperatorJoinLink(c);
-    return `Tu código MAQGO para agregar operador es: ${c}\n\nEl operador se enrola desde la portada de MAQGO:\n1) Toca “Soy operador”\n2) Toca “Unirme con código de equipo”\n3) Ingresa el código\n\nO puede entrar directo aquí:\n${link}\n\nVálido por 7 días.`;
+    return `Tu invitación MAQGO para Operador es: ${c}\n\nEl operador puede entrar desde la portada de MAQGO:\n1) Toca “Soy operador”\n2) Toca “Unirme a mi empresa”\n3) Ingresa la invitación\n\nO puede entrar directo aquí:\n${link}\n\nVálido por 7 días.`;
   };
 
   const openEditMember = (memberType, member) => {
@@ -578,27 +578,13 @@ function TeamManagementScreen() {
         } catch {
           void 0;
         }
-        throw new Error(
-          detail ||
-            (confirmAction.action === 'deactivate'
-              ? `No pudimos desactivar el ${memberLabel}.`
-              : `No pudimos eliminar el ${memberLabel}.`)
-        );
+        throw new Error(detail || `No pudimos desactivar el ${memberLabel}.`);
       }
-      toast.success(
-        confirmAction.action === 'deactivate'
-          ? `${confirmAction.memberType === 'master' ? 'Gerente' : 'Operador'} desactivado`
-          : `${confirmAction.memberType === 'master' ? 'Gerente' : 'Operador'} eliminado`
-      );
+      toast.success(`${confirmAction.memberType === 'master' ? 'Gerente' : 'Operador'} desactivado`);
       setConfirmAction(null);
       loadTeam();
     } catch (e) {
-      toast.error(
-        e?.message ||
-          (confirmAction.action === 'deactivate'
-            ? `No pudimos desactivar el ${memberLabel}.`
-            : `No pudimos eliminar el ${memberLabel}.`)
-      );
+      toast.error(e?.message || `No pudimos desactivar el ${memberLabel}.`);
     }
   };
 
@@ -687,12 +673,12 @@ function TeamManagementScreen() {
         {
           k: 'can_manage_operators',
           label: 'Puede crear y administrar operadores',
-          help: 'Permite generar códigos, revisar accesos y gestionar operadores.',
+          help: 'Permite generar invitaciones, revisar accesos y gestionar operadores.',
         },
         {
           k: 'can_delete_master',
-          label: 'Puede desactivar o eliminar Gerentes',
-          help: 'Permite quitar acceso a otros Gerentes.',
+          label: 'Puede desactivar Gerentes',
+          help: 'Permite quitar acceso operativo a otros Gerentes.',
         },
       ],
     },
@@ -1152,8 +1138,8 @@ function TeamManagementScreen() {
                         </div>
                         <div style={{ color: 'rgba(255,255,255,0.86)', fontSize: 12, lineHeight: 1.45 }}>
                           {overduePendingInvitations.length === 1
-                            ? 'Hay 1 operador con mas de 24 horas sin enrolar su codigo de activacion.'
-                            : `Hay ${overduePendingInvitations.length} operadores con mas de 24 horas sin enrolar su codigo de activacion.`}
+                            ? 'Hay 1 operador con mas de 24 horas sin completar su invitacion.'
+                            : `Hay ${overduePendingInvitations.length} operadores con mas de 24 horas sin completar su invitacion.`}
                         </div>
                       </div>
                     )}
@@ -1337,8 +1323,8 @@ function TeamManagementScreen() {
                       </div>
                       <div style={{ color: 'rgba(255,255,255,0.86)', fontSize: 12, lineHeight: 1.45 }}>
                         {overduePendingInvitations.length === 1
-                          ? 'Hay 1 operador con mas de 24 horas sin enrolar su codigo de activacion.'
-                          : `Hay ${overduePendingInvitations.length} operadores con mas de 24 horas sin enrolar su codigo de activacion.`}
+                          ? 'Hay 1 operador con mas de 24 horas sin completar su invitacion.'
+                          : `Hay ${overduePendingInvitations.length} operadores con mas de 24 horas sin completar su invitacion.`}
                       </div>
                     </div>
                   )}
@@ -1479,10 +1465,10 @@ function TeamManagementScreen() {
               ) : (
                 <div style={{ background: '#2A2A2A', borderRadius: 12, padding: 18 }}>
                   <p style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: 0 }}>
-                    No tienes códigos pendientes.
+                    No tienes invitaciones pendientes.
                   </p>
                   <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
-                    Cuando generes un código para Operador o Gerente, lo verás aquí.
+                    Cuando generes una invitación para Operador o Gerente, la verás aquí.
                   </p>
                 </div>
               )
@@ -1727,11 +1713,11 @@ function TeamManagementScreen() {
                 >
                   {inviting
                     ? 'Generando...'
-                    : 'Generar código'}
+                    : 'Generar invitación'}
                 </button>
               </>
             ) : (
-              /* Código generado */
+              /* Invitación generada */
               <div style={{ textAlign: 'center' }}>
                 <div style={{
                   width: 80,
@@ -1755,7 +1741,7 @@ function TeamManagementScreen() {
                   margin: '0 0 8px',
                   fontFamily: "'Space Grotesk', sans-serif"
                 }}>
-                  {inviteType === 'master' ? 'Código de activación listo' : 'Código generado'}
+                  {inviteType === 'master' ? 'Invitación lista' : 'Invitación generada'}
                 </h2>
                 
                 <p style={{ 
@@ -1763,7 +1749,7 @@ function TeamManagementScreen() {
                   fontSize: 13, 
                   margin: '0 0 25px'
                 }}>
-                  {inviteType === 'master' ? 'Código de activación para Gerente' : 'Código de activación para Operador'}
+                  {inviteType === 'master' ? 'Invitación para Gerente' : 'Invitación para Operador'}
                 </p>
 
                 {Array.isArray(batchInvites) && batchInvites.length > 1 && (

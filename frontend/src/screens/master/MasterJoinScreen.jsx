@@ -68,7 +68,7 @@ function MasterJoinScreen() {
             fontFamily: "'Space Grotesk', sans-serif",
           }}
         >
-          Activación de Gerente
+          Invitación de Gerente
         </h1>
         <p
           style={{
@@ -79,7 +79,7 @@ function MasterJoinScreen() {
             lineHeight: 1.5,
           }}
         >
-          Ingresa el código que te compartió tu empresa (no es el código SMS). Luego iniciarás sesión con un código SMS (MAQGO).
+          Ingresa la invitación que te compartió tu empresa. Después continuarás con el SMS de verificación de MAQGO.
         </p>
 
         <div style={{ marginBottom: 20 }}>

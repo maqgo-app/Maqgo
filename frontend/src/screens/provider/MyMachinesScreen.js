@@ -966,9 +966,9 @@ function AssignOperatorsModal({
       setNewOperatorRut('');
       setNewOperatorPhone('+569');
       await loadAssignableData();
-      toast.success('Codigo de activacion generado');
+      toast.success('Invitación generada');
     } catch (e) {
-      toast.error(e?.response?.data?.detail || 'No se pudo generar el codigo del operador.');
+      toast.error(e?.response?.data?.detail || 'No se pudo generar la invitación del operador.');
     } finally {
       setCreatingInvite(false);
     }
@@ -987,10 +987,10 @@ function AssignOperatorsModal({
       }}
     >
       <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
-        Generar código
+        Generar invitación
       </div>
       <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 1.45, margin: '0 0 12px' }}>
-        Te mostraremos un codigo para que lo compartas con el operador.
+        Te mostraremos una invitación para que la compartas con el operador.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <input
@@ -1020,7 +1020,7 @@ function AssignOperatorsModal({
           disabled={creatingInvite}
           style={{ ...btnPrimary, width: '100%', flex: 'none', opacity: creatingInvite ? 0.7 : 1 }}
         >
-          {creatingInvite ? 'Generando...' : 'Generar código'}
+          {creatingInvite ? 'Generando...' : 'Generar invitación'}
         </button>
       </div>
       {recentInvite?.code ? (
@@ -1034,21 +1034,21 @@ function AssignOperatorsModal({
           }}
         >
           <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
-            Codigo listo para {recentInvite.operator_name}
+            Invitación lista para {recentInvite.operator_name}
           </div>
           <div style={{ color: '#EC6819', fontSize: 18, fontWeight: 800, letterSpacing: 1.2, marginTop: 6 }}>
             {recentInvite.code}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 6 }}>
-            Compártelo para que lo ingrese en MAQGO.
+            Compártela para que complete su ingreso en MAQGO.
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={() => copyTextToClipboard(recentInvite.code, 'Codigo copiado')}
+              onClick={() => copyTextToClipboard(recentInvite.code, 'Invitación copiada')}
               style={{ ...btnPrimary, flex: '1 1 120px', padding: 10, fontSize: 12 }}
             >
-              Copiar codigo
+              Copiar invitación
             </button>
             <button
               type="button"
@@ -1124,12 +1124,12 @@ function AssignOperatorsModal({
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
               Revisa tu conexión y vuelve a intentar.
               {canManageOperators ? (
-                <> También puedes gestionar códigos desde <strong>Código de activación operadores</strong>.</>
+                <> También puedes gestionar invitaciones desde <strong>Invitaciones de operadores</strong>.</>
               ) : null}
             </p>
             {canManageOperators ? (
               <button onClick={() => { onClose(); navigate(buildOperatorCodesRoute()); }} style={{ ...btnPrimary, marginTop: 16 }}>
-                Ir a Código de activación
+                Ir a Invitaciones
               </button>
             ) : null}
             {renderInlineInviteEntry()}
@@ -1161,8 +1161,8 @@ function AssignOperatorsModal({
                 </div>
                 <div style={{ color: 'rgba(255,255,255,0.86)', fontSize: 12, lineHeight: 1.45 }}>
                   {overduePendingInvitations.length === 1
-                    ? 'Hay 1 operador que lleva mas de 24 horas sin enrolar su codigo de activacion.'
-                    : `Hay ${overduePendingInvitations.length} operadores que llevan mas de 24 horas sin enrolar su codigo de activacion.`}
+                    ? 'Hay 1 operador que lleva mas de 24 horas sin completar su invitacion.'
+                    : `Hay ${overduePendingInvitations.length} operadores que llevan mas de 24 horas sin completar su invitacion.`}
                 </div>
               </div>
             )}
@@ -1173,11 +1173,11 @@ function AssignOperatorsModal({
                 </div>
                 <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, lineHeight: 1.45 }}>
                   {missingAssigned.map((op) => op?.name).filter(Boolean).join(', ')}.
-                  {' '}Revísalos en Ver códigos.
+                  {' '}Revísalos en Ver invitaciones.
                 </div>
                 {canManageOperators ? (
                   <button onClick={() => { onClose(); navigate(buildOperatorCodesRoute()); }} style={{ ...btnPrimary, marginTop: 12 }}>
-                    Ver códigos
+                    Ver invitaciones
                   </button>
                 ) : null}
               </div>
@@ -1261,14 +1261,14 @@ function AssignOperatorsModal({
                   }}
                 >
                   <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, lineHeight: 1.4 }}>
-                    Tienes {pendingInvitations.length} código{pendingInvitations.length === 1 ? '' : 's'} pendiente{pendingInvitations.length === 1 ? '' : 's'}.
+                    Tienes {pendingInvitations.length} invitación{pendingInvitations.length === 1 ? '' : 'es'} pendiente{pendingInvitations.length === 1 ? '' : 's'}.
                   </div>
                   {canManageOperators ? (
                     <button
                       onClick={() => { onClose(); navigate(buildOperatorCodesRoute()); }}
                       style={{ ...btnPrimary, marginTop: 12, width: '100%' }}
                     >
-                      Ver códigos
+                      Ver invitaciones
                     </button>
                   ) : null}
                 </div>

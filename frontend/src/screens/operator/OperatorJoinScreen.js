@@ -216,7 +216,7 @@ function OperatorJoinScreen() {
           }}
         >
           {phase === 'code'
-            ? 'Ingresa tu código de activación'
+            ? 'Ingresa tu invitación de empresa'
             : phase === 'sending'
               ? 'Estamos preparando tu cuenta.'
               : phase === 'otp'

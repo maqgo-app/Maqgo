@@ -119,12 +119,12 @@ const FAQ_DATA = [
     category: 'Operadores',
     questions: [
       {
-        q: '¿Qué es "Soy operador (tengo código)"?',
-        a: 'Cuando una empresa te asocia como operador de una maquinaria, recibes un código de 6 dígitos por SMS. Usa esta opción para ingresar el código y activar tu cuenta.'
+        q: '¿Qué es "Soy operador"?',
+        a: 'Es el acceso para operadores invitados por una empresa. Cuando te asignan a una o más máquinas, recibes una invitación de MAQGO y desde aquí completas tu ingreso.'
       },
       {
-        q: '¿Cómo me uno con mi código?',
-        a: 'En la pantalla de inicio, selecciona "Soy operador (tengo código)", ingresa el código de 6 dígitos y quedarás activo y asociado a la maquinaria. La empresa recibirá confirmación.'
+        q: '¿Cómo me uno a mi empresa?',
+        a: 'En la pantalla de inicio, selecciona "Soy operador", ingresa tu invitación de 6 dígitos y continúa con el SMS de verificación. Al terminar quedarás activo y asociado a las máquinas definidas por tu empresa.'
       },
       {
         q: '¿Qué puedo hacer como operador?',
