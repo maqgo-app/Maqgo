@@ -42,7 +42,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Recibiré factura?',
-        a: 'Sí. MAQGO te emite la factura por la reserva. El proveedor factura a MAQGO (no al cliente). También recibirás un Resumen de Servicio con el detalle del servicio.'
+        a: `Sí. MAQGO te emite la factura por la reserva. El proveedor factura a ${MAQGO_BILLING.razonSocial} (no al cliente). También recibirás un Resumen de Servicio con el detalle del servicio.`
       },
       {
         q: '¿Qué pasa si el operador llega y no estoy?',
@@ -107,7 +107,7 @@ const FAQ_DATA = [
       },
       {
         q: '¿Cómo emito la factura a MAQGO?',
-        a: 'La factura debe ser emitida a MAQGO y cargada en el sistema (Mis Cobros → Subir factura). Incluye el ID de transacción de la reserva. El pago se realiza en 2 días hábiles desde la carga.'
+        a: `La factura debe ser emitida a ${MAQGO_BILLING.razonSocial} y cargada en el sistema (Mis Cobros → Subir factura). Incluye el ID de transacción de la reserva. El pago se realiza en 2 días hábiles desde la carga.`
       },
       {
         q: '¿A qué datos debe ir emitida la factura?',

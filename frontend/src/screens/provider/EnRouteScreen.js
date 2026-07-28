@@ -400,18 +400,6 @@ function EnRouteScreen() {
               <div>
                 <div style={{ color: '#fff', fontSize: 15, fontWeight: 500 }}>
                   {assignedOperator.nombre} {assignedOperator.apellido}
-                  {assignedOperator.isOwner && (
-                    <span style={{ 
-                      marginLeft: 8, 
-                      fontSize: 12, 
-                      background: 'rgba(144, 189, 211, 0.2)', 
-                      color: '#90BDD3',
-                      padding: '2px 6px',
-                      borderRadius: 4
-                    }}>
-                      Propietario
-                    </span>
-                  )}
                 </div>
                 <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 12 }}>
                   RUT: {assignedOperator.rut}

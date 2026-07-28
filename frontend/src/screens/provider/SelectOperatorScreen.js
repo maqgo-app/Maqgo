@@ -9,6 +9,7 @@ import { useToast } from '../../components/Toast';
 import { getObject, getArray, getObjectFirst } from '../../utils/safeStorage';
 import { syncAssignedOperatorToApi } from '../../utils/syncAssignedOperatorToApi';
 import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
+import { getMachines } from '../../utils/providerMachines';
 
 /**
  * Pantalla: Selección de Operador (PROVEEDOR)
@@ -38,6 +39,37 @@ function normalizeStoredOperator(operator = {}, index = 0) {
   };
 }
 
+function normalizeMachineryKey(raw) {
+  return String(raw || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    .trim();
+}
+
+function resolveMatchedMachine(request) {
+  const machines = getMachines();
+  const requestMachineId = String(request?.machineId || request?.machine_id || '').trim();
+  const requestMachineryKey = normalizeMachineryKey(
+    request?.machineryId || request?.machineryType || request?.machinery_type
+  );
+
+  if (requestMachineId) {
+    const byId = machines.find((machine) => String(machine?.id || '').trim() === requestMachineId);
+    if (byId) return byId;
+  }
+
+  if (!requestMachineryKey) return null;
+  return (
+    machines.find(
+      (machine) =>
+        normalizeMachineryKey(machine?.machineryType || machine?.type || machine?.id) === requestMachineryKey
+    ) || null
+  );
+}
+
 function SelectOperatorScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -49,9 +81,10 @@ function SelectOperatorScreen() {
   const [useAsDefault, setUseAsDefault] = useState(false);
   const [showBackModal, setShowBackModal] = useState(false);
   const fromEnRoute = Boolean(location.state?.fromEnRoute);
+  const acceptedRequest = getObjectFirst(['acceptedRequest', 'incomingRequest'], {});
+  const matchedMachine = resolveMatchedMachine(acceptedRequest);
   const [machineryId] = useState(() => {
-    const accepted = getObjectFirst(['acceptedRequest', 'incomingRequest'], {});
-    const raw = (accepted.machineryId || accepted.machineryType || 'retroexcavadora').toString();
+    const raw = (acceptedRequest.machineryId || acceptedRequest.machineryType || 'retroexcavadora').toString();
     return raw
       .toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -70,18 +103,8 @@ function SelectOperatorScreen() {
     const currentAssignedOperator = normalizeStoredOperator(getObject('assignedOperator', {}), -1);
 
     if (savedOperators.length === 0) {
-      const registerData = getObject('registerData', {});
-      const providerData = getObject('providerData', {});
-      const defaultOperator = {
-        id: 'owner',
-        nombre: registerData.nombre || 'Propietario',
-        apellido: registerData.apellido || '',
-        rut: providerData.rut || 'No registrado',
-        licenseType: 'Clase D',
-        isOwner: true
-      };
-      setOperators([defaultOperator]);
-      setSelectedOperator(defaultOperator);
+      setOperators([]);
+      setSelectedOperator(null);
       return;
     }
 
@@ -168,6 +191,17 @@ function SelectOperatorScreen() {
     navigate(getProviderLandingPath());
   };
 
+  const handleEditMachineOperators = () => {
+    if (!matchedMachine?.id) return;
+    navigate('/provider/machines', {
+      state: {
+        activationEdit: true,
+        returnTo: '/provider/select-operator',
+        openOperatorForMachineId: matchedMachine.id,
+      },
+    });
+  };
+
   return (
     <div className="maqgo-app maqgo-provider-funnel">
       <div className="maqgo-screen" style={{ padding: 'var(--maqgo-screen-padding-top) 20px 20px' }}>
@@ -212,6 +246,35 @@ function SelectOperatorScreen() {
 
         {/* Lista de operadores */}
         <div style={{ flex: 1 }}>
+          {operators.length === 0 && (
+            <div
+              style={{
+                background: '#363636',
+                borderRadius: 12,
+                padding: 18,
+                marginBottom: 16,
+                border: '1px solid rgba(255,255,255,0.10)',
+              }}
+            >
+              <p style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: 0 }}>
+                Esta maquina no tiene un operador real asignado
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
+                Agrega o cambia el operador de esta maquina antes de continuar para no perder la reserva.
+              </p>
+              {matchedMachine?.id ? (
+                <button
+                  type="button"
+                  className="maqgo-btn-primary"
+                  onClick={handleEditMachineOperators}
+                  style={{ width: '100%', marginTop: 14 }}
+                >
+                  Agregar o cambiar operador
+                </button>
+              ) : null}
+            </div>
+          )}
+
           {operators.map((op) => (
             <div 
               key={op.id}
@@ -254,18 +317,6 @@ function SelectOperatorScreen() {
                     marginBottom: 4
                   }}>
                     {op.nombre} {op.apellido}
-                    {op.isOwner && (
-                      <span style={{ 
-                        marginLeft: 8, 
-                        fontSize: 12, 
-                        background: 'rgba(144, 189, 211, 0.2)', 
-                        color: '#90BDD3',
-                        padding: '2px 6px',
-                        borderRadius: 4
-                      }}>
-                        Propietario
-                      </span>
-                    )}
                   </div>
                   <div style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13 }}>
                     RUT: {op.rut}
@@ -381,7 +432,7 @@ function SelectOperatorScreen() {
               marginTop: 12
             }}>
               <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: 0, textAlign: 'center' }}>
-                Puedes agregar más operadores desde tu perfil
+                Puedes agregar o cambiar operadores de esta máquina sin salir del flujo
               </p>
             </div>
           )}

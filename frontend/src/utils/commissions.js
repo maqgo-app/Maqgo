@@ -7,9 +7,9 @@
  * - Comisión Total efectiva: 22.9%
  */
 
-// Datos de facturación de MAQGO (el proveedor factura a MAQGO: neto + IVA menos comisión neta + IVA)
+// Datos de facturación legal del marketplace (el proveedor factura a esta razón social).
 export const MAQGO_BILLING = {
-  razonSocial: 'MAQGO SpA',
+  razonSocial: 'ALTO FUTRONO SpA',
   rut: '76.248.124-3',
   giro: 'Servicios de TI',
   direccion: 'Fdo Chicureo HJ 1 y 2 Colina',

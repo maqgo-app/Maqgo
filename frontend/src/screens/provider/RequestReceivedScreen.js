@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getObject, getJSON, getArray } from '../../utils/safeStorage';
 import { playNewRequestSound, playOfferExpiringSound, unlockAudio } from '../../utils/notificationSounds';
@@ -27,6 +27,27 @@ function normalizeMachineryKey(raw) {
     .trim();
 }
 
+function getMatchedMachineForRequest(request) {
+  const machines = getMachines();
+  const requestMachineId = String(request?.machineId || request?.machine_id || '').trim();
+  const requestMachineryKey = normalizeMachineryKey(
+    request?.machineryId || request?.machineryType || request?.machinery_type
+  );
+
+  if (requestMachineId) {
+    const machineById = machines.find((machine) => String(machine?.id || '').trim() === requestMachineId);
+    if (machineById) return machineById;
+  }
+
+  if (!requestMachineryKey) return null;
+  return (
+    machines.find(
+      (machine) =>
+        normalizeMachineryKey(machine?.machineryType || machine?.type || machine?.id) === requestMachineryKey
+    ) || null
+  );
+}
+
 function normalizeOperatorForAssignment(operator = {}, index = 0) {
   if (!operator || typeof operator !== 'object') return null;
   const rawName = String(
@@ -51,24 +72,7 @@ function normalizeOperatorForAssignment(operator = {}, index = 0) {
 }
 
 function getAssignableOperatorsForRequest(request) {
-  const machines = getMachines();
-  const requestMachineId = String(request?.machineId || request?.machine_id || '').trim();
-  const requestMachineryKey = normalizeMachineryKey(
-    request?.machineryId || request?.machineryType || request?.machinery_type
-  );
-
-  let matchedMachine = null;
-  if (requestMachineId) {
-    matchedMachine = machines.find((machine) => String(machine?.id || '').trim() === requestMachineId) || null;
-  }
-  if (!matchedMachine && requestMachineryKey) {
-    matchedMachine =
-      machines.find(
-        (machine) =>
-          normalizeMachineryKey(machine?.machineryType || machine?.type || machine?.id) === requestMachineryKey
-      ) || null;
-  }
-
+  const matchedMachine = getMatchedMachineForRequest(request);
   const machineOperators = Array.isArray(matchedMachine?.operators) ? matchedMachine.operators : [];
   const normalizedMachineOperators = machineOperators
     .map((operator, index) => normalizeOperatorForAssignment(operator, index))
@@ -80,6 +84,18 @@ function getAssignableOperatorsForRequest(request) {
   return getArray('operatorsData', [])
     .map((operator, index) => normalizeOperatorForAssignment(operator, index))
     .filter(Boolean);
+}
+
+function getPreferredAssignedOperatorForRequest(request) {
+  const matchedMachine = getMatchedMachineForRequest(request);
+  const assignableOperators = getAssignableOperatorsForRequest(request);
+  if (!assignableOperators.length) return null;
+  const primaryOperatorId = String(matchedMachine?.primaryOperatorId || matchedMachine?.primary_operator_id || '').trim();
+  if (primaryOperatorId) {
+    const primary = assignableOperators.find((operator) => String(operator?.id || '').trim() === primaryOperatorId);
+    if (primary) return primary;
+  }
+  return assignableOperators[0] || null;
 }
 
 function parseIsoToMs(value) {
@@ -233,6 +249,7 @@ function buildInitialIncomingRequest() {
  */
 function RequestReceivedScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const auth = useAuth();
   const { hasPermission } = auth;
   const [request, setRequest] = useState(() => buildInitialIncomingRequest());
@@ -250,6 +267,9 @@ function RequestReceivedScreen() {
   const [etaMinutes, setEtaMinutes] = useState(null);
   const expirationHandledRef = useRef(false);
   const offerExpiringPlayedRef = useRef(false);
+  const matchedMachine = useMemo(() => getMatchedMachineForRequest(request), [request]);
+  const preferredAssignedOperator = useMemo(() => getPreferredAssignedOperatorForRequest(request), [request]);
+  const hasRealAssignedOperator = Boolean(preferredAssignedOperator?.nombre || preferredAssignedOperator?.name);
 
   useEffect(() => {
     if (auth.providerRole === 'operator') {
@@ -418,6 +438,17 @@ function RequestReceivedScreen() {
     );
   const canAcceptRequests = typeof hasPermission === 'function' ? hasPermission('canAcceptRequests') : true;
   const canAcceptNow = canProceedToAccept && (canAcceptRequests || operatorGpsConfirmed);
+
+  const handleEditMachineOperators = () => {
+    if (!matchedMachine?.id) return;
+    navigate('/provider/machines', {
+      state: {
+        activationEdit: true,
+        returnTo: location.pathname || '/provider/request-received',
+        openOperatorForMachineId: matchedMachine.id,
+      },
+    });
+  };
 
   const loadStoredDepartureLocation = async () => {
     const userId = auth.user?.id;
@@ -791,6 +822,53 @@ function RequestReceivedScreen() {
             Al aceptar, MAQGO confirma la solicitud y ejecuta el cobro OneClick al cliente.
           </p>
         </div>
+
+        {!isOperator && matchedMachine ? (
+          <div
+            style={{
+              background: '#2A2A2A',
+              borderRadius: 14,
+              padding: 16,
+              marginBottom: 16,
+              border: '1px solid rgba(255,255,255,0.12)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+              <div>
+                <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, textTransform: 'uppercase', margin: 0, marginBottom: 8 }}>
+                  Operador asignado a esta maquina
+                </p>
+                <p style={{ color: '#fff', fontSize: 16, fontWeight: 700, margin: 0 }}>
+                  {hasRealAssignedOperator
+                    ? `${preferredAssignedOperator.nombre || preferredAssignedOperator.name || ''} ${preferredAssignedOperator.apellido || ''}`.trim()
+                    : 'Sin operador asignado'}
+                </p>
+                <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
+                  {hasRealAssignedOperator
+                    ? 'Ese es el operador que saldra por defecto con esta maquina. Puedes cambiarlo antes de aceptar.'
+                    : 'Esta maquina no tiene un operador real listo para salir. Agrégalo o cámbialo ahora para no trabar la reserva.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleEditMachineOperators}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: '1px solid rgba(236, 104, 25, 0.45)',
+                  background: 'rgba(236, 104, 25, 0.10)',
+                  color: '#EC6819',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {hasRealAssignedOperator ? 'Cambiar' : 'Agregar'}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {flowStep === 'preconfirm' && isImmediate && (
           <div style={{ background: '#2A2A2A', borderRadius: 14, padding: 16, marginBottom: 16, border: '1px solid rgba(255,255,255,0.12)' }}>
