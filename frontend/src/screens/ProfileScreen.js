@@ -330,6 +330,30 @@ function ProfileScreen() {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  window.location.href = 'mailto:soporte@maqgo.cl';
+                }}
+                style={{
+                  width: '100%',
+                  padding: 16,
+                  background: '#2A2A2A',
+                  border: 'none',
+                  borderRadius: 12,
+                  color: '#fff',
+                  fontSize: 15,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 10,
+                }}
+              >
+                <span>Escribir a soporte</span>
+                <span aria-hidden>›</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => navigate('/terms')}
                 style={{
                   width: '100%',

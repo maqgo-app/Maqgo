@@ -64,7 +64,7 @@ const FAQ_DATA = [
             <a href="mailto:soporte@maqgo.cl" style={{ color: '#90BDD3' }}>
               soporte@maqgo.cl
             </a>
-            . También puedes revisar Ayuda y Soporte dentro de la aplicación.
+            . También puedes revisar esta sección y los documentos legales.
           </>
         )
       }

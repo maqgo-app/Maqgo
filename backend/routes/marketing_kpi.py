@@ -397,7 +397,7 @@ async def _run_weekly_cron_job() -> Dict[str, Any]:
                 )
                 await asyncio.to_thread(
                     resend.Emails.send,
-                    {"from": os.environ.get("SENDER_EMAIL", "onboarding@resend.dev"), "to": admin_email, "subject": subject, "text": text},
+                    {"from": os.environ.get("SENDER_EMAIL", "soporte@maqgo.cl"), "to": admin_email, "subject": subject, "text": text},
                 )
         except Exception as e:
             logger.warning("Email reporte marketing no enviado: %s", e)

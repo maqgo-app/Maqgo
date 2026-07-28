@@ -241,7 +241,7 @@ def _email_html(subject: str, message: str) -> str:
         else ""
     )
 
-    sender_email = (os.environ.get("SENDER_EMAIL", "").strip() or "equipo@maqgo.cl").strip()
+    sender_email = (os.environ.get("SENDER_EMAIL", "").strip() or "soporte@maqgo.cl").strip()
     sender_name = (os.environ.get("SENDER_NAME", "").strip() or "Equipo MAQGO").strip()
     sender_from = f"{sender_name} <{sender_email}>" if sender_name else sender_email
 

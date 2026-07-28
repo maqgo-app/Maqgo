@@ -52,7 +52,7 @@ db = client[get_db_name()]
 
 # Resend (opcional)
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'soporte@maqgo.cl')
 if resend and RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 

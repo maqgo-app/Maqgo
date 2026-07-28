@@ -67,7 +67,7 @@ def get_machinery_name(machinery_id: str) -> str:
 
 # URL de la app para enlaces en recordatorios (env o localhost)
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5174").rstrip("/")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "soporte@maqgo.cl")
 
 mongo_url = get_mongo_url()
 client = AsyncIOMotorClient(mongo_url)

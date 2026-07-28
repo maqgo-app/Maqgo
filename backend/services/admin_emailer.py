@@ -54,7 +54,7 @@ def _normalize_email_list(value) -> list[str]:
 
 
 def _get_sender_email() -> str:
-    return (os.environ.get("SENDER_EMAIL", "").strip() or "equipo@maqgo.cl").strip()
+    return (os.environ.get("SENDER_EMAIL", "").strip() or "soporte@maqgo.cl").strip()
 
 
 def _get_sender_name() -> str:

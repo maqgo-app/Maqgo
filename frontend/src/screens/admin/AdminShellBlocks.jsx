@@ -112,7 +112,7 @@ export function AdminActionLink({ to, label, tone = 'secondary' }) {
   );
 }
 
-export function AdminDomainCard({ title, subtitle, bullets = [], to, actionLabel = 'Abrir dominio' }) {
+export function AdminDomainCard({ title, subtitle, bullets = [], to, actionLabel = 'Abrir area' }) {
   const theme = ADMIN_SHELL_THEME;
   return (
     <div

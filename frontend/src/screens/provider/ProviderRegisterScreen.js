@@ -507,7 +507,7 @@ function ProviderRegisterScreen() {
           statusMessages: {
             502: 'No pudimos enviarte el código. Intenta nuevamente.',
             429: 'Demasiados intentos. Espera un minuto e intenta de nuevo.',
-            403: 'Tu cuenta está desactivada. Usa otro número o solicita reactivación.',
+            403: 'Tu cuenta está desactivada. Usa otro número o revisa la ayuda de acceso.',
           },
         });
         setErrors((e) => ({ ...e, celular: msg }));
@@ -582,7 +582,7 @@ function ProviderRegisterScreen() {
           fallback: 'No pudimos reenviar el código. Intenta nuevamente.',
           statusMessages: {
             429: 'Demasiados intentos. Espera un minuto e intenta de nuevo.',
-            403: 'Tu cuenta está desactivada. Usa otro número o solicita reactivación.',
+            403: 'Tu cuenta está desactivada. Usa otro número o revisa la ayuda de acceso.',
           },
         })
       );
@@ -612,7 +612,7 @@ function ProviderRegisterScreen() {
         const data = vres.data || {};
         const roVerify = data.requires_otp !== undefined ? data.requires_otp : false;
         if (!establishSession(data)) {
-          toast.error('No se pudo iniciar sesión con el código. Intenta de nuevo o solicita otro SMS.');
+          toast.error('No se pudo iniciar sesión con el código. Intenta de nuevo o pide otro SMS.');
           setOtpCode('');
           logProviderUnifiedFlow({
             requiresOTP: Boolean(roVerify),
@@ -644,7 +644,7 @@ function ProviderRegisterScreen() {
             fallback: 'Código incorrecto o expirado.',
             statusMessages: {
               400: 'Código incorrecto o expirado.',
-              403: 'Tu cuenta está desactivada. Usa otro número o solicita reactivación.',
+              403: 'Tu cuenta está desactivada. Usa otro número o revisa la ayuda de acceso.',
             },
           })
         );
@@ -998,7 +998,7 @@ function ProviderRegisterScreen() {
                   No pudimos validar tu acceso
                 </p>
                 <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 12, margin: '8px 0 0', lineHeight: 1.45 }}>
-                  Tu cuenta está desactivada o requiere revisión. Si el número está mal escrito, corrígelo. Si es tu número real, solicita ayuda y lo revisamos.
+                  Tu cuenta está desactivada o requiere revisión. Si el número está mal escrito, corrígelo. Si es tu número real, revisa la ayuda de acceso y escríbenos si lo necesitas.
                 </p>
                 <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
                   <button
@@ -1041,7 +1041,7 @@ function ProviderRegisterScreen() {
                       cursor: 'pointer',
                     }}
                   >
-                    Solicitar ayuda
+                    Ver ayuda de acceso
                   </button>
                 </div>
               </div>

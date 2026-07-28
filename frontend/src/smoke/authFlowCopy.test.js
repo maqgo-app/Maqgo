@@ -23,6 +23,9 @@ describe('Recuperación / registro / rol', () => {
     expect(forgot).toContain('password-reset/confirm');
     expect(forgot).toContain('Restablecer contraseña');
     expect(forgot).toContain('Cambiar contraseña');
+    expect(forgot).toContain('Ingresa tu celular. Te enviaremos un código para continuar.');
+    expect(forgot).not.toContain('Ingresa tu correo o celular registrado.');
+    expect(forgot).not.toContain('Correo (opcional)');
     expect(forgot).not.toMatch(/pr[oó]ximamente/i);
   });
 
@@ -57,5 +60,20 @@ describe('Recuperación / registro / rol', () => {
     expect(alias).toMatch(/export \{ default \} from '\.\/SearchingProviderScreen'/);
     expect(impl).toMatch(/Preparando búsqueda/);
     expect(impl).toMatch(/maqgo-spin-searching/);
+  });
+
+  it('Perfil cliente y soporte mantienen la semántica go-live aprobada', () => {
+    const profile = read('screens/ProfileScreen.js');
+    const faq = read('screens/FAQScreen.js');
+    const supportAccess = read('screens/SupportAccessScreen.jsx');
+
+    expect(profile).toContain('Nombre para comprobante');
+    expect(profile).not.toContain('Correo (opcional hasta el pago)');
+    expect(profile).not.toContain('placeholder="tu@correo.cl"');
+
+    expect(faq).toContain('soporte@maqgo.cl');
+    expect(supportAccess).toContain('soporte@maqgo.cl');
+    expect(supportAccess).not.toMatch(/support\/tickets/);
+    expect(supportAccess).not.toMatch(/ticket/i);
   });
 });

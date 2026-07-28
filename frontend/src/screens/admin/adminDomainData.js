@@ -141,7 +141,7 @@ export async function downloadAdminReportPdf(kind, params = {}) {
     qs.set('weeks_ago', String(weeksAgo));
     qs.set('format', 'pdf');
     endpoint = `${BACKEND_URL}/api/admin/reports/weekly?${qs.toString()}`;
-    filename = `maqgo_reporte_semanal_${weeksAgo}.pdf`;
+    filename = `maqgo_informe_semanal_${weeksAgo}.pdf`;
   } else {
     const now = new Date();
     const safeYear = Number(params.year) || now.getFullYear();
@@ -150,7 +150,7 @@ export async function downloadAdminReportPdf(kind, params = {}) {
     qs.set('month', String(safeMonth));
     qs.set('format', 'pdf');
     endpoint = `${BACKEND_URL}/api/admin/reports/monthly-finance?${qs.toString()}`;
-    filename = `maqgo_reporte_mensual_${safeYear}-${String(safeMonth).padStart(2, '0')}.pdf`;
+    filename = `maqgo_informe_mensual_${safeYear}-${String(safeMonth).padStart(2, '0')}.pdf`;
   }
 
   const res = await fetchWithAuth(endpoint);

@@ -36,7 +36,7 @@ function SupportAccessScreen() {
     if (reason === 'phone_blocked') return 'Recuperar acceso';
     if (reason === 'temporary_lock') return 'Recuperar acceso';
     if (reason === 'otp_not_received') return 'Ayuda con el código';
-    return 'Solicitar ayuda';
+    return 'Ayuda de acceso';
   })();
 
   const subtitle = (() => {

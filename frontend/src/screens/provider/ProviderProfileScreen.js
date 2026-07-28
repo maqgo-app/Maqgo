@@ -252,6 +252,13 @@ function ProviderProfileScreen() {
           label="Preguntas frecuentes" 
           onClick={() => navigate('/faq')}
         />
+        <MenuItem
+          label="Escribir a soporte"
+          sublabel="soporte@maqgo.cl"
+          onClick={() => {
+            window.location.href = 'mailto:soporte@maqgo.cl';
+          }}
+        />
 
         {/* LEGAL */}
         <SectionTitle title="Legal" />
