@@ -8,17 +8,17 @@ import { getActivationErrorMessage } from '../../utils/activationErrors';
 function MasterJoinScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const fromUrlCode = String(searchParams.get('code') || '').trim().toUpperCase();
+  const fromUrlToken = String(searchParams.get('token') || searchParams.get('code') || '').trim().toUpperCase();
 
-  const [code] = useState(fromUrlCode);
+  const [inviteToken] = useState(fromUrlToken);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [autoStarted, setAutoStarted] = useState(false);
 
-  const handleJoinWithCode = async () => {
+  const handleJoinFromInvite = async () => {
     if (loading) return;
-    if (code.length < 4) {
+    if (inviteToken.length < 4) {
       setError('El enlace de invitacion no es valido.');
       setStatusMessage('');
       return;
@@ -31,7 +31,7 @@ function MasterJoinScreen() {
     try {
       await axios.post(
         `${BACKEND_URL}/api/operators/masters/join`,
-        { code: code.toUpperCase() },
+        { token: inviteToken.toUpperCase() },
         { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
       );
       try {
@@ -41,7 +41,7 @@ function MasterJoinScreen() {
       }
       navigate('/login', {
         replace: true,
-        state: { entry: 'provider', redirect: '/provider/home', activationCode: code.toUpperCase() },
+        state: { entry: 'provider', redirect: '/provider/home', enrollmentToken: inviteToken.toUpperCase() },
       });
     } catch (err) {
       setError(getActivationErrorMessage(err));
@@ -52,10 +52,10 @@ function MasterJoinScreen() {
   };
 
   useEffect(() => {
-    if (!fromUrlCode || autoStarted || loading) return;
+    if (!fromUrlToken || autoStarted || loading) return;
     setAutoStarted(true);
-    void handleJoinWithCode();
-  }, [autoStarted, fromUrlCode, loading]);
+    void handleJoinFromInvite();
+  }, [autoStarted, fromUrlToken, loading]);
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
@@ -89,7 +89,7 @@ function MasterJoinScreen() {
           Abre el enlace que recibiste por SMS para continuar con tu incorporacion.
         </p>
 
-        {!fromUrlCode ? (
+        {!fromUrlToken ? (
           <div
             style={{
               width: '100%',
@@ -132,7 +132,7 @@ function MasterJoinScreen() {
           </div>
         ) : null}
 
-        {!fromUrlCode ? (
+        {!fromUrlToken ? (
           <button
             className="maqgo-btn-secondary"
             onClick={() => navigate('/', { replace: true })}

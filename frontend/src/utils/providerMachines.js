@@ -200,6 +200,14 @@ export function saveMachines(machines) {
   localStorage.setItem(storageKey(), JSON.stringify(machines));
 }
 
+function assertMachineHasRealOperator(machine = {}) {
+  const normalizedOperators = normalizeOperators(machine?.operators || []);
+  if (normalizedOperators.length === 0) {
+    throw new Error('Cada maquina debe tener al menos un operador real asignado');
+  }
+  return normalizedOperators;
+}
+
 function normalizeMachineForCache(machine = {}) {
   const machineryType = machine.machineryType || machine.machinery_type || 'retroexcavadora';
   const typeName = machine.type || MACHINERY_TYPES.find(m => m.id === machineryType)?.name || 'Maquinaria';
@@ -240,6 +248,7 @@ export async function fetchProviderMachinesFromApi(providerId = null) {
 }
 
 export async function createMachineInApi(machine, providerId = null) {
+  assertMachineHasRealOperator(machine);
   const pid = String(providerId || '').trim();
   const res = await fetchWithAuth(`${BACKEND_URL}/api/machines`, {
     method: 'POST',
@@ -252,6 +261,9 @@ export async function createMachineInApi(machine, providerId = null) {
 }
 
 export async function updateMachineInApi(machineId, updates) {
+  if (Object.prototype.hasOwnProperty.call(updates || {}, 'operators')) {
+    assertMachineHasRealOperator(updates);
+  }
   const res = await fetchWithAuth(`${BACKEND_URL}/api/machines/${encodeURIComponent(machineId)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -289,6 +301,7 @@ export function addMachine(machine) {
   const machineryType = machine.machineryType || 'retroexcavadora';
   const typeName = MACHINERY_TYPES.find(m => m.id === machineryType)?.name || 'Retroexcavadora';
   const isPerSvc = PER_SERVICE_IDS.includes(machineryType);
+  const normalizedOperators = assertMachineHasRealOperator(machine);
   const newMachine = {
     id: machine.id || `mach_${Date.now()}`,
     machineryType,
@@ -313,7 +326,7 @@ export function addMachine(machine) {
     telematicsProvider: machine.telematicsProvider || '',
     available: machine.available !== false,
     published: machine.published !== false,
-    operators: normalizeOperators(machine.operators || []),
+    operators: normalizedOperators,
     ...(machineryType === 'camion_tolva' && machine.capacityM3 != null && { capacityM3: Number(machine.capacityM3) }),
     ...(machineryType === 'camion_aljibe' && machine.capacityLiters != null && { capacityLiters: Number(machine.capacityLiters) }),
     ...(machineryType === 'camion_pluma' && machine.capacityTonM != null && { capacityTonM: Number(machine.capacityTonM) }),
@@ -346,6 +359,9 @@ export function upsertOnboardingMachine(machineData = {}, machinePricing = {}, o
   const transport = Number(machinePricing?.transportCost || 0);
 
   const normalizedOperators = normalizeOperators(operators);
+  if (normalizedOperators.length === 0) {
+    return getMachines();
+  }
   const nextMachine = {
     machineryType,
     type: typeName,

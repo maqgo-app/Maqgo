@@ -91,7 +91,7 @@ function LoginScreen({ setUserRole, setUserId }) {
   const redirectTo = location.state?.redirect || null;
   /** Quién abrió login: cliente desde welcome vs proveedor/admin (muestra acceso correo+clave). */
   const entry = location.state?.entry;
-  const activationCode = location.state?.activationCode || null;
+  const enrollmentToken = location.state?.enrollmentToken || location.state?.activationCode || null;
 
   const desiredRoleStored = (() => {
     try {
@@ -475,7 +475,7 @@ function LoginScreen({ setUserRole, setUserId }) {
           celular,
           device_id: deviceId,
           ...(requestedRole ? { requested_role: requestedRole } : {}),
-          ...(activationCode ? { activation_code: activationCode } : {}),
+          ...(enrollmentToken ? { enrollment_token: enrollmentToken } : {}),
         },
         {
           timeout: LOGIN_SMS_START_TIMEOUT_MS,
@@ -597,7 +597,7 @@ function LoginScreen({ setUserRole, setUserId }) {
         code: digits,
         device_id: deviceId,
         ...(requestedRole ? { requested_role: requestedRole } : {}),
-        ...(activationCode ? { activation_code: activationCode } : {}),
+        ...(enrollmentToken ? { enrollment_token: enrollmentToken } : {}),
       };
       const res = await axios.post(`${BACKEND_URL}/api/auth/login-sms/verify`, payload, {
         timeout: LOGIN_SMS_VERIFY_TIMEOUT_MS,

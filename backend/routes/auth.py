@@ -50,6 +50,7 @@ from services.risk_auth_service import (
 from security.access_context import build_access_context
 from utils.rbac import is_super_master
 from services.access_block_service import find_active_phone_block
+from services.machines_service import sync_operator_snapshot_across_machines
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -223,7 +224,7 @@ class VerifyOtpRequest(BaseModel):
 class LoginSmsStartRequest(BaseModel):
     celular: Optional[str] = Field(
         None,
-        description="Celular chileno, se normaliza a E.164 (+56...). Opcional cuando se resuelve por activation_code.",
+        description="Celular chileno, se normaliza a E.164 (+56...). Opcional cuando se resuelve por enrollment_token.",
     )
     device_id: Optional[str] = Field(
         None,
@@ -233,16 +234,17 @@ class LoginSmsStartRequest(BaseModel):
         None,
         description="Rol con el que se inició el flujo (client/provider). Solo contexto, no cambia el enrolamiento del dispositivo.",
     )
-    activation_code: Optional[str] = Field(
+    enrollment_token: Optional[str] = Field(
         None,
-        description="Opcional: código de activación para amarrar el login al usuario activado (sin crear identidad nueva).",
+        validation_alias=AliasChoices("enrollment_token", "activation_code"),
+        description="Opcional: token de incorporación para resolver al usuario invitado sin crear una identidad nueva.",
     )
 
 
 class LoginSmsVerifyRequest(BaseModel):
     celular: Optional[str] = Field(
         None,
-        description="Celular usado en el paso anterior. Opcional cuando se resuelve por activation_code.",
+        description="Celular usado en el paso anterior. Opcional cuando se resuelve por enrollment_token.",
     )
     code: str = Field(..., min_length=6, max_length=6, description="Código OTP de 6 dígitos")
     device_id: Optional[str] = Field(
@@ -253,9 +255,10 @@ class LoginSmsVerifyRequest(BaseModel):
         None,
         description="Rol con el que se inició el flujo (client/provider)",
     )
-    activation_code: Optional[str] = Field(
+    enrollment_token: Optional[str] = Field(
         None,
-        description="Opcional: código de activación para resolver el usuario (evita lookup ambiguo por celular).",
+        validation_alias=AliasChoices("enrollment_token", "activation_code"),
+        description="Opcional: token de incorporación para resolver el usuario invitado (evita lookup ambiguo por celular).",
     )
 
 
@@ -738,9 +741,9 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
     La decisión de confianza no usa caducidad temporal: solo riesgo (dispositivo, país, fallos recientes).
     No se pide OTP por “cambio de rol” ni por flujo proveedor: la política es riesgo/sesión/dispositivo.
     """
-    activation_code = str(body.activation_code or '').strip().upper()
-    if activation_code:
-        existing, raw_phone, phone9 = await _resolve_activation_login_user_and_phone(activation_code)
+    enrollment_token = str(body.enrollment_token or '').strip().upper()
+    if enrollment_token:
+        existing, raw_phone, phone9 = await _resolve_enrollment_login_user_and_phone(enrollment_token)
     else:
         try:
             raw_phone = _normalize_login_celular_e164(str(body.celular or ""))
@@ -784,9 +787,9 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
         )
 
     skip_trusted_session = False
-    if activation_code:
+    if enrollment_token:
         skip_trusted_session = True
-    if not activation_code:
+    if not enrollment_token:
         existing = await _find_best_user_by_phone9(phone9, raw_phone=raw_phone, projection={"_id": 0})
     now = datetime.now(timezone.utc).isoformat()
 
@@ -797,7 +800,7 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
         roles = _user_roles(existing)
         u_status = _normalized_user_status(existing)
         recoverable_deleted = _is_recoverable_deleted_user(existing)
-        activation_pending = activation_code and _is_pending_activation_user(existing)
+        activation_pending = enrollment_token and _is_pending_activation_user(existing)
         if not _is_active_user_doc(existing) and not recoverable_deleted and not activation_pending:
             log_ops_event(
                 logger,
@@ -992,9 +995,9 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
     - Si OTP inválido → mensaje claro y no avanza.
     """
     try:
-        activation_code = str(body.activation_code or '').strip().upper()
-        if activation_code:
-            user, raw_phone, phone9 = await _resolve_activation_login_user_and_phone(activation_code)
+        enrollment_token = str(body.enrollment_token or '').strip().upper()
+        if enrollment_token:
+            user, raw_phone, phone9 = await _resolve_enrollment_login_user_and_phone(enrollment_token)
         else:
             try:
                 raw_phone = _normalize_login_celular_e164(str(body.celular or ""))
@@ -1027,7 +1030,7 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 },
             )
 
-        if not activation_code:
+        if not enrollment_token:
             user = await _find_best_user_by_phone9(phone9, raw_phone=raw_phone, projection={"_id": 0})
         if not user:
             logger.warning("LOGIN_SMS_VERIFY user_not_found phone9=%s", phone9)
@@ -1051,7 +1054,7 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
 
         u_status = _normalized_user_status(user)
         recoverable_deleted = _is_recoverable_deleted_user(user)
-        activation_pending = activation_code and _is_pending_activation_user(user)
+        activation_pending = enrollment_token and _is_pending_activation_user(user)
         if not _is_active_user_doc(user) and not recoverable_deleted and not activation_pending:
             log_ops_event(
                 logger,
@@ -1099,7 +1102,7 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
             record_hard_lockout_failure(raw_phone)
             raise HTTPException(status_code=400, detail="El código no es correcto. Intenta nuevamente.")
 
-        if activation_code:
+        if enrollment_token:
             stored_phone = str(user.get("phone") or "").strip()
             if stored_phone:
                 try:
@@ -1133,6 +1136,16 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 user["phone"] = raw_phone
                 user["phoneVerified"] = True
                 user["status"] = "active"
+                if (
+                    str(user.get("provider_role") or "").strip() == "operator"
+                    and str(user.get("owner_id") or "").strip()
+                    and hasattr(db, "machines")
+                ):
+                    await sync_operator_snapshot_across_machines(
+                        db,
+                        provider_id=str(user.get("owner_id") or "").strip(),
+                        operator_user={**user, "visible_status": "active"},
+                    )
             except DuplicateKeyError:
                 raise HTTPException(
                     status_code=409,
@@ -1762,6 +1775,13 @@ async def _reactivate_recoverable_user(user_id: str) -> None:
             },
         },
     )
+    fresh = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if fresh and str(fresh.get("provider_role") or "").strip() == "operator" and str(fresh.get("owner_id") or "").strip():
+        await sync_operator_snapshot_across_machines(
+            db,
+            provider_id=str(fresh.get("owner_id") or "").strip(),
+            operator_user={**fresh, "visible_status": "active"},
+        )
 
 
 def _best_user_match_for_phone(users: list[dict], *, raw_phone: Optional[str] = None) -> Optional[dict]:
@@ -1809,37 +1829,62 @@ async def _find_best_user_by_phone9(
     return _best_user_match_for_phone(rows, raw_phone=raw_phone)
 
 
-async def _resolve_activation_login_user_and_phone(activation_code: str) -> tuple[dict, str, str]:
+async def _resolve_enrollment_login_user_and_phone(enrollment_token: str) -> tuple[dict, str, str]:
     inv = await db.invitations.find_one(
-        {"code": activation_code},
+        {"$or": [{"token": enrollment_token}, {"code": enrollment_token}]},
         {
             "_id": 0,
             "status": 1,
             "used_by": 1,
             "invite_type": 1,
             "operator_phone": 1,
+            "master_phone": 1,
         },
     )
+    if not inv:
+        inv = await db.invitations.find_one(
+            {"code": enrollment_token},
+            {
+                "_id": 0,
+                "status": 1,
+                "used_by": 1,
+                "invite_type": 1,
+                "operator_phone": 1,
+                "master_phone": 1,
+            },
+        )
+    if not inv:
+        inv = await db.invitations.find_one(
+            {"token": enrollment_token},
+            {
+                "_id": 0,
+                "status": 1,
+                "used_by": 1,
+                "invite_type": 1,
+                "operator_phone": 1,
+                "master_phone": 1,
+            },
+        )
     if not inv or not inv.get("used_by"):
         raise HTTPException(
             status_code=400,
-            detail="No encontramos una activación válida. Vuelve a activar tu código.",
+            detail="No encontramos una incorporacion valida. Vuelve a abrir la invitacion enviada por MAQGO.",
         )
     st = str(inv.get("status") or "").strip().lower()
     if st != "used":
         raise HTTPException(
             status_code=400,
-            detail="Primero activa tu código antes de iniciar sesión.",
+            detail="Primero completa tu incorporacion antes de iniciar sesion.",
         )
     user = await db.users.find_one({"id": inv.get("used_by")}, {"_id": 0})
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="No encontramos tu cuenta. Vuelve a activar tu código.",
+            detail="No encontramos tu cuenta. Vuelve a abrir la invitacion enviada por MAQGO.",
         )
 
     raw_phone = ""
-    for candidate in (user.get("phone"), inv.get("operator_phone")):
+    for candidate in (user.get("phone"), inv.get("operator_phone"), inv.get("master_phone")):
         try:
             raw_phone = _normalize_login_celular_e164(str(candidate or "").strip())
             break
@@ -1852,6 +1897,10 @@ async def _resolve_activation_login_user_and_phone(activation_code: str) -> tupl
         )
 
     return user, raw_phone, _normalize_phone_last9(raw_phone)
+
+
+async def _resolve_activation_login_user_and_phone(activation_code: str) -> tuple[dict, str, str]:
+    return await _resolve_enrollment_login_user_and_phone(activation_code)
 
 
 def _normalize_identifier(identifier: str) -> str:

@@ -1,13 +1,8 @@
 """
-MAQGO - Sistema de Invitación de Operadores
-
-Flujo:
-1. Dueño genera código de invitación desde su dashboard
-2. Operador descarga app e ingresa código
-3. Operador queda vinculado automáticamente al dueño
+MAQGO - Invitación y enrolamiento de usuarios de empresa.
 """
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, AliasChoices
 from typing import Optional, List, Dict
 from datetime import datetime, timezone, timedelta
 import os
@@ -22,6 +17,11 @@ from db_config import get_db_name, get_mongo_url
 from auth_dependency import get_current_user
 from security.policy import AccessPolicy
 from services.otp_service import send_sms
+from services.machines_service import (
+    attach_operator_to_machines,
+    sync_operator_snapshot_across_machines,
+    validate_provider_machine_ids,
+)
 
 router = APIRouter(prefix="/operators", tags=["operators"])
 
@@ -37,20 +37,29 @@ db = client[DB_NAME]
 class InvitationCreate(BaseModel):
     owner_id: str
     operator_name: Optional[str] = None
+    operator_first_name: Optional[str] = None
+    operator_last_name: Optional[str] = None
     operator_phone: Optional[str] = None
     operator_rut: Optional[str] = None
+    machine_ids: List[str] = []
 
 class OperatorInviteItem(BaseModel):
     operator_name: str
     operator_rut: str
     operator_phone: Optional[str] = None
+    machine_ids: List[str] = []
 
 class InvitationBatchCreate(BaseModel):
     owner_id: str
     operators: List[OperatorInviteItem]
 
 class InvitationUse(BaseModel):
-    code: str
+    model_config = {"populate_by_name": True}
+
+    enrollment_token: str = Field(
+        ...,
+        validation_alias=AliasChoices("enrollment_token", "token", "code"),
+    )
     operator_name: Optional[str] = None
     operator_phone: Optional[str] = None
     operator_rut: Optional[str] = None
@@ -60,8 +69,8 @@ class OperatorStats(BaseModel):
 
 
 
-def generate_invite_code():
-    """Genera código de 6 caracteres alfanumérico"""
+def generate_invite_token():
+    """Genera token corto de invitación."""
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 def _normalize_rut(rut: str) -> str:
@@ -115,11 +124,20 @@ def _ensure_person_rut(rut: str, *, label: str) -> str:
         raise HTTPException(status_code=400, detail=f"El {label} debe ser de persona natural, no de empresa.")
     return clean
 
-async def _generate_unique_code() -> str:
-    code = generate_invite_code()
-    while await db.invitations.find_one({"code": code}):
-        code = generate_invite_code()
-    return code
+def _invitation_lookup(token: str) -> dict:
+    normalized = str(token or "").strip().upper()
+    return {"$or": [{"token": normalized}, {"code": normalized}]}
+
+
+def _invitation_token(invitation: Optional[dict]) -> str:
+    return str((invitation or {}).get("token") or (invitation or {}).get("code") or "").strip().upper()
+
+
+async def _generate_unique_token() -> str:
+    token = generate_invite_token()
+    while await db.invitations.find_one(_invitation_lookup(token)):
+        token = generate_invite_token()
+    return token
 
 def _to_utc(dt):
     if not dt:
@@ -144,22 +162,29 @@ def _frontend_origin() -> str:
     return raw.rstrip("/") or "https://www.maqgo.cl"
 
 
-def _build_join_link(code: str, invite_type: str) -> str:
+def _join_person_name(first_name: str = "", last_name: str = "", fallback: str = "") -> str:
+    parts = [str(first_name or "").strip(), str(last_name or "").strip()]
+    joined = " ".join(part for part in parts if part).strip()
+    return joined or str(fallback or "").strip()
+
+
+def _build_join_link(token: str, invite_type: str) -> str:
     path = "/master/join" if str(invite_type or "").strip().lower() == "master" else "/operator/join"
-    return f"{_frontend_origin()}{path}?code={code}"
+    return f"{_frontend_origin()}{path}?token={token}"
 
 
-def _build_invitation_sms(*, code: str, invite_type: str, owner_name: str) -> str:
+def _build_invitation_sms(*, token: str, invite_type: str, owner_name: str) -> str:
     company = str(owner_name or "tu empresa").strip() or "tu empresa"
-    join_link = _build_join_link(code, invite_type)
+    join_link = _build_join_link(token, invite_type)
     role_label = "Gerente" if str(invite_type or "").strip().lower() == "master" else "Operador"
     return (
-        f"MAQGO. {company} te invito a formar parte de su equipo como {role_label}. "
-        f"Abre este enlace para comenzar tu incorporacion: {join_link}"
+        f"MAQGO: {company} te invita a unirte como {role_label}. "
+        f"Completa tu incorporacion solo en maqgo.cl: {join_link} "
+        f"Verifica que el dominio sea maqgo.cl. Nunca te pediremos pagos ni claves por este medio."
     )
 
 
-def _send_invitation_sms(*, phone: str, code: str, invite_type: str, owner_name: str) -> dict:
+def _send_invitation_sms(*, phone: str, token: str, invite_type: str, owner_name: str) -> dict:
     normalized_phone = _normalize_phone_e164(phone)
     if not normalized_phone:
         return {
@@ -167,14 +192,14 @@ def _send_invitation_sms(*, phone: str, code: str, invite_type: str, owner_name:
             "sms_sent": False,
             "sms_error": "Celular inválido para SMS",
         }
-    message = _build_invitation_sms(code=code, invite_type=invite_type, owner_name=owner_name)
+    message = _build_invitation_sms(token=token, invite_type=invite_type, owner_name=owner_name)
     ok, err = send_sms(normalized_phone, message)
     return {
         "sms_attempted": True,
         "sms_sent": bool(ok),
         "sms_error": None if ok else (str(err or "No se pudo enviar SMS")[:180]),
         "phone": normalized_phone,
-        "join_link": _build_join_link(code, invite_type),
+        "join_link": _build_join_link(token, invite_type),
     }
 
 
@@ -342,7 +367,10 @@ async def _find_reusable_pending_invitation(
         return None
     expires_at = _to_utc(inv.get("expires_at"))
     if expires_at and datetime.now(timezone.utc) > expires_at:
-        await db.invitations.update_one({"code": inv.get("code")}, {"$set": {"status": "expired"}})
+        await db.invitations.update_one(
+            _invitation_lookup(_invitation_token(inv)),
+            {"$set": {"status": "expired"}},
+        )
         return None
     return inv
 
@@ -399,8 +427,7 @@ async def create_invitation(
 ):
     AccessPolicy.assert_owner_scope(current_user, data.owner_id)
     """
-    Dueño genera código de invitación para un operador.
-    El código expira en 7 días.
+    Invita a un operador y deja sus máquinas asociadas listas antes del enrolamiento.
     """
     # Verificar que el dueño existe
     owner = await db.users.find_one({"id": data.owner_id}, {"_id": 0})
@@ -410,23 +437,38 @@ async def create_invitation(
     if owner.get("role") != "provider":
         raise HTTPException(status_code=400, detail="Solo proveedores pueden invitar operadores")
 
-    # Regla de negocio: para operadores, la empresa debe definir al menos nombre y RUT
-    if not data.operator_name or not data.operator_rut:
+    operator_name = _join_person_name(
+        data.operator_first_name,
+        data.operator_last_name,
+        data.operator_name,
+    )
+    if not operator_name or not data.operator_rut:
         raise HTTPException(
             status_code=400,
-            detail="Debes ingresar nombre y RUT del operador para generar el código."
+            detail="Debes ingresar nombre, apellidos y RUT del operador antes de invitarlo."
         )
+    try:
+        validated_machines = await validate_provider_machine_ids(db, data.owner_id, data.machine_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     operator_rut = _ensure_person_rut(data.operator_rut, label="RUT del operador")
     
-    code = await _generate_unique_code()
+    invite_token = await _generate_unique_token()
     rut_norm = _normalize_rut(operator_rut)
     pending_user = await _ensure_pending_team_user(
         owner_id=data.owner_id,
         provider_role="operator",
-        name=str(data.operator_name or "").strip(),
+        name=operator_name,
         phone=str(data.operator_phone or "").strip(),
         rut=operator_rut,
-        invitation_code=code,
+        invitation_code=invite_token,
+    )
+    machine_ids = [str(machine.get("id") or "").strip() for machine in validated_machines if str(machine.get("id") or "").strip()]
+    await attach_operator_to_machines(
+        db,
+        provider_id=data.owner_id,
+        operator_user=pending_user,
+        machine_ids=machine_ids,
     )
     reusable = await _find_reusable_pending_invitation(
         owner_id=data.owner_id,
@@ -437,19 +479,23 @@ async def create_invitation(
     if reusable:
         delivery = _send_invitation_sms(
             phone=data.operator_phone or pending_user.get("phone") or "",
-            code=reusable.get("code") or code,
+            token=_invitation_token(reusable) or invite_token,
             invite_type="operator",
             owner_name=owner.get("name", ""),
         )
         await db.invitations.update_one(
-            {"code": reusable.get("code")},
+            _invitation_lookup(_invitation_token(reusable)),
             {
                 "$set": {
                     "operator_phone": pending_user.get("phone") or data.operator_phone,
-                    "operator_name": pending_user.get("name") or data.operator_name,
+                    "operator_name": pending_user.get("name") or operator_name,
                     "operator_rut": operator_rut,
                     "operator_rut_norm": rut_norm,
                     "target_user_id": pending_user.get("id"),
+                    "machine_ids": machine_ids,
+                    "delivery_status": "sms_sent" if delivery.get("sms_sent") else "sms_failed",
+                    "last_sms_sent_at": datetime.now(timezone.utc) if delivery.get("sms_sent") else None,
+                    "last_sms_error": delivery.get("sms_error"),
                     "updated_at": datetime.now(timezone.utc),
                 },
                 "$inc": {"resend_count": 1},
@@ -457,23 +503,25 @@ async def create_invitation(
         )
         return {
             "success": True,
-            "code": reusable.get("code") or code,
             "expires_in_days": 7,
-            "message": f"Código vigente: {reusable.get('code') or code}. Compártelo con tu operador.",
+            "message": "La invitación ya fue enviada automáticamente por MAQGO.",
             "delivery": delivery,
             "user_status": _team_visible_status(pending_user),
             "target_user_id": pending_user.get("id"),
+            "machine_ids": machine_ids,
         }
 
     invitation = {
-        "code": code,
+        "token": invite_token,
+        "code": invite_token,
         "owner_id": data.owner_id,
         "owner_name": owner.get("name", ""),
-        "operator_name": pending_user.get("name") or data.operator_name,
+        "operator_name": pending_user.get("name") or operator_name,
         "operator_phone": pending_user.get("phone") or data.operator_phone,
         "operator_rut": operator_rut,
         "operator_rut_norm": rut_norm,
         "target_user_id": pending_user.get("id"),
+        "machine_ids": machine_ids,
         "invite_type": "operator",
         "status": "pending",  # pending, used, expired
         "created_at": datetime.now(timezone.utc),
@@ -481,24 +529,36 @@ async def create_invitation(
         "used_at": None,
         "used_by": None,
         "resend_count": 0,
+        "delivery_status": "pending",
+        "reminder_waves_sent": ["initial"],
     }
     
     await db.invitations.insert_one(invitation)
     delivery = _send_invitation_sms(
         phone=data.operator_phone or "",
-        code=code,
+        token=invite_token,
         invite_type="operator",
         owner_name=owner.get("name", ""),
+    )
+    await db.invitations.update_one(
+        _invitation_lookup(invite_token),
+        {
+            "$set": {
+                "delivery_status": "sms_sent" if delivery.get("sms_sent") else "sms_failed",
+                "last_sms_sent_at": datetime.now(timezone.utc) if delivery.get("sms_sent") else None,
+                "last_sms_error": delivery.get("sms_error"),
+            }
+        },
     )
     
     return {
         "success": True,
-        "code": code,
         "expires_in_days": 7,
-        "message": f"Código generado: {code}. Compártelo con tu operador.",
+        "message": "La invitación fue enviada automáticamente por MAQGO.",
         "delivery": delivery,
         "user_status": _team_visible_status(pending_user),
         "target_user_id": pending_user.get("id"),
+        "machine_ids": machine_ids,
     }
 
 
@@ -526,13 +586,29 @@ async def create_invitations_batch(
             raise HTTPException(status_code=400, detail="Cada operador debe tener nombre y RUT.")
         rut = _ensure_person_rut(rut, label="RUT del operador")
         rut_norm = _normalize_rut(rut)
+        try:
+            validated_machines = await validate_provider_machine_ids(db, data.owner_id, item.machine_ids)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        machine_ids = [
+            str(machine.get("id") or "").strip()
+            for machine in validated_machines
+            if str(machine.get("id") or "").strip()
+        ]
+        invite_token = await _generate_unique_token()
         pending_user = await _ensure_pending_team_user(
             owner_id=data.owner_id,
             provider_role="operator",
             name=name,
             phone=phone or "",
             rut=rut,
-            invitation_code=await _generate_unique_code(),
+            invitation_code=invite_token,
+        )
+        await attach_operator_to_machines(
+            db,
+            provider_id=data.owner_id,
+            operator_user=pending_user,
+            machine_ids=machine_ids,
         )
         existing = await _find_reusable_pending_invitation(
             owner_id=data.owner_id,
@@ -542,8 +618,15 @@ async def create_invitations_batch(
         )
         if existing:
             expires_at = _to_utc(existing.get("expires_at"))
+            active_token = _invitation_token(existing) or invite_token
+            delivery = _send_invitation_sms(
+                phone=phone or pending_user.get("phone") or "",
+                token=active_token,
+                invite_type="operator",
+                owner_name=owner.get("name", ""),
+            )
             await db.invitations.update_one(
-                {"code": existing.get("code")},
+                _invitation_lookup(active_token),
                 {
                     "$set": {
                         "operator_name": pending_user.get("name") or name,
@@ -551,6 +634,10 @@ async def create_invitations_batch(
                         "operator_rut": rut,
                         "operator_rut_norm": rut_norm,
                         "target_user_id": pending_user.get("id"),
+                        "machine_ids": machine_ids,
+                        "delivery_status": "sms_sent" if delivery.get("sms_sent") else "sms_failed",
+                        "last_sms_sent_at": datetime.now(timezone.utc) if delivery.get("sms_sent") else None,
+                        "last_sms_error": delivery.get("sms_error"),
                         "updated_at": now,
                     },
                     "$inc": {"resend_count": 1},
@@ -558,7 +645,6 @@ async def create_invitations_batch(
             )
             out.append(
                 {
-                    "code": existing.get("code"),
                     "operator_name": pending_user.get("name") or name,
                     "operator_rut": rut,
                     "operator_phone": pending_user.get("phone") or phone,
@@ -566,14 +652,16 @@ async def create_invitations_batch(
                     "expires_at": expires_at.isoformat() if expires_at else None,
                     "target_user_id": pending_user.get("id"),
                     "user_status": _team_visible_status(pending_user),
+                    "delivery": delivery,
+                    "machine_ids": machine_ids,
                 }
             )
             continue
 
-        code = str(pending_user.get("activationCode") or "").strip().upper() or await _generate_unique_code()
         expires_at = now + timedelta(days=7)
         invitation = {
-            "code": code,
+            "token": invite_token,
+            "code": invite_token,
             "owner_id": data.owner_id,
             "owner_name": owner.get("name", ""),
             "operator_name": pending_user.get("name") or name,
@@ -581,6 +669,7 @@ async def create_invitations_batch(
             "operator_rut": rut,
             "operator_rut_norm": rut_norm,
             "target_user_id": pending_user.get("id"),
+            "machine_ids": machine_ids,
             "invite_type": "operator",
             "status": "pending",
             "created_at": now,
@@ -588,11 +677,28 @@ async def create_invitations_batch(
             "used_at": None,
             "used_by": None,
             "resend_count": 0,
+            "delivery_status": "pending",
+            "reminder_waves_sent": ["initial"],
         }
         await db.invitations.insert_one(invitation)
+        delivery = _send_invitation_sms(
+            phone=phone or "",
+            token=invite_token,
+            invite_type="operator",
+            owner_name=owner.get("name", ""),
+        )
+        await db.invitations.update_one(
+            _invitation_lookup(invite_token),
+            {
+                "$set": {
+                    "delivery_status": "sms_sent" if delivery.get("sms_sent") else "sms_failed",
+                    "last_sms_sent_at": datetime.now(timezone.utc) if delivery.get("sms_sent") else None,
+                    "last_sms_error": delivery.get("sms_error"),
+                }
+            },
+        )
         out.append(
             {
-                "code": code,
                 "operator_name": name,
                 "operator_rut": rut,
                 "operator_phone": pending_user.get("phone") or phone,
@@ -600,6 +706,8 @@ async def create_invitations_batch(
                 "expires_at": expires_at.isoformat(),
                 "target_user_id": pending_user.get("id"),
                 "user_status": _team_visible_status(pending_user),
+                "delivery": delivery,
+                "machine_ids": machine_ids,
             }
         )
 
@@ -614,15 +722,15 @@ async def create_invitations_batch(
 @router.post("/join")
 async def use_invitation(data: InvitationUse):
     """
-    Operador usa código de invitación para vincularse al dueño.
-    Solo acepta códigos de tipo 'operator' (no 'master').
+    Operador continúa su incorporación desde el enlace recibido por SMS.
+    Solo acepta invitaciones de tipo 'operator' (no 'master').
     """
     try:
-        code_upper = data.code.upper()
+        invite_token = str(data.enrollment_token or "").strip().upper()
 
         invitation = await db.invitations.find_one(
             {
-                "code": code_upper,
+                **_invitation_lookup(invite_token),
                 "status": "pending",
                 "invite_type": {"$ne": "master"},
             }
@@ -630,26 +738,26 @@ async def use_invitation(data: InvitationUse):
 
         if not invitation:
             any_invitation = await db.invitations.find_one(
-                {"code": code_upper},
-                {"_id": 0, "code": 1, "status": 1, "invite_type": 1, "expires_at": 1},
+                _invitation_lookup(invite_token),
+                {"_id": 0, "token": 1, "code": 1, "status": 1, "invite_type": 1, "expires_at": 1},
             )
             if not any_invitation:
-                raise HTTPException(status_code=404, detail="Código inexistente")
+                raise HTTPException(status_code=404, detail="Invitación no encontrada")
             if any_invitation.get("invite_type") == "master":
-                raise HTTPException(status_code=404, detail="Este código es para Gerentes")
+                raise HTTPException(status_code=404, detail="Esta invitación es para Gerentes")
             st = str(any_invitation.get("status") or "").strip().lower()
             if st == "used":
-                raise HTTPException(status_code=404, detail="Código ya utilizado")
+                raise HTTPException(status_code=404, detail="Invitación ya utilizada")
             if st == "expired":
-                raise HTTPException(status_code=400, detail="Código expirado")
+                raise HTTPException(status_code=400, detail="Invitación expirada")
             expires_at_any = _to_utc(any_invitation.get("expires_at"))
             if expires_at_any and datetime.now(timezone.utc) > expires_at_any:
                 await db.invitations.update_one(
-                    {"code": code_upper},
+                    _invitation_lookup(invite_token),
                     {"$set": {"status": "expired"}},
                 )
-                raise HTTPException(status_code=400, detail="Código expirado")
-            raise HTTPException(status_code=404, detail="Código no disponible")
+                raise HTTPException(status_code=400, detail="Invitación expirada")
+            raise HTTPException(status_code=404, detail="Invitación no disponible")
 
         expires_at = _to_utc(invitation.get("expires_at"))
         now = datetime.now(timezone.utc)
@@ -660,15 +768,15 @@ async def use_invitation(data: InvitationUse):
             )
         if now > expires_at:
             await db.invitations.update_one(
-                {"code": code_upper},
+                _invitation_lookup(invite_token),
                 {"$set": {"status": "expired"}},
             )
-            raise HTTPException(status_code=400, detail="Código expirado")
+            raise HTTPException(status_code=400, detail="Invitación expirada")
 
         if not invitation.get("operator_name") or not invitation.get("operator_rut"):
             raise HTTPException(
                 status_code=400,
-                detail="Esta invitación no tiene nombre o RUT del operador. Pide a tu empresa un código nuevo.",
+                detail="Esta invitación no tiene nombre o RUT del operador. Pide a tu empresa una nueva invitación.",
             )
 
         operator_rut = _ensure_person_rut(
@@ -686,7 +794,7 @@ async def use_invitation(data: InvitationUse):
                 name=operator_name,
                 phone=operator_phone,
                 rut=operator_rut,
-                invitation_code=code_upper,
+                invitation_code=invite_token,
             )
             target_user_id = str(pending_user.get("id") or "").strip()
         try:
@@ -697,7 +805,7 @@ async def use_invitation(data: InvitationUse):
                 name=operator_name,
                 phone=operator_phone,
                 rut=operator_rut,
-                invitation_code=code_upper,
+                invitation_code=invite_token,
             )
         except DuplicateKeyError:
             raise HTTPException(
@@ -711,7 +819,7 @@ async def use_invitation(data: InvitationUse):
         operator_id = str(operator_data.get("id") or target_user_id).strip()
 
         await db.invitations.update_one(
-            {"code": code_upper},
+            _invitation_lookup(invite_token),
             {
                 "$set": {
                     "status": "used",
@@ -763,9 +871,9 @@ async def get_owner_invitations(
     return {"invitations": invitations, "count": len(invitations)}
 
 
-@router.delete("/invitation/{code}")
+@router.delete("/invitation/{token}")
 async def cancel_invitation(
-    code: str,
+    token: str,
     owner_id: str,
     current_user: dict = Depends(get_current_user),
 ):
@@ -774,7 +882,7 @@ async def cancel_invitation(
     Cancelar una invitación pendiente.
     """
     result = await db.invitations.delete_one({
-        "code": code.upper(),
+        **_invitation_lookup(token),
         "owner_id": owner_id,
         "status": "pending"
     })
@@ -853,7 +961,12 @@ class MasterInvitationCreate(BaseModel):
 
 
 class MasterInvitationUse(BaseModel):
-    code: str
+    model_config = {"populate_by_name": True}
+
+    enrollment_token: str = Field(
+        ...,
+        validation_alias=AliasChoices("enrollment_token", "token", "code"),
+    )
     master_name: Optional[str] = None
     master_last_name: Optional[str] = None
     master_rut: Optional[str] = None
@@ -886,7 +999,7 @@ async def create_master_invitation(
     if not data.master_name or not data.master_last_name or not data.master_rut or not data.master_phone:
         raise HTTPException(
             status_code=400,
-            detail="Completa nombre, apellido, RUT y celular del Gerente para generar el código.",
+            detail="Completa nombre, apellido, RUT y celular del Gerente antes de invitarlo.",
         )
     master_rut = _ensure_person_rut(data.master_rut, label="RUT del Gerente")
 
@@ -905,14 +1018,14 @@ async def create_master_invitation(
     invitation_permissions = {k: bool(raw_perms.get(k)) for k in allowed_keys}
     
     # Generar código único
-    code = await _generate_unique_code()
+    invite_token = await _generate_unique_token()
     pending_user = await _ensure_pending_team_user(
         owner_id=data.owner_id,
         provider_role="master",
         name=" ".join(part for part in [str(data.master_name or "").strip(), str(data.master_last_name or "").strip()] if part).strip(),
         phone=str(data.master_phone or "").strip(),
         rut=master_rut,
-        invitation_code=code,
+        invitation_code=invite_token,
         permissions=invitation_permissions,
     )
     reusable = await _find_reusable_pending_invitation(
@@ -924,12 +1037,12 @@ async def create_master_invitation(
     if reusable:
         delivery = _send_invitation_sms(
             phone=data.master_phone or pending_user.get("phone") or "",
-            code=reusable.get("code") or code,
+            token=_invitation_token(reusable) or invite_token,
             invite_type="master",
             owner_name=owner.get("name", ""),
         )
         await db.invitations.update_one(
-            {"code": reusable.get("code")},
+            _invitation_lookup(_invitation_token(reusable)),
             {
                 "$set": {
                     "master_name": data.master_name,
@@ -946,10 +1059,9 @@ async def create_master_invitation(
         )
         return {
             "success": True,
-            "code": reusable.get("code") or code,
             "invite_type": "master",
             "expires_in_days": 7,
-            "message": f"Código vigente: {reusable.get('code') or code}. Compártelo con tu nuevo Gerente.",
+            "message": "La invitación ya fue enviada automáticamente por MAQGO.",
             "delivery": delivery,
             "user_status": _team_visible_status(pending_user),
             "target_user_id": pending_user.get("id"),
@@ -957,7 +1069,8 @@ async def create_master_invitation(
     
     # Crear invitación para Master
     invitation = {
-        "code": code,
+        "token": invite_token,
+        "code": invite_token,
         "owner_id": data.owner_id,
         "owner_name": owner.get("name", ""),
         "invite_type": "master",  # Tipo de invitación
@@ -974,22 +1087,33 @@ async def create_master_invitation(
         "used_at": None,
         "used_by": None,
         "resend_count": 0,
+        "delivery_status": "pending",
+        "reminder_waves_sent": ["initial"],
     }
     
     await db.invitations.insert_one(invitation)
     delivery = _send_invitation_sms(
         phone=data.master_phone or "",
-        code=code,
+        token=invite_token,
         invite_type="master",
         owner_name=owner.get("name", ""),
+    )
+    await db.invitations.update_one(
+        _invitation_lookup(invite_token),
+        {
+            "$set": {
+                "delivery_status": "sms_sent" if delivery.get("sms_sent") else "sms_failed",
+                "last_sms_sent_at": datetime.now(timezone.utc) if delivery.get("sms_sent") else None,
+                "last_sms_error": delivery.get("sms_error"),
+            }
+        },
     )
     
     return {
         "success": True,
-        "code": code,
         "invite_type": "master",
         "expires_in_days": 7,
-        "message": f"Código generado: {code}. Compártelo con tu nuevo Gerente.",
+        "message": "La invitación fue enviada automáticamente por MAQGO.",
         "delivery": delivery,
         "user_status": _team_visible_status(pending_user),
         "target_user_id": pending_user.get("id"),
@@ -999,12 +1123,13 @@ async def create_master_invitation(
 @router.post("/masters/join")
 async def use_master_invitation(data: MasterInvitationUse):
     """
-    Master usa código de invitación para vincularse a la empresa.
+    Gerente continúa su incorporación desde el enlace recibido por SMS.
     """
     try:
+        invite_token = str(data.enrollment_token or "").strip().upper()
         invitation = await db.invitations.find_one(
             {
-                "code": data.code.upper(),
+                **_invitation_lookup(invite_token),
                 "status": "pending",
                 "invite_type": "master",
             }
@@ -1012,26 +1137,26 @@ async def use_master_invitation(data: MasterInvitationUse):
 
         if not invitation:
             any_invitation = await db.invitations.find_one(
-                {"code": data.code.upper()},
-                {"_id": 0, "code": 1, "status": 1, "invite_type": 1, "expires_at": 1},
+                _invitation_lookup(invite_token),
+                {"_id": 0, "token": 1, "code": 1, "status": 1, "invite_type": 1, "expires_at": 1},
             )
             if not any_invitation:
-                raise HTTPException(status_code=404, detail="Código inexistente")
+                raise HTTPException(status_code=404, detail="Invitación no encontrada")
             if any_invitation.get("invite_type") and any_invitation.get("invite_type") != "master":
-                raise HTTPException(status_code=404, detail="Este código no es para Gerentes")
+                raise HTTPException(status_code=404, detail="Esta invitación no es para Gerentes")
             st = str(any_invitation.get("status") or "").strip().lower()
             if st == "used":
-                raise HTTPException(status_code=404, detail="Código ya utilizado")
+                raise HTTPException(status_code=404, detail="Invitación ya utilizada")
             if st == "expired":
-                raise HTTPException(status_code=400, detail="Código expirado")
+                raise HTTPException(status_code=400, detail="Invitación expirada")
             expires_at_any = _to_utc(any_invitation.get("expires_at"))
             if expires_at_any and datetime.now(timezone.utc) > expires_at_any:
                 await db.invitations.update_one(
-                    {"code": data.code.upper()},
+                    _invitation_lookup(invite_token),
                     {"$set": {"status": "expired"}},
                 )
-                raise HTTPException(status_code=400, detail="Código expirado")
-            raise HTTPException(status_code=404, detail="Código no disponible")
+                raise HTTPException(status_code=400, detail="Invitación expirada")
+            raise HTTPException(status_code=404, detail="Invitación no disponible")
 
         expires_at = _to_utc(invitation.get("expires_at"))
         now = datetime.now(timezone.utc)
@@ -1043,10 +1168,10 @@ async def use_master_invitation(data: MasterInvitationUse):
 
         if now > expires_at:
             await db.invitations.update_one(
-                {"code": data.code.upper()},
+                _invitation_lookup(invite_token),
                 {"$set": {"status": "expired"}},
             )
-            raise HTTPException(status_code=400, detail="Código expirado")
+            raise HTTPException(status_code=400, detail="Invitación expirada")
 
         first_name = str(data.master_name or invitation.get("master_name") or "").strip()
         last_name = str(data.master_last_name or invitation.get("master_last_name") or "").strip()
@@ -1070,7 +1195,7 @@ async def use_master_invitation(data: MasterInvitationUse):
                 name=full_name,
                 phone=phone,
                 rut=rut,
-                invitation_code=str(data.code or "").upper(),
+                invitation_code=invite_token,
                 permissions=invitation.get("permissions") if isinstance(invitation.get("permissions"), dict) else {},
             )
             target_user_id = str(pending_user.get("id") or "").strip()
@@ -1083,7 +1208,7 @@ async def use_master_invitation(data: MasterInvitationUse):
                 name=full_name,
                 phone=phone,
                 rut=rut,
-                invitation_code=str(data.code or "").upper(),
+                invitation_code=invite_token,
                 permissions=invitation.get("permissions") if isinstance(invitation.get("permissions"), dict) else {},
             )
             if data.master_email:
@@ -1101,7 +1226,7 @@ async def use_master_invitation(data: MasterInvitationUse):
         master_id = str(master_data.get("id") or target_user_id).strip()
 
         await db.invitations.update_one(
-            {"code": data.code.upper()},
+            _invitation_lookup(invite_token),
             {
                 "$set": {
                     "status": "used",

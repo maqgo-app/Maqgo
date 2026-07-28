@@ -22,18 +22,18 @@ function wait(ms) {
 function OperatorJoinScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const fromUrlCode = String(searchParams.get('code') || '').trim().toUpperCase();
+  const fromUrlToken = String(searchParams.get('token') || searchParams.get('code') || '').trim().toUpperCase();
 
-  const [code] = useState(fromUrlCode);
+  const [inviteToken] = useState(fromUrlToken);
   const [smsCode, setSmsCode] = useState('');
-  const [phase, setPhase] = useState(fromUrlCode ? 'sending' : 'code');
+  const [phase, setPhase] = useState(fromUrlToken ? 'sending' : 'entry');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [deviceId] = useState(() => getDeviceId());
   const [autoStarted, setAutoStarted] = useState(false);
 
-  const activationCode = String(code || '').trim().toUpperCase();
+  const enrollmentToken = String(inviteToken || '').trim().toUpperCase();
 
   const persistProviderIntent = () => {
     try {
@@ -52,11 +52,11 @@ function OperatorJoinScreen() {
     navigate('/operator/home', { replace: true });
   };
 
-  const requestOtpForActivation = async (normalizedCode) => {
+  const requestOtpForActivation = async (normalizedToken) => {
     const response = await axios.post(
       `${BACKEND_URL}/api/auth/login-sms/start`,
       {
-        activation_code: normalizedCode,
+        enrollment_token: normalizedToken,
         device_id: deviceId,
         requested_role: 'provider',
       },
@@ -65,9 +65,9 @@ function OperatorJoinScreen() {
     return response.data;
   };
 
-  const handleJoinWithCode = async () => {
+  const handleJoinFromInvite = async () => {
     if (loading) return;
-    if (activationCode.length < 4) {
+    if (enrollmentToken.length < 4) {
       setError('El enlace de invitacion no es valido.');
       setStatusMessage('');
       return;
@@ -84,29 +84,29 @@ function OperatorJoinScreen() {
       try {
         await axios.post(
           `${BACKEND_URL}/api/operators/join`,
-          { code: activationCode },
+          { token: enrollmentToken },
           { timeout: REQUEST_TIMEOUT_MS, headers: { 'Content-Type': 'application/json' } }
         );
       } catch (err) {
         const activationError = getActivationErrorMessage(err);
-        if (activationError !== 'Código ya utilizado') {
+        if (activationError !== 'Invitacion ya utilizada') {
           throw new Error(activationError);
         }
       }
 
-      const [otpData] = await Promise.all([requestOtpForActivation(activationCode), wait(PREPARE_DELAY_MS)]);
+      const [otpData] = await Promise.all([requestOtpForActivation(enrollmentToken), wait(PREPARE_DELAY_MS)]);
       if (otpData?.token) {
         completeOperatorSession(otpData);
         return;
       }
       setPhase('otp');
-      setStatusMessage('Te enviamos un código de verificación por SMS.');
+      setStatusMessage('Te enviamos un SMS de verificacion.');
     } catch (err) {
       const message =
         err instanceof Error && err.message
           ? err.message
           : getHttpErrorMessage(err, { fallback: 'No pudimos iniciar tu acceso. Intenta nuevamente.' });
-      setPhase('code');
+      setPhase('entry');
       setError(message);
       setStatusMessage('');
     } finally {
@@ -117,7 +117,7 @@ function OperatorJoinScreen() {
   const handleVerifyOtp = async () => {
     if (loading) return;
     if (smsCode.length !== OTP_LENGTH) {
-      setError('Ingresa el código SMS completo');
+      setError('Ingresa el SMS de verificacion completo');
       return;
     }
 
@@ -130,7 +130,7 @@ function OperatorJoinScreen() {
       const response = await axios.post(
         `${BACKEND_URL}/api/auth/login-sms/verify`,
         {
-          activation_code: activationCode,
+          enrollment_token: enrollmentToken,
           code: smsCode,
           device_id: deviceId,
           requested_role: 'provider',
@@ -140,8 +140,8 @@ function OperatorJoinScreen() {
       completeOperatorSession(response.data);
     } catch (err) {
       setPhase('otp');
-      setStatusMessage('Te enviamos un código de verificación por SMS.');
-      setError(getHttpErrorMessage(err, { fallback: 'No pudimos verificar el código. Intenta nuevamente.' }));
+      setStatusMessage('Te enviamos un SMS de verificacion.');
+      setError(getHttpErrorMessage(err, { fallback: 'No pudimos verificar tu identidad. Intenta nuevamente.' }));
     } finally {
       setLoading(false);
     }
@@ -155,19 +155,19 @@ function OperatorJoinScreen() {
     setStatusMessage('Estamos preparando tu cuenta.');
 
     try {
-      const [otpData] = await Promise.all([requestOtpForActivation(activationCode), wait(PREPARE_DELAY_MS)]);
+      const [otpData] = await Promise.all([requestOtpForActivation(enrollmentToken), wait(PREPARE_DELAY_MS)]);
       if (otpData?.token) {
         completeOperatorSession(otpData);
         return;
       }
       setPhase('otp');
-      setStatusMessage('Te enviamos un código de verificación por SMS.');
+      setStatusMessage('Te enviamos un SMS de verificacion.');
     } catch (err) {
       setPhase('otp');
-      setStatusMessage('Te enviamos un código de verificación por SMS.');
+      setStatusMessage('Te enviamos un SMS de verificacion.');
       setError(
         getHttpErrorMessage(err, {
-          fallback: 'No pudimos reenviar el código. Si el problema continúa, solicita ayuda a tu empresa.',
+          fallback: 'No pudimos reenviar la verificacion. Si el problema continua, solicita ayuda a tu empresa.',
         })
       );
     } finally {
@@ -176,10 +176,10 @@ function OperatorJoinScreen() {
   };
 
   useEffect(() => {
-    if (!fromUrlCode || autoStarted || loading) return;
+    if (!fromUrlToken || autoStarted || loading) return;
     setAutoStarted(true);
-    void handleJoinWithCode();
-  }, [autoStarted, fromUrlCode, loading]);
+    void handleJoinFromInvite();
+  }, [autoStarted, fromUrlToken, loading]);
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
@@ -199,12 +199,12 @@ function OperatorJoinScreen() {
             fontFamily: "'Space Grotesk', sans-serif",
           }}
         >
-          {phase === 'code'
+          {phase === 'entry'
             ? 'Bienvenido a MAQGO'
             : phase === 'sending'
               ? 'Verificando...'
               : phase === 'otp'
-                ? 'Te enviamos un código de verificación por SMS.'
+                ? 'Te enviamos un SMS de verificacion.'
                 : 'Activando tu cuenta...'}
         </h1>
         <p
@@ -216,16 +216,16 @@ function OperatorJoinScreen() {
             lineHeight: 1.5,
           }}
         >
-          {phase === 'code'
+          {phase === 'entry'
             ? 'Abre el enlace que recibiste por SMS para comenzar tu incorporacion.'
             : phase === 'sending'
               ? 'Estamos preparando tu cuenta.'
               : phase === 'otp'
-                ? 'Ingresa el código SMS para continuar.'
+                ? 'Ingresa el SMS de verificacion para continuar.'
                 : 'Un momento mientras terminamos tu acceso.'}
         </p>
 
-        {phase === 'code' ? (
+        {phase === 'entry' ? (
           <div
             style={{
               width: '100%',
@@ -255,7 +255,7 @@ function OperatorJoinScreen() {
               }}
               disabled={loading}
               data-testid="operator-otp-input"
-              aria-label="Código SMS"
+              aria-label="SMS de verificacion"
             />
           </div>
         ) : null}
@@ -299,7 +299,7 @@ function OperatorJoinScreen() {
           </div>
         ) : null}
 
-        {phase === 'code' ? (
+        {phase === 'entry' ? (
           <button
             className="maqgo-btn-secondary"
             onClick={() => navigate('/', { replace: true })}
@@ -335,15 +335,15 @@ function OperatorJoinScreen() {
                 cursor: loading ? 'default' : 'pointer',
               }}
             >
-              ¿No recibiste el código?
+              ¿No recibiste el SMS?
             </button>
           </>
         ) : null}
 
-        {phase === 'code' ? (
+        {phase === 'entry' ? (
           <div style={{ marginTop: 30, textAlign: 'center' }}>
             <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: 0 }}>
-              ¿No tienes código? Pídelo a tu empresa
+              ¿No recibiste la invitacion? Pidela a tu empresa
             </p>
           </div>
         ) : null}

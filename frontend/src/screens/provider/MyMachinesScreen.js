@@ -90,6 +90,11 @@ function normalizeMachineOperator(machine, operator = {}, fallback = '') {
   };
 }
 
+function isActiveOperatorRecord(operator = {}) {
+  const status = String(operator?.visible_status || operator?.status || '').trim().toLowerCase();
+  return !status || status === 'active';
+}
+
 function getMachinePrimaryOperatorId(machine) {
   const currentOperators = Array.isArray(machine?.operators) ? machine.operators : [];
   const explicitPrimary = currentOperators.find((op, index) => {
@@ -109,8 +114,8 @@ function getEffectiveDefaultOperatorId(machine, defaultByMachinery = {}) {
   return firstOperatorId;
 }
 
-function buildOperatorCodesRoute() {
-  return '/provider/team?mode=operator&tab=invite&view=codes';
+function buildOperatorPendingInvitationsRoute() {
+  return '/provider/team?mode=operator&tab=invite&view=pending';
 }
 
 function MyMachinesScreen() {
@@ -596,7 +601,7 @@ function MyMachinesScreen() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
                   }}
                 >
-                  {'Agregar / modificar operadores'}
+                  {'Asignar o invitar operador'}
                 </button>
               )}
             </div>
@@ -647,6 +652,7 @@ function MyMachinesScreen() {
       {operatorModal && (
         <AssignOperatorsModal
           machine={operatorModal.machine}
+          allMachines={machines}
           initialLoaded={operatorModal.initialLoaded}
           initialError={operatorModal.initialError}
           initialTeamOperators={operatorModal.initialTeamOperators}
@@ -739,6 +745,7 @@ function EditPricingModal({ machine, priceVal: initialPrice, transportVal: initi
 
 function AssignOperatorsModal({
   machine,
+  allMachines = [],
   initialLoaded = false,
   initialError = '',
   initialTeamOperators = [],
@@ -770,9 +777,11 @@ function AssignOperatorsModal({
     return current[0]?.id || '';
   });
   const [error, setError] = useState(() => initialError || '');
-  const [newOperatorName, setNewOperatorName] = useState('');
+  const [newOperatorFirstName, setNewOperatorFirstName] = useState('');
+  const [newOperatorLastName, setNewOperatorLastName] = useState('');
   const [newOperatorRut, setNewOperatorRut] = useState('');
   const [newOperatorPhone, setNewOperatorPhone] = useState('+569');
+  const [inviteMachineIds, setInviteMachineIds] = useState(() => new Set([String(machine?.id || '').trim()].filter(Boolean)));
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [recentInvite, setRecentInvite] = useState(null);
   const [showInlineInviteForm, setShowInlineInviteForm] = useState(false);
@@ -860,7 +869,7 @@ function AssignOperatorsModal({
     const currentOperators = Array.isArray(machine.operators) ? machine.operators : [];
     currentOperators.forEach((op, index) => {
       const normalized = normalizeMachineOperator(machine, op, `op-current-${index}`);
-      if (!normalized) return;
+      if (!normalized || !isActiveOperatorRecord(normalized)) return;
       byId.set(normalized.id, {
         id: normalized.id,
         name: normalized.name || op.name || 'Operador',
@@ -869,6 +878,7 @@ function AssignOperatorsModal({
       });
     });
     teamOperators.forEach((op, index) => {
+      if (!isActiveOperatorRecord(op)) return;
       const stableId = getOperatorStableId(op, `op-team-${index}`);
       if (!stableId) return;
       const prev = byId.get(stableId) || {};
@@ -907,11 +917,18 @@ function AssignOperatorsModal({
   );
 
   const handleCreateInlineInvite = async () => {
-    const fullName = String(newOperatorName || '').trim();
+    const firstName = String(newOperatorFirstName || '').trim();
+    const lastName = String(newOperatorLastName || '').trim();
+    const fullName = `${firstName} ${lastName}`.trim();
     const rut = String(newOperatorRut || '').trim();
     const normalizedPhone = normalizeChileanMobileE164(newOperatorPhone);
-    if (!fullName || !rut || !normalizedPhone) {
-      toast.warning('Ingresa nombre completo, RUT y celular del operador.');
+    const selectedMachineIds = Array.from(inviteMachineIds).filter(Boolean);
+    if (!firstName || !lastName || !rut || !normalizedPhone) {
+      toast.warning('Ingresa nombre, apellido, RUT y celular del operador.');
+      return;
+    }
+    if (!selectedMachineIds.length) {
+      toast.warning('Debes asociar al menos una máquina antes de invitar al operador.');
       return;
     }
     if (!validatePersonRut(rut)) {
@@ -928,8 +945,11 @@ function AssignOperatorsModal({
       const payload = {
         owner_id: ownerId,
         operator_name: fullName,
+        operator_first_name: firstName,
+        operator_last_name: lastName,
         operator_rut: formatRut(rut),
         operator_phone: normalizedPhone,
+        machine_ids: selectedMachineIds,
       };
       const response = await axios.post(`${BACKEND_URL}/api/operators/invite`, payload, { timeout: 8000 });
       const invite = {
@@ -942,9 +962,11 @@ function AssignOperatorsModal({
         sms_sent: Boolean(response?.data?.delivery?.sms_sent),
         sms_error: response?.data?.delivery?.sms_error || '',
         phone: response?.data?.delivery?.phone || normalizedPhone,
+        machine_ids: selectedMachineIds,
       };
       setRecentInvite(invite);
-      setNewOperatorName('');
+      setNewOperatorFirstName('');
+      setNewOperatorLastName('');
       setNewOperatorRut('');
       setNewOperatorPhone('+569');
       await loadAssignableData();
@@ -969,19 +991,28 @@ function AssignOperatorsModal({
       }}
     >
       <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
-        Generar invitación
+        Invitar operador
       </div>
       <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 1.45, margin: '0 0 12px' }}>
         MAQGO enviará automáticamente el SMS al operador para comenzar su incorporación.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <input
-          className="maqgo-input"
-          placeholder="Nombre completo"
-          value={newOperatorName}
-          onChange={(e) => setNewOperatorName(e.target.value)}
-          style={{ width: '100%' }}
-        />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <input
+            className="maqgo-input"
+            placeholder="Nombre"
+            value={newOperatorFirstName}
+            onChange={(e) => setNewOperatorFirstName(e.target.value)}
+            style={{ width: '100%' }}
+          />
+          <input
+            className="maqgo-input"
+            placeholder="Apellido"
+            value={newOperatorLastName}
+            onChange={(e) => setNewOperatorLastName(e.target.value)}
+            style={{ width: '100%' }}
+          />
+        </div>
         <input
           className="maqgo-input"
           placeholder="RUT"
@@ -996,13 +1027,58 @@ function AssignOperatorsModal({
           onChange={(e) => setNewOperatorPhone(normalizeChileanMobileDraft(e.target.value))}
           style={{ width: '100%' }}
         />
+        <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 10, padding: 12 }}>
+          <div style={{ color: '#fff', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', marginBottom: 8 }}>
+            Máquinas asignadas
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {(Array.isArray(allMachines) ? allMachines : []).map((item, index) => {
+              const machineId = String(item?.id || '').trim();
+              if (!machineId) return null;
+              const checked = inviteMachineIds.has(machineId);
+              const isCurrentMachine = machineId === String(machine?.id || '').trim();
+              return (
+                <label
+                  key={machineId || `invite-machine-${index}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    color: '#fff',
+                    fontSize: 13,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={isCurrentMachine}
+                    onChange={() => {
+                      setInviteMachineIds((prev) => {
+                        const next = new Set(prev);
+                        if (checked) next.delete(machineId);
+                        else next.add(machineId);
+                        next.add(String(machine?.id || '').trim());
+                        return next;
+                      });
+                    }}
+                  />
+                  <span>
+                    {item?.type || item?.machineryType || 'Máquina'}
+                    {item?.licensePlate ? ` · ${item.licensePlate}` : ''}
+                    {isCurrentMachine ? ' (actual)' : ''}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
         <button
           type="button"
           onClick={handleCreateInlineInvite}
           disabled={creatingInvite}
           style={{ ...btnPrimary, width: '100%', flex: 'none', opacity: creatingInvite ? 0.7 : 1 }}
         >
-          {creatingInvite ? 'Generando...' : 'Generar invitación'}
+          {creatingInvite ? 'Enviando...' : 'Invitar operador'}
         </button>
       </div>
       {recentInvite ? (
@@ -1023,6 +1099,11 @@ function AssignOperatorsModal({
               ? `SMS enviado a ${recentInvite.phone || recentInvite.operator_phone}. La empresa no necesita compartir nada manualmente.`
               : 'La invitación fue registrada, pero no pudimos confirmar el SMS. Revisa el celular y vuelve a intentar si es necesario.'}
           </div>
+          {Array.isArray(recentInvite.machine_ids) && recentInvite.machine_ids.length > 0 ? (
+            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 8 }}>
+              Asociado a {recentInvite.machine_ids.length} máquina{recentInvite.machine_ids.length === 1 ? '' : 's'}.
+            </div>
+          ) : null}
           {recentInvite.sms_error ? (
             <div style={{ color: '#FFA726', fontSize: 12, marginTop: 8, lineHeight: 1.45 }}>
               Detalle: {recentInvite.sms_error}
@@ -1033,7 +1114,7 @@ function AssignOperatorsModal({
     </div>
   );
 
-  const renderInlineInviteEntry = (label = 'Agregar operador') =>
+  const renderInlineInviteEntry = (label = 'Invitar operador') =>
     canManageOperators ? (
       shouldShowInlineInviteForm ? (
         createInvitePanel
@@ -1084,12 +1165,12 @@ function AssignOperatorsModal({
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>
               Revisa tu conexión y vuelve a intentar.
               {canManageOperators ? (
-                <> También puedes gestionar invitaciones desde <strong>Invitaciones de operadores</strong>.</>
+                <> También puedes revisar el seguimiento desde <strong>Invitaciones pendientes</strong>.</>
               ) : null}
             </p>
             {canManageOperators ? (
-              <button onClick={() => { onClose(); navigate(buildOperatorCodesRoute()); }} style={{ ...btnPrimary, marginTop: 16 }}>
-                Ir a Invitaciones
+              <button onClick={() => { onClose(); navigate(buildOperatorPendingInvitationsRoute()); }} style={{ ...btnPrimary, marginTop: 16 }}>
+                Ver invitaciones pendientes
               </button>
             ) : null}
             {renderInlineInviteEntry()}
@@ -1133,11 +1214,11 @@ function AssignOperatorsModal({
                 </div>
                 <div style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, lineHeight: 1.45 }}>
                   {missingAssigned.map((op) => op?.name).filter(Boolean).join(', ')}.
-                  {' '}Revísalos en Ver invitaciones.
+                  {' '}Revísalos en Invitaciones pendientes.
                 </div>
                 {canManageOperators ? (
-                  <button onClick={() => { onClose(); navigate(buildOperatorCodesRoute()); }} style={{ ...btnPrimary, marginTop: 12 }}>
-                    Ver invitaciones
+                  <button onClick={() => { onClose(); navigate(buildOperatorPendingInvitationsRoute()); }} style={{ ...btnPrimary, marginTop: 12 }}>
+                    Ver invitaciones pendientes
                   </button>
                 ) : null}
               </div>
@@ -1210,7 +1291,7 @@ function AssignOperatorsModal({
             {pendingInvitations.length > 0 && (
               <div style={{ margin: '0 0 16px' }}>
                 <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
-                  Códigos pendientes ({pendingInvitations.length})
+                  Invitaciones pendientes ({pendingInvitations.length})
                 </div>
                 <div
                   style={{
@@ -1225,10 +1306,10 @@ function AssignOperatorsModal({
                   </div>
                   {canManageOperators ? (
                     <button
-                      onClick={() => { onClose(); navigate(buildOperatorCodesRoute()); }}
+                      onClick={() => { onClose(); navigate(buildOperatorPendingInvitationsRoute()); }}
                       style={{ ...btnPrimary, marginTop: 12, width: '100%' }}
                     >
-                      Ver invitaciones
+                      Ver invitaciones pendientes
                     </button>
                   ) : null}
                 </div>

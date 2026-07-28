@@ -1,4 +1,8 @@
-from services.machines_service import normalize_machine_payload, serialize_machine
+import asyncio
+
+import pytest
+
+from services.machines_service import create_machine, normalize_machine_payload, serialize_machine, update_machine
 
 
 def test_normalize_machine_payload_license_plate_formats_4_letters_2_digits() -> None:
@@ -50,7 +54,7 @@ def test_normalize_machine_payload_keeps_multiple_real_operators_and_marks_one_p
             "machineryType": "retroexcavadora",
             "licensePlate": "ABCD12",
             "operators": [
-                {"nombre": "Ana", "apellido": "Pérez", "rut": "11.111.111-1"},
+                {"nombre": "Ana", "apellido": "Pérez", "rut": "11.111.111-1", "phone": "+56 9 9123 4567"},
                 {"name": "Luis Soto", "phone": "+56 9 9876 5432", "isPrimary": True},
             ],
         },
@@ -153,3 +157,83 @@ def test_serialize_machine_exposes_operatorless_machine_as_draft() -> None:
     assert machine["available"] is False
     assert machine["published"] is False
     assert machine["status"] == "draft"
+
+
+class _DummyMachinesCollection:
+    async def create_index(self, *args, **kwargs):
+        return None
+
+    async def find_one(self, *args, **kwargs):
+        return None
+
+    async def update_one(self, *args, **kwargs):
+        return None
+
+    async def insert_one(self, *args, **kwargs):
+        return None
+
+
+class _DummyUsersCollection:
+    async def find_one(self, *args, **kwargs):
+        return None
+
+    async def update_one(self, *args, **kwargs):
+        return None
+
+
+class _DummyDb:
+    def __init__(self):
+        self.machines = _DummyMachinesCollection()
+        self.users = _DummyUsersCollection()
+
+    async def list_collection_names(self):
+        return ["machines", "users"]
+
+
+def test_create_machine_rejects_machine_without_real_operator() -> None:
+    db = _DummyDb()
+    with pytest.raises(ValueError, match="al menos un operador real asignado"):
+        asyncio.run(
+            create_machine(
+                db,
+                "prov_1",
+                {
+                    "machineryType": "retroexcavadora",
+                    "licensePlate": "ABCD12",
+                    "operators": [{"name": "Operador RC"}],
+                },
+            )
+        )
+
+
+def test_update_machine_rejects_machine_without_real_operator() -> None:
+    existing = {
+        "id": "mach_1",
+        "provider_id": "prov_1",
+        "machineryType": "retroexcavadora",
+        "licensePlate": "ABCD-12",
+        "operators": [{"name": "Ana Perez", "phone": "+56 9 9876 5432", "isPrimary": True}],
+    }
+
+    class _UpdateMachinesCollection(_DummyMachinesCollection):
+        async def find_one(self, query, *args, **kwargs):
+            if query.get("id") == "mach_1":
+                return existing
+            return None
+
+    class _UpdateDb(_DummyDb):
+        def __init__(self):
+            super().__init__()
+            self.machines = _UpdateMachinesCollection()
+
+    db = _UpdateDb()
+    with pytest.raises(ValueError, match="al menos un operador real asignado"):
+        asyncio.run(
+            update_machine(
+                db,
+                "mach_1",
+                {
+                    "operators": [{"name": "Operador"}],
+                },
+            )
+        )

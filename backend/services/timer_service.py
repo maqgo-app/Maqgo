@@ -53,6 +53,108 @@ class TimerService:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
         self._last_check_expired_heartbeat: Optional[float] = None
+
+    async def check_pending_team_invitation_reminders(self) -> int:
+        now = datetime.now(timezone.utc)
+        wave4_hours = max(73, int(str(os.environ.get("MAQGO_TEAM_INVITE_WAVE4_HOURS", "168") or "168").strip() or "168"))
+        reminder_plan = [
+            ("24h", 24),
+            ("72h", 72),
+            ("wave4", wave4_hours),
+        ]
+        cursor = (
+            self.db.invitations.find(
+                {
+                    "status": "pending",
+                    "invite_type": {"$in": ["operator", "master"]},
+                },
+                {
+                    "_id": 0,
+                    "token": 1,
+                    "code": 1,
+                    "owner_name": 1,
+                    "invite_type": 1,
+                    "operator_phone": 1,
+                    "master_phone": 1,
+                    "created_at": 1,
+                    "expires_at": 1,
+                    "reminder_waves_sent": 1,
+                    "delivery_status": 1,
+                },
+            )
+            .sort([("_id", 1)])
+        )
+        reminded = 0
+        from routes.operators import _invitation_token, _invitation_lookup, _send_invitation_sms
+
+        async for invitation in cursor:
+            token = _invitation_token(invitation)
+            if not token:
+                continue
+            created_at = invitation.get("created_at")
+            if isinstance(created_at, str):
+                try:
+                    created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                except Exception:
+                    created_at = None
+            if not isinstance(created_at, datetime):
+                continue
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+
+            expires_at = invitation.get("expires_at")
+            if isinstance(expires_at, str):
+                try:
+                    expires_at = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                except Exception:
+                    expires_at = None
+            if isinstance(expires_at, datetime):
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if now > expires_at:
+                    continue
+
+            age_hours = max(0, int((now - created_at).total_seconds() // 3600))
+            sent_waves = {
+                str(item).strip()
+                for item in (invitation.get("reminder_waves_sent") or [])
+                if str(item).strip()
+            }
+            next_wave = None
+            for wave_name, threshold_hours in reminder_plan:
+                if age_hours >= threshold_hours and wave_name not in sent_waves:
+                    next_wave = wave_name
+                    break
+            if not next_wave:
+                continue
+
+            phone = str(
+                invitation.get("operator_phone")
+                or invitation.get("master_phone")
+                or ""
+            ).strip()
+            delivery = _send_invitation_sms(
+                phone=phone,
+                token=token,
+                invite_type=str(invitation.get("invite_type") or "operator"),
+                owner_name=str(invitation.get("owner_name") or ""),
+            )
+            await self.db.invitations.update_one(
+                _invitation_lookup(token),
+                {
+                    "$set": {
+                        "delivery_status": "sms_sent" if delivery.get("sms_sent") else "sms_failed",
+                        "last_sms_sent_at": now if delivery.get("sms_sent") else invitation.get("last_sms_sent_at"),
+                        "last_sms_error": delivery.get("sms_error"),
+                        "last_reminder_wave": next_wave,
+                        "last_reminder_at": now,
+                    },
+                    "$addToSet": {"reminder_waves_sent": next_wave},
+                    "$inc": {"resend_count": 1},
+                },
+            )
+            reminded += 1
+        return reminded
     
     async def check_expired_incident_protected_windows(self) -> int:
         now = datetime.now(timezone.utc)
@@ -1148,6 +1250,7 @@ class TimerService:
         auto_arrival = await self.check_auto_arrival_from_tracking()
         auto_started = await self.check_auto_start_post_arrival()
         auto_start_emails = await self.check_pending_client_auto_start_emails()
+        invite_reminders = await self.check_pending_team_invitation_reminders()
         rotation_waves = await self.check_matching_rotation_waves()
         expired_offers = await self.check_expired_offers()
         last_30_services = await self.check_last_30_services()
@@ -1160,6 +1263,7 @@ class TimerService:
             'auto_arrival': auto_arrival,
             'auto_started': auto_started,
             'auto_start_emails': auto_start_emails,
+            'team_invite_reminders': invite_reminders,
             'matching_rotation_waves': rotation_waves,
             'expired_offers': expired_offers,
             'last_30_triggered': last_30_services,
@@ -1168,7 +1272,7 @@ class TimerService:
             'checked_at': datetime.now(timezone.utc).isoformat()
         }
         
-        if expired_incident_windows or no_arrival_alerts or auto_arrival or auto_started or auto_start_emails or rotation_waves or expired_offers or last_30_services or finished_services or auto_approved:
+        if expired_incident_windows or no_arrival_alerts or auto_arrival or auto_started or auto_start_emails or invite_reminders or rotation_waves or expired_offers or last_30_services or finished_services or auto_approved:
             logger.info(f"Timer check completado: {summary}")
         
         return summary

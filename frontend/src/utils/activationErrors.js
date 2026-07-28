@@ -1,6 +1,6 @@
 import { normalizeDetail } from './httpErrors';
 
-export const ACTIVATION_UNDETERMINED_MESSAGE = 'No se pudo activar el código. Intenta nuevamente.';
+export const ACTIVATION_UNDETERMINED_MESSAGE = 'No pudimos completar tu incorporacion. Intenta nuevamente.';
 
 const LEGACY_UNDETERMINED_MESSAGE =
   'No fue posible determinar la causa del error. Inténtalo nuevamente o contacta a soporte.';

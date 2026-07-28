@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useMemo, useState } from 'react';
+import React, { useLayoutEffect, useState } from 'react';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MaqgoLogo from '../../components/MaqgoLogo';
@@ -80,8 +80,9 @@ function SelectOperatorScreen() {
   const [showBackModal, setShowBackModal] = useState(false);
   const fromEnRoute = Boolean(location.state?.fromEnRoute);
   const fromRequestReceived = Boolean(location.state?.fromRequestReceived);
-  const manageMode = String(location.state?.manageMode || '').trim().toLowerCase();
-  const isReservationEditor = fromRequestReceived || manageMode === 'replace' || manageMode === 'add';
+  const requestedManageMode = String(location.state?.manageMode || '').trim().toLowerCase();
+  const manageMode = requestedManageMode === 'add' ? 'replace' : requestedManageMode;
+  const isReservationEditor = fromRequestReceived || manageMode === 'replace';
   const acceptedRequest = getObjectFirst(['acceptedRequest', 'incomingRequest'], {});
   const matchedMachine = resolveMatchedMachine(acceptedRequest);
   const requestId = String(location.state?.requestId || acceptedRequest?.id || '').trim();
@@ -94,20 +95,12 @@ function SelectOperatorScreen() {
       .replace(/\s+/g, '_')
       .replace(/[^a-z0-9_]/g, '') || 'retroexcavadora';
   });
-  const [selectedAdditionalIds, setSelectedAdditionalIds] = useState([]);
-  const currentReservationOperators = useMemo(
-    () => loadReservationAssignedOperators(requestId).map((operator, index) => normalizeStoredOperator(operator, index)).filter(Boolean),
-    [requestId]
-  );
-  const currentPrimaryReservationOperator = currentReservationOperators[0] || null;
-  const currentAdditionalReservationIds = currentReservationOperators
-    .slice(1)
-    .map((operator) => String(operator?.id || '').trim())
+  const currentReservationOperators = loadReservationAssignedOperators(requestId)
+    .map((operator, index) => normalizeStoredOperator(operator, index))
     .filter(Boolean);
-  const screenTitle = manageMode === 'add' ? 'Agregar operador' : 'Cambiar operador';
-  const screenSubtitle = manageMode === 'add'
-    ? 'Suma operadores adicionales solo para esta reserva.'
-    : 'Reemplaza el operador principal solo para esta reserva.';
+  const currentPrimaryReservationOperator = currentReservationOperators[0] || null;
+  const screenTitle = 'Cambiar operador';
+  const screenSubtitle = 'Reemplaza el operador principal solo para esta reserva.';
 
   useLayoutEffect(() => {
     const serviceOperators = getArray('assignableServiceOperators', []);
@@ -137,19 +130,8 @@ function SelectOperatorScreen() {
       ? operatorsWithIds.find((operator) => String(operator?.id || '').trim() === reservationPrimaryId)
       : null;
 
-    if (isReservationEditor && manageMode === 'add') {
-      setSelectedOperator(reservationPrimaryOp || currentAssignedOp || defaultOp || operatorsWithIds[0] || null);
-      setSelectedAdditionalIds(
-        currentAdditionalReservationIds.filter((operatorId) =>
-          operatorsWithIds.some((operator) => String(operator?.id || '').trim() === operatorId)
-        )
-      );
-      return;
-    }
-
     if (isReservationEditor) {
       setSelectedOperator(reservationPrimaryOp || currentAssignedOp || defaultOp || operatorsWithIds[0] || null);
-      setSelectedAdditionalIds(currentAdditionalReservationIds);
       return;
     }
 
@@ -162,40 +144,13 @@ function SelectOperatorScreen() {
     } else {
       setSelectedOperator(null);
     }
-  }, [currentAdditionalReservationIds, currentPrimaryReservationOperator, isReservationEditor, machineryId, manageMode]);
-
-  const additionalCandidates = useMemo(() => {
-    const primaryId = String(selectedOperator?.id || currentPrimaryReservationOperator?.id || '').trim();
-    return operators.filter((operator) => String(operator?.id || '').trim() !== primaryId);
-  }, [currentPrimaryReservationOperator, operators, selectedOperator]);
-
-  const toggleAdditionalOperator = (operatorId) => {
-    const nextId = String(operatorId || '').trim();
-    if (!nextId) return;
-    setSelectedAdditionalIds((current) => (
-      current.includes(nextId)
-        ? current.filter((id) => id !== nextId)
-        : [...current, nextId]
-    ));
-  };
+  }, [currentPrimaryReservationOperator, isReservationEditor, machineryId]);
 
   const handleConfirm = () => {
     if (!selectedOperator) return;
 
     if (isReservationEditor) {
-      const nextOperators = manageMode === 'add'
-        ? [
-            selectedOperator,
-            ...additionalCandidates.filter((operator) => selectedAdditionalIds.includes(String(operator?.id || '').trim())),
-          ]
-        : [
-            selectedOperator,
-            ...operators.filter((operator) => {
-              const id = String(operator?.id || '').trim();
-              return id && currentAdditionalReservationIds.includes(id) && id !== String(selectedOperator?.id || '').trim();
-            }),
-          ];
-      saveReservationAssignedOperators(requestId, nextOperators);
+      saveReservationAssignedOperators(requestId, [selectedOperator]);
       navigate(returnTo || '/provider/request-received', {
         replace: true,
         state: { operatorsUpdatedAt: Date.now() },
@@ -253,7 +208,7 @@ function SelectOperatorScreen() {
     });
   };
 
-  const renderOperatorCard = (operator, selected, onClick, multiselect = false) => (
+  const renderOperatorCard = (operator, selected, onClick) => (
     <div
       key={operator.id}
       onClick={onClick}
@@ -307,14 +262,14 @@ function SelectOperatorScreen() {
         <div style={{
           width: 24,
           height: 24,
-          borderRadius: multiselect ? 8 : '50%',
+          borderRadius: '50%',
           border: `2px solid ${selected ? '#EC6819' : '#555'}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
         }}>
           {selected ? (
-            <div style={{ width: 12, height: 12, borderRadius: multiselect ? 4 : '50%', background: '#EC6819' }} />
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#EC6819' }} />
           ) : null}
         </div>
       </div>
@@ -413,40 +368,16 @@ function SelectOperatorScreen() {
                 margin: '8px 0 0',
                 lineHeight: 1.45
               }}>
-                {manageMode === 'add'
-                  ? 'Se mantiene asignado mientras agregas apoyo adicional.'
-                  : 'Este operador reemplazará al predeterminado solo para esta reserva.'}
+                Este operador reemplazará al predeterminado solo para esta reserva.
               </p>
             </div>
           ) : null}
 
-          {isReservationEditor && manageMode === 'add' ? (
-            additionalCandidates.length === 0 ? (
-              <div style={{ background: '#363636', borderRadius: 12, padding: 16 }}>
-                <p style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: 0 }}>
-                  No hay operadores adicionales disponibles en esta máquina
-                </p>
-                <p style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, margin: '8px 0 0', lineHeight: 1.45 }}>
-                  Agrega más operadores a la máquina si este trabajo requiere apoyo adicional.
-                </p>
-              </div>
-            ) : (
-              additionalCandidates.map((operator) =>
-                renderOperatorCard(
-                  operator,
-                  selectedAdditionalIds.includes(String(operator?.id || '').trim()),
-                  () => toggleAdditionalOperator(operator.id),
-                  true
-                )
-              )
-            )
-          ) : (
-            operators.map((operator) =>
-              renderOperatorCard(
-                operator,
-                selectedOperator?.id === operator.id,
-                () => setSelectedOperator(operator)
-              )
+          {operators.map((operator) =>
+            renderOperatorCard(
+              operator,
+              selectedOperator?.id === operator.id,
+              () => setSelectedOperator(operator)
             )
           )}
 
@@ -521,7 +452,7 @@ function SelectOperatorScreen() {
               ? 'Guardando operador'
               : (
                 isReservationEditor
-                  ? (manageMode === 'add' ? 'Guardar operadores adicionales' : 'Guardar operador para esta reserva')
+                  ? 'Guardar operador para esta reserva'
                   : 'Confirmar y continuar'
               )
           }
@@ -538,7 +469,7 @@ function SelectOperatorScreen() {
             </span>
           ) : (
             isReservationEditor
-              ? (manageMode === 'add' ? 'Guardar y volver a la reserva' : 'Usar este operador en la reserva')
+              ? 'Usar este operador en la reserva'
               : 'Confirmar y continuar'
           )}
         </button>

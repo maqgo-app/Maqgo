@@ -37,8 +37,8 @@ export function getOperatorInvitationWarning(invitation, warningAfterHours = WAR
     warningAfterHours,
     tone: overdue ? 'warning' : 'neutral',
     message: overdue
-      ? `Aun no enrola su codigo de activacion (${formatOperatorInvitationAge(ageHours)}).`
-      : `Codigo pendiente de uso (${formatOperatorInvitationAge(ageHours)}).`,
+      ? `Aun no completa su incorporacion (${formatOperatorInvitationAge(ageHours)}).`
+      : `Invitacion pendiente (${formatOperatorInvitationAge(ageHours)}).`,
   };
 }
 
@@ -48,4 +48,3 @@ export function getOverdueOperatorInvitations(invitations, warningAfterHours = W
     return warning?.overdue === true;
   });
 }
-

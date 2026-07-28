@@ -39,7 +39,7 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         v = operators._calculate_rut_verifier(body)
         return f"12.345.678-{v}"
 
-    def test_operator_join_codigo_inexistente(self):
+    def test_operator_join_invitation_not_found(self):
         mock_db = MagicMock()
         mock_db.invitations = MagicMock()
         mock_db.users = MagicMock()
@@ -47,12 +47,12 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         operators.db = mock_db
 
         with self.assertRaises(HTTPException) as ctx:
-            _run(operators.use_invitation(operators.InvitationUse(code="ZZZZZZ")))
+            _run(operators.use_invitation(operators.InvitationUse(token="ZZZZZZ")))
 
         self.assertEqual(ctx.exception.status_code, 404)
-        self.assertEqual(ctx.exception.detail, "Código inexistente")
+        self.assertEqual(ctx.exception.detail, "Invitación no encontrada")
 
-    def test_operator_join_codigo_ya_utilizado(self):
+    def test_operator_join_invitation_already_used(self):
         mock_db = MagicMock()
         mock_db.invitations = MagicMock()
         mock_db.users = MagicMock()
@@ -62,12 +62,12 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         operators.db = mock_db
 
         with self.assertRaises(HTTPException) as ctx:
-            _run(operators.use_invitation(operators.InvitationUse(code="ABC123")))
+            _run(operators.use_invitation(operators.InvitationUse(token="ABC123")))
 
         self.assertEqual(ctx.exception.status_code, 404)
-        self.assertEqual(ctx.exception.detail, "Código ya utilizado")
+        self.assertEqual(ctx.exception.detail, "Invitación ya utilizada")
 
-    def test_operator_join_codigo_para_gerentes(self):
+    def test_operator_join_invitation_for_managers(self):
         mock_db = MagicMock()
         mock_db.invitations = MagicMock()
         mock_db.users = MagicMock()
@@ -77,12 +77,12 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         operators.db = mock_db
 
         with self.assertRaises(HTTPException) as ctx:
-            _run(operators.use_invitation(operators.InvitationUse(code="MST999")))
+            _run(operators.use_invitation(operators.InvitationUse(token="MST999")))
 
         self.assertEqual(ctx.exception.status_code, 404)
-        self.assertEqual(ctx.exception.detail, "Este código es para Gerentes")
+        self.assertEqual(ctx.exception.detail, "Esta invitación es para Gerentes")
 
-    def test_operator_join_codigo_expirado_por_status(self):
+    def test_operator_join_invitation_expired_by_status(self):
         mock_db = MagicMock()
         mock_db.invitations = MagicMock()
         mock_db.users = MagicMock()
@@ -92,10 +92,10 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         operators.db = mock_db
 
         with self.assertRaises(HTTPException) as ctx:
-            _run(operators.use_invitation(operators.InvitationUse(code="EXP111")))
+            _run(operators.use_invitation(operators.InvitationUse(token="EXP111")))
 
         self.assertEqual(ctx.exception.status_code, 400)
-        self.assertEqual(ctx.exception.detail, "Código expirado")
+        self.assertEqual(ctx.exception.detail, "Invitación expirada")
 
     def test_operator_join_invitacion_expiracion_invalida(self):
         mock_db = MagicMock()
@@ -113,7 +113,7 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         operators.db = mock_db
 
         with self.assertRaises(HTTPException) as ctx:
-            _run(operators.use_invitation(operators.InvitationUse(code="BAD777")))
+            _run(operators.use_invitation(operators.InvitationUse(token="BAD777")))
 
         self.assertEqual(ctx.exception.status_code, 500)
         self.assertEqual(ctx.exception.detail, "Error interno: invitación con expiración inválida")
@@ -141,7 +141,7 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         operators.db = mock_db
 
         with self.assertRaises(HTTPException) as ctx:
-            _run(operators.use_invitation(operators.InvitationUse(code="DUP123")))
+            _run(operators.use_invitation(operators.InvitationUse(token="DUP123")))
 
         self.assertEqual(ctx.exception.status_code, 409)
         self.assertIn("registro duplicado", str(ctx.exception.detail).lower())
@@ -234,7 +234,7 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         mock_db.users.insert_one = AsyncMock()
         operators.db = mock_db
 
-        result = _run(operators.use_invitation(operators.InvitationUse(code="ABC123")))
+        result = _run(operators.use_invitation(operators.InvitationUse(token="ABC123")))
 
         self.assertTrue(result["success"])
         self.assertEqual(result["operator_id"], "op-existing")
@@ -242,7 +242,7 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         mock_db.users.update_one.assert_awaited()
         mock_db.invitations.update_one.assert_awaited()
 
-    def test_master_join_codigo_inexistente(self):
+    def test_master_join_invitation_not_found(self):
         mock_db = MagicMock()
         mock_db.invitations = MagicMock()
         mock_db.users = MagicMock()
@@ -250,12 +250,12 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         operators.db = mock_db
 
         with self.assertRaises(HTTPException) as ctx:
-            _run(operators.use_master_invitation(operators.MasterInvitationUse(code="ZZZZZZ")))
+            _run(operators.use_master_invitation(operators.MasterInvitationUse(token="ZZZZZZ")))
 
         self.assertEqual(ctx.exception.status_code, 404)
-        self.assertEqual(ctx.exception.detail, "Código inexistente")
+        self.assertEqual(ctx.exception.detail, "Invitación no encontrada")
 
-    def test_master_join_codigo_no_es_para_masters(self):
+    def test_master_join_invitation_not_for_managers(self):
         mock_db = MagicMock()
         mock_db.invitations = MagicMock()
         mock_db.users = MagicMock()
@@ -265,12 +265,12 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         operators.db = mock_db
 
         with self.assertRaises(HTTPException) as ctx:
-            _run(operators.use_master_invitation(operators.MasterInvitationUse(code="OPR111")))
+            _run(operators.use_master_invitation(operators.MasterInvitationUse(token="OPR111")))
 
         self.assertEqual(ctx.exception.status_code, 404)
-        self.assertEqual(ctx.exception.detail, "Este código no es para Gerentes")
+        self.assertEqual(ctx.exception.detail, "Esta invitación no es para Gerentes")
 
-    def test_master_join_codigo_expirado(self):
+    def test_master_join_invitation_expired(self):
         mock_db = MagicMock()
         mock_db.invitations = MagicMock()
         mock_db.users = MagicMock()
@@ -291,10 +291,10 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         operators.db = mock_db
 
         with self.assertRaises(HTTPException) as ctx:
-            _run(operators.use_master_invitation(operators.MasterInvitationUse(code="MEXP1")))
+            _run(operators.use_master_invitation(operators.MasterInvitationUse(token="MEXP1")))
 
         self.assertEqual(ctx.exception.status_code, 400)
-        self.assertEqual(ctx.exception.detail, "Código expirado")
+        self.assertEqual(ctx.exception.detail, "Invitación expirada")
 
 
 if __name__ == "__main__":

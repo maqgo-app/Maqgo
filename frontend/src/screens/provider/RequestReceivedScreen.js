@@ -55,6 +55,8 @@ function getMatchedMachineForRequest(request) {
 
 function normalizeOperatorForAssignment(operator = {}, index = 0) {
   if (!operator || typeof operator !== 'object') return null;
+  const rawStatus = String(operator.visible_status || operator.status || '').trim().toLowerCase();
+  if (rawStatus && rawStatus !== 'active') return null;
   const rawName = String(
     operator.nombre ||
     operator.name ||
@@ -84,7 +86,7 @@ function getAssignableOperatorsForRequest(request) {
   const normalizedMachineOperators = machineOperators
     .map((operator, index) => normalizeOperatorForAssignment(operator, index))
     .filter(Boolean);
-  if (normalizedMachineOperators.length > 0) {
+  if (matchedMachine) {
     return normalizedMachineOperators;
   }
 
@@ -391,7 +393,6 @@ function RequestReceivedScreen() {
   const preferredAssignedOperator = useMemo(() => getPreferredAssignedOperatorForRequest(request), [request]);
   const [assignedOperators, setAssignedOperators] = useState([]);
   const primaryAssignedOperator = assignedOperators[0] || null;
-  const additionalAssignedOperators = assignedOperators.slice(1);
   const hasRealAssignedOperator = Boolean(primaryAssignedOperator?.nombre || primaryAssignedOperator?.name);
 
   useEffect(() => {
@@ -1009,11 +1010,6 @@ function RequestReceivedScreen() {
                     ? 'Operador predeterminado de esta máquina.'
                     : 'Esta máquina no tiene un operador real con celular asignado. Agrégalo ahora para no trabar la reserva.'}
                 </p>
-                {additionalAssignedOperators.length > 0 ? (
-                  <p style={{ color: '#90BDD3', fontSize: 13, margin: '10px 0 0', lineHeight: 1.45 }}>
-                    Operadores adicionales: {additionalAssignedOperators.map((operator) => `${operator?.nombre || operator?.name || ''} ${operator?.apellido || ''}`.trim()).join(', ')}
-                  </p>
-                ) : null}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
@@ -1032,22 +1028,6 @@ function RequestReceivedScreen() {
                 }}
               >
                 Cambiar operador
-              </button>
-              <button
-                type="button"
-                onClick={() => handleManageReservationOperators('add')}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 10,
-                  border: '1px solid rgba(144, 189, 211, 0.40)',
-                  background: 'rgba(144, 189, 211, 0.10)',
-                  color: '#90BDD3',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Agregar operador
               </button>
               {!hasRealAssignedOperator ? (
                 <button

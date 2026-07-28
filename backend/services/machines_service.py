@@ -116,6 +116,13 @@ def serialize_machines(docs: Iterable[dict]) -> List[dict]:
     return [m for m in (serialize_machine(doc) for doc in docs) if m]
 
 
+def machine_has_real_assigned_operator(machine: Optional[dict]) -> bool:
+    if not isinstance(machine, dict):
+        return False
+    operators = normalize_machine_operators(machine.get("operators"))
+    return any(bool(op.get("id")) for op in operators)
+
+
 def _normalize_license_plate(value: str) -> str:
     raw = (value or "").strip().upper()
     compact = re.sub(r"[^A-Z0-9]", "", raw)
@@ -397,6 +404,145 @@ def machine_to_legacy_machine_data(machine: dict) -> dict:
     return {k: v for k, v in legacy.items() if v is not None and v != ""}
 
 
+def build_operator_assignment_snapshot(user: Optional[dict]) -> Optional[dict]:
+    if not isinstance(user, dict):
+        return None
+    operator_id = _clean_str(user.get("id"))
+    name = _clean_str(user.get("name"))
+    phone = _normalize_operator_phone(user.get("phone"))
+    rut = _clean_str(user.get("rut"))
+    if not operator_id or not name or not phone:
+        return None
+    status = _clean_str(user.get("status") or "pending_activation") or "pending_activation"
+    visible_status = _clean_str(user.get("visible_status"))
+    if not visible_status:
+        visible_status = "pending" if status == "pending_activation" else status
+    return {
+        "id": operator_id,
+        "name": name,
+        "phone": phone,
+        "rut": rut,
+        "status": status,
+        "visible_status": visible_status,
+    }
+
+
+async def validate_provider_machine_ids(db, provider_id: str, machine_ids: Iterable[str]) -> List[dict]:
+    normalized_ids: List[str] = []
+    seen = set()
+    for raw in machine_ids or []:
+        mid = _clean_str(raw)
+        if not mid or mid in seen:
+            continue
+        seen.add(mid)
+        normalized_ids.append(mid)
+    if not normalized_ids:
+        raise ValueError("Debes asociar al menos una máquina antes de invitar al operador.")
+    docs = await db.machines.find(
+        {
+            "provider_id": provider_id,
+            "id": {"$in": normalized_ids},
+            "status": {"$ne": "deleted"},
+        },
+        {"_id": 0},
+    ).to_list(len(normalized_ids))
+    found_ids = {_clean_str(doc.get("id")) for doc in docs}
+    missing = [mid for mid in normalized_ids if mid not in found_ids]
+    if missing:
+        raise ValueError("Una o más máquinas seleccionadas no pertenecen a tu empresa.")
+    order = {mid: idx for idx, mid in enumerate(normalized_ids)}
+    docs.sort(key=lambda doc: order.get(_clean_str(doc.get("id")), 10**9))
+    return docs
+
+
+async def attach_operator_to_machines(
+    db,
+    *,
+    provider_id: str,
+    operator_user: dict,
+    machine_ids: Iterable[str],
+) -> List[str]:
+    snapshot = build_operator_assignment_snapshot(operator_user)
+    if not snapshot:
+        return []
+    machines = await validate_provider_machine_ids(db, provider_id, machine_ids)
+    attached_ids: List[str] = []
+    for machine in machines:
+        operators = normalize_machine_operators(machine.get("operators"))
+        next_operators: List[dict] = []
+        replaced = False
+        for operator in operators:
+            if _clean_str(operator.get("id")) == snapshot["id"]:
+                next_operators.append({**operator, **snapshot, "isPrimary": bool(operator.get("isPrimary"))})
+                replaced = True
+            else:
+                next_operators.append(operator)
+        if not replaced:
+            next_operators.append({**snapshot, "isPrimary": len(next_operators) == 0})
+        await db.machines.update_one(
+            {"id": machine.get("id"), "provider_id": provider_id},
+            {
+                "$set": {
+                    "operators": next_operators,
+                    "primaryOperatorId": next((op.get("id") for op in next_operators if op.get("isPrimary")), ""),
+                    "updatedAt": utcnow().isoformat(),
+                }
+            },
+        )
+        attached_ids.append(_clean_str(machine.get("id")))
+    if attached_ids:
+        await sync_user_machine_mirror(db, provider_id)
+    return attached_ids
+
+
+async def sync_operator_snapshot_across_machines(
+    db,
+    *,
+    provider_id: str,
+    operator_user: dict,
+) -> int:
+    snapshot = build_operator_assignment_snapshot(operator_user)
+    if not snapshot:
+        return 0
+    cursor = db.machines.find(
+        {
+            "provider_id": provider_id,
+            "status": {"$ne": "deleted"},
+            "operators.id": snapshot["id"],
+        },
+        {"_id": 0},
+    )
+    updated = 0
+    async for machine in cursor:
+        operators = normalize_machine_operators(machine.get("operators"))
+        changed = False
+        next_operators: List[dict] = []
+        for operator in operators:
+            if _clean_str(operator.get("id")) == snapshot["id"]:
+                merged = {**operator, **snapshot, "isPrimary": bool(operator.get("isPrimary"))}
+                if merged != operator:
+                    changed = True
+                next_operators.append(merged)
+            else:
+                next_operators.append(operator)
+        if not changed:
+            continue
+        await db.machines.update_one(
+            {"id": machine.get("id"), "provider_id": provider_id},
+            {
+                "$set": {
+                    "operators": next_operators,
+                    "primaryOperatorId": next((op.get("id") for op in next_operators if op.get("isPrimary")), ""),
+                    "updatedAt": utcnow().isoformat(),
+                }
+            },
+        )
+        updated += 1
+    if updated:
+        await sync_user_machine_mirror(db, provider_id)
+    return updated
+
+
 async def ensure_machine_indexes(db) -> None:
     await db.machines.create_index([("id", 1)], unique=True, name="uniq_machine_id")
     await db.machines.create_index([("provider_id", 1), ("status", 1)], name="idx_provider_status")
@@ -493,6 +639,8 @@ async def create_machine(db, provider_id: str, payload: Dict[str, Any]) -> dict:
     doc = normalize_machine_payload(payload, provider_id)
     if not doc.get("machineryType") or not doc.get("licensePlate"):
         raise ValueError("machineryType y licensePlate son obligatorios")
+    if not machine_has_real_assigned_operator(doc):
+        raise ValueError("Cada máquina debe tener al menos un operador real asignado")
     existing = await db.machines.find_one(
         {
             "provider_id": provider_id,
@@ -526,6 +674,8 @@ async def update_machine(db, machine_id: str, payload: Dict[str, Any]) -> Option
         return None
     provider_id = existing.get("provider_id")
     doc = normalize_machine_payload(payload, provider_id, existing=existing)
+    if not machine_has_real_assigned_operator(doc):
+        raise ValueError("Cada máquina debe tener al menos un operador real asignado")
     doc["updatedAt"] = utcnow()
     await db.machines.update_one({"id": machine_id}, {"$set": doc})
     fresh = await db.machines.find_one({"id": machine_id}, {"_id": 0})

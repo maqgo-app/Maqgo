@@ -101,7 +101,7 @@ def test_resolve_activation_login_user_and_phone_requires_registered_phone(monke
     assert exc.value.detail == "Tu empresa debe registrar un celular válido antes de activar tu cuenta."
 
 
-def test_login_sms_start_allows_activation_code_without_celular(monkeypatch):
+def test_login_sms_start_allows_enrollment_token_without_celular(monkeypatch):
     fake_db = _FakeDB(
         invitations=[
             {
@@ -144,7 +144,7 @@ def test_login_sms_start_allows_activation_code_without_celular(monkeypatch):
         auth.login_sms_start.__wrapped__(
             object(),
             auth.LoginSmsStartRequest(
-                activation_code="abc123",
+                enrollment_token="abc123",
                 requested_role="provider",
             ),
         )
@@ -158,7 +158,7 @@ def test_login_sms_start_allows_activation_code_without_celular(monkeypatch):
     assert response["userId"] == "op-1"
 
 
-def test_login_sms_verify_with_activation_code_persists_phone_and_creates_session(monkeypatch):
+def test_login_sms_verify_with_enrollment_token_persists_phone_and_creates_session(monkeypatch):
     fake_db = _FakeDB(
         invitations=[
             {
@@ -198,7 +198,7 @@ def test_login_sms_verify_with_activation_code_persists_phone_and_creates_sessio
         auth.login_sms_verify.__wrapped__(
             object(),
             auth.LoginSmsVerifyRequest(
-                activation_code="ABC123",
+                enrollment_token="ABC123",
                 code="123456",
                 requested_role="provider",
             ),
@@ -208,7 +208,21 @@ def test_login_sms_verify_with_activation_code_persists_phone_and_creates_sessio
     assert fake_db.users.updated == [
         {
             "query": {"id": "op-1"},
-            "update": {"$set": {"phone": "+56912345678", "phoneVerified": True}},
+            "update": {
+                "$set": {
+                    "phone": "+56912345678",
+                    "phoneVerified": True,
+                    "status": "active",
+                    "activationStage": "enrollment_completed",
+                    "activatedAt": fake_db.users.updated[0]["update"]["$set"]["activatedAt"],
+                    "deleted": False,
+                },
+                "$unset": {
+                    "deletedAt": "",
+                    "deletedBy": "",
+                    "deleteReason": "",
+                },
+            },
             "upsert": False,
         }
     ]

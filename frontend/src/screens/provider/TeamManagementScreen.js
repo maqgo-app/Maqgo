@@ -9,6 +9,7 @@ import { useToast } from '../../components/Toast';
 
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { getOperatorInvitationWarning, getOverdueOperatorInvitations } from '../../utils/operatorInvitations';
+import { fetchProviderMachinesFromApi, getMachines } from '../../utils/providerMachines';
 import {
   formatRut,
   normalizeChileanMobileDraft,
@@ -18,11 +19,11 @@ import {
 } from '../../utils/chileanValidation';
 
 /**
- * Pantalla: Gestión de equipo (Mis operadores)
+ * Pantalla: Roles y usuarios
  *
  * - Lista de gerentes y operadores de la empresa
- * - Códigos de invitación: operador de campo vs gerente (master)
- * - La asignación de operador a una máquina concreta es en Mis máquinas (/provider/machines)
+ * - Invitación automática vía SMS gestionada por MAQGO
+ * - La asignación operativa por máquina se completa en Mis Máquinas
  */
 function TeamManagementScreen() {
   const navigate = useNavigate();
@@ -49,7 +50,9 @@ function TeamManagementScreen() {
   const requestedInviteView = (() => {
     try {
       const raw = new URLSearchParams(location.search).get('view');
-      return raw === 'codes' || raw === 'create' ? raw : null;
+      if (raw === 'pending' || raw === 'create') return raw;
+      if (raw === 'codes') return 'pending';
+      return null;
     } catch {
       return null;
     }
@@ -64,7 +67,7 @@ function TeamManagementScreen() {
   const [inviteType, setInviteType] = useState(effectiveMode); // 'operator' | 'master'
   const [team, setTeam] = useState({ masters: [], operators: [], pending_invitations: [] });
   const [loading, setLoading] = useState(true);
-  const [showCode, setShowCode] = useState(false);
+  const [showInviteResult, setShowInviteResult] = useState(false);
   const [inviteDelivery, setInviteDelivery] = useState(null);
   const [inviting, setInviting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -88,6 +91,8 @@ function TeamManagementScreen() {
     can_delete_machines: false,
   });
   const [didAttemptInvite, setDidAttemptInvite] = useState(false);
+  const [machineOptions, setMachineOptions] = useState(() => getMachines());
+  const [selectedOperatorMachineIds, setSelectedOperatorMachineIds] = useState([]);
   const [, setFinanceSummary] = useState({ facturado: 0, porCobrar: 0, pagado: 0 });
   const [, setWorksByMaster] = useState({});
   const [, setDashboardLoading] = useState(false);
@@ -107,14 +112,14 @@ function TeamManagementScreen() {
     }
     setInviteType(effectiveMode);
     setActiveTab(requestedTab || 'team');
-    setShowCode(false);
-    setInviteCode('');
-    setBatchInvites(null);
+    setShowInviteResult(false);
+    setInviteDelivery(null);
     setDidAttemptInvite(false);
     setOperatorFirstName('');
     setOperatorLastName('');
     setOperatorRut('');
     setOperatorPhone('+569');
+    setSelectedOperatorMachineIds([]);
     setMasterFirstName('');
     setMasterLastName('');
     setMasterRut('');
@@ -184,6 +189,20 @@ function TeamManagementScreen() {
     fetchTeam();
   }, [refreshKey]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchProviderMachinesFromApi()
+      .then((fresh) => {
+        if (!cancelled && Array.isArray(fresh)) setMachineOptions(fresh);
+      })
+      .catch(() => {
+        if (!cancelled) setMachineOptions(getMachines());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
+
   const loadTeam = () => setRefreshKey(k => k + 1);
 
   const joinDisplayName = (...parts) =>
@@ -192,6 +211,12 @@ function TeamManagementScreen() {
       .filter(Boolean)
       .join(' ')
       .trim();
+
+  const machineDisplayLabel = (machine) => {
+    const type = String(machine?.type || machine?.machineryType || 'Máquina').trim();
+    const plate = String(machine?.licensePlate || machine?.license_plate || '').trim();
+    return plate ? `${type} · ${plate}` : type;
+  };
 
   const normalizeEditablePhoneDraft = (raw, required = false) => {
     if (!String(raw || '').trim()) return required ? '+569' : '';
@@ -394,7 +419,7 @@ function TeamManagementScreen() {
     };
   }, [activeTab, inviteType, isSuperMasterUser, refreshKey, team.masters]);
 
-  const generateInviteCode = async () => {
+  const sendInvitation = async () => {
     setDidAttemptInvite(true);
     setInviting(true);
     try {
@@ -419,12 +444,20 @@ function TeamManagementScreen() {
           setInviting(false);
           return;
         }
+        if (!selectedOperatorMachineIds.length) {
+          toast.warning('Debes asociar al menos una máquina antes de invitar al operador.');
+          setInviting(false);
+          return;
+        }
         const normalizedPhone = normalizeChileanMobileE164(operatorPhone);
         payload = {
           owner_id: ownerId,
           operator_name: fullName,
+          operator_first_name: operatorFirstName.trim(),
+          operator_last_name: operatorLastName.trim(),
           operator_phone: normalizedPhone || undefined,
           operator_rut: formatRut(operatorRut.trim()),
+          machine_ids: selectedOperatorMachineIds,
         };
       } else if (inviteType === 'master') {
         const fullName = joinDisplayName(masterFirstName, masterLastName);
@@ -464,13 +497,15 @@ function TeamManagementScreen() {
           '',
         smsSent: Boolean(response?.data?.delivery?.sms_sent),
         smsError: response?.data?.delivery?.sms_error || '',
+        machineIds: inviteType === 'operator' ? selectedOperatorMachineIds : [],
       });
-      setShowCode(true);
+      setShowInviteResult(true);
       // Limpiar formulario de datos de operador
       setOperatorFirstName('');
       setOperatorLastName('');
       setOperatorRut('');
       setOperatorPhone('+569');
+      setSelectedOperatorMachineIds([]);
       setMasterFirstName('');
       setMasterLastName('');
       setMasterRut('');
@@ -522,12 +557,12 @@ function TeamManagementScreen() {
     }
   };
 
-  const cancelInvitation = async (code) => {
+  const cancelInvitation = async (token) => {
     try {
       const userId = localStorage.getItem('userId');
       const ownerId = localStorage.getItem('ownerId') || userId;
       
-      await axios.delete(`${BACKEND_URL}/api/operators/invitation/${code}?owner_id=${ownerId}`);
+      await axios.delete(`${BACKEND_URL}/api/operators/invitation/${token}?owner_id=${ownerId}`);
       loadTeam();
     } catch (e) {
       console.error('Error canceling invitation:', e);
@@ -540,6 +575,7 @@ function TeamManagementScreen() {
     if (!operatorLastName.trim()) missingInviteFields.push('Apellido');
     if (!validatePersonRut(operatorRut)) missingInviteFields.push('RUT persona');
     if (operatorPhone !== '+569' && !normalizeChileanMobileE164(operatorPhone)) missingInviteFields.push('Celular válido');
+    if (selectedOperatorMachineIds.length === 0) missingInviteFields.push('Máquinas asignadas');
   }
   if (inviteType === 'master') {
     if (!masterFirstName.trim()) missingInviteFields.push('Nombre');
@@ -559,11 +595,11 @@ function TeamManagementScreen() {
   );
   const currentMembers = inviteType === 'master' ? (team.masters || []) : (team.operators || []);
   const currentCount = currentMembers.length;
-  const createLabel = inviteType === 'master' ? 'Crear Gerente' : 'Crear Operador';
-  const listTitle = inviteType === 'master' ? 'Gerentes creados' : 'Operadores creados';
+  const createLabel = inviteType === 'master' ? 'Invitar Gerente' : 'Invitar Operador';
+  const listTitle = inviteType === 'master' ? 'Gerentes' : 'Operadores';
   const inviteView =
     activeTab === 'invite'
-      ? (requestedInviteView === 'codes' ? 'codes' : 'create')
+      ? (requestedInviteView === 'pending' ? 'pending' : 'create')
       : 'create';
   const masterPermissionGroups = [
     {
@@ -662,16 +698,16 @@ function TeamManagementScreen() {
         </div>
 
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 18 }}>
-          {showCode
+          {showInviteResult
             ? inviteType === 'master'
               ? 'Invitación enviada'
               : 'Invitación enviada'
             : activeTab === 'invite'
-              ? inviteView === 'codes'
+              ? inviteView === 'pending'
                 ? 'Invitaciones pendientes'
                 : inviteType === 'master'
-                  ? 'Crear Gerente'
-                  : 'Crear Operador'
+                  ? 'Invitar Gerente'
+                  : 'Invitar Operador'
               : 'Usuarios y accesos'}
         </h1>
 
@@ -740,7 +776,7 @@ function TeamManagementScreen() {
             <button
               onClick={() => {
                 setActiveTab('invite');
-                setShowCode(false);
+                setShowInviteResult(false);
                 const modeQs = inviteType === 'master' ? 'master' : 'operator';
                 navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=invite&view=create`, { replace: true });
               }}
@@ -761,10 +797,10 @@ function TeamManagementScreen() {
             </button>
           ) : (
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              {inviteView === 'codes' && (
+              {inviteView === 'pending' && (
                 <button
                   onClick={() => {
-                    setShowCode(false);
+                    setShowInviteResult(false);
                     const modeQs = inviteType === 'master' ? 'master' : 'operator';
                     navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=invite&view=create`, { replace: true });
                   }}
@@ -786,7 +822,7 @@ function TeamManagementScreen() {
               <button
                 onClick={() => {
                   setActiveTab('team');
-                  setShowCode(false);
+                  setShowInviteResult(false);
                   const modeQs = inviteType === 'master' ? 'master' : 'operator';
                   navigate(`/provider/team?mode=${encodeURIComponent(modeQs)}&tab=team`, { replace: true });
                 }}
@@ -1089,7 +1125,7 @@ function TeamManagementScreen() {
                       const warning = getOperatorInvitationWarning(inv);
                       return (
                       <div 
-                        key={inv.code || idx}
+                        key={inv.token || inv.code || idx}
                         style={{
                           background: warning?.overdue ? 'rgba(255, 167, 38, 0.10)' : '#2A2A2A',
                           borderRadius: 12,
@@ -1135,7 +1171,7 @@ function TeamManagementScreen() {
                           </div>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             <button
-                              onClick={() => cancelInvitation(inv.code)}
+                              onClick={() => cancelInvitation(inv.token || inv.code)}
                               style={{
                                 padding: '6px 10px',
                                 background: 'rgba(244, 67, 54, 0.2)',
@@ -1192,7 +1228,7 @@ function TeamManagementScreen() {
         {/* Tab: Agregar */}
         {activeTab === 'invite' && (
           <div>
-            {inviteView === 'codes' ? (
+            {inviteView === 'pending' ? (
               visiblePendingInvitations.length > 0 ? (
                 <div>
                   {inviteType === 'operator' && overduePendingInvitations.length > 0 && (
@@ -1227,7 +1263,7 @@ function TeamManagementScreen() {
                     const warning = getOperatorInvitationWarning(inv);
                     return (
                       <div
-                        key={inv.code || idx}
+                        key={inv.token || inv.code || idx}
                         style={{
                           background: warning?.overdue ? 'rgba(255, 167, 38, 0.10)' : '#2A2A2A',
                           borderRadius: 12,
@@ -1274,7 +1310,7 @@ function TeamManagementScreen() {
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             <button
                               type="button"
-                              onClick={() => cancelInvitation(inv.code)}
+                              onClick={() => cancelInvitation(inv.token || inv.code)}
                               style={{
                                 padding: '6px 10px',
                                 background: 'rgba(244,67,54,0.16)',
@@ -1312,7 +1348,7 @@ function TeamManagementScreen() {
                   </p>
                 </div>
               )
-            ) : !showCode ? (
+            ) : !showInviteResult ? (
               <>
                 {/* Datos del operador cuando la invitación es para operador */}
                 {inviteType === 'operator' && (
@@ -1382,6 +1418,72 @@ function TeamManagementScreen() {
                               : '1px solid #444',
                         }}
                       />
+                    </div>
+                    <div
+                      style={{
+                        marginBottom: 12,
+                        background: '#2A2A2A',
+                        borderRadius: 12,
+                        padding: 12,
+                        border:
+                          didAttemptInvite && selectedOperatorMachineIds.length === 0
+                            ? '1px solid #F44336'
+                            : '1px solid rgba(255,255,255,0.10)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          color: '#fff',
+                          fontSize: 12,
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          marginBottom: 6,
+                        }}
+                      >
+                        Máquinas asignadas
+                      </div>
+                      <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, margin: '0 0 10px', lineHeight: 1.45 }}>
+                        Selecciona una o varias máquinas antes de invitar al operador.
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {machineOptions.length > 0 ? (
+                          machineOptions.map((machine, index) => {
+                            const machineId = String(machine?.id || '').trim();
+                            if (!machineId) return null;
+                            const checked = selectedOperatorMachineIds.includes(machineId);
+                            return (
+                              <label
+                                key={machineId || `machine-option-${index}`}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 10,
+                                  color: '#fff',
+                                  fontSize: 13,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => {
+                                    setSelectedOperatorMachineIds((prev) =>
+                                      checked
+                                        ? prev.filter((id) => id !== machineId)
+                                        : [...prev, machineId]
+                                    );
+                                  }}
+                                />
+                                <span>{machineDisplayLabel(machine)}</span>
+                              </label>
+                            );
+                          })
+                        ) : (
+                          <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, margin: 0 }}>
+                            Aún no tienes máquinas disponibles para asociar.
+                          </p>
+                        )}
+                      </div>
                     </div>
                     {didAttemptInvite && missingInviteFields.length > 0 && (
                       <p style={{ color: '#F44336', fontSize: 12, margin: '2px 0 10px' }}>
@@ -1546,14 +1648,16 @@ function TeamManagementScreen() {
 
                 <button
                   className="maqgo-btn-primary"
-                  onClick={generateInviteCode}
+                  onClick={sendInvitation}
                   disabled={inviting || !isInviteFormValid}
                   style={{ opacity: (inviting || !isInviteFormValid) ? 0.6 : 1 }}
-                  data-testid="generate-code-btn"
+                  data-testid="send-invite-btn"
                 >
                   {inviting
-                    ? 'Generando...'
-                    : 'Generar invitación'}
+                    ? 'Enviando invitación...'
+                    : inviteType === 'master'
+                      ? 'Invitar Gerente'
+                      : 'Invitar Operador'}
                 </button>
               </>
             ) : (
@@ -1610,6 +1714,11 @@ function TeamManagementScreen() {
                       ? 'La invitacion ya fue enviada automaticamente por MAQGO. La empresa no necesita copiar ni compartir nada manualmente.'
                       : 'Registramos la invitacion, pero el SMS no pudo confirmarse. Revisa el celular y vuelve a intentar si es necesario.'}
                   </p>
+                  {Array.isArray(inviteDelivery?.machineIds) && inviteDelivery.machineIds.length > 0 ? (
+                    <p style={{ color: 'rgba(255,255,255,0.76)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
+                      Asociado a {inviteDelivery.machineIds.length} máquina{inviteDelivery.machineIds.length === 1 ? '' : 's'}.
+                    </p>
+                  ) : null}
                   {inviteDelivery?.smsError ? (
                     <p style={{ color: '#FFA726', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
                       Detalle: {inviteDelivery.smsError}
@@ -1619,7 +1728,7 @@ function TeamManagementScreen() {
 
                 <button
                   onClick={() => {
-                    setShowCode(false);
+                    setShowInviteResult(false);
                     setInviteDelivery(null);
                     setActiveTab('team');
                   }}
