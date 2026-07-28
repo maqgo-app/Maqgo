@@ -116,6 +116,64 @@ const Icons = {
   )
 };
 
+function useUnreadBadge(audienceRole, enabled) {
+  const normalizedRole = String(audienceRole || 'client').trim().toLowerCase() || 'client';
+  const [unread, setUnread] = useState(() => readCachedUnreadCount(normalizedRole));
+
+  useEffect(() => {
+    setUnread(readCachedUnreadCount(normalizedRole));
+  }, [normalizedRole]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+    if (!token) return;
+
+    let mounted = true;
+
+    const load = async ({ force = false } = {}) => {
+      if (!force && typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      try {
+        const res = await fetchUnreadCount(normalizedRole);
+        if (!mounted) return;
+        const nextVal = Number(res?.unread || 0);
+        setUnread(Number.isFinite(nextVal) ? nextVal : 0);
+      } catch {
+        if (!mounted) return;
+        setUnread((prev) => {
+          const fallback = readCachedUnreadCount(normalizedRole);
+          return Number.isFinite(prev) && prev >= 0 ? prev : fallback;
+        });
+      }
+    };
+
+    const handleVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      void load({ force: true });
+    };
+
+    void load({ force: true });
+    const id = window.setInterval(() => {
+      void load();
+    }, 20000);
+    window.addEventListener('focus', handleVisibility);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
+
+    return () => {
+      mounted = false;
+      window.clearInterval(id);
+      window.removeEventListener('focus', handleVisibility);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
+    };
+  }, [enabled, normalizedRole]);
+
+  return unread;
+}
+
 function goToPortada(navigate) {
   navigate('/welcome');
 }
@@ -161,45 +219,14 @@ export function ClientNavigation() {
   const auth = useAuth();
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
 
-  const [unreadAvisos, setUnreadAvisos] = useState(() => readCachedUnreadCount('client'));
-
   const isClientSession = Boolean(!auth.loading && auth.user?.id && auth.user.role === 'client');
+  const unreadAvisos = useUnreadBadge('client', isClientSession);
   
   const isActive = (path) => location.pathname.includes(path);
 
   const dockStyle = isDesktop
     ? { left: '50%', right: 'auto', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, borderRadius: '0 0 40px 40px' }
     : { left: 0, right: 0, transform: 'none', width: 'auto', maxWidth: 'none', borderRadius: 0 };
-
-  useEffect(() => {
-    if (!isClientSession) return;
-    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-    if (!token) return;
-
-    let mounted = true;
-
-    const load = async () => {
-      try {
-        const res = await fetchUnreadCount('client');
-        if (!mounted) return;
-        const nextVal = Number(res?.unread || 0);
-        setUnreadAvisos(Number.isFinite(nextVal) ? nextVal : 0);
-      } catch {
-        if (!mounted) return;
-        setUnreadAvisos((prev) => {
-          const fallback = readCachedUnreadCount('client');
-          return Number.isFinite(prev) && prev >= 0 ? prev : fallback;
-        });
-      }
-    };
-
-    load();
-    const id = window.setInterval(load, 20000);
-    return () => {
-      mounted = false;
-      window.clearInterval(id);
-    };
-  }, [isClientSession]);
 
   return (
     <div style={{
@@ -257,9 +284,9 @@ export function ProviderNavigation() {
   const providerRole = auth.providerRole;
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
 
-  const [unreadAvisos, setUnreadAvisos] = useState(() => readCachedUnreadCount('provider'));
-
   const isProviderSessionOk = Boolean(!auth.loading && auth.user?.id && auth.user.role === 'provider');
+  const unreadAudienceRole = providerRole === 'operator' ? 'operator' : 'provider';
+  const unreadAvisos = useUnreadBadge(unreadAudienceRole, isProviderSessionOk);
   
   // Operadores solo ven: Inicio | Historial | Perfil (sin Cobros ni Máquinas)
   const isOperatorOnly = providerRole === 'operator';
@@ -270,36 +297,6 @@ export function ProviderNavigation() {
     }
     return location.pathname.includes(paths);
   };
-
-  useEffect(() => {
-    if (!isProviderSessionOk) return;
-    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-    if (!token) return;
-
-    let mounted = true;
-
-    const load = async () => {
-      try {
-        const res = await fetchUnreadCount('provider');
-        if (!mounted) return;
-        const nextVal = Number(res?.unread || 0);
-        setUnreadAvisos(Number.isFinite(nextVal) ? nextVal : 0);
-      } catch {
-        if (!mounted) return;
-        setUnreadAvisos((prev) => {
-          const fallback = readCachedUnreadCount('provider');
-          return Number.isFinite(prev) && prev >= 0 ? prev : fallback;
-        });
-      }
-    };
-
-    load();
-    const id = window.setInterval(load, 20000);
-    return () => {
-      mounted = false;
-      window.clearInterval(id);
-    };
-  }, [isProviderSessionOk]);
 
   // Navegación para Operador (sin Cobros ni Máquinas)
   if (isOperatorOnly) {

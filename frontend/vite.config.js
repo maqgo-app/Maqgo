@@ -132,5 +132,28 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       host: E2E_PREVIEW_HOST,
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const raw = String(id || '')
+            if (raw.includes('node_modules')) {
+              if (raw.includes('/react/') || raw.includes('/react-dom/') || raw.includes('/react-router-dom/')) {
+                return 'react-vendor'
+              }
+              if (raw.includes('/leaflet/') || raw.includes('/react-leaflet/')) {
+                return 'maps-vendor'
+              }
+              if (raw.includes('/jspdf/') || raw.includes('html2canvas') || raw.includes('dompurify') || raw.includes('purify.es')) {
+                return 'pdf-vendor'
+              }
+            }
+            if (raw.includes('/src/screens/admin/')) return 'admin-screens'
+            if (raw.includes('/src/screens/provider/ProviderDashboardSimple')) return 'provider-finance'
+            return undefined
+          },
+        },
+      },
+    },
   }
 })

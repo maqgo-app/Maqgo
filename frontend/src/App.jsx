@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, Suspense, lazy } from 'react';
+import React, { useEffect, useContext, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './utils/api'; // Configura timeout global axios (evita esperas indefinidas)
 import { ROUTES } from './constants';
@@ -199,7 +199,6 @@ const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
 function AppContent() {
   const location = useLocation();
   useContext(AuthContext);
-  const [, setFixedBottomBarHeight] = useState(0);
 
   const setUserRole = (role) => {
     try {
@@ -252,71 +251,6 @@ function AppContent() {
     '/profile', '/faq', '/terms', '/privacy'
   ];
   const showBottomNav = !hideNav && mainPathsWithNav.some(p => path === p || path.startsWith(p + '/'));
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let ro;
-    let mo;
-    let intervalId;
-    const measure = () => {
-      try {
-        const el = document.querySelector('.maqgo-fixed-bottom-bar');
-        const h = el ? el.getBoundingClientRect().height : 0;
-        setFixedBottomBarHeight(Math.max(0, Math.round(h)));
-      } catch {
-        setFixedBottomBarHeight(0);
-      }
-    };
-    measure();
-    try {
-      const el = document.querySelector('.maqgo-fixed-bottom-bar');
-      if (el && 'ResizeObserver' in window) {
-        ro = new ResizeObserver(() => measure());
-        ro.observe(el);
-      }
-    } catch {
-      void 0;
-    }
-    try {
-      if ('MutationObserver' in window) {
-        mo = new MutationObserver(() => measure());
-        mo.observe(document.body, { childList: true, subtree: true });
-      }
-    } catch {
-      void 0;
-    }
-    try {
-      intervalId = window.setInterval(() => measure(), 250);
-      window.setTimeout(() => {
-        try {
-          if (intervalId) window.clearInterval(intervalId);
-        } catch {
-          void 0;
-        }
-      }, 3000);
-    } catch {
-      void 0;
-    }
-    window.addEventListener('resize', measure);
-    return () => {
-      try {
-        ro?.disconnect?.();
-      } catch {
-        void 0;
-      }
-      try {
-        mo?.disconnect?.();
-      } catch {
-        void 0;
-      }
-      try {
-        if (intervalId) window.clearInterval(intervalId);
-      } catch {
-        void 0;
-      }
-      window.removeEventListener('resize', measure);
-    };
-  }, [location.pathname]);
 
   return (
     <CheckoutProvider>

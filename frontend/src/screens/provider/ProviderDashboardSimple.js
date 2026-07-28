@@ -5,7 +5,6 @@ import { BackArrowIcon } from '../../components/BackArrowIcon';
 import ServiceProgress from '../../components/ServiceProgress';
 import ServiceVoucher from '../../components/ServiceVoucher';
 import { ProviderNavigation } from '../../components/BottomNavigation';
-import { downloadVoucherPDF } from '../../utils/voucherPdf';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { MACHINERY_NAMES } from '../../utils/machineryNames';
 import { useAuth } from '../../context/authHooks';
@@ -76,6 +75,7 @@ function ProviderDashboardSimple() {
   const [dataMode, setDataMode] = useState('loading');
   const [selectedService, setSelectedService] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [downloadingVoucher, setDownloadingVoucher] = useState(false);
 
   const load = useCallback(async () => {
     if (isOperator) return;
@@ -133,6 +133,17 @@ function ProviderDashboardSimple() {
       ),
     [services, activeFilter]
   );
+
+  const handleDownloadVoucher = useCallback(async (service) => {
+    if (!service || downloadingVoucher) return;
+    try {
+      setDownloadingVoucher(true);
+      const { downloadVoucherPDF } = await import('../../utils/voucherPdf');
+      downloadVoucherPDF(service);
+    } finally {
+      setDownloadingVoucher(false);
+    }
+  }, [downloadingVoucher]);
 
   if (isOperator) {
     return <Navigate to="/operator/home" replace />;
@@ -198,7 +209,7 @@ function ProviderDashboardSimple() {
 
           <ServiceVoucher
             service={selectedService}
-            onDownload={() => downloadVoucherPDF(selectedService)}
+            onDownload={() => handleDownloadVoucher(selectedService)}
             onUploadInvoice={() =>
               navigate(
                 selectedService.id && !String(selectedService.id).startsWith('demo_')

@@ -165,7 +165,7 @@ function WelcomeScreen() {
               '--welcome-d': '0ms',
             }}
           >
-            <MaqgoLogo customSize={logoSize} style={{ marginTop: window.innerWidth < 768 ? "12px" : "32px", marginBottom: "16px" }} />
+            <MaqgoLogo customSize={logoSize} style={{ marginTop: isDesktop ? "32px" : "12px", marginBottom: "16px" }} />
           </div>
           <div
             className="welcome-hero-caluga welcome-reveal"

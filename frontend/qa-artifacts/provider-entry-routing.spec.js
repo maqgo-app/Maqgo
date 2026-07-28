@@ -15,6 +15,8 @@ test.describe('Provider entry routing', () => {
 
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole('heading', { name: /Iniciar sesión/i })).toBeVisible();
+    await expect(page.getByLabel(/Correo de la cuenta/i)).toBeVisible();
+    await expect(page.getByText(/Usa el correo y la contraseña de tu cuenta proveedor/i)).toBeVisible();
   });
 
   test('provider register sin sesión redirige a login', async ({ page }) => {
@@ -26,5 +28,7 @@ test.describe('Provider entry routing', () => {
 
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole('heading', { name: /Iniciar sesión/i })).toBeVisible();
+    await expect(page.getByLabel(/Correo de la cuenta/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /Entrar con celular \(código SMS\)/i })).toBeVisible();
   });
 });
