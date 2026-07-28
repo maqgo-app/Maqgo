@@ -64,9 +64,8 @@ function TeamManagementScreen() {
   const [inviteType, setInviteType] = useState(effectiveMode); // 'operator' | 'master'
   const [team, setTeam] = useState({ masters: [], operators: [], pending_invitations: [] });
   const [loading, setLoading] = useState(true);
-  const [inviteCode, setInviteCode] = useState('');
   const [showCode, setShowCode] = useState(false);
-  const [batchInvites, setBatchInvites] = useState(null);
+  const [inviteDelivery, setInviteDelivery] = useState(null);
   const [inviting, setInviting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [operatorFirstName, setOperatorFirstName] = useState('');
@@ -225,20 +224,6 @@ function TeamManagementScreen() {
     };
   };
 
-  const buildMasterJoinLink = (code) => {
-    const c = String(code || '').trim().toUpperCase();
-    if (!c) return '';
-    const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
-    return `${origin}/master/join?code=${encodeURIComponent(c)}`;
-  };
-
-  const buildOperatorJoinLink = (code) => {
-    const c = String(code || '').trim().toUpperCase();
-    if (!c) return '';
-    const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
-    return `${origin}/operator/join?code=${encodeURIComponent(c)}`;
-  };
-
   const computeFinanceFromServices = (services) => {
     const list = Array.isArray(services) ? services : [];
     const amountReceived = (s) => {
@@ -281,16 +266,6 @@ function TeamManagementScreen() {
       out[memberId].pagado += totals.pagado;
     });
     return out;
-  };
-
-  const buildInviteMessage = (code, type = inviteType) => {
-    const c = String(code || '').trim().toUpperCase();
-    if (type === 'master') {
-      const link = buildMasterJoinLink(c);
-      return `Tu invitación MAQGO para Gerente es: ${c}\n\nEste usuario debe abrir su invitación desde este link:\n${link}\n\nAhí completará su identidad, continuará con el SMS de verificación y quedará activo con los permisos definidos por el Titular.\n\nVálido por 7 días.\nUso único (1 persona).`;
-    }
-    const link = buildOperatorJoinLink(c);
-    return `Tu invitación MAQGO para Operador es: ${c}\n\nEl operador puede entrar desde la portada de MAQGO:\n1) Toca “Soy operador”\n2) Toca “Unirme a mi empresa”\n3) Ingresa la invitación\n\nO puede entrar directo aquí:\n${link}\n\nVálido por 7 días.`;
   };
 
   const openEditMember = (memberType, member) => {
@@ -435,7 +410,7 @@ function TeamManagementScreen() {
       if (inviteType === 'operator') {
         const fullName = joinDisplayName(operatorFirstName, operatorLastName);
         if (!operatorFirstName.trim() || !operatorLastName.trim() || !operatorRut.trim()) {
-          toast.warning('Ingresa nombre, apellido y RUT del operador antes de generar el código.');
+          toast.warning('Ingresa nombre, apellido y RUT del operador antes de invitarlo.');
           setInviting(false);
           return;
         }
@@ -460,7 +435,7 @@ function TeamManagementScreen() {
         }
         const normalizedPhone = normalizeChileanMobileE164(masterPhone);
         if (!masterFirstName.trim() || !masterLastName.trim() || !masterRut.trim() || !normalizedPhone) {
-          toast.warning('Completa nombre, apellido, RUT y celular del Gerente antes de generar el código.');
+          toast.warning('Completa nombre, apellido, RUT y celular del Gerente antes de invitarlo.');
           setInviting(false);
           return;
         }
@@ -477,8 +452,19 @@ function TeamManagementScreen() {
 
       const response = await axios.post(endpoint, payload);
       
-      setInviteCode(response.data.code);
-      setBatchInvites(null);
+      setInviteDelivery({
+        inviteType,
+        targetName:
+          inviteType === 'master'
+            ? joinDisplayName(masterFirstName, masterLastName)
+            : joinDisplayName(operatorFirstName, operatorLastName),
+        phone:
+          response?.data?.delivery?.phone ||
+          (inviteType === 'master' ? payload.master_phone : payload.operator_phone) ||
+          '',
+        smsSent: Boolean(response?.data?.delivery?.sms_sent),
+        smsError: response?.data?.delivery?.sms_error || '',
+      });
       setShowCode(true);
       // Limpiar formulario de datos de operador
       setOperatorFirstName('');
@@ -493,61 +479,9 @@ function TeamManagementScreen() {
       loadTeam(); // Recargar para ver la invitación pendiente
     } catch (e) {
       console.error('Error generating invite:', e);
-      toast.error(e.response?.data?.detail || 'Error al generar código');
+      toast.error(e.response?.data?.detail || 'No pudimos enviar la invitación.');
     }
     setInviting(false);
-  };
-
-  const copyCode = async () => {
-    try {
-      if (!inviteCode) return;
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(inviteCode);
-        toast.success('Código copiado al portapapeles');
-        return;
-      }
-    } catch {
-      void 0;
-    }
-    try {
-      window.prompt('Copia este código:', inviteCode);
-    } catch {
-      void 0;
-    }
-    toast.warning('No se pudo copiar automáticamente. Copia el código manualmente.');
-  };
-
-  const copyTextToClipboard = async (text, successMessage) => {
-    const t = String(text || '').trim();
-    if (!t) return;
-    try {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(t);
-        toast.success(successMessage || 'Copiado');
-        return;
-      }
-    } catch {
-      void 0;
-    }
-    try {
-      window.prompt('Copia este texto:', t);
-    } catch {
-      void 0;
-    }
-    toast.warning('No se pudo copiar automáticamente. Copia el texto manualmente.');
-  };
-
-  const copyInviteMessage = async (code, type, perms = null) => {
-    const c = String(code || '').trim().toUpperCase();
-    if (!c) return;
-    const text = buildInviteMessage(c, type, perms);
-    await copyTextToClipboard(text, 'Mensaje copiado');
-  };
-
-  const copyCurrentInviteMessage = async () => {
-    const code = String(inviteCode || '').trim().toUpperCase();
-    if (!code) return;
-    await copyInviteMessage(code, inviteType, inviteType === 'master' ? masterInvitePermissions : null);
   };
 
   const executeConfirmAction = async () => {
@@ -730,11 +664,11 @@ function TeamManagementScreen() {
         <h1 className="maqgo-h1" style={{ textAlign: 'center', marginBottom: 18 }}>
           {showCode
             ? inviteType === 'master'
-              ? 'Activación lista'
-              : 'Código listo'
+              ? 'Invitación enviada'
+              : 'Invitación enviada'
             : activeTab === 'invite'
               ? inviteView === 'codes'
-                ? 'Códigos de activación'
+                ? 'Invitaciones pendientes'
                 : inviteType === 'master'
                   ? 'Crear Gerente'
                   : 'Crear Operador'
@@ -1166,17 +1100,7 @@ function TeamManagementScreen() {
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
-                            <p style={{ 
-                              color: '#FFA726', 
-                              fontSize: 18, 
-                              fontWeight: 700, 
-                              margin: 0,
-                              fontFamily: "'JetBrains Mono', monospace",
-                              letterSpacing: 2
-                            }}>
-                              {inv.code}
-                            </p>
-                            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
+                            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, fontWeight: 700 }}>
                               {inv.invite_type === 'master' ? 'Para Gerente' : 'Para Operador'}
                             </p>
                             {inv.invite_type === 'master' && inv.master_name && (
@@ -1211,46 +1135,6 @@ function TeamManagementScreen() {
                           </div>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             <button
-                              type="button"
-                              onClick={() => copyTextToClipboard(String(inv.code || '').trim().toUpperCase(), 'Código copiado')}
-                              style={{
-                                padding: '6px 10px',
-                                background: 'rgba(255,255,255,0.08)',
-                                border: '1px solid rgba(255,255,255,0.15)',
-                                borderRadius: 6,
-                                color: 'rgba(255,255,255,0.92)',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: 700
-                              }}
-                            >
-                              Copiar código
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const code = String(inv.code || '').trim().toUpperCase();
-                                if (!code) return;
-                                const link =
-                                  inv.invite_type === 'master'
-                                    ? buildMasterJoinLink(code)
-                                    : buildOperatorJoinLink(code);
-                                copyTextToClipboard(link, 'Link copiado');
-                              }}
-                              style={{
-                                padding: '6px 10px',
-                                background: 'rgba(144, 189, 211, 0.14)',
-                                border: '1px solid rgba(144, 189, 211, 0.35)',
-                                borderRadius: 6,
-                                color: 'rgba(255,255,255,0.92)',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: 700
-                              }}
-                            >
-                              Copiar link
-                            </button>
-                            <button
                               onClick={() => cancelInvitation(inv.code)}
                               style={{
                                 padding: '6px 10px',
@@ -1279,6 +1163,9 @@ function TeamManagementScreen() {
                           }}>
                             Pendiente
                           </span>
+                          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 8, lineHeight: 1.45 }}>
+                            SMS enviado automaticamente por MAQGO.
+                          </div>
                           {warning ? (
                             <div
                               style={{
@@ -1351,17 +1238,7 @@ function TeamManagementScreen() {
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
-                            <p style={{
-                              color: '#FFA726',
-                              fontSize: 18,
-                              fontWeight: 700,
-                              margin: 0,
-                              fontFamily: "'JetBrains Mono', monospace",
-                              letterSpacing: 2
-                            }}>
-                              {inv.code}
-                            </p>
-                            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: '4px 0 0' }}>
+                            <p style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, margin: 0, fontWeight: 700 }}>
                               {inv.invite_type === 'master' ? 'Para Gerente' : 'Para Operador'}
                             </p>
                             {inv.invite_type === 'master' && inv.master_name && (
@@ -1397,46 +1274,6 @@ function TeamManagementScreen() {
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             <button
                               type="button"
-                              onClick={() => copyTextToClipboard(String(inv.code || '').trim().toUpperCase(), 'Código copiado')}
-                              style={{
-                                padding: '6px 10px',
-                                background: 'rgba(255,255,255,0.08)',
-                                border: '1px solid rgba(255,255,255,0.15)',
-                                borderRadius: 6,
-                                color: 'rgba(255,255,255,0.92)',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: 700
-                              }}
-                            >
-                              Copiar código
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const code = String(inv.code || '').trim().toUpperCase();
-                                if (!code) return;
-                                const link =
-                                  inv.invite_type === 'master'
-                                    ? buildMasterJoinLink(code)
-                                    : buildOperatorJoinLink(code);
-                                copyTextToClipboard(link, 'Link copiado');
-                              }}
-                              style={{
-                                padding: '6px 10px',
-                                background: 'rgba(255,255,255,0.08)',
-                                border: '1px solid rgba(255,255,255,0.15)',
-                                borderRadius: 6,
-                                color: 'rgba(255,255,255,0.92)',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: 700
-                              }}
-                            >
-                              Copiar link
-                            </button>
-                            <button
-                              type="button"
                               onClick={() => cancelInvitation(inv.code)}
                               style={{
                                 padding: '6px 10px',
@@ -1452,6 +1289,9 @@ function TeamManagementScreen() {
                               Cancelar
                             </button>
                           </div>
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 8, lineHeight: 1.45 }}>
+                          SMS enviado automaticamente por MAQGO.
                         </div>
                         {warning ? (
                           <div style={{ marginTop: 8, color: warning.color, fontSize: 12, lineHeight: 1.45 }}>
@@ -1741,7 +1581,7 @@ function TeamManagementScreen() {
                   margin: '0 0 8px',
                   fontFamily: "'Space Grotesk', sans-serif"
                 }}>
-                  {inviteType === 'master' ? 'Invitación lista' : 'Invitación generada'}
+                  {inviteType === 'master' ? 'Invitación enviada' : 'Invitación enviada'}
                 </h2>
                 
                 <p style={{ 
@@ -1749,219 +1589,38 @@ function TeamManagementScreen() {
                   fontSize: 13, 
                   margin: '0 0 25px'
                 }}>
-                  {inviteType === 'master' ? 'Invitación para Gerente' : 'Invitación para Operador'}
+                  {inviteType === 'master' ? 'MAQGO ya envió el SMS al nuevo Gerente.' : 'MAQGO ya envió el SMS al nuevo Operador.'}
                 </p>
-
-                {Array.isArray(batchInvites) && batchInvites.length > 1 && (
-                  <div style={{
-                    background: '#2A2A2A',
-                    borderRadius: 16,
-                    padding: 16,
-                    marginBottom: 20,
-                    textAlign: 'left',
-                  }}>
-                    <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, margin: '0 0 12px' }}>
-                      Códigos generados ({batchInvites.length})
-                    </p>
-                    {batchInvites.map((inv) => (
-                      <div
-                        key={inv.code || inv.operator_rut}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: 10,
-                          padding: '10px 0',
-                          borderBottom: '1px solid rgba(255,255,255,0.08)',
-                        }}
-                      >
-                        <div>
-                          <p style={{ color: '#fff', fontSize: 13, fontWeight: 600, margin: 0 }}>
-                            {inv.operator_name || 'Operador'}
-                          </p>
-                          <p style={{
-                            color: '#90BDD3',
-                            fontSize: 18,
-                            fontWeight: 700,
-                            margin: '4px 0 0',
-                            fontFamily: "'JetBrains Mono', monospace",
-                            letterSpacing: 2,
-                          }}>
-                            {inv.code}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => copyTextToClipboard(inv.code, 'Código copiado')}
-                          style={{
-                            padding: '6px 10px',
-                            background: 'rgba(255,255,255,0.08)',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            borderRadius: 6,
-                            color: '#fff',
-                            fontSize: 12,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Copiar
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Código grande */}
                 <div style={{
                   background: '#2A2A2A',
                   borderRadius: 16,
                   padding: 24,
                   marginBottom: 20
                 }}>
-                  <p style={{
-                    color: inviteType === 'master' ? '#9C27B0' : '#90BDD3',
-                    fontSize: 36,
-                    fontWeight: 700,
-                    margin: 0,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    letterSpacing: 6
-                  }}>
-                    {inviteCode}
+                  <p style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: 0 }}>
+                    {inviteDelivery?.targetName || (inviteType === 'master' ? 'Gerente invitado' : 'Operador invitado')}
                   </p>
-                  <p style={{ 
-                    color: 'rgba(255,255,255,0.9)', 
-                    fontSize: 12, 
-                    margin: '12px 0 0'
-                  }}>
-                    {inviteType === 'master' ? 'Válido por 7 días · Uso único (1 persona)' : 'Válido por 7 días · Uso único (1 persona)'}
+                  {inviteDelivery?.phone ? (
+                    <p style={{ color: 'rgba(255,255,255,0.76)', fontSize: 13, margin: '8px 0 0' }}>
+                      SMS enviado a {inviteDelivery.phone}
+                    </p>
+                  ) : null}
+                  <p style={{ color: 'rgba(255,255,255,0.86)', fontSize: 13, margin: '12px 0 0', lineHeight: 1.5 }}>
+                    {inviteDelivery?.smsSent
+                      ? 'La invitacion ya fue enviada automaticamente por MAQGO. La empresa no necesita copiar ni compartir nada manualmente.'
+                      : 'Registramos la invitacion, pero el SMS no pudo confirmarse. Revisa el celular y vuelve a intentar si es necesario.'}
                   </p>
-                </div>
-
-                <div style={{
-                  background: 'rgba(255,255,255,0.06)',
-                  borderRadius: 14,
-                  padding: 14,
-                  marginBottom: 12,
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  textAlign: 'left',
-                }}>
-                  <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 12, margin: 0, fontWeight: 800, textTransform: 'uppercase' }}>
-                    Link directo
-                  </p>
-                  <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '8px 0 10px', lineHeight: 1.45 }}>
-                    {inviteType === 'master'
-                      ? 'Este link abre el enrolamiento del Gerente y conserva los permisos definidos por el Titular.'
-                      : 'Este link abre el enrolamiento del operador. También puede entrar desde la portada de MAQGO con su código.'}
-                  </p>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{
-                      flex: '1 1 220px',
-                      padding: '10px 12px',
-                      borderRadius: 10,
-                      background: 'rgba(0,0,0,0.20)',
-                      border: '1px solid rgba(255,255,255,0.10)',
-                      color: 'rgba(255,255,255,0.92)',
-                      fontSize: 12,
-                      fontFamily: "'JetBrains Mono', monospace",
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {inviteType === 'master'
-                        ? buildMasterJoinLink(inviteCode)
-                        : buildOperatorJoinLink(inviteCode)}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const link = inviteType === 'master'
-                          ? buildMasterJoinLink(inviteCode)
-                          : buildOperatorJoinLink(inviteCode);
-                        copyTextToClipboard(link, 'Link copiado');
-                      }}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: 10,
-                        border: '1px solid rgba(144, 189, 211, 0.35)',
-                        background: 'rgba(144, 189, 211, 0.14)',
-                        color: '#fff',
-                        fontSize: 13,
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Copiar link
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  onClick={copyCode}
-                  style={{
-                    width: '100%',
-                    padding: 14,
-                    background: '#363636',
-                    border: 'none',
-                    borderRadius: 10,
-                    color: '#fff',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    marginBottom: 12,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8
-                  }}
-                  data-testid="copy-code-btn"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="9" y="9" width="13" height="13" rx="2"/>
-                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-                  </svg>
-                  Copiar código
-                </button>
-
-                <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={copyCurrentInviteMessage}
-                    style={{
-                      flex: '1 1 160px',
-                      padding: 12,
-                      background: 'rgba(255,255,255,0.08)',
-                      border: '1px solid rgba(255,255,255,0.15)',
-                      borderRadius: 10,
-                      color: '#fff',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Copiar mensaje
-                  </button>
-                </div>
-
-                <div style={{
-                  background: 'rgba(236, 104, 25, 0.1)',
-                  borderRadius: 10,
-                  padding: 14,
-                  marginBottom: 20
-                }}>
-                  <p style={{ color: '#EC6819', fontSize: 13, margin: 0 }}>
-                    Comparte este código por tu canal interno.
-                  </p>
-                  <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, margin: '6px 0 0' }}>
-                    {inviteType === 'master'
-                      ? 'El Gerente se enrola en este link y queda creado con los permisos otorgados por el Titular. El SMS aparece después, al iniciar sesión con su celular.'
-                      : 'El operador se enrola en MAQGO desde la portada o con este link directo para quedar vinculado a tu empresa.'}
-                  </p>
+                  {inviteDelivery?.smsError ? (
+                    <p style={{ color: '#FFA726', fontSize: 12, margin: '10px 0 0', lineHeight: 1.45 }}>
+                      Detalle: {inviteDelivery.smsError}
+                    </p>
+                  ) : null}
                 </div>
 
                 <button
                   onClick={() => {
                     setShowCode(false);
-                    setInviteCode('');
+                    setInviteDelivery(null);
                     setActiveTab('team');
                   }}
                   style={{

@@ -154,9 +154,8 @@ def _build_invitation_sms(*, code: str, invite_type: str, owner_name: str) -> st
     join_link = _build_join_link(code, invite_type)
     role_label = "Gerente" if str(invite_type or "").strip().lower() == "master" else "Operador"
     return (
-        f"MAQGO {company}: tu codigo de activacion es {code}. "
-        f"Ingrésalo en la app para activar tu cuenta de {role_label}. "
-        f"Tambien puedes abrir: {join_link}"
+        f"MAQGO. {company} te invito a formar parte de su equipo como {role_label}. "
+        f"Abre este enlace para comenzar tu incorporacion: {join_link}"
     )
 
 

@@ -34,13 +34,6 @@ function toMachineryId(type) {
   return MACHINERY_TYPES.find(m => m.id === t || m.name.toLowerCase().includes(t))?.id || 'retroexcavadora';
 }
 
-function buildOperatorJoinLink(code) {
-  const c = String(code || '').trim().toUpperCase();
-  if (!c) return '';
-  const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
-  return `${origin}/operator/join?code=${encodeURIComponent(c)}`;
-}
-
 function getCurrentOwnerOperator() {
   const id = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
   const phone = normalizeChileanMobileE164(localStorage.getItem('userPhone') || '');
@@ -785,19 +778,6 @@ function AssignOperatorsModal({
   const [showInlineInviteForm, setShowInlineInviteForm] = useState(false);
 
   const ownerId = (localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
-  const copyTextToClipboard = async (text, successMessage) => {
-    const value = String(text || '').trim();
-    if (!value) return false;
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success(successMessage);
-      return true;
-    } catch {
-      window.prompt('Copia este texto:', value);
-      return false;
-    }
-  };
-
   const loadAssignableData = async () => {
     if (!ownerId) {
       setTeamOperators([]);
@@ -953,20 +933,22 @@ function AssignOperatorsModal({
       };
       const response = await axios.post(`${BACKEND_URL}/api/operators/invite`, payload, { timeout: 8000 });
       const invite = {
-        code: response?.data?.code || '',
         operator_name: fullName,
         operator_rut: rut,
         operator_phone: normalizedPhone,
         created_at: new Date().toISOString(),
         status: 'pending',
         invite_type: 'operator',
+        sms_sent: Boolean(response?.data?.delivery?.sms_sent),
+        sms_error: response?.data?.delivery?.sms_error || '',
+        phone: response?.data?.delivery?.phone || normalizedPhone,
       };
       setRecentInvite(invite);
       setNewOperatorName('');
       setNewOperatorRut('');
       setNewOperatorPhone('+569');
       await loadAssignableData();
-      toast.success('Invitación generada');
+      toast.success('Invitación enviada por SMS');
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'No se pudo generar la invitación del operador.');
     } finally {
@@ -990,7 +972,7 @@ function AssignOperatorsModal({
         Generar invitación
       </div>
       <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 1.45, margin: '0 0 12px' }}>
-        Te mostraremos una invitación para que la compartas con el operador.
+        MAQGO enviará automáticamente el SMS al operador para comenzar su incorporación.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <input
@@ -1023,7 +1005,7 @@ function AssignOperatorsModal({
           {creatingInvite ? 'Generando...' : 'Generar invitación'}
         </button>
       </div>
-      {recentInvite?.code ? (
+      {recentInvite ? (
         <div
           style={{
             marginTop: 12,
@@ -1034,40 +1016,18 @@ function AssignOperatorsModal({
           }}
         >
           <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
-            Invitación lista para {recentInvite.operator_name}
-          </div>
-          <div style={{ color: '#EC6819', fontSize: 18, fontWeight: 800, letterSpacing: 1.2, marginTop: 6 }}>
-            {recentInvite.code}
+            Invitación enviada a {recentInvite.operator_name}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 6 }}>
-            Compártela para que complete su ingreso en MAQGO.
+            {recentInvite.sms_sent
+              ? `SMS enviado a ${recentInvite.phone || recentInvite.operator_phone}. La empresa no necesita compartir nada manualmente.`
+              : 'La invitación fue registrada, pero no pudimos confirmar el SMS. Revisa el celular y vuelve a intentar si es necesario.'}
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => copyTextToClipboard(recentInvite.code, 'Invitación copiada')}
-              style={{ ...btnPrimary, flex: '1 1 120px', padding: 10, fontSize: 12 }}
-            >
-              Copiar invitación
-            </button>
-            <button
-              type="button"
-              onClick={() => copyTextToClipboard(buildOperatorJoinLink(recentInvite.code), 'Link copiado')}
-              style={{
-                flex: '1 1 120px',
-                padding: 10,
-                background: 'rgba(144, 189, 211, 0.14)',
-                border: '1px solid rgba(144, 189, 211, 0.35)',
-                borderRadius: 10,
-                color: '#fff',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Copiar link
-            </button>
-          </div>
+          {recentInvite.sms_error ? (
+            <div style={{ color: '#FFA726', fontSize: 12, marginTop: 8, lineHeight: 1.45 }}>
+              Detalle: {recentInvite.sms_error}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

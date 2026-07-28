@@ -24,19 +24,14 @@ function OperatorJoinScreen() {
   const [searchParams] = useSearchParams();
   const fromUrlCode = String(searchParams.get('code') || '').trim().toUpperCase();
 
-  const [code, setCode] = useState(fromUrlCode);
+  const [code] = useState(fromUrlCode);
   const [smsCode, setSmsCode] = useState('');
-  const [phase, setPhase] = useState('code');
+  const [phase, setPhase] = useState(fromUrlCode ? 'sending' : 'code');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [deviceId] = useState(() => getDeviceId());
-
-  useEffect(() => {
-    if (fromUrlCode && fromUrlCode !== code) {
-      setCode(fromUrlCode);
-    }
-  }, [fromUrlCode, code]);
+  const [autoStarted, setAutoStarted] = useState(false);
 
   const activationCode = String(code || '').trim().toUpperCase();
 
@@ -73,7 +68,7 @@ function OperatorJoinScreen() {
   const handleJoinWithCode = async () => {
     if (loading) return;
     if (activationCode.length < 4) {
-      setError('Ingresa el código completo');
+      setError('El enlace de invitacion no es valido.');
       setStatusMessage('');
       return;
     }
@@ -110,7 +105,7 @@ function OperatorJoinScreen() {
       const message =
         err instanceof Error && err.message
           ? err.message
-          : getHttpErrorMessage(err, { fallback: 'No pudimos iniciar tu activación. Intenta nuevamente.' });
+          : getHttpErrorMessage(err, { fallback: 'No pudimos iniciar tu acceso. Intenta nuevamente.' });
       setPhase('code');
       setError(message);
       setStatusMessage('');
@@ -180,6 +175,12 @@ function OperatorJoinScreen() {
     }
   };
 
+  useEffect(() => {
+    if (!fromUrlCode || autoStarted || loading) return;
+    setAutoStarted(true);
+    void handleJoinWithCode();
+  }, [autoStarted, fromUrlCode, loading]);
+
   return (
     <div className="maqgo-app maqgo-provider-funnel">
       <div
@@ -216,7 +217,7 @@ function OperatorJoinScreen() {
           }}
         >
           {phase === 'code'
-            ? 'Ingresa tu invitación de empresa'
+            ? 'Abre el enlace que recibiste por SMS para comenzar tu incorporacion.'
             : phase === 'sending'
               ? 'Estamos preparando tu cuenta.'
               : phase === 'otp'
@@ -225,38 +226,21 @@ function OperatorJoinScreen() {
         </p>
 
         {phase === 'code' ? (
-          <div style={{ marginBottom: 20 }}>
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => {
-                setCode(String(e.target.value || '').toUpperCase().slice(0, 6));
-                if (error) setError('');
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && activationCode.length >= 4 && !loading) {
-                  handleJoinWithCode();
-                }
-              }}
-              placeholder="CÓDIGO"
-              maxLength={6}
-              style={{
-                width: '100%',
-                padding: '18px 20px',
-                fontSize: 24,
-                fontWeight: 700,
-                fontFamily: "'JetBrains Mono', monospace",
-                textAlign: 'center',
-                letterSpacing: 8,
-                background: '#2A2A2A',
-                border: error ? '2px solid #ff6b6b' : '2px solid #444',
-                borderRadius: 12,
-                color: '#fff',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-              data-testid="invite-code-input"
-            />
+          <div
+            style={{
+              width: '100%',
+              marginBottom: 20,
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 14,
+              padding: 16,
+              textAlign: 'center',
+            }}
+          >
+            <p style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, margin: 0, lineHeight: 1.5 }}>
+              La invitacion la envia MAQGO automaticamente por SMS. Si llegaste aqui sin ese mensaje,
+              vuelve a abrir el enlace recibido en tu celular.
+            </p>
           </div>
         ) : null}
 
@@ -317,13 +301,11 @@ function OperatorJoinScreen() {
 
         {phase === 'code' ? (
           <button
-            className="maqgo-btn-primary"
-            onClick={handleJoinWithCode}
-            disabled={loading || activationCode.length < 4}
-            style={{ opacity: activationCode.length < 4 ? 0.5 : 1 }}
-            data-testid="validate-code-btn"
+            className="maqgo-btn-secondary"
+            onClick={() => navigate('/', { replace: true })}
+            data-testid="back-home-btn"
           >
-            {loading ? 'Verificando...' : 'Continuar'}
+            Volver al inicio
           </button>
         ) : null}
 

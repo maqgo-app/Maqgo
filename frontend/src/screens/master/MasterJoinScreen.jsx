@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
@@ -10,22 +10,23 @@ function MasterJoinScreen() {
   const [searchParams] = useSearchParams();
   const fromUrlCode = String(searchParams.get('code') || '').trim().toUpperCase();
 
-  const [code, setCode] = useState(fromUrlCode);
+  const [code] = useState(fromUrlCode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [autoStarted, setAutoStarted] = useState(false);
 
   const handleJoinWithCode = async () => {
     if (loading) return;
     if (code.length < 4) {
-      setError('Ingresa el código completo');
+      setError('El enlace de invitacion no es valido.');
       setStatusMessage('');
       return;
     }
 
     setLoading(true);
     setError('');
-    setStatusMessage('Verificando código...');
+    setStatusMessage('Estamos preparando tu acceso.');
 
     try {
       await axios.post(
@@ -49,6 +50,12 @@ function MasterJoinScreen() {
 
     setLoading(false);
   };
+
+  useEffect(() => {
+    if (!fromUrlCode || autoStarted || loading) return;
+    setAutoStarted(true);
+    void handleJoinWithCode();
+  }, [autoStarted, fromUrlCode, loading]);
 
   return (
     <div className="maqgo-app maqgo-provider-funnel">
@@ -79,42 +86,27 @@ function MasterJoinScreen() {
             lineHeight: 1.5,
           }}
         >
-          Ingresa la invitación que te compartió tu empresa. Después continuarás con el SMS de verificación de MAQGO.
+          Abre el enlace que recibiste por SMS para continuar con tu incorporacion.
         </p>
 
-        <div style={{ marginBottom: 20 }}>
-          <input
-            type="text"
-            value={code}
-            onChange={(e) => {
-              setCode(String(e.target.value || '').toUpperCase().slice(0, 6));
-              if (error) setError('');
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && code.length >= 4 && !loading) {
-                handleJoinWithCode();
-              }
-            }}
-            placeholder="CÓDIGO"
-            maxLength={6}
+        {!fromUrlCode ? (
+          <div
             style={{
               width: '100%',
-              padding: '18px 20px',
-              fontSize: 24,
-              fontWeight: 700,
-              fontFamily: "'JetBrains Mono', monospace",
+              marginBottom: 20,
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 14,
+              padding: 16,
               textAlign: 'center',
-              letterSpacing: 8,
-              background: '#2A2A2A',
-              border: error ? '2px solid #ff6b6b' : '2px solid #444',
-              borderRadius: 12,
-              color: '#fff',
-              outline: 'none',
-              boxSizing: 'border-box',
             }}
-            data-testid="invite-code-input"
-          />
-        </div>
+          >
+            <p style={{ color: 'rgba(255,255,255,0.88)', fontSize: 14, margin: 0, lineHeight: 1.5 }}>
+              La invitacion la envia MAQGO automaticamente por SMS. Si llegaste aqui sin ese mensaje,
+              vuelve a abrir el enlace recibido en tu celular.
+            </p>
+          </div>
+        ) : null}
 
         {statusMessage ? (
           <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center', margin: '0 0 12px' }}>
@@ -140,15 +132,15 @@ function MasterJoinScreen() {
           </div>
         ) : null}
 
-        <button
-          className="maqgo-btn-primary"
-          onClick={handleJoinWithCode}
-          disabled={loading || code.length < 4}
-          style={{ opacity: code.length < 4 ? 0.5 : 1 }}
-          data-testid="validate-code-btn"
-        >
-          {loading ? 'Verificando...' : 'Activar'}
-        </button>
+        {!fromUrlCode ? (
+          <button
+            className="maqgo-btn-secondary"
+            onClick={() => navigate('/', { replace: true })}
+            data-testid="back-home-btn"
+          >
+            Volver al inicio
+          </button>
+        ) : null}
 
         <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, textAlign: 'center', margin: '16px 0 0' }}>
           Válido por 7 días. Uso único (1 persona).
