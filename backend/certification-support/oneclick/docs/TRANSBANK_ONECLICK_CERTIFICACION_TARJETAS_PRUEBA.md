@@ -31,3 +31,10 @@ Identificador operativo para la linea de certificacion Oneclick con tarjetas de 
 ## Regla
 
 Esta linea existe solo para certificacion y tarjetas de prueba. No tocar la integracion Oneclick productiva al reutilizarla.
+
+## Ubicacion actual
+
+- `backend/certification-support/oneclick/cases`
+- `backend/certification-support/oneclick/runners`
+- `backend/certification-support/oneclick/poc`
+- `backend/certification-support/oneclick/docs`

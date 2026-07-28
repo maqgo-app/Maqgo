@@ -102,7 +102,7 @@ PY
 
 if [ "$HAS_INSCRIPTION" != "1" ]; then
   export CERT_PLAYWRIGHT_HEADLESS=true
-  bash "$ROOT/backend/scripts/run_case6_certification.sh" >/dev/null
+  bash "$ROOT/backend/certification-support/oneclick/runners/run_case6_certification.sh" >/dev/null
 fi
 
 "$PYTHON_BIN" "$ROOT/backend/scripts/e2e_smoke_bookings.py"
