@@ -97,7 +97,18 @@ function normalizeMachineOperator(machine, operator = {}, fallback = '') {
   };
 }
 
+function getMachinePrimaryOperatorId(machine) {
+  const currentOperators = Array.isArray(machine?.operators) ? machine.operators : [];
+  const explicitPrimary = currentOperators.find((op, index) => {
+    const normalized = normalizeMachineOperator(machine, op, `op-primary-${index}`);
+    return normalized && Boolean(op?.isPrimary || op?.primary || op?.principal);
+  });
+  return explicitPrimary ? normalizeMachineOperator(machine, explicitPrimary, '')?.id || '' : '';
+}
+
 function getEffectiveDefaultOperatorId(machine, defaultByMachinery = {}) {
+  const machinePrimaryId = getMachinePrimaryOperatorId(machine);
+  if (machinePrimaryId) return machinePrimaryId;
   const mid = toMachineryId(machine?.type);
   const configuredId = String(defaultByMachinery?.[mid] || '').trim();
   if (configuredId) return configuredId;
@@ -190,31 +201,38 @@ function MyMachinesScreen() {
   const saveMachineOperators = async (machineId, operators) => {
     const machine = (Array.isArray(machines) ? machines : []).find(m => m.id === machineId);
     if (!machine) return;
-    const nextOperators = Array.isArray(operators)
-      ? operators
+    const incomingOperators = Array.isArray(operators) ? operators : operators?.operators;
+    const normalizedSelected = Array.isArray(incomingOperators)
+      ? incomingOperators
           .map((op, index) => {
             return normalizeMachineOperator(machine, op, `op-manual-${machineId}-${index}`);
           })
           .filter(Boolean)
       : [];
-    if (nextOperators.length === 0) {
+    if (normalizedSelected.length === 0) {
       toast.warning('Esta maquina debe tener al menos un operador.');
       return;
     }
 
     const mid = toMachineryId(machine.type);
-    const selectedIds = new Set(nextOperators.map(o => o.id));
-    if (!selectedIds.has(getEffectiveDefaultOperatorId(machine, defaultByMachinery))) {
-      setDefaultOperator(mid, nextOperators[0]?.id || '');
-    } else if (!defaultByMachinery[mid]) {
-      setDefaultOperator(mid, getEffectiveDefaultOperatorId(machine, defaultByMachinery));
-    }
+    const selectedIds = new Set(normalizedSelected.map(o => o.id));
+    const preferredPrimaryId = String(
+      operators?.primaryOperatorId || getEffectiveDefaultOperatorId(machine, defaultByMachinery) || ''
+    ).trim();
+    const primaryOperatorId = selectedIds.has(preferredPrimaryId)
+      ? preferredPrimaryId
+      : normalizedSelected[0]?.id || '';
+    const nextOperators = normalizedSelected.map((op) => ({
+      ...op,
+      isPrimary: op.id === primaryOperatorId,
+    }));
+    setDefaultOperator(mid, primaryOperatorId);
 
     const needsActivation =
       !machine.published || !machine.available || !Array.isArray(machine.operators) || machine.operators.length === 0;
     const updates = needsActivation
-      ? { operators: nextOperators, published: true, available: true, status: 'active' }
-      : { operators: nextOperators };
+      ? { operators: nextOperators, primaryOperatorId, published: true, available: true, status: 'active' }
+      : { operators: nextOperators, primaryOperatorId };
 
     try {
       await updateMachineInApi(machineId, updates);
@@ -750,6 +768,14 @@ function AssignOperatorsModal({
         .filter(Boolean)
     )
   );
+  const [primaryOperatorId, setPrimaryOperatorId] = useState(() => {
+    const initialPrimary = String(defaultOperatorId || '').trim();
+    if (initialPrimary) return initialPrimary;
+    const current = (machine.operators || [])
+      .map((o, index) => normalizeMachineOperator(machine, o, `op-primary-current-${index}`))
+      .filter(Boolean);
+    return current[0]?.id || '';
+  });
   const [error, setError] = useState(() => initialError || '');
   const [newOperatorName, setNewOperatorName] = useState('');
   const [newOperatorRut, setNewOperatorRut] = useState('');
@@ -808,6 +834,13 @@ function AssignOperatorsModal({
       else next.add(opId);
       return next;
     });
+    setPrimaryOperatorId((prev) => {
+      const current = String(prev || '').trim();
+      if (!current || current === opId) {
+        return current === opId ? '' : current;
+      }
+      return current;
+    });
   };
 
   const handleSave = () => {
@@ -829,7 +862,16 @@ function AssignOperatorsModal({
       toast.warning('Esta maquina debe tener al menos un operador.');
       return;
     }
-    onSave(selected);
+    const selectedPrimaryId = selected.some((op) => op.id === primaryOperatorId)
+      ? primaryOperatorId
+      : selected[0]?.id || '';
+    onSave({
+      operators: selected.map((op) => ({
+        ...op,
+        isPrimary: op.id === selectedPrimaryId,
+      })),
+      primaryOperatorId: selectedPrimaryId,
+    });
     toast.success('Operadores asignados');
   };
 
@@ -861,6 +903,16 @@ function AssignOperatorsModal({
   }, [machine.operators, teamOperators]);
 
   const selectableIds = useMemo(() => new Set(operatorOptions.map((o) => o.id)), [operatorOptions]);
+  useEffect(() => {
+    const selected = operatorOptions.filter((op) => selectedIds.has(op.id));
+    if (selected.length === 0) {
+      setPrimaryOperatorId('');
+      return;
+    }
+    if (!selected.some((op) => op.id === primaryOperatorId)) {
+      setPrimaryOperatorId(selected[0]?.id || '');
+    }
+  }, [operatorOptions, primaryOperatorId, selectedIds]);
   const missingAssigned = useMemo(() => {
     return (Array.isArray(machine.operators) ? machine.operators : []).filter(
       (op, index) => {
@@ -1057,7 +1109,7 @@ function AssignOperatorsModal({
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: 4 }}>✕</button>
         </div>
         <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '0 0 14px' }}>
-          Aquí puedes agregar o modificar operadores.
+          Aquí puedes agregar o modificar operadores. Si dejas más de uno, marca cuál será el principal.
         </p>
 
         {loading ? (
@@ -1133,7 +1185,7 @@ function AssignOperatorsModal({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto', marginBottom: 16 }}>
               {operatorOptions.map((op) => {
                 const isOnlySelected = selectedIds.size === 1 && selectedIds.has(op.id);
-                const isDefault = String(defaultOperatorId || '').trim() === String(op.id || '').trim();
+                const isDefault = String(primaryOperatorId || '').trim() === String(op.id || '').trim();
                 return (
                 <label
                   key={op.id}
@@ -1168,6 +1220,29 @@ function AssignOperatorsModal({
                       {(op.rut ? `RUT ${op.rut} · ` : '')}{op.phone || 'Sin celular'}
                     </div>
                   </div>
+                  {selectedIds.has(op.id) ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setPrimaryOperatorId(op.id);
+                      }}
+                      style={{
+                        background: isDefault ? '#EC6819' : 'transparent',
+                        border: `1px solid ${isDefault ? '#EC6819' : 'rgba(255,255,255,0.28)'}`,
+                        color: '#fff',
+                        borderRadius: 999,
+                        padding: '6px 10px',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        minWidth: 90,
+                      }}
+                    >
+                      {isDefault ? 'Principal' : 'Marcar'}
+                    </button>
+                  ) : null}
                 </label>
               )})}
             </div>

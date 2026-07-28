@@ -64,15 +64,26 @@ function formatClpRangeEs(minVal, maxVal) {
 
 function normalizeRequiredOperator(operator = {}, fallback = '') {
   if (!operator || typeof operator !== 'object') return null;
-  const id = String(operator.id || operator.user_id || operator.operator_id || fallback || '').trim();
+  const rut = String(operator.rut || operator.operator_rut || operator.operatorRut || '').trim();
+  const phone = String(operator.phone || operator.telefono || '').trim();
+  const id = String(
+    operator.id ||
+    operator.user_id ||
+    operator.operator_id ||
+    (rut ? `op-rut-${rut.toLowerCase()}` : '') ||
+    (phone ? `op-phone-${phone.replace(/\D/g, '')}` : '') ||
+    fallback ||
+    ''
+  ).trim();
   const name = String(operator.name || `${operator.nombre || ''} ${operator.apellido || ''}`.trim()).trim();
-  if (!id || !name) return null;
+  if (!id || !name || (!rut && !phone && !operator.id && !operator.user_id && !operator.operator_id)) return null;
   return {
     id,
     name,
-    phone: String(operator.phone || operator.telefono || '').trim(),
-    rut: String(operator.rut || '').trim(),
+    phone,
+    rut,
     isOwner: Boolean(operator.isOwner),
+    isPrimary: Boolean(operator.isPrimary || operator.primary || operator.principal),
   };
 }
 
@@ -1259,7 +1270,9 @@ function MachineDataScreen() {
     const onboardingOperators = getProviderDraftArray('operatorsData', [])
       .map((op, index) => normalizeRequiredOperator(op, `op-onboarding-${index}`))
       .filter(Boolean);
-    if (onboardingOperators.length > 0) return onboardingOperators;
+    if (onboardingOperators.length > 0) {
+      return onboardingOperators.map((op, index) => ({ ...op, isPrimary: index === 0 }));
+    }
 
     const ownerId = String(localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
     if (!ownerId) {
@@ -1289,7 +1302,10 @@ function MachineDataScreen() {
 
     const preferredId = String(getObject(DEFAULT_OPERATOR_BY_MACHINERY_KEY, {})?.[machineryType] || '').trim();
     const preferred = preferredId ? teamOperators.find((op) => op.id === preferredId) : null;
-    return [preferred || teamOperators[0]];
+    const principalId = String(preferred?.id || teamOperators[0]?.id || '').trim();
+    return teamOperators
+      .filter((op) => op.id === principalId)
+      .map((op) => ({ ...op, isPrimary: true }));
   }, []);
 
   const yearError = form.year && !validateYear();

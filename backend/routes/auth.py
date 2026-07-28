@@ -221,7 +221,10 @@ class VerifyOtpRequest(BaseModel):
 
 
 class LoginSmsStartRequest(BaseModel):
-    celular: str = Field(..., description="Celular chileno, se normaliza a E.164 (+56...)")
+    celular: Optional[str] = Field(
+        None,
+        description="Celular chileno, se normaliza a E.164 (+56...). Opcional cuando se resuelve por activation_code.",
+    )
     device_id: Optional[str] = Field(
         None,
         description="Identificador persistente del dispositivo (p. ej. UUID en localStorage)",
@@ -237,7 +240,10 @@ class LoginSmsStartRequest(BaseModel):
 
 
 class LoginSmsVerifyRequest(BaseModel):
-    celular: str = Field(..., description="Celular usado en el paso anterior")
+    celular: Optional[str] = Field(
+        None,
+        description="Celular usado en el paso anterior. Opcional cuando se resuelve por activation_code.",
+    )
     code: str = Field(..., min_length=6, max_length=6, description="Código OTP de 6 dígitos")
     device_id: Optional[str] = Field(
         None,
@@ -732,20 +738,25 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
     La decisión de confianza no usa caducidad temporal: solo riesgo (dispositivo, país, fallos recientes).
     No se pide OTP por “cambio de rol” ni por flujo proveedor: la política es riesgo/sesión/dispositivo.
     """
-    try:
-        raw_phone = _normalize_login_celular_e164(body.celular)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "invalid_phone", "message": "Número de celular inválido"},
-        ) from None
+    activation_code = str(body.activation_code or '').strip().upper()
+    if activation_code:
+        existing, raw_phone, phone9 = await _resolve_activation_login_user_and_phone(activation_code)
+    else:
+        try:
+            raw_phone = _normalize_login_celular_e164(str(body.celular or ""))
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "invalid_phone", "message": "Número de celular inválido"},
+            ) from None
 
-    phone9 = _normalize_phone_last9(raw_phone)
-    if len(phone9) != 9:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "invalid_phone", "message": "Número de celular inválido"},
-        )
+        phone9 = _normalize_phone_last9(raw_phone)
+        if len(phone9) != 9:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "invalid_phone", "message": "Número de celular inválido"},
+            )
+        existing = None
 
     await ensure_trusted_device_indexes(db)
     device_norm = normalize_device_id(body.device_id)
@@ -772,32 +783,10 @@ async def login_sms_start(request: Request, body: LoginSmsStartRequest):
             },
         )
 
-    activation_code = str(body.activation_code or '').strip().upper()
     skip_trusted_session = False
     if activation_code:
         skip_trusted_session = True
-        inv = await db.invitations.find_one(
-            {"code": activation_code},
-            {"_id": 0, "status": 1, "used_by": 1, "invite_type": 1},
-        )
-        if not inv or not inv.get("used_by"):
-            raise HTTPException(
-                status_code=400,
-                detail="No encontramos una activación válida. Vuelve a activar tu código.",
-            )
-        st = str(inv.get("status") or "").strip().lower()
-        if st != "used":
-            raise HTTPException(
-                status_code=400,
-                detail="Primero activa tu código antes de iniciar sesión.",
-            )
-        existing = await db.users.find_one({"id": inv.get("used_by")}, {"_id": 0})
-        if not existing:
-            raise HTTPException(
-                status_code=404,
-                detail="No encontramos tu cuenta. Vuelve a activar tu código.",
-            )
-    else:
+    if not activation_code:
         existing = await _find_best_user_by_phone9(phone9, raw_phone=raw_phone, projection={"_id": 0})
     now = datetime.now(timezone.utc).isoformat()
 
@@ -1002,20 +991,25 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
     - Si OTP inválido → mensaje claro y no avanza.
     """
     try:
-        try:
-            raw_phone = _normalize_login_celular_e164(body.celular)
-        except ValueError:
-            raise HTTPException(
-                status_code=400,
-                detail={"error": "invalid_phone", "message": "Número de celular inválido"},
-            )
+        activation_code = str(body.activation_code or '').strip().upper()
+        if activation_code:
+            user, raw_phone, phone9 = await _resolve_activation_login_user_and_phone(activation_code)
+        else:
+            try:
+                raw_phone = _normalize_login_celular_e164(str(body.celular or ""))
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "invalid_phone", "message": "Número de celular inválido"},
+                )
 
-        phone9 = _normalize_phone_last9(raw_phone)
-        if len(phone9) != 9:
-            raise HTTPException(
-                status_code=400,
-                detail={"error": "invalid_phone", "message": "Número de celular inválido"},
-            )
+            phone9 = _normalize_phone_last9(raw_phone)
+            if len(phone9) != 9:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "invalid_phone", "message": "Número de celular inválido"},
+                )
+            user = None
 
         device_norm = normalize_device_id(body.device_id)
         ip = get_client_ip(request)
@@ -1032,19 +1026,7 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
                 },
             )
 
-        activation_code = str(body.activation_code or '').strip().upper()
-        if activation_code:
-            inv = await db.invitations.find_one(
-                {"code": activation_code},
-                {"_id": 0, "status": 1, "used_by": 1, "invite_type": 1},
-            )
-            if not inv or not inv.get("used_by"):
-                raise HTTPException(status_code=404, detail="No encontramos tu cuenta. Vuelve a intentar.")
-            st = str(inv.get("status") or "").strip().lower()
-            if st != "used":
-                raise HTTPException(status_code=400, detail="Primero activa tu código antes de iniciar sesión.")
-            user = await db.users.find_one({"id": inv.get("used_by")}, {"_id": 0})
-        else:
+        if not activation_code:
             user = await _find_best_user_by_phone9(phone9, raw_phone=raw_phone, projection={"_id": 0})
         if not user:
             logger.warning("LOGIN_SMS_VERIFY user_not_found phone9=%s", phone9)
@@ -1802,6 +1784,51 @@ async def _find_best_user_by_phone9(
         proj,
     ).to_list(length=limit)
     return _best_user_match_for_phone(rows, raw_phone=raw_phone)
+
+
+async def _resolve_activation_login_user_and_phone(activation_code: str) -> tuple[dict, str, str]:
+    inv = await db.invitations.find_one(
+        {"code": activation_code},
+        {
+            "_id": 0,
+            "status": 1,
+            "used_by": 1,
+            "invite_type": 1,
+            "operator_phone": 1,
+        },
+    )
+    if not inv or not inv.get("used_by"):
+        raise HTTPException(
+            status_code=400,
+            detail="No encontramos una activación válida. Vuelve a activar tu código.",
+        )
+    st = str(inv.get("status") or "").strip().lower()
+    if st != "used":
+        raise HTTPException(
+            status_code=400,
+            detail="Primero activa tu código antes de iniciar sesión.",
+        )
+    user = await db.users.find_one({"id": inv.get("used_by")}, {"_id": 0})
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="No encontramos tu cuenta. Vuelve a activar tu código.",
+        )
+
+    raw_phone = ""
+    for candidate in (user.get("phone"), inv.get("operator_phone")):
+        try:
+            raw_phone = _normalize_login_celular_e164(str(candidate or "").strip())
+            break
+        except ValueError:
+            continue
+    if not raw_phone:
+        raise HTTPException(
+            status_code=400,
+            detail="Tu empresa debe registrar un celular válido antes de activar tu cuenta.",
+        )
+
+    return user, raw_phone, _normalize_phone_last9(raw_phone)
 
 
 def _normalize_identifier(identifier: str) -> str:

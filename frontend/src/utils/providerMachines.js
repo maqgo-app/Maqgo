@@ -26,6 +26,29 @@ const MACHINERY_TYPES = [
 
 const NO_TRANSPORT_IDS = MACHINERY_NO_TRANSPORT;
 const PER_SERVICE_IDS = MACHINERY_PER_SERVICE;
+const PLACEHOLDER_OPERATOR_NAMES = new Set([
+  'operador',
+  'operator',
+  'operador rc',
+  'sin operador',
+  'por asignar',
+  'pendiente',
+]);
+
+function normalizeOperatorName(op = {}) {
+  const fullName = String(op.name || `${op.nombre || ''} ${op.apellido || ''}`.trim()).trim();
+  return fullName.replace(/\s+/g, ' ').trim();
+}
+
+function buildOperatorStableId(op = {}, index = 0) {
+  const directId = String(op.id || op.user_id || op.userId || op.operator_id || op.operatorId || '').trim();
+  if (directId) return directId;
+  const rut = String(op.rut || op.operator_rut || op.operatorRut || '').trim();
+  if (rut) return `op-rut-${rut.toLowerCase()}`;
+  const digits = String(op.phone || op.telefono || '').replace(/\D/g, '');
+  if (digits) return `op-phone-${digits}`;
+  return `op-${index}`;
+}
 
 const DEFAULT_MACHINES = [
   {
@@ -189,7 +212,8 @@ function normalizeMachineForCache(machine = {}) {
     licensePlate: machine.licensePlate || machine.license_plate || '',
     available: machine.available !== false,
     published: machine.published !== false,
-    operators: Array.isArray(machine.operators) ? machine.operators : [],
+    primaryOperatorId: machine.primaryOperatorId || machine.primary_operator_id || '',
+    operators: normalizeOperators(machine.operators),
   };
 }
 
@@ -289,7 +313,7 @@ export function addMachine(machine) {
     telematicsProvider: machine.telematicsProvider || '',
     available: machine.available !== false,
     published: machine.published !== false,
-    operators: machine.operators || [],
+    operators: normalizeOperators(machine.operators || []),
     ...(machineryType === 'camion_tolva' && machine.capacityM3 != null && { capacityM3: Number(machine.capacityM3) }),
     ...(machineryType === 'camion_aljibe' && machine.capacityLiters != null && { capacityLiters: Number(machine.capacityLiters) }),
     ...(machineryType === 'camion_pluma' && machine.capacityTonM != null && { capacityTonM: Number(machine.capacityTonM) }),
@@ -351,6 +375,7 @@ export function upsertOnboardingMachine(machineData = {}, machinePricing = {}, o
     liveLocationMode: machineData.liveLocationMode || 'base_only',
     telematicsProvider: machineData.telematicsProvider || '',
     operators: normalizedOperators,
+    primaryOperatorId: normalizedOperators.find((op) => op.isPrimary)?.id || normalizedOperators[0]?.id || '',
     available: true,
     ...(machineryType === 'camion_tolva' && machineData.capacityM3 != null && { capacityM3: Number(machineData.capacityM3) }),
     ...(machineryType === 'camion_aljibe' && machineData.capacityLiters != null && {
@@ -401,24 +426,30 @@ export function upsertOnboardingMachine(machineData = {}, machinePricing = {}, o
 
 function normalizeOperators(operators = []) {
   if (!Array.isArray(operators)) return [];
-  return operators
+  const normalized = operators
     .map((op, index) => {
       if (!op || typeof op !== 'object') return null;
-      const fullName = String(op.name || `${op.nombre || ''} ${op.apellido || ''}`.trim()).trim();
-      if (!fullName) return null;
+      const fullName = normalizeOperatorName(op);
+      if (!fullName || PLACEHOLDER_OPERATOR_NAMES.has(fullName.toLowerCase())) return null;
       const phone = String(op.phone || op.telefono || '').trim();
       const rut = String(op.rut || '').trim();
+      if (!rut && !phone && !op.id && !op.user_id && !op.operator_id) return null;
       return {
-        id: String(op.id || `op-onboarding-${Date.now()}-${index}`),
+        id: buildOperatorStableId(op, index),
         name: fullName,
         phone,
         rut,
         isOwner: Boolean(op.isOwner),
+        isPrimary: Boolean(op.isPrimary || op.primary || op.principal),
         online: Boolean(op.online),
         lastSeen: op.lastSeen || new Date().toISOString(),
       };
     })
     .filter(Boolean);
+  if (normalized.length === 0) return [];
+  const primaryIndex = normalized.findIndex((op) => op.isPrimary);
+  const winner = primaryIndex >= 0 ? primaryIndex : 0;
+  return normalized.map((op, index) => ({ ...op, isPrimary: index === winner }));
 }
 
 function backfillOperatorsFromOnboarding(machines = []) {

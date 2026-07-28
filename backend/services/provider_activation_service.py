@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from services.machines_service import machine_has_real_assigned_operator
+
 
 def _has_value(value: Any) -> bool:
     return value is not None and str(value).strip() != ""
@@ -28,7 +30,7 @@ def is_provider_activation_complete(user: Dict[str, Any]) -> bool:
         return False
     if not _has_value((machine_data or {}).get("licensePlate")):
         return False
-    if not isinstance(operators, list) or len(operators) == 0:
+    if not machine_has_real_assigned_operator({"operators": operators}):
         return False
 
     required_bank = ["bank", "accountType", "accountNumber", "holderName", "holderRut"]

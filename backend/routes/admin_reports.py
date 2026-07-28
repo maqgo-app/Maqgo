@@ -54,6 +54,7 @@ DEFAULT_ADMIN_REPORT_EMAIL = (
     or "soporte@maqgo.cl"
 ).strip().lower()
 
+
 def _parse_bool(v: str, default: bool = False) -> bool:
     if v is None:
         return default
@@ -1469,6 +1470,9 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
         "alert": ParagraphStyle("al", fontName="Helvetica", fontSize=9, leading=12, textColor=colors.HexColor("#334155")),
         "body": ParagraphStyle("bd", fontName="Helvetica", fontSize=9.1, leading=12.5, textColor=INK),
         "body_muted": ParagraphStyle("bm", fontName="Helvetica", fontSize=8.8, leading=12, textColor=MUTED),
+        "status_good": ParagraphStyle("sg", fontName="Helvetica-Bold", fontSize=8.8, leading=11, textColor=colors.HexColor("#15803D"), alignment=1),
+        "status_warn": ParagraphStyle("sw", fontName="Helvetica-Bold", fontSize=8.8, leading=11, textColor=colors.HexColor("#B45309"), alignment=1),
+        "status_bad": ParagraphStyle("sb", fontName="Helvetica-Bold", fontSize=8.8, leading=11, textColor=colors.HexColor("#B91C1C"), alignment=1),
     }
 
     class ProgressBar(Flowable):
@@ -1497,7 +1501,7 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
             self.canv.setFillColor(colors.HexColor(self.color_hex))
             self.canv.roundRect(0, 0, fill_w, self.h, r, stroke=0, fill=1)
 
-    def card(*, inner, pad: int = 12):
+    def card(*, inner, pad: int = 10):
         t = Table([[inner]], colWidths=["*"])
         t.setStyle(
             TableStyle(
@@ -1522,7 +1526,7 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
             Spacer(1, 2),
             Paragraph(html_escape(str(sub or "")), styles["kpi_sub"]),
         ]
-        return card(inner=inner, pad=12)
+        return card(inner=inner, pad=10)
 
     def section_card(title: str, rows: list[dict]):
         title_p = Paragraph(html_escape(str(title or "")), styles["card_title"])
@@ -1549,7 +1553,7 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
         )
         inner = Table([[title_p], [Spacer(1, 6)], [body]], colWidths=["*"])
         inner.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
-        return card(inner=inner, pad=12)
+        return card(inner=inner, pad=10)
 
     def detail_card(title: str, items: list[str], empty_text: str = "Sin novedades relevantes"):
         flow = [Paragraph(html_escape(str(title or "")), styles["card_title"]), Spacer(1, 7)]
@@ -1562,6 +1566,40 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
             if idx < min(len(cleaned), 6) - 1:
                 flow.append(Spacer(1, 4))
         return card(inner=flow, pad=12)
+
+    def status_card(title: str, rows: list[dict]):
+        tone_map = {"green": styles["status_good"], "amber": styles["status_warn"], "red": styles["status_bad"]}
+        title_p = Paragraph(html_escape(str(title or "")), styles["card_title"])
+        body_rows = []
+        for r in (rows or [])[:4]:
+            label = html_escape(str((r or {}).get("label") or "—"))
+            state = html_escape(str((r or {}).get("state") or "—"))
+            note = html_escape(str((r or {}).get("note") or ""))
+            tone = str((r or {}).get("tone") or "amber")
+            body_rows.append(
+                [
+                    Paragraph(label, styles["row_label"]),
+                    Paragraph(state.upper(), tone_map.get(tone, styles["status_warn"])),
+                    Paragraph(note, styles["row_value"]),
+                ]
+            )
+        if not body_rows:
+            body_rows = [[Paragraph("Sin seguimiento", styles["row_label"]), Paragraph("OK", styles["status_good"]), Paragraph("—", styles["row_value"])]]
+        body = Table(body_rows, colWidths=["42%", "18%", "40%"])
+        body.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 7),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        inner = Table([[title_p], [Spacer(1, 6)], [body]], colWidths=["*"])
+        inner.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+        return card(inner=inner, pad=12)
 
     doc = SimpleDocTemplate(
         buffer,
@@ -1621,13 +1659,6 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
     story.append(Paragraph("INFORME EJECUTIVO SEMANAL", styles["eyebrow"]))
     story.append(Paragraph("Informe semanal", styles["title"]))
     story.append(Paragraph(html_escape(subtitle), styles["sub"]))
-    executive_summary = (
-        f"Se crearon {created_count} servicios por {fmt_clp(created_amount)}. "
-        f"Se cerraron {paid_count} pagos por {fmt_clp(gmv_paid)} de GMV y quedaron {por_pagar_count} documentos proveedor por {fmt_clp(por_pagar_amount)} pendientes de pago."
-    )
-    story.append(card(inner=[Paragraph("Resumen ejecutivo", styles["card_title"]), Spacer(1, 7), Paragraph(html_escape(executive_summary), styles["alert"])], pad=12))
-    story.append(Spacer(1, 12))
-
     mk = report.get("marketing") or {}
     mk_kpi = (mk.get("kpi") or {}) if isinstance(mk, dict) else {}
     cac_c = mk_kpi.get("CAC_cliente_registro_clp")
@@ -1655,31 +1686,12 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
     take_rate_pct = business.get("take_rate_pct")
     take_rate_label = f"{float(take_rate_pct):.2f}%" if take_rate_pct is not None else "—"
 
-    kpis = [
-        ("Servicios creados", str(created_count), f"Monto creado: {fmt_clp(created_amount)}"),
-        ("Pagados cerrados", str(paid_count), f"GMV: {fmt_clp(gmv_paid)} · Take: {take_rate_label}"),
-        ("Documentos proveedor recibidos", str(por_pagar_count), f"Pago pendiente: {fmt_clp(por_pagar_amount)}"),
-        ("Nuevos clientes", str(nuevos_clientes), sub_clientes),
-        ("Nuevos proveedores", str(nuevos_proveedores), sub_proveedores),
-        ("Nuevas maquinarias", str(nuevas_maquinarias), f"Cancelación: {cancel_rate}"),
-    ]
-    kpi_cards = [kpi_cell(*k) for k in kpis[:6]]
-    grid = Table([kpi_cards[:3], kpi_cards[3:6]], colWidths=["33.33%", "33.33%", "33.33%"])
-    grid.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
-    story.append(grid)
-    story.append(Spacer(1, 12))
-
-    two = Table([[section_card("Distribución por estado", estado_rows), section_card("Top maquinaria", top_rows)]], colWidths=["50%", "50%"])
-    two.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
-    story.append(two)
-    if zone_rows:
-        story.append(Spacer(1, 12))
-        story.append(section_card("Zonas con mayor demanda (WoW)", zone_rows))
-    story.append(Spacer(1, 12))
-
     gmv_wow = fmt_wow_pct(business.get("wow_gmv_pct")) or "—"
     maqgo_rev_wow = fmt_wow_pct(business.get("wow_maqgo_revenue_pct")) or "—"
     completed_wow = fmt_wow_pct(business.get("wow_completed_pct")) or "—"
+    gmv_wow_display = gmv_wow if gmv_wow != "—" else "N/D"
+    maqgo_rev_wow_display = maqgo_rev_wow if maqgo_rev_wow != "—" else "N/D"
+    completed_wow_display = completed_wow if completed_wow != "—" else "N/D"
     maqgo_rev_label = fmt_clp(business.get("maqgo_revenue_net_clp") or 0)
     ticket_label = fmt_clp(business.get("ticket_promedio_clp") or 0)
     avg_days_label = fmt_days(business.get("avg_rental_days"))
@@ -1713,99 +1725,47 @@ def _build_weekly_report_pdf_bytes(report: dict) -> bytes:
     doc_comp = ops.get("provider_doc_compliance") or {}
     inv_buckets = ops.get("invoiced_by_amount_bucket") or {}
     inv_precheck = ops.get("invoiced_precheck") or {}
+    pending_review_total = int(ops.get("pending_review_total") or 0)
+    stuck_over_72h = int(ops.get("stuck_over_72h") or 0)
+    disputed_total = int(ops.get("disputed_total") or 0)
     mk = report.get("marketing") or {}
     mk_funnel = (mk.get("funnel") or {}) if isinstance(mk, dict) else {}
     fc = (mk_funnel.get("clientes") or {}) if isinstance(mk_funnel.get("clientes"), dict) else {}
     fp = (mk_funnel.get("proveedores") or {}) if isinstance(mk_funnel.get("proveedores"), dict) else {}
 
-    negocio_items = [
-        f"GMV pagado: {fmt_clp(gmv_paid)} ({gmv_wow} vs semana anterior)",
-        f"Ingreso neto MAQGO estimado: {maqgo_rev_label} ({maqgo_rev_wow} vs semana anterior)",
-        f"Take rate neto: {take_rate_label} (variacion {take_rate_delta_label})",
-        f"Servicios completados: {paid_count} ({completed_wow} vs semana anterior)",
-        f"Ticket promedio: {ticket_label}",
-        f"Arriendo promedio: {avg_days_label}",
+    extra_kpis = [
+        ("Ventas vs semana anterior", gmv_wow_display, fmt_clp(gmv_paid)),
+        ("Ingreso MAQGO", maqgo_rev_label, f"Vs semana anterior: {maqgo_rev_wow_display}"),
+        ("Servicios >72h", str(stuck_over_72h), f"En revision: {pending_review_total}"),
     ]
-    operacion_items = [
-        f"Salud operacional: {f'{health_score}/100 · {health_label}' if health_score is not None else '—'}",
-        f"Revision promedio: {review_min} min · SLA <24h {sla_24_label or '—'} · <72h {sla_72_label}",
-        f"Servicios aprobados en la semana: {reviewed_total}",
-        f"Backlog en revision: {int(ops.get('pending_review_total') or 0)} · detenidos >72h: {int(ops.get('stuck_over_72h') or 0)}",
-        f"Disputas abiertas: {int(ops.get('disputed_total') or 0)} · documentos proveedor recibidos: {int(ops.get('invoiced_total') or por_pagar_count)}",
-        (
-            "Cumplimiento documento proveedor: "
-            f"con factura {int(doc_comp.get('with_provider_invoice') or 0)} · "
-            f"sin factura {int(doc_comp.get('paid_without_invoice') or 0)} · "
-            f"pendiente {int(doc_comp.get('missing') or 0)}"
-        ),
-        (
-            "Tramos documentos proveedor pendientes: "
-            f"<500k {int(inv_buckets.get('lt_500k') or 0)} · "
-            f"500k-1M {int(inv_buckets.get('500k_1m') or 0)} · "
-            f">=1M {int(inv_buckets.get('gte_1m') or 0)} · "
-            f"sin monto {int(inv_buckets.get('missing') or 0)}"
-        ),
-        (
-            f"Precheck de documentos: ok {int(inv_precheck.get('ok') or 0)} · "
-            f"warning {int(inv_precheck.get('warning') or 0)} · "
-            f"sin lectura {int(inv_precheck.get('missing') or 0)}"
-        ),
-    ]
-    crecimiento_items = [
-        f"Nuevos clientes: {nuevos_clientes} · CAC {fmt_clp(cac_c_v) if cac_c_v is not None else '—'}",
-        f"Nuevos proveedores: {nuevos_proveedores} · CAC {fmt_clp(cac_p_v) if cac_p_v is not None else '—'}",
-        f"Nuevas maquinarias publicadas en la semana: {nuevas_maquinarias}",
-        (
-            f"Embudo clientes ({int(fc.get('registrados') or 0)}): activados {int(fc.get('con_tarjeta_oneclick') or 0)} · "
-            f"con solicitud {int(fc.get('con_solicitud_servicio') or 0)} · "
-            f"pagaron {int(fc.get('con_servicio_pagado_semana') or 0)}"
-        ),
-        (
-            f"Embudo proveedores ({int(fp.get('registrados') or 0)}): onboarding {int(fp.get('onboarding_completado') or 0)} · "
-            f"disponibles {int(fp.get('disponibles') or 0)} · "
-            f"primer servicio {int(fp.get('con_primer_servicio_semana') or 0)}"
-        ),
-        (
-            "Growth AI: "
-            f"leads oferta {int(growth_ai.get('new_supply_leads') or 0)} · "
-            f"leads demanda {int(growth_ai.get('new_demand_leads') or 0)} · "
-            f"contactos email {int((((growth_ai.get('contacts') or {}).get('email') or {}).get('sent') or 0))} · "
-            f"sms {int((((growth_ai.get('contacts') or {}).get('sms') or {}).get('sent') or 0))}"
-        ),
-    ]
-    plataforma_items = [
-        f"Solicitudes creadas en la semana: {int(demand.get('requests_created') or 0)}",
-        f"Maquinarias incorporadas en la semana: {nuevas_maquinarias}",
-        f"Komatsu: conectadas {k_total} · actualizadas 24h {k_ok} · sin actualizar >72h {k_stale} · nunca sincronizadas {k_never}",
-    ]
-    summary_grid = Table(
-        [
-            [detail_card("Negocio", negocio_items), detail_card("Operacion y cumplimiento", operacion_items)],
-            [detail_card("Crecimiento comercial", crecimiento_items), detail_card("Mercado y plataforma", plataforma_items)],
-        ],
-        colWidths=["50%", "50%"],
+    executive_summary = (
+        f"Se crearon {created_count} servicios por {fmt_clp(created_amount)}. "
+        f"Se cerraron {paid_count} pagos por {fmt_clp(gmv_paid)} de GMV y quedaron {por_pagar_count} documentos proveedor por {fmt_clp(por_pagar_amount)} pendientes de pago. "
+        f"Claves: ventas vs semana anterior {extra_kpis[0][1]}, ingreso MAQGO {extra_kpis[1][1]} y servicios >72h {extra_kpis[2][1]}."
     )
-    summary_grid.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
-    story.append(summary_grid)
-    story.append(Spacer(1, 12))
+    story.append(card(inner=[Paragraph("Resumen ejecutivo", styles["card_title"]), Spacer(1, 6), Paragraph(html_escape(executive_summary), styles["alert"])], pad=10))
+    story.append(Spacer(1, 10))
 
-    shown_alerts = []
-    for a in alertas:
-        msg = str((a or {}).get("mensaje") or "").strip()
-        if not msg:
-            continue
-        shown_alerts.append(msg)
-        if len(shown_alerts) >= 3:
-            break
-    if k_total > 0 or k_ok > 0 or k_stale > 0 or k_never > 0:
-        shown_alerts.append(
-            f"Komatsu: conectadas {k_total} · actualizadas (24h) {k_ok} · sin actualizar (>72h) {k_stale} · nunca {k_never}"
-        )
-    shown_alerts = shown_alerts[:4]
-    if not shown_alerts:
-        shown_alerts = ["Sin alertas críticas"]
-    alert_flow = [Paragraph(f"- {html_escape(m)[:220]}", styles["alert"]) for m in shown_alerts]
-    story.append(card(inner=[Paragraph("Alertas (solo lo crítico)", styles["card_title"]), Spacer(1, 8), *alert_flow], pad=12))
+    kpis = [
+        ("Servicios creados", fmt_clp(created_amount), f"{created_count} servicios creados"),
+        ("Pagados cerrados", fmt_clp(gmv_paid), f"{paid_count} pagos · Take: {take_rate_label}"),
+        ("Documentos pendientes", fmt_clp(por_pagar_amount), f"{por_pagar_count} pendientes"),
+        ("Ventas vs semana anterior", gmv_wow_display, f"Servicios completados: {completed_wow_display}"),
+        ("Ingreso MAQGO", maqgo_rev_label, f"Vs semana anterior: {maqgo_rev_wow_display}"),
+        ("Servicios >72h", str(stuck_over_72h), f"En revision: {pending_review_total}"),
+    ]
+    kpi_cards = [kpi_cell(*k) for k in kpis[:6]]
+    grid = Table([kpi_cards[:3], kpi_cards[3:6]], colWidths=["33.33%", "33.33%", "33.33%"])
+    grid.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
+    story.append(grid)
+    story.append(Spacer(1, 10))
+
+    two = Table([[section_card("Distribución por estado", estado_rows), section_card("Top maquinaria", top_rows)]], colWidths=["50%", "50%"])
+    two.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    story.append(two)
+    if zone_rows:
+        story.append(Spacer(1, 10))
+        story.append(section_card("Zonas con mayor demanda (WoW)", zone_rows))
 
     doc.build(story, onFirstPage=paint_frame, onLaterPages=paint_frame)
     buffer.seek(0)
@@ -1864,6 +1824,9 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
         "alert": ParagraphStyle("al", fontName="Helvetica", fontSize=9, leading=12, textColor=colors.HexColor("#334155")),
         "body": ParagraphStyle("bd", fontName="Helvetica", fontSize=9.1, leading=12.5, textColor=INK),
         "body_muted": ParagraphStyle("bm", fontName="Helvetica", fontSize=8.8, leading=12, textColor=MUTED),
+        "status_good": ParagraphStyle("msg", fontName="Helvetica-Bold", fontSize=8.8, leading=11, textColor=colors.HexColor("#15803D"), alignment=1),
+        "status_warn": ParagraphStyle("msw", fontName="Helvetica-Bold", fontSize=8.8, leading=11, textColor=colors.HexColor("#B45309"), alignment=1),
+        "status_bad": ParagraphStyle("msb", fontName="Helvetica-Bold", fontSize=8.8, leading=11, textColor=colors.HexColor("#B91C1C"), alignment=1),
     }
 
     class ProgressBar(Flowable):
@@ -1958,6 +1921,40 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
                 flow.append(Spacer(1, 4))
         return card(inner=flow, pad=12)
 
+    def status_card(title: str, rows: list[dict]):
+        tone_map = {"green": styles["status_good"], "amber": styles["status_warn"], "red": styles["status_bad"]}
+        title_p = Paragraph(html_escape(str(title or "")), styles["card_title"])
+        body_rows = []
+        for r in (rows or [])[:4]:
+            label = html_escape(str((r or {}).get("label") or "—"))
+            state = html_escape(str((r or {}).get("state") or "—"))
+            note = html_escape(str((r or {}).get("note") or ""))
+            tone = str((r or {}).get("tone") or "amber")
+            body_rows.append(
+                [
+                    Paragraph(label, styles["row_label"]),
+                    Paragraph(state.upper(), tone_map.get(tone, styles["status_warn"])),
+                    Paragraph(note, styles["row_value"]),
+                ]
+            )
+        if not body_rows:
+            body_rows = [[Paragraph("Sin seguimiento", styles["row_label"]), Paragraph("OK", styles["status_good"]), Paragraph("—", styles["row_value"])]]
+        body = Table(body_rows, colWidths=["42%", "18%", "40%"])
+        body.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 7),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        inner = Table([[title_p], [Spacer(1, 6)], [body]], colWidths=["*"])
+        inner.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+        return card(inner=inner, pad=12)
+
     label = str(periodo.get("label") or "").strip()
     subtitle = f"Periodo: {label} · {datetime.utcnow().strftime('Generado %Y-%m-%d %H:%M UTC')}"
 
@@ -2003,20 +2000,20 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
             return "—"
     docs_rows = [
         {
-            "label": "Proveedor con factura",
-            "value": f"{fmt_clp(net_with_inv)} ({with_inv}) · {pct_sales(net_with_inv)}",
+            "label": f"Con factura proveedor ({with_inv})",
+            "value": f"{fmt_clp(net_with_inv)} · {pct_sales(net_with_inv)}",
             "pct": float(net_with_inv) / float(max_docs_val) * 100.0,
             "color": "#8FB3C9",
         },
         {
-            "label": "Factura de compra (no emisor)",
-            "value": f"{fmt_clp(net_without_inv)} ({without_inv}) · {pct_sales(net_without_inv)}",
+            "label": f"Con factura de compra ({without_inv})",
+            "value": f"{fmt_clp(net_without_inv)} · {pct_sales(net_without_inv)}",
             "pct": float(net_without_inv) / float(max_docs_val) * 100.0,
             "color": "#D9A15A",
         },
         {
-            "label": "Pendiente documento proveedor",
-            "value": f"{fmt_clp(net_other)} ({other}) · {pct_sales(net_other)}",
+            "label": f"Sin documento cargado ({other})",
+            "value": f"{fmt_clp(net_other)} · {pct_sales(net_other)}",
             "pct": float(net_other) / float(max_docs_val) * 100.0,
             "color": "#94A3B8",
         },
@@ -2134,9 +2131,7 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
         right = fmt_clp(cac_p_v) if cac_p_v is not None else "—"
         cac_value = f"{left} / {right}"
 
-    footer_text = "Valores estimados: validar contabilidad"
-    if cac_value != "—":
-        footer_text = f"{footer_text} · CAC C/P: {cac_value}"
+    footer_text = "MAQGO · Informe ejecutivo mensual"
 
     komatsu = integrations.get("komatsu") or {}
     k_total = int(komatsu.get("connected") or 0)
@@ -2144,14 +2139,6 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
     k_stale = int(komatsu.get("stale_72h") or 0)
     k_never = int(komatsu.get("never_sync") or 0)
     machines_published_total = int(volume.get("machines_published_total") or 0)
-    footer_bits = []
-    if machines_published_total > 0:
-        footer_bits.append(f"Pub: {machines_published_total}")
-    if k_total > 0 or k_ok > 0 or k_stale > 0 or k_never > 0:
-        footer_bits.append(f"Komatsu >72h: {k_stale}")
-    if footer_bits:
-        footer_text = f"{footer_text} · " + " · ".join(footer_bits)
-
     def fmt_delta(val) -> str:
         try:
             v = float(val)
@@ -2196,14 +2183,70 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
         f"Komatsu: conectadas {k_total} · actualizadas 24h {k_ok} · sin actualizar >72h {k_stale} · nunca sincronizadas {k_never}",
         f"Documentacion proveedor: con factura {with_inv} · factura de compra {without_inv} · pendiente {other}",
     ]
-
+    variation_items = [
+        f"Ventas netas: {mom_sales} vs mes anterior",
+        f"Margen de contribucion: {mom_margin} vs mes anterior",
+        f"Ingreso MAQGO neto: {mom_maqgo} vs mes anterior",
+        f"Take rate neto del mes: {take_rate_label}",
+    ]
+    try:
+        margin_pct_num = float(contribution.get("margin_pct") or 0)
+    except Exception:
+        margin_pct_num = 0.0
+    if margin_pct_num >= 18:
+        margin_state = ("Sano", "green")
+    elif margin_pct_num >= 12:
+        margin_state = ("Atencion", "amber")
+    else:
+        margin_state = ("Critico", "red")
+    if other >= 8:
+        doc_state = ("Critico", "red")
+    elif other > 0:
+        doc_state = ("Atencion", "amber")
+    else:
+        doc_state = ("Sano", "green")
+    if k_stale >= 5 or k_never >= 3:
+        platform_state = ("Critico", "red")
+    elif k_stale > 0 or k_never > 0:
+        platform_state = ("Atencion", "amber")
+    else:
+        platform_state = ("Sano", "green")
+    try:
+        mom_sales_num = float(str(mom_sales).replace("%", "").replace("+", ""))
+    except Exception:
+        mom_sales_num = 0.0
+    if mom_sales_num >= 5:
+        demand_state = ("Sano", "green")
+    elif mom_sales_num >= 0:
+        demand_state = ("Atencion", "amber")
+    else:
+        demand_state = ("Critico", "red")
+    semaforo_rows = [
+        {"label": "Margen del mes", "state": margin_state[0], "tone": margin_state[1], "note": f"{margin_pct_label}"},
+        {"label": "Documento proveedor", "state": doc_state[0], "tone": doc_state[1], "note": f"{other} servicio(s) pendientes"},
+        {"label": "Demanda mensual", "state": demand_state[0], "tone": demand_state[1], "note": f"MoM ventas {mom_sales}"},
+        {"label": "Telematica", "state": platform_state[0], "tone": platform_state[1], "note": f"Komatsu >72h: {k_stale}"},
+    ]
+    decision_items = []
+    if margin_pct_num < 12:
+        decision_items.append("Revisar mezcla comercial y costo directo para recuperar margen del mes.")
+    if other > 0:
+        decision_items.append(f"Cerrar documentacion pendiente de proveedor en {other} servicio(s) pagados.")
+    if zone_rows:
+        decision_items.append(f"Priorizar expansion comercial en {zone_rows[0]['label']} por volumen de solicitudes.")
+    if machinery_rows:
+        decision_items.append(f"Refuerza disponibilidad de {machinery_rows[0]['label']} por peso en ventas del mes.")
+    if k_stale > 0:
+        decision_items.append(f"Regularizar sincronizacion Komatsu en {k_stale} maquinaria(s) sin datos recientes.")
+    if not decision_items:
+        decision_items = ["Mantener foco en crecimiento rentable y seguimiento de documentacion y telematica."]
     kpis = [
         ("Ventas netas", fmt_clp(sales_net), f"Servicios pagados: {services_paid} · MoM: {mom_sales}"),
         ("Margen contribución", fmt_clp(margin_val), f"{margin_pct_label} · MoM: {mom_margin}"),
         ("Ingreso MAQGO neto", fmt_clp(maqgo_val), f"MoM: {mom_maqgo} · Take: {take_rate_label}"),
-        ("IVA neto estimado", fmt_clp(iva_neto), "Estimado contable"),
-        ("Nuevos usuarios", f"{new_clients} / {new_providers}", "Clientes / Proveedores"),
-        ("Nuevas maquinarias", str(new_machines), "Registradas en el mes"),
+        ("Comisión MAQGO", take_rate_label, f"Ingreso MAQGO: {fmt_clp(maqgo_val)}"),
+        ("Ventas vs mes anterior", mom_sales, f"Servicios pagados: {services_paid}"),
+        ("Maquinarias publicadas", str(machines_published_total), f"Nuevas en el mes: {new_machines}"),
     ]
     kpi_cards = [kpi_cell(*k) for k in kpis[:6]]
     grid = Table([kpi_cards[:3], kpi_cards[3:6]], colWidths=["33.33%", "33.33%", "33.33%"])
@@ -2224,27 +2267,15 @@ def _build_monthly_report_pdf_bytes(report: dict) -> bytes:
         story.append(card(inner=[Paragraph("Claves", styles["card_title"]), Spacer(1, 8), *insight_flow], pad=12))
         story.append(Spacer(1, 12))
 
-    two = Table([[section_card("Flujo mensual (neto)", flow_rows), section_card("Documentación proveedor", docs_rows)]], colWidths=["50%", "50%"])
+    two = Table([[section_card("Flujo mensual (neto)", flow_rows), section_card("Documentos proveedor", docs_rows)]], colWidths=["50%", "50%"])
     two.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
     story.append(two)
-    story.append(Spacer(1, 12))
-
-    detail_grid = Table(
-        [
-            [detail_card("Finanzas y facturacion", finance_items), detail_card("Crecimiento comercial", comercial_items)],
-            [detail_card("Mercado", mercado_items), detail_card("Plataforma", plataforma_items)],
-        ],
-        colWidths=["50%", "50%"],
+    executive_summary = (
+        f"El mes cerró con {fmt_clp(sales_net)} en ventas netas, {fmt_clp(margin_val)} de margen de contribución y {fmt_clp(maqgo_val)} de ingreso neto MAQGO. "
+        f"Se pagaron {services_paid} servicios y se incorporaron {new_clients} clientes, {new_providers} proveedores y {new_machines} maquinarias. "
+        f"KPIs clave: comisión MAQGO {take_rate_label}, ventas vs mes anterior {mom_sales} y maquinarias publicadas {machines_published_total}."
     )
-    detail_grid.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
-    story.append(detail_grid)
-
-    if zone_rows:
-        story.append(Spacer(1, 12))
-        story.append(section_card("Zonas con mayor demanda (solicitudes)", zone_rows))
-    if machinery_rows:
-        story.append(Spacer(1, 12))
-        story.append(section_card("Top maquinaria por ventas", machinery_rows))
+    story[3] = card(inner=[Paragraph("Resumen ejecutivo", styles["card_title"]), Spacer(1, 7), Paragraph(html_escape(executive_summary), styles["alert"])], pad=12)
 
     doc.build(story, onFirstPage=paint_frame, onLaterPages=paint_frame)
     buffer.seek(0)
