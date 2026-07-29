@@ -232,7 +232,7 @@ def confirm_inscription(token: str):
     return _request_json("PUT", url, _headers(), {})
 
 
-def authorize_payment(username: str, tbk_user: str, buy_order: str, amount: int):
+def authorize_payment(username: str, tbk_user: str, buy_order: str, amount: int, installments_number: int | None = None):
     _check_config()
     c = _cfg()
     url = f"{c['base_url']}/rswebpaytransaction/api/oneclick/v1.2/transactions"
@@ -245,13 +245,17 @@ def authorize_payment(username: str, tbk_user: str, buy_order: str, amount: int)
             {
                 "commerce_code": c["child_cc"],
                 "buy_order": buy_order,
-                "amount": amount
+                "amount": amount,
+                **({"installments_number": int(installments_number)} if installments_number else {}),
             }
-        ]
+        ],
     }
 
     # No retries on authorize to avoid duplicate financial operations.
-    return _request_json("POST", url, _headers(), payload, allow_retries=False)
+    out = _request_json("POST", url, _headers(), payload, allow_retries=False)
+    if isinstance(out, dict):
+        out["_maqgo_transbank_request"] = payload
+    return out
 
 
 def refund_payment(buy_order: str, detail_buy_order: str, amount: int):

@@ -13,6 +13,7 @@ import os
 import time
 import re
 import secrets
+from pathlib import Path
 from pydantic import BaseModel
 from typing import Optional
 
@@ -66,6 +67,7 @@ class AuthorizePaymentRequest(BaseModel):
     tbk_user: str
     buy_order: str
     amount: int
+    installments_number: Optional[int] = None
 
 
 class RefundPaymentRequest(BaseModel):
@@ -859,10 +861,21 @@ async def authorize_payment(
         _require_public_validation_access_or_403(request)
     payment = await db[PAYMENTS_COLLECTION].find_one({"buy_order": data.buy_order}, {"_id": 0})
     if not payment:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "buy_order_not_found", "message": "buy_order no existe en DB"},
-        )
+        now = _now_iso()
+        payment = {
+            "id": f"oc_{secrets.token_hex(8)}",
+            "buy_order": data.buy_order,
+            "session_id": _generate_session_id(),
+            "user_id": (current_user or {}).get("id") or "public_oneclick",
+            "username": data.username,
+            "email": "",
+            "amount": None,
+            "status": "INSCRIBED",
+            "tbk_user": data.tbk_user,
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db[PAYMENTS_COLLECTION].insert_one(payment)
     if payment.get("status") != "INSCRIBED":
         raise HTTPException(
             status_code=400,
@@ -908,12 +921,46 @@ async def authorize_payment(
             },
         )
 
+    capture_enabled = str(os.environ.get("ONECLICK_CERT_CAPTURE_AUTH_REQUEST", "")).strip().lower() in {"1", "true", "yes"}
+    if capture_enabled:
+        logger.info(
+            "ONECLICK_CERT_CAPTURE entered authorize_payment buy_order=%s installments_number=%s",
+            data.buy_order,
+            data.installments_number,
+        )
+        logger.info(
+            "ONECLICK_CERT_CAPTURE env ONECLICK_CERT_CAPTURE_AUTH_REQUEST=%s",
+            os.environ.get("ONECLICK_CERT_CAPTURE_AUTH_REQUEST"),
+        )
+        run_id = (request.headers.get("x-cert-run-id") or "").strip()
+        logger.info(
+            "ONECLICK_CERT_CAPTURE header x-cert-run-id present=%s value=%s",
+            bool(run_id),
+            run_id,
+        )
+        if run_id and re.fullmatch(r"[A-Za-z0-9_\-TZ]+", run_id):
+            repo_root = Path(__file__).resolve().parents[2]
+            out_dir = repo_root / "backend/qa-artifacts/transbank-cert/05_authorize_installments" / run_id
+            out_dir.mkdir(parents=True, exist_ok=True)
+            logger.info("ONECLICK_CERT_CAPTURE out_dir=%s", str(out_dir))
+            try:
+                (out_dir / "request.authorize.json").write_text(
+                    json.dumps(data.model_dump(), ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                logger.info("ONECLICK_CERT_CAPTURE wrote request.authorize.json ok")
+            except Exception as e:
+                logger.exception("ONECLICK_CERT_CAPTURE failed to write request.authorize.json: %s", e)
+        else:
+            logger.info("ONECLICK_CERT_CAPTURE run_id invalid or missing")
+
     try:
         result = provider_oneclick_authorize(
             username=data.username,
             tbk_user=data.tbk_user,
             buy_order=data.buy_order,
             amount=data.amount,
+            installments_number=data.installments_number,
         )
         await evidence_record_authorize(
             db,

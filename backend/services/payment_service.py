@@ -55,6 +55,7 @@ def provider_oneclick_authorize(
     tbk_user: str,
     buy_order: str,
     amount: int,
+    installments_number: int | None = None,
 ) -> dict:
     """
     Único punto de llamada a Transbank OneClick authorize (cobro con tarjeta inscrita).
@@ -67,6 +68,7 @@ def provider_oneclick_authorize(
         tbk_user=tbk_user,
         buy_order=buy_order,
         amount=amount,
+        installments_number=installments_number,
     )
 
 

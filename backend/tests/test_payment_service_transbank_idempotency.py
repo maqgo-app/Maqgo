@@ -160,3 +160,92 @@ class PaymentServiceTransbankIdempotencyTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(p.get("bookingId"), booking_id)
         self.assertEqual(p.get("response_code"), 0)
         self.assertEqual(p.get("authorization_code"), "AUTH123")
+
+    async def test_rollback_charge_uses_detail_buy_order_and_marks_refunded(self):
+        from services import oneclick_service as oneclick_mod
+        from services.payment_service import PaymentService
+
+        db = _FakeDB()
+        sr_id = "sr_refund_ok"
+        payment_id = "pay_refund_ok"
+
+        await db.payments.insert_one(
+            {
+                "id": payment_id,
+                "serviceRequestId": sr_id,
+                "status": "charged",
+                "amount": 15000,
+                "tbkBuyOrder": "PARENT123",
+                "tbkDetailBuyOrder": "CHILD123",
+            }
+        )
+        await db.service_requests.insert_one({"id": sr_id, "status": "accepted", "paymentStatus": "charged"})
+
+        captured = {}
+
+        def fake_refund_payment(*, buy_order, detail_buy_order, amount):
+            captured["buy_order"] = buy_order
+            captured["detail_buy_order"] = detail_buy_order
+            captured["amount"] = amount
+            return {"response_code": 0}
+
+        old_refund = oneclick_mod.refund_payment
+        oneclick_mod.refund_payment = fake_refund_payment
+        try:
+            svc = PaymentService(db)
+            result = await svc.rollback_charge(sr_id, reason="client_cancelled")
+        finally:
+            oneclick_mod.refund_payment = old_refund
+
+        self.assertTrue(result["success"])
+        self.assertEqual(captured["buy_order"], "PARENT123")
+        self.assertEqual(captured["detail_buy_order"], "CHILD123")
+        self.assertEqual(captured["amount"], 15000)
+
+        updated_payment = await db.payments.find_one({"id": payment_id}, {"_id": 0})
+        self.assertEqual(updated_payment.get("status"), "refunded")
+
+        updated_sr = await db.service_requests.find_one({"id": sr_id}, {"_id": 0})
+        self.assertEqual(updated_sr.get("paymentStatus"), "refunded")
+        self.assertEqual(updated_sr.get("status"), "matching")
+
+    async def test_rollback_charge_keeps_payment_charged_when_refund_fails(self):
+        from services import oneclick_service as oneclick_mod
+        from services.payment_service import PaymentService
+
+        db = _FakeDB()
+        sr_id = "sr_refund_fail"
+        payment_id = "pay_refund_fail"
+
+        await db.payments.insert_one(
+            {
+                "id": payment_id,
+                "serviceRequestId": sr_id,
+                "status": "charged",
+                "amount": 9900,
+                "tbkBuyOrder": "PARENTFAIL",
+                "tbkDetailBuyOrder": "CHILDFAIL",
+            }
+        )
+        await db.service_requests.insert_one({"id": sr_id, "status": "accepted", "paymentStatus": "charged"})
+
+        def fake_refund_payment(*, buy_order, detail_buy_order, amount):
+            raise RuntimeError("tbk refund failed")
+
+        old_refund = oneclick_mod.refund_payment
+        oneclick_mod.refund_payment = fake_refund_payment
+        try:
+            svc = PaymentService(db)
+            result = await svc.rollback_charge(sr_id, reason="client_cancelled")
+        finally:
+            oneclick_mod.refund_payment = old_refund
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["status"], "refund_failed")
+
+        unchanged_payment = await db.payments.find_one({"id": payment_id}, {"_id": 0})
+        self.assertEqual(unchanged_payment.get("status"), "charged")
+
+        unchanged_sr = await db.service_requests.find_one({"id": sr_id}, {"_id": 0})
+        self.assertEqual(unchanged_sr.get("paymentStatus"), "charged")
+        self.assertEqual(unchanged_sr.get("status"), "accepted")
