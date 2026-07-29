@@ -185,6 +185,37 @@ function MyMachinesScreen() {
     localStorage.setItem(STORAGE_KEY_DEFAULT_BY_MACHINERY, JSON.stringify(updated));
   };
 
+  const persistDefaultOperator = async (machine, operatorId, normalizedOperators = []) => {
+    const selectedPrimaryId = String(operatorId || '').trim();
+    if (!machine?.id || !selectedPrimaryId) return;
+    const nextOperators = (Array.isArray(normalizedOperators) ? normalizedOperators : [])
+      .map((op) => ({
+        ...op,
+        isPrimary: String(op?.id || '').trim() === selectedPrimaryId,
+      }))
+      .filter((op) => String(op?.id || '').trim());
+    if (!nextOperators.some((op) => op.isPrimary)) {
+      toast.warning('No pudimos definir el operador predeterminado.');
+      return;
+    }
+    const mid = toMachineryId(machine.type);
+    try {
+      await updateMachineInApi(machine.id, {
+        operators: nextOperators,
+        primaryOperatorId: selectedPrimaryId,
+      });
+      updateMachine(machine.id, {
+        operators: nextOperators,
+        primaryOperatorId: selectedPrimaryId,
+      });
+      setDefaultOperator(mid, selectedPrimaryId);
+      loadMachines();
+      toast.success('Operador predeterminado actualizado.');
+    } catch (e) {
+      toast.error(e?.message || 'No se pudo actualizar el operador predeterminado.');
+    }
+  };
+
   const savePricing = async (machineId, updates) => {
     try {
       await updateMachineInApi(machineId, updates);
@@ -565,8 +596,11 @@ function MyMachinesScreen() {
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           {canAssignOperators && (machine.operators || []).length > 1 && (
                             <button
-                              onClick={() => setDefaultOperator(mid, isDefault ? '' : displayOp.id)}
-                              title={isDefault ? 'Quitar como predeterminado' : 'Usar por defecto'}
+                              onClick={() => {
+                                if (isDefault) return;
+                                void persistDefaultOperator(machine, displayOp.id, normalizedOperators);
+                              }}
+                              title={isDefault ? 'Operador predeterminado actual' : 'Usar por defecto'}
                               style={{
                                 background: isDefault ? '#EC6819' : 'transparent',
                                 border: `1px solid ${isDefault ? '#EC6819' : 'rgba(255,255,255,0.3)'}`,
@@ -578,7 +612,7 @@ function MyMachinesScreen() {
                                 fontWeight: 600
                               }}
                             >
-                              {isDefault ? '✓ Activo' : 'Activar'}
+                              {isDefault ? '✓ Predeterminado' : 'Usar por defecto'}
                             </button>
                           )}
                         </div>

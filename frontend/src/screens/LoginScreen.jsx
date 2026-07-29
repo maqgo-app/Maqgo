@@ -5,13 +5,12 @@
  * Política OTP (identidad ≠ rol): `.cursor/rules/otp-single-source-of-truth-maqgo.mdc` + `utils/otpDecision.js`.
  */
 import React, { useState, useLayoutEffect, useEffect } from 'react';
-import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import MaqgoLogo from '../components/MaqgoLogo';
 import BackToPortadaButton from '../components/BackToPortadaButton';
 import LoginPhoneChileInput from '../components/LoginPhoneChileInput';
 import OtpSixDigitsInput from '../components/OtpSixDigitsInput';
-import PasswordField from '../components/PasswordField';
 import BACKEND_URL, { clearLocalSession } from '../utils/api';
 import { establishSession } from '../utils/sessionPersistence';
 import { getDeviceId } from '../utils/deviceId';
@@ -80,8 +79,7 @@ function getHydratedPhoneDigitsFromStorage() {
 /**
  * Pantalla C8 - Login
  *
- * - Cliente: celular + código SMS (identidad principal); no el registro “correo + clave” de proveedor.
- * - Proveedor: inscripción con SMS + correo + contraseña; acceso con correo/clave ese perfil. Admin: correo + clave en panel.
+ * - Cliente, proveedor y operador: celular + código SMS como acceso oficial.
  * OTP SMS (6 dígitos) cuando step==='otp'. Único flujo OTP unificado (no /verify-sms legacy).
  */
 function LoginScreen({ setUserRole, setUserId }) {
@@ -125,20 +123,8 @@ function LoginScreen({ setUserRole, setUserId }) {
                 ? 'client'
                 : null);
 
-  const isClientEntry = inferredEntry === 'client';
-  const isProviderEntry = inferredEntry === 'provider';
-
   const [step, setStep] = useState('phone'); // 'phone' | 'otp'
-  /** 'sms' = cliente u otro vía celular; 'email' = proveedor/admin → POST /api/auth/login */
-  const [loginMode, setLoginMode] = useState(() =>
-    redirectTo === '/admin' || isProviderEntry ? 'email' : 'sms'
-  );
-  /**
-   * Cliente entra directo por OTP; proveedor/admin deben conservar acceso visible por correo+clave.
-   */
-  const showEmailPasswordToggle =
-    step === 'phone' &&
-    !isClientEntry;
+  const loginMode = 'sms';
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -147,14 +133,6 @@ function LoginScreen({ setUserRole, setUserId }) {
   const [accessReview, setAccessReview] = useState(null);
   /** Mensaje informativo (no error) tras enviar código: p. ej. canal email si SMS falló en backend */
   const [otpHint, setOtpHint] = useState('');
-  /** userId temporal para el paso de Step-Up (contraseña tras OTP) */
-  const [stepUpUserId, setStepUpUserId] = useState('');
-  /** Teléfono normalizado para el paso de Step-Up */
-  const [stepUpPhone, setStepUpPhone] = useState('');
-  const [stepUpRequiresPasswordSetup, setStepUpRequiresPasswordSetup] = useState(false);
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [hasPersistedSession, setHasPersistedSession] = useState(false);
 
   const navigateWithPersistedSession = () => {
@@ -231,26 +209,15 @@ function LoginScreen({ setUserRole, setUserId }) {
     handleStartLogin();
   }, [loading, loginMode, step]);
 
+  /** Precarga el celular en modo SMS: siempre hace falta OTP; evita reescribir el mismo número tras enrolar. */
   useEffect(() => {
-    if (!showEmailPasswordToggle && loginMode === 'email') {
-      setLoginMode('sms');
-      setEmail('');
-      setPassword('');
-      setError('');
-      setAccessReview(null);
-    }
-  }, [showEmailPasswordToggle, loginMode]);
-
-  /** Precarga el celular en modo SMS (cliente): siempre hace falta OTP; evita reescribir el mismo número tras enrolar. */
-  useEffect(() => {
-    if (showEmailPasswordToggle && loginMode === 'email') return;
     if (loginMode !== 'sms') return;
     setPhone((prev) => {
       const cur = String(prev || '').replace(/\D/g, '');
       if (cur.length > 0) return prev;
       return getHydratedPhoneDigitsFromStorage() || prev;
     });
-  }, [showEmailPasswordToggle, loginMode]);
+  }, [loginMode]);
 
   useLayoutEffect(() => {
     try {
@@ -527,51 +494,6 @@ function LoginScreen({ setUserRole, setUserId }) {
     }
   };
 
-  const handleEmailPasswordLogin = async () => {
-    if (loading) return;
-    const em = email.trim();
-    if (!em || !password) {
-      setError('Ingresa el correo y la contraseña de tu cuenta proveedor.');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    setAccessReview(null);
-    try {
-      const res = await axios.post(
-        `${BACKEND_URL}/api/auth/login`,
-        { identifier: em, password },
-        { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
-      );
-      await applySessionAndNavigate(res.data, { authSource: 'email' });
-    } catch (e) {
-      const st = e?.response?.status;
-      const detail = e?.response?.data?.detail;
-      const errCode = typeof detail === 'object' && detail ? String(detail.error || '') : '';
-      const needsReview =
-        (st === 423 && errCode === 'phone_blocked') ||
-        (st === 429 && errCode === 'temporary_lock') ||
-        (st === 403 && errCode === 'inactive_user_requires_review');
-      if (needsReview) {
-        setAccessReview({
-          reason: st === 423 ? 'phone_blocked' : st === 429 ? 'temporary_lock' : 'inactive_user',
-          requestedRole: '',
-        });
-      }
-      setError(
-        getHttpErrorMessage(e, {
-          fallback: 'No pudimos iniciar sesión. Revisa tus datos e intenta de nuevo.',
-          statusMessages: {
-            401: 'Correo o contraseña incorrectos.',
-            429: 'Demasiados intentos. Espera un momento e intenta de nuevo.',
-          },
-        })
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleVerifyCode = async (digitsOverride) => {
     if (loading) return;
     const digits = String(digitsOverride ?? code ?? '')
@@ -605,10 +527,7 @@ function LoginScreen({ setUserRole, setUserId }) {
       });
 
       if (res.data?.requires_password) {
-        setStepUpUserId(res.data.user_id);
-        setStepUpPhone(res.data.phone);
-        setStepUpRequiresPasswordSetup(Boolean(res.data.requires_password_setup));
-        setStep('password_verify');
+        setError('Este acceso debe continuar por el flujo autorizado de administración.');
         return;
       }
 
@@ -644,64 +563,9 @@ function LoginScreen({ setUserRole, setUserId }) {
     }
   };
 
-  const handleVerifyPassword = async () => {
-    if (loading || !password) return;
-    setLoading(true);
-    setError('');
-    setAccessReview(null);
-    try {
-      const deviceId = getDeviceId();
-      const payload = {
-        user_id: stepUpUserId,
-        phone: stepUpPhone,
-        password: password,
-        device_id: deviceId,
-        requested_role: localStorage.getItem('desiredRole') || location.state?.entry || null,
-      };
-      const res = await axios.post(
-        `${BACKEND_URL}/api/auth/login-sms/verify-password`,
-        payload,
-        {
-          timeout: 15000,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-      await applySessionAndNavigate(res.data, { authSource: 'sms' });
-    } catch (e) {
-      const st = e?.response?.status;
-      const detail = e?.response?.data?.detail;
-      const errCode = typeof detail === 'object' && detail ? String(detail.error || '') : '';
-      const needsReview =
-        (st === 423 && errCode === 'phone_blocked') ||
-        (st === 429 && errCode === 'temporary_lock') ||
-        (st === 403 && errCode === 'inactive_user_requires_review');
-      if (needsReview) {
-        setAccessReview({
-          reason: st === 423 ? 'phone_blocked' : st === 429 ? 'temporary_lock' : 'inactive_user',
-          requestedRole: '',
-        });
-      }
-      setError(
-        getHttpErrorMessage(e, {
-          fallback: 'Contraseña incorrecta. Intenta nuevamente.',
-          networkUnavailableMessage:
-            'Sin conexión con el servidor. Revisa tu internet, desactiva VPN/Private DNS si aplica, o prueba con datos móviles.',
-          statusMessages: {
-            401: 'Contraseña incorrecta.',
-            429: 'Demasiados intentos. Espera un momento.',
-          },
-        })
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const isPhoneValid = /^9\d{8}$/.test(String(phone || '').replace(/\D/g, ''));
   const codeDigits = String(code || '').replace(/\D/g, '').slice(0, 6);
   const isCodeValid = Boolean(phone && codeDigits.length === 6);
-  const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
-  const isEmailFormValid = emailLooksValid && password.length >= 1;
 
   const goBackToPhone = () => {
     setError('');
@@ -709,9 +573,6 @@ function LoginScreen({ setUserRole, setUserId }) {
     setOtpHint('');
     setStep('phone');
     setCode('');
-    setStepUpUserId('');
-    setStepUpPhone('');
-    setStepUpRequiresPasswordSetup(false);
   };
 
   /** Vuelve a Welcome para cambiar arrendar vs ofrecer sin depender del botón atrás del navegador. */
@@ -726,8 +587,8 @@ function LoginScreen({ setUserRole, setUserId }) {
           <BackToPortadaButton onClick={handleBackToWelcome} />
         </div>
         
-        {/* Logo: solo visible en el primer paso o modo email para mantener limpieza en OTP */}
-        {(step === 'phone' || loginMode === 'email') && (
+        {/* Logo visible al inicio del flujo */}
+        {step === 'phone' && (
           <MaqgoLogo size="medium" style={{ marginBottom: 36 }} />
         )}
 
@@ -740,126 +601,18 @@ function LoginScreen({ setUserRole, setUserId }) {
               padding: '10px 14px',
               width: '100%',
               maxWidth: 420,
-              marginBottom: redirectTo === '/admin' ? 8 : (step === 'phone' || loginMode === 'email' ? 35 : 20),
-              marginTop: (step !== 'phone' && loginMode === 'sms') ? 20 : 0,
+              marginBottom: step === 'phone' ? 35 : 20,
+              marginTop: step !== 'phone' ? 20 : 0,
             }}
           >
             <h1 className="maqgo-h1" style={{ margin: 0, textAlign: 'center' }}>
-              {loginMode === 'sms' && step === 'otp' ? 'Verificar código' : 'Iniciar sesión'}
+              {step === 'otp' ? 'Verificar código' : 'Iniciar sesión'}
             </h1>
           </div>
         </div>
-        {redirectTo === '/admin' && (
-          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textAlign: 'center', marginBottom: 27 }}>
-            Acceso al panel de administración MAQGO
-          </p>
-        )}
-
-        {showEmailPasswordToggle && (
-          <p style={{ textAlign: 'center', marginBottom: 20 }}>
-            <button
-              type="button"
-              className="maqgo-link"
-              onClick={() => {
-                setError('');
-                setOtpHint('');
-                setCode('');
-                setStep('phone');
-                setEmail('');
-                setPassword('');
-                setLoginMode((m) => (m === 'sms' ? 'email' : 'sms'));
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                font: 'inherit',
-                color: 'rgba(255,255,255,0.78)',
-                fontSize: 13,
-                cursor: 'pointer',
-                textDecoration: 'underline',
-              }}
-            >
-              {loginMode === 'sms'
-                ? 'Entrar con cuenta proveedor'
-                : 'Entrar con celular (código SMS)'}
-            </button>
-          </p>
-        )}
-
         {/* Formulario */}
         <div style={{ flex: 1 }}>
-          {loginMode === 'email' && (
-            <>
-              <p
-                style={{
-                  color: 'rgba(255,255,255,0.7)',
-                  fontSize: 13,
-                  textAlign: 'center',
-                  marginBottom: 14,
-                  lineHeight: 1.45,
-                }}
-              >
-                {redirectTo === '/admin'
-                  ? 'Usa el correo y la contraseña de tu cuenta de administración.'
-                  : 'Usa el correo y la contraseña de tu cuenta proveedor.'}
-              </p>
-              <label
-                htmlFor="login-email"
-                style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
-              >
-                Correo de la cuenta
-              </label>
-              <input
-                id="login-email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(ev) => {
-                  setError('');
-                  setEmail(ev.target.value);
-                }}
-                className="maqgo-input"
-                placeholder="contacto@empresa.cl"
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  marginBottom: 14,
-                  padding: '14px 12px',
-                  fontSize: 15,
-                }}
-              />
-              <label
-                htmlFor="login-password"
-                style={{ color: 'rgba(255,255,255,0.95)', fontSize: 13, marginBottom: 6, display: 'block' }}
-              >
-                Contraseña del registro proveedor
-              </label>
-              <PasswordField
-                id="login-password"
-                name="password"
-                value={password}
-                onChange={(ev) => {
-                  setError('');
-                  setPassword(ev.target.value);
-                }}
-                autoComplete="current-password"
-                placeholder="Tu contraseña"
-                style={{ marginBottom: 10 }}
-              />
-              <p style={{ textAlign: 'right', marginBottom: 8 }}>
-                <Link
-                  to="/forgot-password"
-                  style={{ color: 'rgba(144, 189, 211, 0.95)', fontSize: 13 }}
-                >
-                  ¿Olvidaste tu contraseña?
-                </Link>
-              </p>
-            </>
-          )}
-
-          {loginMode === 'sms' && step === 'phone' && (
+          {step === 'phone' && (
             <>
               <label
                 htmlFor="login-phone"
@@ -880,7 +633,7 @@ function LoginScreen({ setUserRole, setUserId }) {
             </>
           )}
 
-          {loginMode === 'sms' && step === 'otp' && (
+          {step === 'otp' && (
             <>
               <p
                 className="otp-phone-text"
@@ -961,128 +714,6 @@ function LoginScreen({ setUserRole, setUserId }) {
             </>
           )}
 
-          {loginMode === 'sms' && step === 'password_verify' && (
-            <>
-              <div
-                style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  borderRadius: 12,
-                  padding: '16px 12px',
-                  marginBottom: 20,
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  textAlign: 'center'
-                }}
-              >
-                <div style={{ color: '#4CAF50', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-                  ✓ Verificación adicional
-                </div>
-                <p
-                  style={{
-                    color: 'rgba(255,255,255,0.85)',
-                    fontSize: 14,
-                    lineHeight: 1.5,
-                    margin: 0
-                  }}
-                >
-                  {stepUpRequiresPasswordSetup
-                    ? 'Por seguridad, debes crear o restablecer tu contraseña para continuar.'
-                    : 'Por seguridad, como este dispositivo es nuevo o no reconocido, ingresa tu contraseña para continuar.'}
-                </p>
-              </div>
-
-              {stepUpRequiresPasswordSetup ? (
-                <div style={{ marginBottom: 20 }}>
-                  <button
-                    type="button"
-                    className="maqgo-button maqgo-button--primary"
-                    style={{ width: '100%', padding: '14px 16px', marginBottom: 10 }}
-                    onClick={() => {
-                      const e164 = String(stepUpPhone || '');
-                      const digits = e164.replace(/\D/g, '').slice(-9);
-                      try {
-                        localStorage.setItem('desiredRole', 'provider');
-                      } catch {
-                        /* ignore */
-                      }
-                      navigate('/forgot-password', {
-                        state: {
-                          prefillPhoneDigits: digits,
-                          entry: 'provider',
-                        },
-                      });
-                    }}
-                  >
-                    Crear o restablecer contraseña
-                  </button>
-                  <p style={{ textAlign: 'center', margin: 0, color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>
-                    Te enviaremos un código para crear una nueva contraseña.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <label
-                    htmlFor="stepup-password"
-                    style={{
-                      color: 'rgba(255,255,255,0.95)',
-                      fontSize: 13,
-                      marginBottom: 6,
-                      display: 'block',
-                    }}
-                  >
-                    Tu contraseña
-                  </label>
-                  <PasswordField
-                    id="stepup-password"
-                    name="password"
-                    value={password}
-                    onChange={(ev) => {
-                      setError('');
-                      setPassword(ev.target.value);
-                    }}
-                    autoComplete="current-password"
-                    placeholder="Ingresa tu contraseña"
-                    style={{
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      marginBottom: 10,
-                      padding: '14px 12px',
-                      fontSize: 15,
-                    }}
-                  />
-
-                  <p style={{ textAlign: 'right', marginBottom: 20 }}>
-                    <Link
-                      to="/forgot-password"
-                      style={{ color: 'rgba(144, 189, 211, 0.95)', fontSize: 13 }}
-                    >
-                      ¿No recuerdas tu contraseña?
-                    </Link>
-                  </p>
-                </>
-              )}
-
-              <p style={{ textAlign: 'center', marginBottom: 12 }}>
-                <button
-                  type="button"
-                  className="maqgo-link"
-                  onClick={goBackToPhone}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    font: 'inherit',
-                    color: 'rgba(255,255,255,0.65)',
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                  }}
-                >
-                  Corregir número
-                </button>
-              </p>
-            </>
-          )}
-
           {error && (
             <p style={{ color: '#ff6b6b', fontSize: 14, textAlign: 'center', marginTop: 10 }}>
               {error}
@@ -1150,7 +781,7 @@ function LoginScreen({ setUserRole, setUserId }) {
             </div>
           )}
 
-          {loginMode === 'sms' && hasPersistedSession && (
+          {hasPersistedSession && (
             <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, textAlign: 'center', marginTop: 12 }}>
               <button
                 type="button"
@@ -1162,8 +793,6 @@ function LoginScreen({ setUserRole, setUserId }) {
                   setCode('');
                   setOtpHint('');
                   setStep('phone');
-                  setEmail('');
-                  setPassword('');
                   traceRedirectToLogin('src/screens/LoginScreen.jsx (clear session link)');
                   navigate('/login', {
                     replace: true,
@@ -1183,75 +812,32 @@ function LoginScreen({ setUserRole, setUserId }) {
         </div>
 
         {/* Botón */}
-        {!(loginMode === 'sms' && step === 'password_verify' && stepUpRequiresPasswordSetup) && (
-          <button
-            className="maqgo-btn-primary"
-            onClick={
-              loginMode === 'email'
-                ? handleEmailPasswordLogin
-                : step === 'phone'
-                  ? handleStartLogin
-                  : step === 'otp'
-                    ? handleVerifyCode
-                    : handleVerifyPassword
-            }
-            disabled={
-              loading ||
-              (loginMode === 'email'
-                ? !isEmailFormValid
-                : step === 'phone'
-                  ? !isPhoneValid
-                  : step === 'otp'
-                    ? !isCodeValid
-                    : password.length < 1)
-            }
-            style={{
-              opacity:
-                loading ||
-                (loginMode === 'email'
-                  ? !isEmailFormValid
-                  : step === 'phone'
-                    ? !isPhoneValid
-                    : step === 'otp'
-                      ? !isCodeValid
-                      : password.length < 1)
-                  ? 0.5
-                  : 1,
-              marginBottom: 15,
-            }}
-            aria-label={
-              loading
-                ? loginMode === 'email'
-                  ? 'Iniciando sesión'
-                  : step === 'phone'
-                    ? 'Comprobando tu número'
-                    : 'Iniciando sesión'
-                : loginMode === 'email'
-                  ? 'Iniciar sesión proveedor'
-                  : step === 'phone'
-                    ? 'Continuar con tu celular'
-                    : step === 'otp'
-                      ? 'Confirmar código e ingresar'
-                      : 'Verificar contraseña y continuar'
-            }
-          >
-            {loading
-              ? loginMode === 'email'
-                ? 'Iniciando sesión...'
-                : step === 'phone'
-                  ? 'Comprobando...'
-                  : 'Iniciando sesión...'
-              : loginMode === 'email'
-                ? 'Entrar'
-                : step === 'phone'
-                  ? 'Continuar'
-                  : step === 'otp'
-                    ? 'Confirmar código'
-                    : redirectTo === '/admin'
-                      ? 'Entrar al panel'
-                      : 'Continuar'}
-          </button>
-        )}
+        <button
+          className="maqgo-btn-primary"
+          onClick={step === 'phone' ? handleStartLogin : handleVerifyCode}
+          disabled={loading || (step === 'phone' ? !isPhoneValid : !isCodeValid)}
+          style={{
+            opacity: loading || (step === 'phone' ? !isPhoneValid : !isCodeValid) ? 0.5 : 1,
+            marginBottom: 15,
+          }}
+          aria-label={
+            loading
+              ? step === 'phone'
+                ? 'Comprobando tu número'
+                : 'Iniciando sesión'
+              : step === 'phone'
+                ? 'Continuar con tu celular'
+                : 'Confirmar código e ingresar'
+          }
+        >
+          {loading
+            ? step === 'phone'
+              ? 'Comprobando...'
+              : 'Iniciando sesión...'
+            : step === 'phone'
+              ? 'Continuar'
+              : 'Confirmar código'}
+        </button>
 
       </div>
     </div>

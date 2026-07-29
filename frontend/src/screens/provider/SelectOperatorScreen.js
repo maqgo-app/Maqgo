@@ -103,8 +103,12 @@ function SelectOperatorScreen() {
   const screenSubtitle = 'Reemplaza el operador principal solo para esta reserva.';
 
   useLayoutEffect(() => {
+    const matchedMachineOperators = Array.isArray(matchedMachine?.operators) ? matchedMachine.operators : [];
     const serviceOperators = getArray('assignableServiceOperators', []);
-    const savedOperators = (serviceOperators.length > 0 ? serviceOperators : getArray('operatorsData', []))
+    const sourceOperators = isReservationEditor
+      ? (matchedMachineOperators.length > 0 ? matchedMachineOperators : serviceOperators)
+      : (serviceOperators.length > 0 ? serviceOperators : getArray('operatorsData', []));
+    const savedOperators = sourceOperators
       .map((op, index) => normalizeStoredOperator(op, index))
       .filter(Boolean);
     const currentAssignedOperator = normalizeStoredOperator(getObject('assignedOperator', {}), -1);
@@ -144,7 +148,7 @@ function SelectOperatorScreen() {
     } else {
       setSelectedOperator(null);
     }
-  }, [currentPrimaryReservationOperator, isReservationEditor, machineryId]);
+  }, [currentPrimaryReservationOperator, isReservationEditor, machineryId, matchedMachine]);
 
   const handleConfirm = () => {
     if (!selectedOperator) return;

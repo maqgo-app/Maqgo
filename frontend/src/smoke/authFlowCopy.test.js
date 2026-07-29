@@ -36,6 +36,16 @@ describe('Recuperación / registro / rol', () => {
     expect(app).not.toMatch(/screens\/RegisterScreen\.jsx/);
   });
 
+  it('Login comercial: cliente, proveedor y operador entran solo por SMS OTP', () => {
+    const login = read('screens/LoginScreen.jsx');
+    expect(login).toContain("const loginMode = 'sms'");
+    expect(login).toContain('login-sms/start');
+    expect(login).toContain('login-sms/verify');
+    expect(login).not.toContain('Entrar con cuenta proveedor');
+    expect(login).not.toContain('correo y la contraseña de tu cuenta proveedor');
+    expect(login).not.toContain('axios.post(`${BACKEND_URL}/api/auth/login`');
+  });
+
   it('Sin pantalla legacy select-channel en el router (redirect solo vercel + main.jsx)', () => {
     const app = read('App.jsx');
     const main = read('main.jsx');

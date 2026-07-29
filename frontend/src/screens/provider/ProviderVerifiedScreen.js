@@ -5,6 +5,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 
 import BACKEND_URL, { hasPersistedSessionCredentials } from '../../utils/api';
 import { getObject } from '../../utils/safeStorage';
+import { establishSession, persistLoginSessionMetadata } from '../../utils/sessionPersistence';
 import { useAuth } from '../../context/authHooks';
 import { getProviderOnboardingNextPath } from '../../utils/providerOnboardingStatus';
 
@@ -19,8 +20,8 @@ const REFRESH_USER_MAX_MS = 25000;
 
 /**
  * Pantalla P2.1 - Número Verificado Proveedor
- * Debe completar sesión (token + RBAC en localStorage) antes de /provider/data;
- * no usar timeout fijo (condición de carrera con POST /auth/login).
+ * Debe completar sesión (token + RBAC en localStorage) antes de /provider/data.
+ * Cliente/proveedor/operator usan SMS OTP; no depender de login por correo/contraseña.
  */
 function ProviderVerifiedScreen({ setUserRole, setUserId }) {
   const navigate = useNavigate();
@@ -40,65 +41,25 @@ function ProviderVerifiedScreen({ setUserRole, setUserId }) {
       owner_id,
       phone,
     }) => {
+      establishSession({ id, token });
+      persistLoginSessionMetadata({
+        id,
+        token,
+        role: effectiveRole || 'provider',
+        roles: Array.isArray(roles) ? roles : ['provider'],
+        provider_role,
+        owner_id,
+        phone,
+      });
       setUserRole?.(effectiveRole || 'provider');
       setUserId?.(id);
-      localStorage.setItem('userId', id);
-      localStorage.setItem('userRole', effectiveRole || 'provider');
-      if (Array.isArray(roles) && roles.length) {
-        localStorage.setItem('userRoles', JSON.stringify(roles));
-      }
       localStorage.setItem('providerCameFromWelcome', 'true');
-      const rolesArr = Array.isArray(roles) ? roles : [];
-      if (rolesArr.includes('provider')) {
-        localStorage.setItem('providerRole', provider_role || 'super_master');
-      } else {
-        localStorage.removeItem('providerRole');
-      }
-      if (owner_id) {
-        localStorage.setItem('ownerId', owner_id);
-      } else {
-        localStorage.removeItem('ownerId');
-      }
-      if (phone) {
-        localStorage.setItem('userPhone', phone);
-      }
-      if (token) {
-        localStorage.setItem('token', token);
-        localStorage.setItem('authToken', token);
-      }
     };
 
     const establishSession = async () => {
       const data = getObject('registerData', {});
       const existingId = localStorage.getItem('userId');
       const otpToken = localStorage.getItem('token') || localStorage.getItem('authToken');
-
-      if (existingId && String(existingId).startsWith('user_') && data.email && data.password) {
-        try {
-          const res = await axios.post(
-            `${BACKEND_URL}/api/auth/login`,
-            {
-              identifier: String(data.email).trim(),
-              password: data.password,
-            },
-            JSON_POST_TIMEOUT
-          );
-          const roles = Array.isArray(res.data?.roles) ? res.data.roles : [];
-          const effective = roles.includes('provider') ? 'provider' : res.data?.role || 'provider';
-          applyProviderSession({
-            id: res.data.id,
-            token: res.data.token,
-            roles,
-            effectiveRole: effective,
-            provider_role: res.data.provider_role,
-            owner_id: res.data.owner_id,
-            phone: res.data.phone,
-          });
-          return true;
-        } catch {
-          /* intentar /api/users o sesión OTP */
-        }
-      }
 
       try {
         const res = await axios.post(

@@ -13,7 +13,7 @@ import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNa
 import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/AddressAutocomplete';
 import { getBookingLocationLineOrEmpty } from '../../utils/mapPlaceToAddress';
 import { getProviderLandingPath } from '../../utils/providerOnboardingStatus';
-import { getMachines } from '../../utils/providerMachines';
+import { fetchProviderMachinesFromApi, getMachines } from '../../utils/providerMachines';
 import {
   clearReservationAssignedOperators,
   loadReservationAssignedOperators,
@@ -105,6 +105,20 @@ function getPreferredAssignedOperatorForRequest(request) {
     if (primary) return primary;
   }
   return assignableOperators[0] || null;
+}
+
+async function refreshAssignableOperatorsForRequest(request) {
+  try {
+    await fetchProviderMachinesFromApi();
+  } catch {
+    // Si no podemos refrescar, seguimos con el cache local para no romper el flujo.
+  }
+  const assignableOperators = getAssignableOperatorsForRequest(request);
+  const preferredAssignedOperator = getPreferredAssignedOperatorForRequest(request);
+  return {
+    assignableOperators,
+    preferredAssignedOperator,
+  };
 }
 
 function uniqueOperatorsById(operators = []) {
@@ -480,13 +494,46 @@ function RequestReceivedScreen() {
     setAcceptError(null);
     setLoading(true);
     try {
+      const { assignableOperators: latestAssignableOperators, preferredAssignedOperator: latestPreferredOperator } =
+        await refreshAssignableOperatorsForRequest(request);
       const selectedOperators = uniqueOperatorsById(assignedOperators);
       if (!selectedOperators.length) {
         setAcceptError('Debes asignar al menos un operador antes de aceptar la reserva.');
         setLoading(false);
         return;
       }
-      const availability = await validateAssignedOperatorsForReservation(request, selectedOperators);
+      if (!latestAssignableOperators.length) {
+        setAssignedOperators([]);
+        clearReservationAssignedOperators(requestId);
+        setAcceptError('La máquina ya no tiene operadores activos habilitados. Revisa la máquina antes de aceptar la reserva.');
+        setLoading(false);
+        return;
+      }
+      const latestById = new Map(
+        latestAssignableOperators.map((operator) => [String(operator?.id || '').trim(), operator])
+      );
+      const refreshedSelectedOperators = selectedOperators
+        .map((operator) => latestById.get(String(operator?.id || '').trim()))
+        .filter(Boolean);
+      if (refreshedSelectedOperators.length !== selectedOperators.length) {
+        const nextOperators = latestPreferredOperator ? [latestPreferredOperator] : [];
+        setAssignedOperators(nextOperators);
+        if (requestId) {
+          if (nextOperators.length > 0) {
+            saveReservationAssignedOperators(requestId, nextOperators);
+          } else {
+            clearReservationAssignedOperators(requestId);
+          }
+        }
+        setAcceptError(
+          nextOperators.length > 0
+            ? 'El operador seleccionado ya no está disponible. Revisa la asignación antes de aceptar la reserva.'
+            : 'La máquina ya no tiene operadores activos habilitados. Revisa la máquina antes de aceptar la reserva.'
+        );
+        setLoading(false);
+        return;
+      }
+      const availability = await validateAssignedOperatorsForReservation(request, refreshedSelectedOperators);
       if (!availability.ok) {
         setAcceptError(availability.message);
         setLoading(false);
@@ -505,11 +552,11 @@ function RequestReceivedScreen() {
       localStorage.setItem('acceptedRequest', JSON.stringify(request));
       localStorage.setItem('currentServiceId', request?.id || `demo-${Date.now()}`);
       localStorage.setItem('activeServiceRequest', JSON.stringify(request));
-      localStorage.setItem('assignableServiceOperators', JSON.stringify(assignableOperators));
-      localStorage.setItem('assignedOperator', JSON.stringify(selectedOperators[0]));
-      localStorage.setItem('assignedOperators', JSON.stringify(selectedOperators));
+      localStorage.setItem('assignableServiceOperators', JSON.stringify(latestAssignableOperators));
+      localStorage.setItem('assignedOperator', JSON.stringify(refreshedSelectedOperators[0]));
+      localStorage.setItem('assignedOperators', JSON.stringify(refreshedSelectedOperators));
       clearReservationAssignedOperators(requestId);
-      void syncAssignedOperatorToApi(selectedOperators[0]);
+      void syncAssignedOperatorToApi(refreshedSelectedOperators[0]);
       navigate('/provider/en-route');
     } catch (e) {
       console.error(e);

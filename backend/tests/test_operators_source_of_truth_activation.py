@@ -296,6 +296,28 @@ class TestOperatorsActivationSourceOfTruth(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertEqual(ctx.exception.detail, "Invitación expirada")
 
+    def test_cancel_pending_invitation_uses_token(self):
+        mock_db = MagicMock()
+        mock_db.invitations = MagicMock()
+        mock_db.invitations.delete_one = AsyncMock(return_value=MagicMock(deleted_count=1))
+        operators.db = mock_db
+        original_assert_owner_scope = operators.AccessPolicy.assert_owner_scope
+        operators.AccessPolicy.assert_owner_scope = MagicMock()
+
+        try:
+            result = _run(
+                operators.cancel_invitation(
+                    token="TOK123",
+                    owner_id="owner-1",
+                    current_user={"id": "owner-1", "owner_id": "owner-1"},
+                )
+            )
+        finally:
+            operators.AccessPolicy.assert_owner_scope = original_assert_owner_scope
+
+        self.assertTrue(result["success"])
+        mock_db.invitations.delete_one.assert_awaited_once()
+
 
 if __name__ == "__main__":
     unittest.main()

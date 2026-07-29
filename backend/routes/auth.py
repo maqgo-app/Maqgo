@@ -2679,7 +2679,7 @@ async def _register_impl(request: Request, body: RegisterRequest):
 @router.post("/login")
 @limiter.limit("10/minute")
 async def login(request: Request, body: LoginRequest):
-    """Iniciar sesión"""
+    """Iniciar sesión reservado a administración."""
     identifier_raw = str(body.identifier or body.email or "").strip()
     if not identifier_raw:
         raise HTTPException(status_code=422, detail="identifier o email requerido")
@@ -2707,8 +2707,7 @@ async def login(request: Request, body: LoginRequest):
     roles = _user_roles(user)
     is_admin = "admin" in roles
     if not is_admin:
-        if not _is_active_user_doc(user):
-            raise HTTPException(status_code=403, detail="Usuario inactivo")
+        raise HTTPException(status_code=403, detail="Acceso reservado a administradores")
 
     # Migración: si el hash es SHA256 legacy, actualizar a bcrypt
     stored = user.get("password", "")
