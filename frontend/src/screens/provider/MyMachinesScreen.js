@@ -16,6 +16,7 @@ import {
 import { REFERENCE_PRICES, REFERENCE_TRANSPORT, MAX_PRICE_ABOVE_MARKET_PCT, getPriceAlert, getTransportAlert } from '../../utils/pricing';
 import { vibrate } from '../../utils/uberUX';
 import BACKEND_URL from '../../utils/api';
+import { getHttpErrorMessage } from '../../utils/httpErrors';
 import { getObject } from '../../utils/safeStorage';
 import { getOverdueOperatorInvitations } from '../../utils/operatorInvitations';
 import {
@@ -449,7 +450,9 @@ function MyMachinesScreen() {
           const normalizedOperators = (Array.isArray(machine.operators) ? machine.operators : [])
             .map((op, index) => normalizeMachineOperator(machine, op, `op-list-${machine.id}-${index}`))
             .filter(Boolean);
-          const hasAssignedOperator = normalizedOperators.length > 0;
+          const activeOperators = normalizedOperators.filter((op) => isActiveOperatorRecord(op));
+          const pendingOperators = normalizedOperators.filter((op) => !isActiveOperatorRecord(op));
+          const hasAssignedOperator = activeOperators.length > 0;
           const effectiveAvailable = Boolean(machine.available) && hasAssignedOperator;
           return (
           <div
@@ -558,11 +561,11 @@ function MyMachinesScreen() {
             {/* Operadores */}
             <div style={{ marginBottom: 12 }}>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Operadores ({normalizedOperators.length})
+                Operadores activos ({activeOperators.length})
               </p>
-              {normalizedOperators.length > 0 ? (
+              {activeOperators.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {normalizedOperators.map(displayOp => {
+                  {activeOperators.map(displayOp => {
                     const mid = toMachineryId(machine.type);
                     const isDefault = getEffectiveDefaultOperatorId(machine, defaultByMachinery) === displayOp.id;
                     return (
@@ -598,7 +601,7 @@ function MyMachinesScreen() {
                             <button
                               onClick={() => {
                                 if (isDefault) return;
-                                void persistDefaultOperator(machine, displayOp.id, normalizedOperators);
+                                void persistDefaultOperator(machine, displayOp.id, activeOperators);
                               }}
                               title={isDefault ? 'Operador predeterminado actual' : 'Usar por defecto'}
                               style={{
@@ -622,8 +625,26 @@ function MyMachinesScreen() {
                 </div>
               ) : (
                 <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0, fontStyle: 'italic' }}>
-                  Sin operadores asignados
+                  Sin operadores activos asignados
                 </p>
+              )}
+              {pendingOperators.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    background: 'rgba(255, 167, 38, 0.12)',
+                    border: '1px solid rgba(255, 167, 38, 0.32)',
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                  }}
+                >
+                  <div style={{ color: '#FFA726', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                    Pendiente de activacion
+                  </div>
+                  <div style={{ color: 'rgba(255,255,255,0.76)', fontSize: 12, lineHeight: 1.45 }}>
+                    {pendingOperators.map((op) => op?.name).filter(Boolean).join(', ')} aparece asociado, pero no cuenta como operador activo hasta completar el SMS.
+                  </div>
+                </div>
               )}
               {canAssignOperators && (
                 <button
@@ -1006,7 +1027,17 @@ function AssignOperatorsModal({
       await loadAssignableData();
       toast.success('Invitación enviada por SMS');
     } catch (e) {
-      toast.error(e?.response?.data?.detail || 'No se pudo generar la invitación del operador.');
+      toast.error(
+        getHttpErrorMessage(e, {
+          fallback: 'No se pudo enviar la invitación del operador.',
+          statusMessages: {
+            401: 'Tu sesión expiró. Inicia sesión nuevamente.',
+            403: 'No tienes permisos para invitar operadores en esta empresa.',
+          },
+          networkUnavailableMessage:
+            'Sin conexión o el servidor no respondió. Revisa tu internet e intenta nuevamente.',
+        })
+      );
     } finally {
       setCreatingInvite(false);
     }

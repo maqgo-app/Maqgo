@@ -8,6 +8,7 @@ import { useAuth } from '../../context/authHooks';
 import { useToast } from '../../components/Toast';
 
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
+import { getHttpErrorMessage } from '../../utils/httpErrors';
 import { getOperatorInvitationWarning, getOverdueOperatorInvitations } from '../../utils/operatorInvitations';
 import { fetchProviderMachinesFromApi, getMachines } from '../../utils/providerMachines';
 import {
@@ -514,7 +515,17 @@ function TeamManagementScreen() {
       loadTeam(); // Recargar para ver la invitación pendiente
     } catch (e) {
       console.error('Error generating invite:', e);
-      toast.error(e.response?.data?.detail || 'No pudimos enviar la invitación.');
+      toast.error(
+        getHttpErrorMessage(e, {
+          fallback: 'No pudimos enviar la invitación.',
+          statusMessages: {
+            401: 'Tu sesión expiró. Inicia sesión nuevamente.',
+            403: 'No tienes permisos para invitar usuarios en esta empresa.',
+          },
+          networkUnavailableMessage:
+            'Sin conexión o el servidor no respondió. Revisa tu internet e intenta nuevamente.',
+        })
+      );
     }
     setInviting(false);
   };
