@@ -117,12 +117,16 @@ function OneClickCompleteScreen() {
 
       try {
         const bookingId = getOrCreateBookingId();
-        const authToken = localStorage.getItem('token') || localStorage.getItem('authToken');
         if (!email) {
           throw new Error(
             'No encontramos tu correo asociado a la tarjeta. Vuelve a la pantalla de pago, ingresa tu correo e intenta de nuevo.'
           );
         }
+
+        await ensureBackendSessionForClientBooking(email, getStoredProfileOptionsForBookingSync());
+        if (stale()) return;
+
+        const authToken = localStorage.getItem('token') || localStorage.getItem('authToken');
 
         await axios.post(
           `${BACKEND_URL}/api/payments/oneclick/save`,
@@ -136,8 +140,6 @@ function OneClickCompleteScreen() {
           }
         );
 
-        if (stale()) return;
-        await ensureBackendSessionForClientBooking(email, getStoredProfileOptionsForBookingSync());
         if (stale()) return;
 
         const clientId = localStorage.getItem('userId');
