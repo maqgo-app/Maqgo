@@ -1112,6 +1112,7 @@ async def oneclick_debug_config(
     api_key_secret = (os.getenv("TBK_API_KEY_SECRET", "") or os.getenv("TBK_API_KEY", "")).strip()
     api_key_id = (os.getenv("TBK_API_KEY_ID", "") or parent_cc).strip()
     return_url = os.getenv("TBK_RETURN_URL", "").strip()
+    frontend_url = (os.getenv("FRONTEND_URL", "") or "").strip()
     base_url = (
         "https://webpay3g.transbank.cl"
         if tbk_env == "production"
@@ -1119,13 +1120,14 @@ async def oneclick_debug_config(
     )
     config_ok = bool(parent_cc and child_cc and api_key_secret)
     logger.info(
-        "TBK_DEBUG_CONFIG env=%s parent_cc=%s child_cc=%s api_key_id_set=%s api_key_secret_set=%s return_url=%s config_ok=%s",
+        "TBK_DEBUG_CONFIG env=%s parent_cc=%s child_cc=%s api_key_id_set=%s api_key_secret_set=%s return_url=%s frontend_url=%s config_ok=%s",
         tbk_env,
         parent_cc,
         child_cc,
         bool(api_key_id),
         bool(api_key_secret),
         return_url,
+        frontend_url,
         config_ok,
     )
     return {
@@ -1136,6 +1138,7 @@ async def oneclick_debug_config(
         "TBK_API_KEY_ID": _mask(api_key_id),
         "TBK_API_KEY_SECRET": _mask(api_key_secret),
         "TBK_RETURN_URL": return_url or "(vacío)",
+        "FRONTEND_URL": frontend_url or "(vacío)",
         "ONECLICK_PUBLIC_VALIDATION_ENABLED": ONECLICK_PUBLIC_VALIDATION_ENABLED,
         "base_url": base_url,
         "config_ok": config_ok,
