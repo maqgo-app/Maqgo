@@ -257,7 +257,7 @@ function CardPaymentScreen() {
         );
       }
 
-      const urlWebpay = data?.url_webpay;
+      const urlWebpay = data?.url_webpay || data?.urlWebpay;
       const token = data?.token;
 
       // Redirigir a Webpay vía POST con TBK_TOKEN (requisito de Oneclick)
