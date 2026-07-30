@@ -195,6 +195,7 @@ async def _record_validation_event(
 async def save_oneclick_credentials(
     request: Request,
     data: SaveOneClickRequest,
+    current_user: dict | None = Depends(get_current_user_optional),
 ):
     """Guarda credenciales OneClick. Idempotency-Key vía resolve_idempotency_key (legacy si falta)."""
     idempotency_key, key_legacy = resolve_idempotency_key(request, "save")
@@ -208,7 +209,12 @@ async def save_oneclick_credentials(
     body_hash = data.model_dump()
 
     async def execute() -> tuple[int, dict]:
+        if not current_user:
+            _require_public_validation_access_or_403(request)
         normalized_email = (data.email or "").strip().lower()
+        user_email = ((current_user or {}).get("email") or "").strip().lower()
+        if user_email and user_email != normalized_email:
+            raise HTTPException(status_code=403, detail="Email no autorizado para esta sesión")
         await db.oneclick_inscriptions.update_one(
             {"email": normalized_email},
             {
