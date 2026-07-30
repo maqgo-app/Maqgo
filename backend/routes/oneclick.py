@@ -208,13 +208,14 @@ async def save_oneclick_credentials(
     body_hash = data.model_dump()
 
     async def execute() -> tuple[int, dict]:
+        normalized_email = (data.email or "").strip().lower()
         await db.oneclick_inscriptions.update_one(
-            {"email": data.email},
+            {"email": normalized_email},
             {
                 "$set": {
                     "tbk_user": data.tbk_user,
                     "username": data.username,
-                    "email": data.email,
+                    "email": normalized_email,
                     "updatedAt": datetime.now(timezone.utc).isoformat(),
                 }
             },
@@ -222,7 +223,7 @@ async def save_oneclick_credentials(
         )
         bid = (data.booking_id or "").strip()
         if bid:
-            u = await db.users.find_one({"email": data.email.strip()}, {"_id": 0, "id": 1})
+            u = await db.users.find_one({"email": normalized_email}, {"_id": 0, "id": 1})
             uid = (u or {}).get("id")
             if uid:
                 try:
@@ -349,6 +350,8 @@ async def _start_inscription_body(
     if not current_user:
         _require_public_validation_access_or_403(request)
 
+    normalized_email = (data.email or "").strip().lower()
+
     buy_order = _generate_buy_order()
     session_id = _generate_session_id()
     now = _now_iso()
@@ -360,7 +363,7 @@ async def _start_inscription_body(
         "session_id": session_id,
         "user_id": user_id,
         "username": data.username,
-        "email": data.email,
+        "email": normalized_email,
         "amount": data.amount,
         "status": "INIT",
         "created_at": now,
@@ -383,7 +386,7 @@ async def _start_inscription_body(
             "buy_order": buy_order,
             "session_id": session_id,
         }
-        await evidence_record_start(db, token=None, email=data.email, username=data.username)
+        await evidence_record_start(db, token=None, email=normalized_email, username=data.username)
         await _touch_payment_intent_start(data, current_user, idempotency_key)
         log_ops_event(
             logger,
@@ -401,7 +404,7 @@ async def _start_inscription_body(
 
         result = tbk_start_inscription(
             username=data.username,
-            email=data.email,
+            email=normalized_email,
             response_url=data.return_url
         )
         logger.info(
@@ -413,7 +416,7 @@ async def _start_inscription_body(
         await evidence_record_start(
             db,
             token=result.get("token"),
-            email=data.email,
+            email=normalized_email,
             username=data.username,
         )
         await db[PAYMENTS_COLLECTION].update_one(
@@ -640,13 +643,14 @@ async def confirm_return(request: Request):
             detail={"tbk_user": tbk_user, "card_type": result.get("card_type")},
         )
         # Mantener colección funcional del producto para cobros posteriores.
+        normalized_email = str(payment.get("email") or "").strip().lower()
         await db.oneclick_inscriptions.update_one(
-            {"email": payment.get("email")},
+            {"email": normalized_email},
             {
                 "$set": {
                     "tbk_user": tbk_user,
                     "username": payment.get("username"),
-                    "email": payment.get("email"),
+                    "email": normalized_email,
                     "buy_order": payment.get("buy_order"),
                     "updatedAt": _now_iso(),
                 }
