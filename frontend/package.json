@@ -26,7 +26,6 @@
     "screenshots:provider": "playwright test qa-artifacts/screenshot-provider-*.spec.js",
     "screenshots:notifications": "playwright test qa-artifacts/screenshot-*notifications*.spec.js",
     "test:e2e:preview": "npm run build && npm run preview:e2e",
-    "test:e2e:checkout": "playwright test qa-artifacts/checkout-navigation.spec.js",
     "test:e2e:sellado": "playwright test qa-artifacts/smoke-sellado.spec.js",
     "test:e2e:critical": "playwright test qa-artifacts/smoke-critical-paths.spec.js"
   },

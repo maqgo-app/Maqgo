@@ -46,16 +46,6 @@ cleanup() {
 trap cleanup EXIT
 
 if ! backend_is_ready >/dev/null 2>&1; then
-  export ONECLICK_PUBLIC_VALIDATION_ENABLED=true
-  if [ -z "${ONECLICK_VALIDATION_TOKEN:-}" ]; then
-    ONECLICK_VALIDATION_TOKEN="$("$PYTHON_BIN" - <<'PY'
-import secrets
-print(secrets.token_hex(24))
-PY
-)"
-    export ONECLICK_VALIDATION_TOKEN
-  fi
-
   cd "$BACKEND_DIR" || { echo FAIL; echo failure_step=backend_dir_not_found; exit 10; }
   "$PYTHON_BIN" -m uvicorn server:app --host 127.0.0.1 --port 8002 >/dev/null 2>&1 &
   UVICORN_PID=$!
@@ -83,26 +73,5 @@ PY
 fi
 
 cd "$ROOT" || { echo FAIL; echo failure_step=repo_root_not_found; exit 12; }
-
-CLIENT_EMAIL="${E2E_CLIENT_EMAIL:-cert+oneclick@maqgo.cl}"
-HAS_INSCRIPTION="$("$PYTHON_BIN" - <<PY
-import os
-from pymongo import MongoClient
-
-mongo_url = os.getenv('MONGO_URL') or os.getenv('MONGODB_URL') or 'mongodb://localhost:27017'
-db_name = os.getenv('DB_NAME') or 'maqgo_db'
-client_email = "$CLIENT_EMAIL".lower()
-
-c = MongoClient(mongo_url)
-db = c[db_name]
-doc = db.oneclick_inscriptions.find_one({'email': client_email}, {'_id': 0, 'email': 1})
-print('1' if doc else '0')
-PY
-)"
-
-if [ "$HAS_INSCRIPTION" != "1" ]; then
-  export CERT_PLAYWRIGHT_HEADLESS=true
-  bash "$ROOT/backend/certification-support/oneclick/runners/run_case6_certification.sh" >/dev/null
-fi
 
 "$PYTHON_BIN" "$ROOT/backend/scripts/e2e_smoke_bookings.py"

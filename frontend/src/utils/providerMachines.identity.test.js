@@ -69,7 +69,11 @@ describe('providerMachines identity scope', () => {
   it('createMachineInApi() no inyecta provider_id por defecto', async () => {
     installLocalStorageMock({ userId: 'owner_123', providerMachines: '[]' });
     mockFetchJsonOnce({ ok: true, machine: { id: 'mach_1', machineryType: 'retroexcavadora', licensePlate: 'ABCD12' } });
-    await createMachineInApi({ machineryType: 'retroexcavadora', licensePlate: 'ABCD12' });
+    await createMachineInApi({
+      machineryType: 'retroexcavadora',
+      licensePlate: 'ABCD12',
+      operators: [{ id: 'op_1', name: 'Juan Pérez', phone: '+56970000000', isPrimary: true }],
+    });
 
     const call = fetchWithAuth.mock.calls[0];
     expect(call[0]).toBe(`${BACKEND_URL}/api/machines`);
@@ -80,7 +84,14 @@ describe('providerMachines identity scope', () => {
   it('createMachineInApi(machine, providerId) incluye provider_id cuando se especifica', async () => {
     installLocalStorageMock({ userId: 'owner_123', providerMachines: '[]' });
     mockFetchJsonOnce({ ok: true, machine: { id: 'mach_1', provider_id: 'owner_123', machineryType: 'retroexcavadora', licensePlate: 'ABCD12' } });
-    await createMachineInApi({ machineryType: 'retroexcavadora', licensePlate: 'ABCD12' }, 'owner_123');
+    await createMachineInApi(
+      {
+        machineryType: 'retroexcavadora',
+        licensePlate: 'ABCD12',
+        operators: [{ id: 'op_1', name: 'Juan Pérez', phone: '+56970000000', isPrimary: true }],
+      },
+      'owner_123'
+    );
 
     const call = fetchWithAuth.mock.calls[0];
     expect(call[0]).toBe(`${BACKEND_URL}/api/machines`);

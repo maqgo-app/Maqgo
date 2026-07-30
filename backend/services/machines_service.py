@@ -21,6 +21,14 @@ MACHINERY_TYPE_NAMES = {
     "minicargador": "Minicargador",
 }
 
+MACHINERY_PER_SERVICE = {
+    "camion_pluma",
+    "camion_aljibe",
+    "camion_tolva",
+}
+
+MACHINERY_NO_TRANSPORT = MACHINERY_PER_SERVICE
+
 CAPACITY_FIELDS = {
     "capacityM3",
     "capacity_m3",
@@ -70,6 +78,22 @@ def utcnow() -> datetime:
 
 def _clean_str(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _canonical_machinery_id(value: str) -> str:
+    raw = _clean_str(value).lower()
+    raw = raw.replace("-", "_")
+    raw = re.sub(r"\s+", "_", raw)
+    try:
+        import unicodedata
+
+        raw = unicodedata.normalize("NFD", raw)
+        raw = "".join(ch for ch in raw if unicodedata.category(ch) != "Mn")
+    except Exception:
+        pass
+    raw = re.sub(r"[^a-z0-9_]+", "", raw)
+    raw = re.sub(r"_+", "_", raw).strip("_")
+    return raw
 
 
 def _machine_type_name(machinery_type: str, fallback: str = "") -> str:
@@ -270,6 +294,7 @@ def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, exis
         or existing.get("machineryType")
         or existing.get("machinery_type")
     )
+    machinery_type = _canonical_machinery_id(machinery_type)
     type_name = _clean_str(payload.get("type") or existing.get("type") or _machine_type_name(machinery_type))
     brand = _clean_str(payload.get("brand") or existing.get("brand"))
     model = _clean_str(payload.get("model") or existing.get("model"))
@@ -322,6 +347,20 @@ def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, exis
         n = _to_number_or_none(raw)
         doc[key] = int(n) if n is not None and n.is_integer() else n
 
+    is_per_service = machinery_type in MACHINERY_PER_SERVICE
+    if is_per_service:
+        if doc.get("pricePerService") is None and doc.get("pricePerHour") is not None:
+            doc["pricePerService"] = doc.get("pricePerHour")
+        doc["pricePerHour"] = None
+    else:
+        if doc.get("pricePerHour") is None and doc.get("pricePerService") is not None:
+            doc["pricePerHour"] = doc.get("pricePerService")
+        doc["pricePerService"] = None
+
+    if machinery_type in MACHINERY_NO_TRANSPORT:
+        for k in TRANSPORT_FIELDS:
+            doc[k] = 0
+
     for key in CAPACITY_FIELDS:
         if key in payload:
             n = _to_number_or_none(payload.get(key))
@@ -355,6 +394,9 @@ def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, exis
         doc["published"] = False
         current_status = _clean_str(doc.get("status") or existing.get("status") or "draft")
         doc["status"] = current_status if current_status in {"draft", "deleted"} else "draft"
+    else:
+        doc["available"] = bool(payload.get("available", existing.get("available", True)))
+        doc["published"] = bool(payload.get("published", existing.get("published", True)))
 
     for key in ("photos", "machinePhotos", "images"):
         value = payload.get(key, existing.get(key))

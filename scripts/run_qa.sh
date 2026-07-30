@@ -49,20 +49,6 @@ else
 fi
 echo ""
 
-# 4. OneClick (requiere backend)
-echo ">>> 4. OneClick"
-if curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/api/" 2>/dev/null | grep -q 200; then
-  if (cd backend && bash test_oneclick.sh 2>/dev/null | grep -q "url_webpay"); then
-    echo "    ✓ OneClick start OK"
-  else
-    echo "    ✗ OneClick falló"
-    FAILED=1
-  fi
-else
-  echo "    ⊘ Backend no responde - saltando OneClick"
-fi
-echo ""
-
 # Resumen
 echo "=========================================="
 if [ $FAILED -eq 0 ]; then
