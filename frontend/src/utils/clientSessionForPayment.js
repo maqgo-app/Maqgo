@@ -69,13 +69,17 @@ export async function ensureBackendSessionForClientBooking(email, options = {}) 
   const token = localStorage.getItem('token') || localStorage.getItem('authToken');
 
   if (token) {
+    const authHeaders = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
     const body = { email: trimmed };
     if (displayName) body.name = displayName;
     if (rut) body.rut = rut;
     if (razonSocial) body.razon_social = razonSocial;
     const { data } = await axios.post(`${BACKEND_URL}/api/auth/me/profile`, body, {
       timeout: 12000,
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
     });
     if (billingType === 'empresa') {
       await axios.post(
@@ -87,7 +91,7 @@ export async function ensureBackendSessionForClientBooking(email, options = {}) 
           giro,
           direccion,
         },
-        { timeout: 12000, headers: { 'Content-Type': 'application/json' } }
+        { timeout: 12000, headers: authHeaders }
       );
     }
     persistClientEmailToStorage(trimmed);
