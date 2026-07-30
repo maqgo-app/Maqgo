@@ -15,8 +15,6 @@ RUN npm run build
 
 FROM python:3.12-slim
 WORKDIR /app
-ARG PUBLIC_API_BASE=https://www.maqgo.cl
-ENV FRONTEND_URL=${PUBLIC_API_BASE}
 COPY backend/requirements.txt .
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates \
