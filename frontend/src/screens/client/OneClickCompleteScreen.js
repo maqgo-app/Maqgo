@@ -141,6 +141,8 @@ function OneClickCompleteScreen() {
           throw new Error('No se pudo iniciar sesión. Intenta de nuevo.');
         }
 
+        const authToken = localStorage.getItem('token') || localStorage.getItem('authToken');
+
         const serviceLat = parseFloat(localStorage.getItem('serviceLat'));
         const serviceLng = parseFloat(localStorage.getItem('serviceLng'));
         const serviceLocation = getBookingLocationLineOrEmpty();
@@ -193,7 +195,10 @@ function OneClickCompleteScreen() {
 
         const { data } = await axios.post(`${BACKEND_URL}/api/service-requests`, payload, {
           timeout: 12000,
-          headers: { 'Idempotency-Key': idempotencyKey('service-request') },
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+            'Idempotency-Key': idempotencyKey('service-request'),
+          },
         });
         if (stale()) return;
         localStorage.setItem('currentServiceId', data.id);
