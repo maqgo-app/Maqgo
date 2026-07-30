@@ -225,6 +225,7 @@ function CardPaymentScreen() {
       const bookingId = getOrCreateBookingId();
       logBookingModelCheck();
       const machinery = localStorage.getItem('selectedMachinery') || '';
+      const authToken = localStorage.getItem('token') || localStorage.getItem('authToken');
       const payload = {
         username,
         email,
@@ -241,7 +242,10 @@ function CardPaymentScreen() {
         payload,
         {
           timeout: 10000,
-          headers: { 'Idempotency-Key': idempotencyKey('oneclick-start') },
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+            'Idempotency-Key': idempotencyKey('oneclick-start'),
+          },
         }
       );
       console.log('ONECLICK RESPONSE', data);
@@ -257,7 +261,7 @@ function CardPaymentScreen() {
         );
       }
 
-      const urlWebpay = data?.url_webpay;
+      const urlWebpay = data?.url_webpay || data?.urlWebpay;
       const token = data?.token;
 
       // Redirigir a Webpay vía POST con TBK_TOKEN (requisito de Oneclick)

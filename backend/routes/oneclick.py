@@ -195,6 +195,7 @@ async def _record_validation_event(
 async def save_oneclick_credentials(
     request: Request,
     data: SaveOneClickRequest,
+    current_user: dict | None = Depends(get_current_user_optional),
 ):
     """Guarda credenciales OneClick. Idempotency-Key vía resolve_idempotency_key (legacy si falta)."""
     idempotency_key, key_legacy = resolve_idempotency_key(request, "save")
@@ -208,13 +209,19 @@ async def save_oneclick_credentials(
     body_hash = data.model_dump()
 
     async def execute() -> tuple[int, dict]:
+        if not current_user:
+            _require_public_validation_access_or_403(request)
+        normalized_email = (data.email or "").strip().lower()
+        user_email = ((current_user or {}).get("email") or "").strip().lower()
+        if user_email and user_email != normalized_email:
+            raise HTTPException(status_code=403, detail="Email no autorizado para esta sesión")
         await db.oneclick_inscriptions.update_one(
-            {"email": data.email},
+            {"email": normalized_email},
             {
                 "$set": {
                     "tbk_user": data.tbk_user,
                     "username": data.username,
-                    "email": data.email,
+                    "email": normalized_email,
                     "updatedAt": datetime.now(timezone.utc).isoformat(),
                 }
             },
@@ -222,7 +229,7 @@ async def save_oneclick_credentials(
         )
         bid = (data.booking_id or "").strip()
         if bid:
-            u = await db.users.find_one({"email": data.email.strip()}, {"_id": 0, "id": 1})
+            u = await db.users.find_one({"email": normalized_email}, {"_id": 0, "id": 1})
             uid = (u or {}).get("id")
             if uid:
                 try:
@@ -349,6 +356,8 @@ async def _start_inscription_body(
     if not current_user:
         _require_public_validation_access_or_403(request)
 
+    normalized_email = (data.email or "").strip().lower()
+
     buy_order = _generate_buy_order()
     session_id = _generate_session_id()
     now = _now_iso()
@@ -360,7 +369,7 @@ async def _start_inscription_body(
         "session_id": session_id,
         "user_id": user_id,
         "username": data.username,
-        "email": data.email,
+        "email": normalized_email,
         "amount": data.amount,
         "status": "INIT",
         "created_at": now,
@@ -383,7 +392,7 @@ async def _start_inscription_body(
             "buy_order": buy_order,
             "session_id": session_id,
         }
-        await evidence_record_start(db, token=None, email=data.email, username=data.username)
+        await evidence_record_start(db, token=None, email=normalized_email, username=data.username)
         await _touch_payment_intent_start(data, current_user, idempotency_key)
         log_ops_event(
             logger,
@@ -401,7 +410,7 @@ async def _start_inscription_body(
 
         result = tbk_start_inscription(
             username=data.username,
-            email=data.email,
+            email=normalized_email,
             response_url=data.return_url
         )
         logger.info(
@@ -413,7 +422,7 @@ async def _start_inscription_body(
         await evidence_record_start(
             db,
             token=result.get("token"),
-            email=data.email,
+            email=normalized_email,
             username=data.username,
         )
         await db[PAYMENTS_COLLECTION].update_one(
@@ -640,13 +649,14 @@ async def confirm_return(request: Request):
             detail={"tbk_user": tbk_user, "card_type": result.get("card_type")},
         )
         # Mantener colección funcional del producto para cobros posteriores.
+        normalized_email = str(payment.get("email") or "").strip().lower()
         await db.oneclick_inscriptions.update_one(
-            {"email": payment.get("email")},
+            {"email": normalized_email},
             {
                 "$set": {
                     "tbk_user": tbk_user,
                     "username": payment.get("username"),
-                    "email": payment.get("email"),
+                    "email": normalized_email,
                     "buy_order": payment.get("buy_order"),
                     "updatedAt": _now_iso(),
                 }
@@ -1112,6 +1122,7 @@ async def oneclick_debug_config(
     api_key_secret = (os.getenv("TBK_API_KEY_SECRET", "") or os.getenv("TBK_API_KEY", "")).strip()
     api_key_id = (os.getenv("TBK_API_KEY_ID", "") or parent_cc).strip()
     return_url = os.getenv("TBK_RETURN_URL", "").strip()
+    frontend_url = (os.getenv("FRONTEND_URL", "") or "").strip()
     base_url = (
         "https://webpay3g.transbank.cl"
         if tbk_env == "production"
@@ -1119,13 +1130,14 @@ async def oneclick_debug_config(
     )
     config_ok = bool(parent_cc and child_cc and api_key_secret)
     logger.info(
-        "TBK_DEBUG_CONFIG env=%s parent_cc=%s child_cc=%s api_key_id_set=%s api_key_secret_set=%s return_url=%s config_ok=%s",
+        "TBK_DEBUG_CONFIG env=%s parent_cc=%s child_cc=%s api_key_id_set=%s api_key_secret_set=%s return_url=%s frontend_url=%s config_ok=%s",
         tbk_env,
         parent_cc,
         child_cc,
         bool(api_key_id),
         bool(api_key_secret),
         return_url,
+        frontend_url,
         config_ok,
     )
     return {
@@ -1136,6 +1148,7 @@ async def oneclick_debug_config(
         "TBK_API_KEY_ID": _mask(api_key_id),
         "TBK_API_KEY_SECRET": _mask(api_key_secret),
         "TBK_RETURN_URL": return_url or "(vacío)",
+        "FRONTEND_URL": frontend_url or "(vacío)",
         "ONECLICK_PUBLIC_VALIDATION_ENABLED": ONECLICK_PUBLIC_VALIDATION_ENABLED,
         "base_url": base_url,
         "config_ok": config_ok,

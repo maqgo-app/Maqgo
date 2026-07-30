@@ -560,7 +560,7 @@ class PaymentService:
         
         # Obtener credenciales OneClick (por email del cliente)
         client = await self.db.users.find_one({'id': client_id}, {'_id': 0, 'email': 1, 'cardLastFour': 1})
-        client_email = (client or {}).get('email', '')
+        client_email = ((client or {}).get('email', '') or '').strip().lower()
         oneclick = await self.db.oneclick_inscriptions.find_one(
             {'email': client_email},
             {'_id': 0, 'tbk_user': 1, 'username': 1}

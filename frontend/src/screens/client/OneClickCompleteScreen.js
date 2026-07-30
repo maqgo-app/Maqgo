@@ -123,17 +123,23 @@ function OneClickCompleteScreen() {
           );
         }
 
+        await ensureBackendSessionForClientBooking(email, getStoredProfileOptionsForBookingSync());
+        if (stale()) return;
+
+        const authToken = localStorage.getItem('token') || localStorage.getItem('authToken');
+
         await axios.post(
           `${BACKEND_URL}/api/payments/oneclick/save`,
           { email, tbk_user: effectiveTbk, username, booking_id: bookingId },
           {
             timeout: 8000,
-            headers: { 'Idempotency-Key': idempotencyKey('oneclick-save') },
+            headers: {
+              ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+              'Idempotency-Key': idempotencyKey('oneclick-save'),
+            },
           }
         );
 
-        if (stale()) return;
-        await ensureBackendSessionForClientBooking(email, getStoredProfileOptionsForBookingSync());
         if (stale()) return;
 
         const clientId = localStorage.getItem('userId');
@@ -193,7 +199,10 @@ function OneClickCompleteScreen() {
 
         const { data } = await axios.post(`${BACKEND_URL}/api/service-requests`, payload, {
           timeout: 12000,
-          headers: { 'Idempotency-Key': idempotencyKey('service-request') },
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+            'Idempotency-Key': idempotencyKey('service-request'),
+          },
         });
         if (stale()) return;
         localStorage.setItem('currentServiceId', data.id);
