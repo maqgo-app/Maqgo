@@ -35,7 +35,7 @@ from services.payment_saga_recovery import recover_saga
 from services.reconciliation_service import reconcile_payment_intents
 from services.komatsu_sync import sync_komatsu_machine_locations
 from services.testdata_purge_service import purge_user_testdata
-from pricing import calculate_immediate_price, get_system_multiplier, MIN_HOURS_IMMEDIATE, MAX_HOURS_IMMEDIATE
+from pricing import calculate_immediate_price, get_system_multiplier, MIN_HOURS_IMMEDIATE, MAX_HOURS_IMMEDIATE, MACHINERY_PER_SERVICE
 from services.google_maps_key_service import get_google_maps_api_key, set_google_maps_api_key
 
 router = APIRouter(prefix="/admin", tags=["admin-config"])
@@ -775,15 +775,24 @@ async def admin_testdata_seed(
     hours = 5
     machinery_for_price = "retroexcavadora"
     transport_cost = 0
-    base_price = _find_base_price_for_target_total(
-        machinery_type=machinery_for_price,
-        hours=hours,
-        transport_cost=transport_cost,
-        target_total=target_total,
-    )
+    seed_categories = [
+        "retroexcavadora",
+        "excavadora",
+        "minicargador",
+        "camion_tolva",
+    ]
+    seed_base_prices = {
+        mt: _find_base_price_for_target_total(
+            machinery_type=mt,
+            hours=hours,
+            transport_cost=transport_cost,
+            target_total=target_total,
+        )
+        for mt in seed_categories
+    }
     expected_total = _immediate_final_price_for_base(
         machinery_type=machinery_for_price,
-        base_price=base_price,
+        base_price=seed_base_prices[machinery_for_price],
         hours=hours,
         transport_cost=transport_cost,
     )
@@ -847,72 +856,54 @@ async def admin_testdata_seed(
         "updatedAt": now.isoformat(),
     }
 
-    machines_to_create = [
-        {
-            "provider_id": "tbk_provider_1",
-            "id": "tbk_machine_1",
-            "machineryType": "retroexcavadora",
-            "licensePlate": "TBK-01",
-            "pricePerHour": base_price,
-            "transportSameComuna": 0,
-            "transportSameRegion": 0,
-            "transportOtherRegion": 0,
-            "available": True,
-            "published": True,
-            "status": "active",
-            "location": {"lat": -33.4489, "lng": -70.6693},
-            "operators": [
-                {"name": "Operador TBK 1", "rut": "12.345.678-9", "phone": "+56990000001", "isPrimary": True}
-            ],
-            "photos": ["/maqgo_logo_clean.png"],
-            "primaryPhoto": "/maqgo_logo_clean.png",
-        },
-        {
-            "provider_id": "tbk_provider_1",
-            "id": "tbk_machine_2",
-            "machineryType": "excavadora",
-            "licensePlate": "TBK-02",
-            "pricePerHour": base_price,
-            "transportSameComuna": 0,
-            "transportSameRegion": 0,
-            "transportOtherRegion": 0,
-            "available": True,
-            "published": True,
-            "status": "active",
-            "location": {"lat": -33.45, "lng": -70.67},
-            "operators": [
-                {"name": "Operador TBK 2", "rut": "98.765.432-1", "phone": "+56990000002", "isPrimary": True}
-            ],
-            "photos": ["/maqgo_logo_clean.png"],
-            "primaryPhoto": "/maqgo_logo_clean.png",
-        },
-        {
-            "provider_id": "tbk_provider_2",
-            "id": "tbk_machine_3",
-            "machineryType": "retroexcavadora",
-            "licensePlate": "TBK-03",
-            "pricePerHour": base_price,
-            "transportSameComuna": 0,
-            "transportSameRegion": 0,
-            "transportOtherRegion": 0,
-            "available": True,
-            "published": True,
-            "status": "active",
-            "location": {"lat": -33.452, "lng": -70.662},
-            "operators": [
-                {"name": "Operador TBK 3", "rut": "11.222.333-4", "phone": "+56990000003", "isPrimary": True}
-            ],
-            "photos": ["/maqgo_logo_clean.png"],
-            "primaryPhoto": "/maqgo_logo_clean.png",
-        },
+    machines_to_create = []
+    machine_counter = 0
+    coords = [
+        (-33.4489, -70.6693),
+        (-33.45, -70.67),
+        (-33.452, -70.662),
     ]
+    for machinery_type in seed_categories:
+        base_price = int(seed_base_prices.get(machinery_type) or 0)
+        for idx in range(1, 4):
+            machine_counter += 1
+            lat, lng = coords[(idx - 1) % len(coords)]
+            provider_id = "tbk_provider_1" if idx in (1, 2) else "tbk_provider_2"
+            common = {
+                "provider_id": provider_id,
+                "id": f"tbk_{machinery_type}_{idx}",
+                "machineryType": machinery_type,
+                "licensePlate": f"TBK-{machinery_type[:2].upper()}{idx}",
+                "transportSameComuna": 0,
+                "transportSameRegion": 0,
+                "transportOtherRegion": 0,
+                "available": True,
+                "published": True,
+                "status": "active",
+                "location": {"lat": lat, "lng": lng},
+                "operators": [
+                    {
+                        "name": f"Operador TBK {machine_counter}",
+                        "rut": f"12.345.67{machine_counter % 10}-{machine_counter % 9}",
+                        "phone": f"+56990000{machine_counter:03d}"[-12:],
+                        "isPrimary": True,
+                    }
+                ],
+                "photos": ["/maqgo_logo_clean.png"],
+                "primaryPhoto": "/maqgo_logo_clean.png",
+            }
+            if machinery_type in MACHINERY_PER_SERVICE:
+                machines_to_create.append({**common, "pricePerService": base_price})
+            else:
+                machines_to_create.append({**common, "pricePerHour": base_price})
 
     machine_response_rows = []
     for m in machines_to_create:
         mt = str(m.get("machineryType") or "").strip() or machinery_for_price
+        base_for_machine = int(m.get("pricePerHour") or m.get("pricePerService") or 0)
         breakdown = _immediate_breakdown_for_base(
             machinery_type=mt,
-            base_price=int(base_price),
+            base_price=base_for_machine,
             hours=int(hours),
             transport_cost=int(transport_cost),
         )
@@ -921,7 +912,8 @@ async def admin_testdata_seed(
                 "id": m.get("id"),
                 "provider_id": m.get("provider_id"),
                 "machineryType": mt,
-                "pricePerHour": int(base_price),
+                "pricePerHour": int(m.get("pricePerHour") or 0),
+                "pricePerService": int(m.get("pricePerService") or 0),
                 "transport": int(transport_cost),
                 "finalPrice": int(breakdown.get("finalPrice") or 0),
                 "licensePlate": m.get("licensePlate"),
@@ -934,7 +926,7 @@ async def admin_testdata_seed(
             "target_total": target_total,
             "hours": hours,
             "transport_cost": transport_cost,
-            "computed_base_price": int(base_price),
+            "computed_base_prices": seed_base_prices,
             "expected_total": int(expected_total),
             "machinery_type": machinery_for_price,
         },
@@ -958,7 +950,7 @@ async def admin_testdata_seed(
         provider_id = str(m.pop("provider_id"))
         created = await create_machine(db, provider_id, m)
         mt = str(created.get("machineryType") or "").strip() or machinery_for_price
-        created_base_price = int(created.get("pricePerHour") or base_price)
+        created_base_price = int(created.get("pricePerHour") or created.get("pricePerService") or 0)
         breakdown = _immediate_breakdown_for_base(
             machinery_type=mt,
             base_price=created_base_price,
@@ -971,7 +963,8 @@ async def admin_testdata_seed(
                 "provider_id": provider_id,
                 "machineryType": created.get("machineryType"),
                 "licensePlate": created.get("licensePlate"),
-                "pricePerHour": created_base_price,
+                "pricePerHour": int(created.get("pricePerHour") or 0),
+                "pricePerService": int(created.get("pricePerService") or 0),
                 "transport": int(transport_cost),
                 "finalPrice": int(breakdown.get("finalPrice") or 0),
                 "breakdown": breakdown,
@@ -989,7 +982,20 @@ async def admin_testdata_seed_status(
     _: dict = Depends(get_current_admin_strict),
 ):
     providers = ["tbk_provider_1", "tbk_provider_2"]
-    machines = ["tbk_machine_1", "tbk_machine_2", "tbk_machine_3"]
+    machines = [
+        "tbk_retroexcavadora_1",
+        "tbk_retroexcavadora_2",
+        "tbk_retroexcavadora_3",
+        "tbk_excavadora_1",
+        "tbk_excavadora_2",
+        "tbk_excavadora_3",
+        "tbk_minicargador_1",
+        "tbk_minicargador_2",
+        "tbk_minicargador_3",
+        "tbk_camion_tolva_1",
+        "tbk_camion_tolva_2",
+        "tbk_camion_tolva_3",
+    ]
 
     existing_providers = await db.users.find({"id": {"$in": providers}}, {"_id": 0, "password": 0}).to_list(10)
     existing_machines = await db.machines.find({"id": {"$in": machines}}, {"_id": 0}).to_list(10)
