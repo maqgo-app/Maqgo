@@ -47,6 +47,199 @@ db = client[get_db_name()]
 CONFIG_KEY = "reference_prices"
 
 
+def _parse_iso(value: Any) -> Optional[datetime]:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        return datetime.fromisoformat(raw)
+    except Exception:
+        return None
+
+
+def _as_int_amount(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        return int(round(float(value)))
+    except Exception:
+        return None
+
+
+def _truthy(value: Any) -> bool:
+    return value is not None and str(value).strip() != ""
+
+
+def _audit_status(errors: list, warnings: list) -> str:
+    if errors:
+        return "FAIL"
+    if warnings:
+        return "WARN"
+    return "PASS"
+
+
+async def _resolve_service_request_by_booking_id(booking_id: str) -> Optional[dict]:
+    if not booking_id:
+        return None
+    doc = await db.service_requests.find_one({"bookingId": booking_id}, {"_id": 0})
+    if doc:
+        return doc
+    doc = await db.service_requests.find_one({"booking_id": booking_id}, {"_id": 0})
+    return doc
+
+
+async def _resolve_payment_intent_by_booking_id(booking_id: str) -> Optional[dict]:
+    if not booking_id:
+        return None
+    doc = await db.payment_intents.find_one({"booking_id": booking_id}, {"_id": 0})
+    return doc
+
+
+async def _resolve_payment_for_service(service_request: Optional[dict], booking_id: str) -> Optional[dict]:
+    candidates = []
+    if isinstance(service_request, dict) and service_request.get("id"):
+        candidates.append({"serviceRequestId": service_request.get("id")})
+    if booking_id:
+        candidates.append({"bookingId": booking_id})
+    if not candidates:
+        return None
+    doc = await db.payments.find_one({"$or": candidates}, {"_id": 0})
+    return doc
+
+
+async def _audit_booking_consistency(booking_id: str) -> dict:
+    errors = []
+    warnings = []
+
+    payment_intent = await _resolve_payment_intent_by_booking_id(booking_id)
+    service_request = await _resolve_service_request_by_booking_id(booking_id)
+    if payment_intent and not service_request:
+        srid = payment_intent.get("service_request_id")
+        if srid:
+            service_request = await db.service_requests.find_one({"id": srid}, {"_id": 0})
+
+    payment = await _resolve_payment_for_service(service_request, booking_id)
+
+    checks: Dict[str, Any] = {
+        "booking_exists": bool(booking_id),
+        "payment_intent_exists": bool(payment_intent),
+        "service_exists": bool(service_request),
+    }
+
+    machine_id = None
+    provider_id = None
+    operator_id = None
+
+    if service_request:
+        machine_id = service_request.get("machineId") or service_request.get("machine_id")
+        provider_id = service_request.get("providerId") or service_request.get("provider_id")
+        operator_id = service_request.get("operator_id") or service_request.get("operatorId")
+
+    checks["machine_assigned"] = bool(machine_id)
+    checks["provider_assigned"] = bool(provider_id)
+    checks["operator_assigned"] = bool(operator_id) or bool(
+        _truthy(service_request.get("providerOperatorName") if service_request else None)
+        or _truthy(service_request.get("operatorRut") if service_request else None)
+    )
+
+    machine = None
+    if machine_id:
+        machine = await db.machines.find_one({"id": str(machine_id).strip()}, {"_id": 0})
+    checks["machine_exists"] = bool(machine) if machine_id else False
+
+    provider = None
+    if provider_id:
+        provider = await db.users.find_one({"id": str(provider_id).strip()}, {"_id": 0, "password": 0})
+    checks["provider_exists"] = bool(provider) if provider_id else False
+    checks["provider_active"] = bool(provider and provider.get("isAvailable") is True and provider.get("onboarding_completed") is True)
+
+    operator = None
+    if operator_id:
+        operator = await db.users.find_one({"id": str(operator_id).strip()}, {"_id": 0, "password": 0})
+    checks["operator_exists"] = bool(operator) if operator_id else False
+
+    checks["payment_exists"] = bool(payment)
+    payment_status = str(payment.get("status") if payment else "").strip().lower()
+    checks["payment_authorized"] = payment_status in {"authorized_pending_finalize", "charged"}
+
+    sr_total = _as_int_amount(service_request.get("totalAmount") if service_request else None)
+    sr_charged = _as_int_amount(service_request.get("chargedAmount") if service_request else None)
+    pay_amount = _as_int_amount(payment.get("amount") if payment else None)
+    checks["payment_amount_matches"] = bool(pay_amount is not None and sr_total is not None and pay_amount == sr_total)
+
+    if pay_amount is not None and sr_charged is not None and pay_amount != sr_charged:
+        warnings.append("charged_amount_mismatch")
+
+    checks["financial_integrity"] = bool(checks["payment_exists"] and checks["payment_authorized"] and checks["payment_amount_matches"])
+
+    checks["machine_not_double_booked"] = True
+    if service_request and machine_id and service_request.get("scheduledDate"):
+        sd = str(service_request.get("scheduledDate") or "").strip()
+        active_statuses = ["confirmed", "in_progress", "last_30"]
+        count = await db.service_requests.count_documents(
+            {
+                "id": {"$ne": service_request.get("id")},
+                "scheduledDate": sd,
+                "status": {"$in": active_statuses},
+                "$or": [{"machineId": str(machine_id)}, {"machine_id": str(machine_id)}],
+            }
+        )
+        checks["machine_not_double_booked"] = count == 0
+
+    checks["availability_updated"] = bool(machine and machine.get("status") != "deleted") if machine else False
+
+    checks["timeline_consistent"] = True
+    if service_request:
+        created_at = _parse_iso(service_request.get("createdAt"))
+        confirmed_at = _parse_iso(service_request.get("confirmedAt"))
+        sr_charged_at = _parse_iso(service_request.get("chargedAt"))
+        if created_at and confirmed_at and confirmed_at < created_at:
+            checks["timeline_consistent"] = False
+        if confirmed_at and sr_charged_at and sr_charged_at < confirmed_at:
+            checks["timeline_consistent"] = False
+
+    if not checks["service_exists"]:
+        errors.append("service_not_found")
+    if checks["service_exists"] and not checks["machine_assigned"]:
+        warnings.append("machine_not_assigned")
+    if checks["machine_assigned"] and not checks["machine_exists"]:
+        errors.append("machine_not_found")
+    if checks["provider_assigned"] and not checks["provider_exists"]:
+        errors.append("provider_not_found")
+    if checks["provider_exists"] and not checks["provider_active"]:
+        warnings.append("provider_not_active")
+    if checks["payment_exists"] and not checks["payment_authorized"]:
+        warnings.append("payment_not_authorized")
+    if checks["payment_exists"] and sr_total is not None and pay_amount is not None and pay_amount != sr_total:
+        errors.append("payment_amount_mismatch")
+    if checks["machine_assigned"] and not checks["machine_not_double_booked"]:
+        errors.append("machine_double_booked")
+
+    snapshot = {
+        "booking_id": booking_id,
+        "service_request_id": service_request.get("id") if service_request else None,
+        "payment_intent_id": payment_intent.get("id") if payment_intent else None,
+        "payment_id": payment.get("id") if payment else None,
+        "machine_id": machine_id,
+        "provider_id": provider_id,
+        "operator_id": operator_id,
+        "service_status": service_request.get("status") if service_request else None,
+        "payment_status": payment.get("status") if payment else None,
+        "total_amount": sr_total,
+        "payment_amount": pay_amount,
+    }
+
+    return {
+        "status": _audit_status(errors, warnings),
+        "checks": checks,
+        "warnings": warnings,
+        "errors": errors,
+        "snapshot": snapshot,
+    }
+
+
 class GoogleMapsKeyPayload(BaseModel):
     apiKey: str = Field(..., min_length=0, max_length=300)
 
@@ -1101,6 +1294,19 @@ async def admin_delete_machine(
         if not machine:
             raise HTTPException(status_code=404, detail="Maquinaria no encontrada")
         return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/bookings/{booking_id}/audit")
+async def admin_booking_audit(
+    booking_id: str,
+    _: dict = Depends(get_current_admin_strict),
+):
+    try:
+        return await _audit_booking_consistency(str(booking_id or "").strip())
     except HTTPException:
         raise
     except Exception as e:
