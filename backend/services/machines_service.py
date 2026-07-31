@@ -143,8 +143,21 @@ def serialize_machines(docs: Iterable[dict]) -> List[dict]:
 def machine_has_real_assigned_operator(machine: Optional[dict]) -> bool:
     if not isinstance(machine, dict):
         return False
-    operators = normalize_machine_operators(machine.get("operators"))
-    return any(bool(op.get("id")) for op in operators)
+    operators = machine.get("operators")
+    if not isinstance(operators, list) or not operators:
+        return False
+    for item in operators:
+        if not isinstance(item, dict):
+            continue
+        name = _clean_operator_name(item)
+        if not name or _operator_name_is_placeholder(name):
+            continue
+        raw_id = _operator_raw_id(item)
+        rut = _clean_str(item.get("rut") or item.get("operator_rut") or item.get("operatorRut"))
+        phone = _clean_str(item.get("phone") or item.get("telefono"))
+        if raw_id or rut or phone:
+            return True
+    return False
 
 
 def _normalize_license_plate(value: str) -> str:
@@ -278,11 +291,6 @@ def get_primary_machine_operator(machine: Optional[dict]) -> Optional[dict]:
         return None
     operators = normalize_machine_operators(machine.get("operators"))
     return next((op for op in operators if op.get("isPrimary")), None) or (operators[0] if operators else None)
-
-
-def machine_has_real_assigned_operator(machine: Optional[dict]) -> bool:
-    primary = get_primary_machine_operator(machine)
-    return bool(primary and _clean_str(primary.get("phone")))
 
 
 def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, existing: Optional[dict] = None) -> Dict[str, Any]:

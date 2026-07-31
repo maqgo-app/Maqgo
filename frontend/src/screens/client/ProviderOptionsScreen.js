@@ -475,10 +475,13 @@ function ProviderOptionsScreen({ previewPublic = false }) {
     }
   }, [selectedMachinery]);
 
-  const fetchProviders = useCallback(async () => {
-    setLoading(true);
-    setEmptyState(false);
-    setEmptyKind('');
+  const fetchProviders = useCallback(async (options = {}) => {
+    const silent = Boolean(options?.silent);
+    if (!silent) {
+      setLoading(true);
+      setEmptyState(false);
+      setEmptyKind('');
+    }
     // Usar la ubicación exacta ingresada en ServiceLocationScreen.
     // Si no existe (ej. fallback sin Google Places), usar coordenadas demo.
     const savedLat = parseFloat(localStorage.getItem('serviceLat') || '');
@@ -541,6 +544,9 @@ function ProviderOptionsScreen({ previewPublic = false }) {
       setTomorrowCount(0);
 
       if (!allowDemoProviders) {
+        if (silent) {
+          return;
+        }
         setProviders([]);
         setIsDemoProviders(false);
         setEmptyState(true);
@@ -565,7 +571,9 @@ function ProviderOptionsScreen({ previewPublic = false }) {
         }))
       );
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [selectedMachinery, needsTransport, calculateTotalPrice, getDemoProvidersFallback, sanitizeProviders]);
 
@@ -585,7 +593,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
         return;
       }
       try {
-        await fetchProviders();
+        await fetchProviders({ silent: true });
       } catch {
         void 0;
       }
