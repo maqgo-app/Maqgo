@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 from pricing import calculate_immediate_price, MACHINERY_PER_SERVICE
 from services.machines_service import create_machine
+from services.provider_activation_service import is_provider_activation_complete_for_machine
 
 
 def _parse_bool_env(name: str, default: bool = False) -> bool:
@@ -81,6 +82,21 @@ async def ensure_transbank_certification_inventory(db: Any) -> Dict[str, Any]:
     provider_1_id = "tbk_provider_1"
     provider_2_id = "tbk_provider_2"
     providers_seed = [provider_1_id, provider_2_id]
+
+    expected_machine_ids = [f"tbk_{mt}_{i}" for mt in categories for i in range(1, per_category + 1)]
+
+    stale_deleted = 0
+    try:
+        result = await db.machines.delete_many(
+            {
+                "provider_id": {"$in": providers_seed},
+                "id": {"$regex": r"^tbk_"},
+                "id": {"$nin": expected_machine_ids},
+            }
+        )
+        stale_deleted = int(getattr(result, "deleted_count", 0) or 0)
+    except Exception:
+        stale_deleted = 0
 
     provider_1 = {
         "id": provider_1_id,
@@ -238,6 +254,48 @@ async def ensure_transbank_certification_inventory(db: Any) -> Dict[str, Any]:
                 }
             )
 
+    existing_expected = await db.machines.count_documents(
+        {"id": {"$in": expected_machine_ids}, "status": {"$ne": "deleted"}}
+    )
+
+    match_ready_by_category: Dict[str, int] = {}
+    try:
+        machines = await db.machines.find(
+            {"id": {"$in": expected_machine_ids}, "available": True, "published": True, "status": {"$ne": "deleted"}},
+            {"_id": 0},
+        ).to_list(500)
+        provider_ids = list({m.get("provider_id") for m in machines if m.get("provider_id")})
+        providers = await db.users.find(
+            {
+                "id": {"$in": provider_ids},
+                "isAvailable": True,
+                "onboarding_completed": True,
+                "$and": [
+                    {"$or": [{"role": "provider"}, {"roles": "provider"}]},
+                    {"$or": [{"status": {"$exists": False}}, {"status": "active"}]},
+                    {"$or": [{"deleted": {"$exists": False}}, {"deleted": False}]},
+                    {"$or": [{"owner_id": {"$exists": False}}, {"owner_id": None}, {"owner_id": ""}]},
+                    {"$or": [{"provider_role": {"$exists": False}}, {"provider_role": None}, {"provider_role": {"$ne": "operator"}}]},
+                ],
+            },
+            {"_id": 0, "id": 1, "providerData": 1, "operators": 1, "machineData": 1, "owner_id": 1, "provider_role": 1, "onboarding_completed": 1, "isAvailable": 1, "status": 1, "deleted": 1},
+        ).to_list(50)
+        providers_by_id = {p.get("id"): p for p in providers}
+        for mt in categories:
+            count = 0
+            for m in machines:
+                if m.get("machineryType") != mt:
+                    continue
+                provider = providers_by_id.get(m.get("provider_id"))
+                if not provider:
+                    continue
+                if not is_provider_activation_complete_for_machine(provider, m):
+                    continue
+                count += 1
+            match_ready_by_category[mt] = count
+    except Exception:
+        match_ready_by_category = {}
+
     return {
         "ok": True,
         "enabled": True,
@@ -248,6 +306,9 @@ async def ensure_transbank_certification_inventory(db: Any) -> Dict[str, Any]:
         "categories": categories,
         "base_prices": base_prices,
         "skipped_categories": skipped_categories,
+        "expected_seed_machine_ids": expected_machine_ids,
+        "expected_seed_machines_present": int(existing_expected),
+        "stale_seed_machines_deleted": int(stale_deleted),
+        "match_ready_by_category": match_ready_by_category,
         "created_or_updated": created,
     }
-
