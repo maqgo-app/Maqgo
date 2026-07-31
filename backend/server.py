@@ -281,24 +281,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("BOOTSTRAP admin failed (continuando): %s", e)
 
-    try:
-        from services.certification_seed_service import ensure_transbank_certification_inventory
-
-        result = await ensure_transbank_certification_inventory(_db)
-        if result.get("enabled"):
-            logger.warning(
-                "CERTIFICATION AUTO-SEED enabled categories=%s per_category=%s target_total=%s expected_present=%s stale_deleted=%s match_ready=%s",
-                str(result.get("categories") or []),
-                str(result.get("per_category") or ""),
-                str(result.get("target_total") or ""),
-                str(result.get("expected_seed_machines_present") or ""),
-                str(result.get("stale_seed_machines_deleted") or ""),
-                str(result.get("match_ready_by_category") or {}),
-            )
-        else:
-            logger.info("CERTIFICATION AUTO-SEED skipped (%s)", str(result.get("skipped") or "disabled"))
-    except Exception as e:
-        logger.warning("CERTIFICATION AUTO-SEED failed (continuando): %s", e)
 
     yield
     
