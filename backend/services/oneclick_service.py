@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import logging
 import json as jsonlib
 import time
+from urllib.parse import urlparse
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -16,15 +17,14 @@ logger = logging.getLogger(__name__)
 TBK_REQUEST_TIMEOUT = 25
 TBK_DEBUG_HTTP = os.getenv("TBK_DEBUG_HTTP", "false").lower() == "true"
 TBK_REQUEST_RETRIES = max(0, int(os.getenv("TBK_REQUEST_RETRIES", "2")))
+TBK_AUDIT_SANITIZED = os.getenv("TBK_AUDIT_SANITIZED", "true").lower() == "true"
 
 
 def _cfg():
-    tbk_env = os.getenv("TBK_ENV", "integration")
-    base_url = (
-        "https://webpay3g.transbank.cl"
-        if tbk_env == "production"
-        else "https://webpay3gint.transbank.cl"
-    )
+    tbk_env_raw = os.getenv("TBK_ENV", "integration")
+    tbk_env = str(tbk_env_raw or "integration").strip().lower()
+    is_production = tbk_env in {"production", "prod", "live"}
+    base_url = "https://webpay3g.transbank.cl" if is_production else "https://webpay3gint.transbank.cl"
     parent_cc = os.getenv("TBK_PARENT_COMMERCE_CODE", "").strip()
     child_cc = os.getenv("TBK_CHILD_COMMERCE_CODE", "").strip()
     # Soporta ambos nombres para evitar caída por mismatch de env var.
@@ -36,6 +36,9 @@ def _cfg():
     api_key_id = os.getenv("TBK_API_KEY_ID", "").strip() or parent_cc
     return_url = os.getenv("TBK_RETURN_URL", "").strip()
     return {
+        "tbk_env_raw": tbk_env_raw,
+        "tbk_env": tbk_env,
+        "is_production": is_production,
         "base_url": base_url,
         "parent_cc": parent_cc,
         "child_cc": child_cc,
@@ -145,6 +148,25 @@ def _request_json(method: str, url: str, headers: dict, payload: dict | None, *,
                     body_text[:2000],
                 )
 
+            if TBK_AUDIT_SANITIZED and "/oneclick/" in str(url):
+                try:
+                    parsed = urlparse(str(url))
+                    base_url = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ""
+                except Exception:
+                    base_url = ""
+                key_id = (headers or {}).get("Tbk-Api-Key-Id")
+                secret_len = len(str((headers or {}).get("Tbk-Api-Key-Secret") or ""))
+                logger.info(
+                    "TBK_ONECLICK_HTTP base_url=%s method=%s url=%s status=%s key_id=%s secret_len=%s body=%s",
+                    base_url,
+                    method,
+                    url,
+                    http_code,
+                    key_id,
+                    secret_len,
+                    body_text[:2000],
+                )
+
             # Retry only transients (5xx/408/429) or transport failures.
             transient_http = http_code in {408, 429} or 500 <= http_code <= 599
             transient_transport = proc.returncode != 0 or http_code == 0
@@ -212,6 +234,28 @@ def start_inscription(username: str, email: str, response_url: str = None):
         "email": email,
         "response_url": final_url
     }
+
+    if TBK_AUDIT_SANITIZED:
+        tbk_env_raw = os.getenv("TBK_ENV", "integration")
+        env_effective = "production" if c.get("base_url") == "https://webpay3g.transbank.cl" else "integration"
+        h = _headers()
+        key_id = h.get("Tbk-Api-Key-Id")
+        secret_len = len(str(h.get("Tbk-Api-Key-Secret") or ""))
+        logger.info(
+            "TBK_ONECLICK_START_REQ tbk_env_raw=%s tbk_env_effective=%s base_url=%s url=%s key_id=%s secret_len=%s commerce_code_effective=%s parent_cc=%s child_cc=%s username=%s email=%s response_url=%s",
+            tbk_env_raw,
+            env_effective,
+            c.get("base_url"),
+            url,
+            key_id,
+            secret_len,
+            c.get("api_key_id"),
+            c.get("parent_cc"),
+            c.get("child_cc"),
+            username,
+            email,
+            final_url,
+        )
 
     # Sin reintentos automáticos en el POST de inscripción: reduce riesgo de duplicidad
     # borde si Transbank aceptó pero la lectura de respuesta falló (el idempotency del
