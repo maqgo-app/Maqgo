@@ -23,6 +23,7 @@ import asyncio
 import logging
 import uuid
 import os
+import hashlib
 
 from services.payment_intent_service import (
     CAPTURE_FAILED,
@@ -54,6 +55,7 @@ def provider_oneclick_authorize(
     username: str,
     tbk_user: str,
     buy_order: str,
+    detail_buy_order: str | None = None,
     amount: int,
     installments_number: int | None = None,
 ) -> dict:
@@ -67,6 +69,7 @@ def provider_oneclick_authorize(
         username=username,
         tbk_user=tbk_user,
         buy_order=buy_order,
+        detail_buy_order=detail_buy_order,
         amount=amount,
         installments_number=installments_number,
     )
@@ -414,7 +417,10 @@ class PaymentService:
         lc = ledger_context or {}
         now = datetime.now(timezone.utc)
         booking_id = lc.get("booking_id")
-        buy_order = str(booking_id or service_request_id).strip()
+        buy_order_src = str(booking_id or service_request_id).strip()
+        h = hashlib.sha256(buy_order_src.encode("utf-8")).hexdigest()
+        buy_order = f"SR{h[:24]}"
+        detail_buy_order = f"DT{h[24:48]}"
         amount_clp = int(round(amount))
 
         logger.info(
@@ -577,6 +583,7 @@ class PaymentService:
                         **lc,
                         "mode": "oneclick_authorize",
                         "buy_order": buy_order,
+                        "detail_buy_order": detail_buy_order,
                         "amount_clp": amount_clp,
                     },
                 )
@@ -584,6 +591,7 @@ class PaymentService:
                     username=oneclick['username'],
                     tbk_user=oneclick['tbk_user'],
                     buy_order=buy_order,
+                    detail_buy_order=detail_buy_order,
                     amount=amount_clp,
                 )
                 # Transbank Mall: mismo criterio que routes/oneclick authorize (response_code + status)

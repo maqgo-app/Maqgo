@@ -276,7 +276,14 @@ def confirm_inscription(token: str):
     return _request_json("PUT", url, _headers(), {})
 
 
-def authorize_payment(username: str, tbk_user: str, buy_order: str, amount: int, installments_number: int | None = None):
+def authorize_payment(
+    username: str,
+    tbk_user: str,
+    buy_order: str,
+    amount: int,
+    installments_number: int | None = None,
+    detail_buy_order: str | None = None,
+):
     _check_config()
     c = _cfg()
     url = f"{c['base_url']}/rswebpaytransaction/api/oneclick/v1.2/transactions"
@@ -288,7 +295,7 @@ def authorize_payment(username: str, tbk_user: str, buy_order: str, amount: int,
         "details": [
             {
                 "commerce_code": c["child_cc"],
-                "buy_order": buy_order,
+                "buy_order": detail_buy_order or buy_order,
                 "amount": amount,
                 **({"installments_number": int(installments_number)} if installments_number else {}),
             }
