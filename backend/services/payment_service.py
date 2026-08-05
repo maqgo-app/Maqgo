@@ -24,6 +24,7 @@ import logging
 import uuid
 import os
 import hashlib
+import json
 
 from services.payment_intent_service import (
     CAPTURE_FAILED,
@@ -48,6 +49,15 @@ from services.payment_rollout import (
 from services.oneclick_evidence import record_authorize as evidence_record_authorize
 
 logger = logging.getLogger(__name__)
+
+PAYMENT_TRACE_ONECLICK = os.getenv("PAYMENT_TRACE_ONECLICK", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _safe_json(obj) -> str:
+    try:
+        return json.dumps(obj, ensure_ascii=False, default=str)[:8000]
+    except Exception:
+        return str(obj)[:8000]
 
 
 def provider_oneclick_authorize(
@@ -571,11 +581,48 @@ class PaymentService:
             {'email': client_email},
             {'_id': 0, 'tbk_user': 1, 'username': 1}
         ) if client_email else None
+
+        if PAYMENT_TRACE_ONECLICK:
+            logger.info(
+                "PAYMENT_ONECLICK_LOOKUP service=%s client_id=%s email_used=%s tbk_user_found=%s username_found=%s",
+                service_request_id,
+                client_id,
+                client_email,
+                bool((oneclick or {}).get("tbk_user")),
+                bool((oneclick or {}).get("username")),
+            )
         
         # Cobro real con Transbank OneClick si hay credenciales
         tbk_response = None
         if oneclick and oneclick.get('tbk_user') and oneclick.get('username'):
             try:
+                if PAYMENT_TRACE_ONECLICK:
+                    from services.oneclick_service import _cfg as _tbk_cfg
+                    from services.oneclick_service import _headers as _tbk_headers
+
+                    cfg = _tbk_cfg()
+                    headers = _tbk_headers()
+                    key_id = headers.get("Tbk-Api-Key-Id")
+                    secret_len = len(str(headers.get("Tbk-Api-Key-Secret") or ""))
+
+                    logger.info(
+                        "PAYMENT_ONECLICK_AUTHORIZE_REQ service=%s email_used=%s tbk_user=%s username=%s base_url=%s key_id=%s secret_len=%s parent_cc=%s child_cc=%s buy_order=%s buy_order_len=%s detail_buy_order=%s detail_buy_order_len=%s amount_clp=%s",
+                        service_request_id,
+                        client_email,
+                        oneclick.get("tbk_user"),
+                        oneclick.get("username"),
+                        cfg.get("base_url"),
+                        key_id,
+                        secret_len,
+                        cfg.get("parent_cc"),
+                        cfg.get("child_cc"),
+                        buy_order,
+                        len(buy_order),
+                        detail_buy_order,
+                        len(detail_buy_order),
+                        amount_clp,
+                    )
+
                 await append_event(
                     self.db,
                     EVT_PROVIDER_CALL_EXECUTED,
@@ -594,6 +641,13 @@ class PaymentService:
                     detail_buy_order=detail_buy_order,
                     amount=amount_clp,
                 )
+
+                if PAYMENT_TRACE_ONECLICK:
+                    logger.info(
+                        "PAYMENT_ONECLICK_AUTHORIZE_RES service=%s response=%s",
+                        service_request_id,
+                        _safe_json(tbk_response),
+                    )
                 # Transbank Mall: mismo criterio que routes/oneclick authorize (response_code + status)
                 details = tbk_response.get('details') or []
                 d0 = details[0] if details else {}

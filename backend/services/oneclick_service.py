@@ -18,6 +18,7 @@ TBK_REQUEST_TIMEOUT = 25
 TBK_DEBUG_HTTP = os.getenv("TBK_DEBUG_HTTP", "false").lower() == "true"
 TBK_REQUEST_RETRIES = max(0, int(os.getenv("TBK_REQUEST_RETRIES", "2")))
 TBK_AUDIT_SANITIZED = os.getenv("TBK_AUDIT_SANITIZED", "true").lower() == "true"
+TBK_CHARGE_TRACE = os.getenv("TBK_CHARGE_TRACE", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _cfg():
@@ -301,6 +302,30 @@ def authorize_payment(
             }
         ],
     }
+
+    if TBK_CHARGE_TRACE:
+        h = _headers()
+        key_id = h.get("Tbk-Api-Key-Id")
+        secret_len = len(str(h.get("Tbk-Api-Key-Secret") or ""))
+        d0 = payload.get("details", [{}])[0] if isinstance(payload.get("details"), list) else {}
+        tbk_env_effective = "production" if c.get("base_url") == "https://webpay3g.transbank.cl" else "integration"
+        logger.info(
+            "TBK_ONECLICK_AUTHORIZE_REQ tbk_env_effective=%s base_url=%s url=%s key_id=%s secret_len=%s parent_cc=%s child_cc=%s username=%s tbk_user=%s buy_order=%s buy_order_len=%s detail_buy_order=%s detail_buy_order_len=%s amount=%s",
+            tbk_env_effective,
+            c.get("base_url"),
+            url,
+            key_id,
+            secret_len,
+            c.get("parent_cc"),
+            c.get("child_cc"),
+            username,
+            tbk_user,
+            buy_order,
+            len(str(buy_order or "")),
+            d0.get("buy_order"),
+            len(str(d0.get("buy_order") or "")),
+            int(amount),
+        )
 
     # No retries on authorize to avoid duplicate financial operations.
     out = _request_json("POST", url, _headers(), payload, allow_retries=False)
