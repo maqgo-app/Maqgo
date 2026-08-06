@@ -138,7 +138,7 @@ export function AuthProvider({ children }) {
   const initialHasToken = Boolean(localStorage.getItem('token') || localStorage.getItem('authToken'));
 
   const [user, setUser] = useState(
-    initialUserId ? { id: initialUserId, role: initialUserRole } : null
+    initialUserId ? { id: initialUserId, role: initialUserRole, canPayAutomatically: false } : null
   );
   const [providerRole, setProviderRole] = useState(initialProviderRole);
   const [permissions, setPermissions] = useState(
@@ -225,7 +225,7 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
-  const login = useCallback(async (userId, userRole, provRole = 'super_master', ownerIdFromApi = null) => {
+  const login = useCallback(async (userId, userRole, provRole = 'super_master', ownerIdFromApi = null, canPayAutomaticallyFromApi = null) => {
     let normalizedRole = provRole;
     if (normalizedRole === 'owner') normalizedRole = 'super_master';
     localStorage.setItem('userId', userId);
@@ -244,7 +244,11 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('ownerId');
       setOwnerId(null);
     }
-    setUser({ id: userId, role: userRole });
+    const baseUser = { id: userId, role: userRole };
+    if (typeof canPayAutomaticallyFromApi === 'boolean') {
+      baseUser.canPayAutomatically = canPayAutomaticallyFromApi;
+    }
+    setUser(baseUser);
     const permKey = userRole === 'provider' ? normalizedRole : 'super_master';
     setProviderRole(userRole === 'provider' ? normalizedRole : 'super_master');
     const basePerms = DEFAULT_PERMISSIONS[permKey] || DEFAULT_PERMISSIONS.super_master;
@@ -340,7 +344,11 @@ export function AuthProvider({ children }) {
           : 'super_master';
         const oid = data.owner_id || null;
         if (!cancelled) {
-          await login(userId, userRole, rawProviderRole, oid);
+          // Extraer bandera de negocio: ¿puede cobrar automáticamente sin
+          // re-inscripción? Viene SIN conocimiento de OneClick. Si el backend
+          // no lo envía (versión vieja o error), por defecto false → flujo actual.
+          const canPayApi = typeof data.canPayAutomatically === 'boolean' ? data.canPayAutomatically : null;
+          await login(userId, userRole, rawProviderRole, oid, canPayApi);
           if (userRole === 'provider') {
             const role = (rawProviderRole === 'owner' ? 'super_master' : rawProviderRole) || 'super_master';
             const basePerms = DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.super_master;

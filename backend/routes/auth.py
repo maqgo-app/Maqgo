@@ -51,6 +51,7 @@ from security.access_context import build_access_context
 from utils.rbac import is_super_master
 from services.access_block_service import find_active_phone_block
 from services.machines_service import sync_operator_snapshot_across_machines
+from services.payment_registration_service import has_reusable_payment_method
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -358,7 +359,32 @@ def _build_login_sms_session_payload(user: dict, token: str, *, requires_otp: bo
     oid = user.get("owner_id")
     uid = user["id"]
     has_password = bool(str(user.get("password") or "").strip())
-    return {
+
+    # Atributo de negocio (dominio USUARIO): ¿puede cobrar automáticamente sin
+    # re-inscripción? Encapsulado en helper; ruta no conoce MongoDB/PSP.
+    # Importante: pasar sincrónicamente o en el mismo loop; aquí mantenemos la
+    # función originalmente sincrónica; quien la llame debe proveer el valor.
+    can_pay_automatically = (
+        user.get("canPayAutomatically")
+        if isinstance(user.get("canPayAutomatically"), bool)
+        else None
+    )
+
+    user_nested = {
+        "id": user["id"],
+        "name": user.get("name"),
+        "email": user.get("email"),
+        "phone": user.get("phone"),
+        "roles": roles,
+        "role": effective_role,
+        "has_password": has_password,
+        "provider_role": pr,
+        "owner_id": oid,
+    }
+    if isinstance(can_pay_automatically, bool):
+        user_nested["canPayAutomatically"] = can_pay_automatically
+
+    out = {
         "id": uid,
         "user_id": uid,
         "name": user.get("name"),
@@ -371,18 +397,11 @@ def _build_login_sms_session_payload(user: dict, token: str, *, requires_otp: bo
         "has_password": has_password,
         "provider_role": pr,
         "owner_id": oid,
-        "user": {
-            "id": user["id"],
-            "name": user.get("name"),
-            "email": user.get("email"),
-            "phone": user.get("phone"),
-            "roles": roles,
-            "role": effective_role,
-            "has_password": has_password,
-            "provider_role": pr,
-            "owner_id": oid,
-        },
+        "user": user_nested,
     }
+    if isinstance(can_pay_automatically, bool):
+        out["canPayAutomatically"] = can_pay_automatically
+    return out
 
 
 @router.post("/send-otp")
@@ -1227,6 +1246,14 @@ async def login_sms_verify(request: Request, body: LoginSmsVerifyRequest):
 
         clear_hard_lockout(raw_phone)
 
+        # Atributo de negocio del usuario: ¿medio de pago reutilizable listo?
+        # Encapsulado en helper (ruta no conoce Mongo/PSP). Fail-safe a None.
+        try:
+            can_pay_auto = await has_reusable_payment_method(db, user)
+            user = {**user, "canPayAutomatically": bool(can_pay_auto)}
+        except Exception:  # noqa: BLE001
+            user = {**user, "canPayAutomatically": None}
+
         logger.info("LOGIN_SMS_VERIFY success userId=%s roles=%s requested_role=%s", user["id"], roles, req_role)
         log_ops_event(
             logger,
@@ -1463,6 +1490,11 @@ async def auth_me(current_user: dict = Depends(get_current_user)):
     pr = _provider_role_for_api(current_user, roles)
     ctx = build_access_context(current_user, roles, effective_role)
     provider_permissions = ctx.get("permissions") if ctx.get("provider_role") else None
+
+    # Dominio USUARIO: atributo de negocio "¿puede pagar automáticamente?".
+    # La ruta NO SABE de OneClick ni de colecciones. Solo llama al helper.
+    can_pay_automatically = await has_reusable_payment_method(db, current_user)
+
     return {
         "id": current_user["id"],
         "name": current_user.get("name"),
@@ -1478,6 +1510,7 @@ async def auth_me(current_user: dict = Depends(get_current_user)):
         "owner_id": ctx.get("owner_id"),
         "provider_permissions": provider_permissions,
         "active_role": effective_role,
+        "canPayAutomatically": can_pay_automatically,
     }
 
 

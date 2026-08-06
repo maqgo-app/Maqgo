@@ -25,6 +25,7 @@ import { getProviderLandingPath, getProviderOnboardingNextPath } from '../utils/
 import { traceRedirectToLogin } from '../utils/traceLoginRedirect';
 import { peekReturnUrl } from '../utils/registrationReturn';
 import { fetchAndHydrateProviderOnboardingDraft } from '../utils/providerOnboardingDraft';
+import { useAuth } from '../context/authHooks';
 
 /** OTP (Redis + LabsMobile): 30s evita cortar antes que el backend; sin reintentos (evita SMS duplicado). */
 const LOGIN_SMS_START_TIMEOUT_MS = 30000;
@@ -83,6 +84,7 @@ function getHydratedPhoneDigitsFromStorage() {
  * OTP SMS (6 dígitos) cuando step==='otp'. Único flujo OTP unificado (no /verify-sms legacy).
  */
 function LoginScreen({ setUserRole, setUserId }) {
+  const auth = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -348,6 +350,21 @@ function LoginScreen({ setUserRole, setUserId }) {
     setUserId(uid);
     localStorage.setItem('userRole', effectiveRole);
     localStorage.setItem('userRoles', JSON.stringify(roles));
+
+    // P0-001 Reutilización de medios de pago:
+    // Atributo de negocio viene DESDE BACKEND (login-sms/verify o /me).
+    // No se usa localStorage como fuente de verdad.
+    const canPayApiBoolean =
+      typeof data.canPayAutomatically === 'boolean'
+        ? data.canPayAutomatically
+        : (data.user && typeof data.user.canPayAutomatically === 'boolean'
+            ? data.user.canPayAutomatically
+            : null);
+    const originalLogin = auth?.login;
+    if (typeof originalLogin === 'function') {
+      // login() signature: (userId, role, prov?, ownerId?, canPay?)
+      await originalLogin(uid, effectiveRole, providerRole || 'super_master', data.owner_id || null, canPayApiBoolean);
+    }
     if (typeof data.has_password === 'boolean') {
       localStorage.setItem('hasPassword', data.has_password ? '1' : '0');
     } else {

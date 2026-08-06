@@ -15,13 +15,14 @@ import { MaqgoButton } from '../../components/base';
 import { getBookingLocationP5, hasBookingLocation } from '../../utils/mapPlaceToAddress';
 import { PAYMENT_COPY } from '../../constants/bookingPaymentCopy';
 import { useCheckoutState } from '../../context/CheckoutContext';
-import { getOrCreateBookingId } from '../../utils/bookingPaymentKeys';
+import { getOrCreateBookingId, idempotencyKey } from '../../utils/bookingPaymentKeys';
 import { touchCheckoutStateForExhaustiveUi } from '../../domain/checkout/checkoutStateMachine';
 import { useToast } from '../../components/Toast';
 import { vibrate } from '../../utils/uberUX';
 import { isEmpresaBillingComplete } from '../../utils/clientBillingInvoice';
 import { getTruckUrgencySummaryLine } from '../../utils/clientBookingTruck';
 import { getMachineTransportQuote } from '../../utils/transportZones';
+import { useAuth } from '../../context/authHooks';
 
 /** Referencia estable para useMemo (evita deps falsas por array nuevo cada render). */
 const TRIP_PRICE_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
@@ -39,6 +40,7 @@ const TRIP_PRICE_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
  */
 function ConfirmServiceScreen() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const { pathname } = useLocation();
   const backRoute = getBookingBackRoute(pathname);
   /** Una sola lectura coherente por navegación: evita mezclar inmediata/programada por estado inicial congelado. */
@@ -335,6 +337,124 @@ function ConfirmServiceScreen() {
         if (!isEmpresaBillingComplete(billing)) {
           navigate('/client/billing');
           return;
+        }
+      }
+
+      // --- GUARD P0-001: Reutilización medios de pago reutilizables.
+      // Fuente única de verdad = backend (user.canPayAutomatically viene desde
+      // /auth/me o desde login-sms/verify al hacer OTP). NO localStorage.
+      // Si falla la consulta, cae al flujo actual (/client/card) sin bloqueo.
+      let userHasReusablePayment = false;
+      try {
+        const authUser = auth?.user || {};
+        userHasReusablePayment = Boolean(authUser?.canPayAutomatically);
+      } catch (err) {
+        console.warn('[P0-001] Guard hasReusablePayment falló (fail-safe):', err);
+        userHasReusablePayment = false;
+      }
+
+      if (userHasReusablePayment) {
+        // Caso feliz: usuario ya tiene medio de pago listo.
+        // - NO navega /client/card
+        // - NO ejecuta /api/payments/oneclick/start
+        // - Crea la solicitud de servicio DIRECTAMENTE (mismo payload que
+        //   OneClickCompleteScreen) y redirige a /client/searching.
+        try {
+          const authToken = localStorage.getItem('token') || localStorage.getItem('authToken');
+          const clientId = localStorage.getItem('userId');
+          const bookingId = getOrCreateBookingId();
+
+          const serviceLat = parseFloat(localStorage.getItem('serviceLat') || 'NaN');
+          const serviceLng = parseFloat(localStorage.getItem('serviceLng') || 'NaN');
+          const serviceLocation = (() => {
+            try {
+              // reutiliza helpers de mapPlaceToAddress (ya importado)
+              return String(getBookingLocationP5()?.address || '').trim();
+            } catch {
+              return '';
+            }
+          })();
+
+          const basePrice = parseFloat(localStorage.getItem('serviceBasePrice') || '150000');
+          const transportFee = parseFloat(localStorage.getItem('serviceTransportFee') || '0');
+          const totalAmount = parseInt(localStorage.getItem('totalAmount') || localStorage.getItem('maxTotalAmount') || '0', 10);
+          const needsInvoiceFinal = localStorage.getItem('needsInvoice') === 'true';
+          const reservationTypeFinal = localStorage.getItem('reservationType') || 'immediate';
+          const urgencyTypeFinal = localStorage.getItem('urgencyType') || '';
+
+          const urgencyWindowMinutes = (() => {
+            if (String(reservationTypeFinal || '').toLowerCase() !== 'immediate') return null;
+            const t = String(urgencyTypeFinal || '').toLowerCase();
+            if (t === 'urgent') return 90;
+            if (t === 'express') return 240;
+            if (t === 'today') return 480;
+            return null;
+          })();
+
+          const selectedProvider = provider || getObject('selectedProvider', {});
+          const resolvedProviderIds = Array.isArray(selectedProviderIds) && selectedProviderIds.length > 0
+            ? selectedProviderIds
+            : getArray('selectedProviderIds', []);
+          const selectedProviderId =
+            resolvedProviderIds.length > 0 ? resolvedProviderIds[0] : (selectedProvider?.id || selectedProvider?.machineId || undefined);
+
+          // Determinar email del cliente: usar almacenado en perfil o el que está
+          // en booking progress (no se llama oneclick start; el backend usa
+          // oneclick_inscriptions por email del current_user).
+          let clientEmail = (auth?.user?.email || '').trim() || (provider?.email ? String(provider.email).trim() : '');
+          if (!clientEmail) {
+            try {
+              clientEmail = String(localStorage.getItem('clientEmail') || '').trim();
+            } catch {
+              clientEmail = '';
+            }
+          }
+
+          const payload = {
+            booking_id: bookingId,
+            clientId,
+            clientName: String(selectedProvider?.clientName || selectedProvider?.name || 'Cliente MAQGO').trim() || 'Cliente MAQGO',
+            clientEmail: clientEmail || undefined,
+            selectedProviderId,
+            selectedProviderIds: resolvedProviderIds.length ? resolvedProviderIds : undefined,
+            machineId: selectedProvider?.machine_id || selectedProvider?.machineId || undefined,
+            location: {
+              lat: Number.isFinite(serviceLat) ? serviceLat : -33.4489,
+              lng: Number.isFinite(serviceLng) ? serviceLng : -70.6693,
+              address: serviceLocation,
+            },
+            basePrice,
+            transportFee,
+            totalAmount: totalAmount > 0 ? totalAmount : undefined,
+            needsInvoice: needsInvoiceFinal || undefined,
+            machineryType: localStorage.getItem('selectedMachinery') || 'retroexcavadora',
+            workdayAccepted: true,
+            reservationType: reservationTypeFinal,
+            scheduledDate: localStorage.getItem('selectedDate') || undefined,
+            urgencyType: urgencyTypeFinal || undefined,
+            urgencyWindowMinutes: urgencyWindowMinutes || undefined,
+          };
+
+          const { data } = await axios.post(`${BACKEND_URL}/api/service-requests`, payload, {
+            timeout: 12000,
+            headers: {
+              ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+              'Idempotency-Key': idempotencyKey('service-request'),
+            },
+          });
+
+          localStorage.setItem('currentServiceId', String(data.id || ''));
+          if (data.booking_id) localStorage.setItem('maqgo_booking_id', String(data.booking_id));
+          if (data.matching) localStorage.setItem('matchingResult', JSON.stringify(data.matching));
+          dispatchCheckout({ type: 'CARD_SAVED' });
+          saveBookingProgress('matching');
+          navigate('/client/searching', { replace: true });
+          return;
+        } catch (e) {
+          // FAIL-SAFE crìtico: si falla la creación rápida de SR por cualquier
+          // motivo, redirigir al flujo tradicional (/client/card). NO bloquear al
+          // usuario; continuar el flujo existente como si el guard no existiera.
+          console.warn('[P0-001] SR por medio reutilizable falló → cae a /client/card:', e);
         }
       }
 

@@ -26,6 +26,7 @@ import { PAYMENT_COPY } from '../../constants/bookingPaymentCopy';
 import { useCheckout } from '../../context/CheckoutContext';
 import { touchCheckoutStateForExhaustiveUi } from '../../domain/checkout/checkoutStateMachine';
 import { isEmpresaBillingComplete } from '../../utils/clientBillingInvoice';
+import { useAuth } from '../../context/authHooks';
 
 const ONECLICK_ERROR_MESSAGES = {
   token_faltante: 'Transbank no redirigió correctamente. Intenta de nuevo.',
@@ -60,6 +61,7 @@ function absolutePublicApiOrigin(backendBase) {
  */
 function CardPaymentScreen() {
   const navigate = useNavigate();
+  const auth = useAuth();
   /** Solo navegación (volver); el estado transaccional vive en CheckoutContext + respuestas del backend. */
   const { pathname } = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -85,6 +87,23 @@ function CardPaymentScreen() {
   /** Evita doble submit / doble POST a /start mientras la petición está en curso. */
   const submitInFlightRef = useRef(false);
   const { state: checkoutState, dispatch: dispatchCheckout } = useCheckout();
+
+  useEffect(() => {
+    // P0-001 Guard defensivo: incluso si por alguna razón (regresión, navegación
+    // manual, bookmark) el usuario LLEGA a /client/card teniendo ya un medio
+    // de pago reutilizable válido, REDIRIGIR ANTES de mostrar el form
+    // o ejecutar POST /api/payments/oneclick/start.
+    // Fail-safe estricto: si algo falla, seguir flujo actual.
+    try {
+      const hasReusable = Boolean(auth?.user?.canPayAutomatically);
+      if (hasReusable) {
+        navigate('/client/searching', { replace: true });
+        return;
+      }
+    } catch {
+      // no-op: mantener flujo actual por defecto
+    }
+  }, [auth?.user?.canPayAutomatically, navigate]);
 
   useEffect(() => {
     touchCheckoutStateForExhaustiveUi(checkoutState);
