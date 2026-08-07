@@ -1122,110 +1122,111 @@ function AdminDashboard() {
             <MaqgoLogo size="small" style={{ margin: 0 }} />
           </div>
           <div style={{ flex: 1, minWidth: 260 }} />
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-            {/* Campana de alertas urgentes */}
-            <button
-              type="button"
-              aria-label={urgentCount > 0 ? `Tienes ${urgentCount} alertas urgentes` : 'Sin alertas urgentes'}
-              onClick={() => {
-                if (urgentCount > 0) setShowUrgentModal(true);
-              }}
-              disabled={urgentCount === 0}
-              style={{
-                position: 'relative',
-                width: 38,
-                height: 38,
-                borderRadius: '999px',
-                border: urgentCount > 0 ? '1px solid rgba(229,115,115,0.6)' : '1px solid rgba(255,255,255,0.2)',
-                background: urgentCount > 0 ? 'rgba(229,115,115,0.14)' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: urgentCount > 0 ? 'pointer' : 'default',
-                opacity: urgentCount > 0 ? 1 : 0.6,
-              }}
-            >
-              {/* Ícono campana */}
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M12 3C9.79086 3 8 4.79086 8 7V8.2C8 9.09411 7.70361 9.96449 7.1577 10.7L6.44721 11.6524C5.53397 12.872 6.4022 14.6 7.92462 14.6H16.0754C17.5978 14.6 18.466 12.872 17.5528 11.6524L16.8423 10.7C16.2964 9.96449 16 9.09411 16 8.2V7C16 4.79086 14.2091 3 12 3Z"
-                  stroke={urgentCount > 0 ? '#E57373' : '#FFFFFF'}
-                  strokeWidth="1.6"
-                />
-                <path
-                  d="M10 16C10.1709 17.1652 10.9882 18 12 18C13.0118 18 13.8291 17.1652 14 16"
-                  stroke={urgentCount > 0 ? '#E57373' : '#FFFFFF'}
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                />
-              </svg>
-              {urgentCount > 0 && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: -4,
-                    right: -4,
-                    minWidth: 18,
-                    height: 18,
-                    borderRadius: 999,
-                    background: '#E57373',
-                    color: '#fff',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '0 4px',
-                  }}
-                >
-                  {urgentCount > 9 ? '9+' : urgentCount}
-                </span>
-              )}
-            </button>
-            <div
-              style={{
-                display: 'flex',
-                gap: 6,
-                padding: 4,
-                borderRadius: 999,
-                border: `1px solid ${ADMIN_THEME.border}`,
-                background: 'rgba(255,255,255,0.04)',
-              }}
-            >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0, flex: 1, alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', width: '100%' }}>
+              {/* Campana de alertas urgentes */}
               <button
                 type="button"
-                onClick={() => setAdminArea('today')}
+                aria-label={urgentCount > 0 ? `Tienes ${urgentCount} alertas urgentes` : 'Sin alertas urgentes'}
+                onClick={() => {
+                  if (urgentCount > 0) setShowUrgentModal(true);
+                }}
+                disabled={urgentCount === 0}
                 style={{
-                  padding: '8px 12px',
+                  position: 'relative',
+                  width: 38,
+                  height: 38,
+                  borderRadius: '999px',
+                  border: urgentCount > 0 ? '1px solid rgba(229,115,115,0.6)' : '1px solid rgba(255,255,255,0.2)',
+                  background: urgentCount > 0 ? 'rgba(229,115,115,0.14)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: urgentCount > 0 ? 'pointer' : 'default',
+                  opacity: urgentCount > 0 ? 1 : 0.6,
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M12 3C9.79086 3 8 4.79086 8 7V8.2C8 9.09411 7.70361 9.96449 7.1577 10.7L6.44721 11.6524C5.53397 12.872 6.4022 14.6 7.92462 14.6H16.0754C17.5978 14.6 18.466 12.872 17.5528 11.6524L16.8423 10.7C16.2964 9.96449 16 9.09411 16 8.2V7C16 4.79086 14.2091 3 12 3Z"
+                    stroke={urgentCount > 0 ? '#E57373' : '#FFFFFF'}
+                    strokeWidth="1.6"
+                  />
+                  <path
+                    d="M10 16C10.1709 17.1652 10.9882 18 12 18C13.0118 18 13.8291 17.1652 14 16"
+                    stroke={urgentCount > 0 ? '#E57373' : '#FFFFFF'}
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                {urgentCount > 0 && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      minWidth: 18,
+                      height: 18,
+                      borderRadius: 999,
+                      background: '#E57373',
+                      color: '#fff',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 4px',
+                    }}
+                  >
+                    {urgentCount > 9 ? '9+' : urgentCount}
+                  </span>
+                )}
+              </button>
+              {/* FILA 1 · VISTAS / FILTROS INTERNOS (misma pantalla Dashboard) */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 6,
+                  padding: 4,
                   borderRadius: 999,
-                  border: 'none',
+                  border: `1px solid ${ADMIN_THEME.border}`,
+                  background: 'rgba(255,255,255,0.04)',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setAdminArea('today')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 999,
+                    border: 'none',
                     background: adminArea === 'today' ? 'rgba(255,255,255,0.08)' : 'transparent',
                     color: adminArea === 'today' ? '#fff' : 'rgba(255,255,255,0.75)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Hoy
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdminArea('system')}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 999,
-                  border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Hoy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminArea('system')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 999,
+                    border: 'none',
                     background: adminArea === 'system' ? 'rgba(255,255,255,0.08)' : 'transparent',
                     color: adminArea === 'system' ? '#fff' : 'rgba(255,255,255,0.75)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Operación
-              </button>
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Operación
+                </button>
                 <button
                   type="button"
                   onClick={() => setAdminArea('platform')}
@@ -1243,236 +1244,262 @@ function AdminDashboard() {
                 >
                   Plataforma
                 </button>
-              <button
-                type="button"
-                onClick={() => setAdminArea('access')}
+                <button
+                  type="button"
+                  onClick={() => setAdminArea('money')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 999,
+                    border: 'none',
+                    background: adminArea === 'money' ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    color: adminArea === 'money' ? '#fff' : 'rgba(255,255,255,0.75)',
+                    cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                    opacity: actionsLocked ? 0.55 : 1,
+                  }}
+                  disabled={actionsLocked}
+                >
+                  Finanzas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminArea('access')}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 999,
+                    border: 'none',
+                    background: adminArea === 'access' ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    color: adminArea === 'access' ? '#fff' : 'rgba(255,255,255,0.75)',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Acceso
+                </button>
+              </div>
+              {/* FILA 1 · LINKS A OTRAS PANTALLAS ADMIN (Fuera de este Dashboard). Evita repetición de "Facturación/Precios/Marketing" */}
+              <div
                 style={{
-                  padding: '8px 12px',
-                  borderRadius: 999,
-                  border: 'none',
-                  background: adminArea === 'access' ? 'rgba(255,255,255,0.08)' : 'transparent',
-                  color: adminArea === 'access' ? '#fff' : 'rgba(255,255,255,0.75)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  gap: 8,
+                  padding: 4,
+                  borderRadius: 12,
+                  border: `1px solid ${ADMIN_THEME.border}`,
+                  background: 'rgba(255,255,255,0.03)',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
                 }}
               >
-                Acceso
+                <button
+                  type="button"
+                  disabled={actionsLocked}
+                  title={actionsLocked ? 'Requiere conexión al API' : undefined}
+                  onClick={() => !actionsLocked && navigate('/admin/users')}
+                  style={{
+                    padding: '8px 14px',
+                    background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    borderRadius: 10,
+                    color: '#fff',
+                    cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    opacity: actionsLocked ? 0.55 : 1,
+                  }}
+                >
+                  Usuarios
+                </button>
+                <button
+                  type="button"
+                  disabled={actionsLocked}
+                  title={actionsLocked ? 'Requiere conexión al API' : undefined}
+                  onClick={() => !actionsLocked && navigate('/admin/pricing')}
+                  style={{
+                    padding: '8px 14px',
+                    background: 'transparent',
+                    border: '1px solid rgba(236,104,25,0.45)',
+                    borderRadius: 10,
+                    color: ADMIN_PALETTE.brand,
+                    cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    opacity: actionsLocked ? 0.55 : 1,
+                  }}
+                >
+                  Precios
+                </button>
+                <button
+                  type="button"
+                  disabled={actionsLocked}
+                  title={actionsLocked ? 'Requiere conexión al API' : 'Inversión semanal por canal, audiencia y CAC'}
+                  onClick={() => !actionsLocked && navigate('/admin/marketing')}
+                  style={{
+                    padding: '8px 14px',
+                    background: 'transparent',
+                    border: '1px solid rgba(126, 184, 212, 0.45)',
+                    borderRadius: 10,
+                    color: ADMIN_PALETTE.info,
+                    cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    opacity: actionsLocked ? 0.55 : 1,
+                  }}
+                >
+                  Marketing &amp; CAC
+                </button>
+                <button
+                  type="button"
+                  disabled={actionsLocked}
+                  title={actionsLocked ? 'Requiere conexión al API' : 'Cerebro comercial MAQGO'}
+                  onClick={() => !actionsLocked && navigate('/admin/growth-ai')}
+                  style={{
+                    padding: '8px 14px',
+                    background: 'transparent',
+                    border: '1px solid rgba(236,104,25,0.55)',
+                    borderRadius: 10,
+                    color: ADMIN_PALETTE.brand,
+                    cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    opacity: actionsLocked ? 0.55 : 1,
+                  }}
+                >
+                  Growth AI
+                </button>
+              </div>
+            </div>
+
+            {/* FILA 2 · ACCIONES / REPORTES / DESCARGAS (no navegación). Elimina la repetición de Facturación/Precios y Planilla duplicada */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', width: '100%' }}>
+              <button
+                type="button"
+                onClick={downloadPlanillaGuarded}
+                disabled={actionsLocked}
+                title={actionsLocked ? 'Sin conexión al servidor' : 'Descargar planilla CSV de pagos aprobados'}
+                style={{
+                  padding: '8px 14px',
+                  background: stats.invoiced > 0 ? 'rgba(236, 104, 25, 0.22)' : 'transparent',
+                  border: `1px solid ${stats.invoiced > 0 ? 'rgba(236, 104, 25, 0.55)' : 'rgba(255,255,255,0.2)'}`,
+                  borderRadius: 10,
+                  color: stats.invoiced > 0 ? '#fff' : 'rgba(255,255,255,0.8)',
+                  cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  opacity: actionsLocked ? 0.55 : 1,
+                }}
+              >
+                📥 Descargar planilla pagos
+              </button>
+              <button
+                type="button"
+                id="admin-operacion"
+                onClick={() => fetchWeeklyReportGuarded(0)}
+                disabled={loadingReport || actionsLocked}
+                style={{
+                  padding: '8px 14px',
+                  background: '#EC6819',
+                  border: 'none',
+                  borderRadius: 10,
+                  color: '#fff',
+                  cursor: loadingReport || actionsLocked ? 'not-allowed' : 'pointer',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  opacity: actionsLocked ? 0.55 : 1,
+                }}
+                title="Informe semanal de operación (semana actual)"
+              >
+                {loadingReport ? 'Cargando...' : '📋 Operación (semana actual)'}
+              </button>
+              <button
+                type="button"
+                id="admin-operacion-prev-week"
+                onClick={() => fetchWeeklyReportGuarded(1)}
+                disabled={loadingReport || actionsLocked}
+                style={{
+                  padding: '8px 14px',
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: 10,
+                  color: '#fff',
+                  cursor: loadingReport || actionsLocked ? 'not-allowed' : 'pointer',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  opacity: actionsLocked ? 0.55 : 1,
+                }}
+                title="Informe listo para imprimir los lunes a las 10: semana anterior completa"
+              >
+                {loadingReport ? 'Cargando...' : '🖨 Weekly report (semana anterior)'}
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadWeeklyPdfGuarded(1)}
+                disabled={actionsLocked}
+                style={{
+                  padding: '8px 14px',
+                  background: 'transparent',
+                  border: '1px solid rgba(129, 199, 132, 0.5)',
+                  borderRadius: 10,
+                  color: '#81C784',
+                  cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  opacity: actionsLocked ? 0.55 : 1,
+                }}
+                title="Descargar informe semanal en PDF (semana anterior, listo para imprimir)"
+              >
+                🖨 PDF semana anterior
+              </button>
+              <button
+                type="button"
+                onClick={openReportSubscriptions}
+                disabled={actionsLocked}
+                style={{
+                  padding: '8px 14px',
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: 10,
+                  color: '#fff',
+                  cursor: actionsLocked ? 'not-allowed' : 'pointer',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  opacity: actionsLocked ? 0.55 : 1,
+                }}
+                title={actionsLocked ? 'Sin conexión al servidor' : 'Configurar destinatarios de reportes semanales y mensuales'}
+              >
+                📧 Destinatarios reportes
+              </button>
+              <button
+                type="button"
+                className="maqgo-btn-secondary"
+                onClick={() => navigate('/welcome?preview=1')}
+                aria-label="Vista previa de la portada pública MAQGO (sin CTAs de mercado)"
+                style={{ borderRadius: 10 }}
+              >
+                Ver portada pública
+              </button>
+              <button
+                onClick={() => {
+                  clearLocalSession();
+                  navigate('/welcome', { replace: true });
+                }}
+                style={{
+                  padding: '8px 14px',
+                  background: 'transparent',
+                  border: '1px solid rgba(229, 115, 115, 0.45)',
+                  borderRadius: 10,
+                  color: ADMIN_PALETTE.danger,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                Cerrar sesión
               </button>
             </div>
-            <button
-              type="button"
-              disabled={actionsLocked}
-              title={actionsLocked ? 'Requiere conexión al API' : undefined}
-              onClick={() => !actionsLocked && setAdminArea('money')}
-              style={{
-                padding: '8px 16px',
-                background: adminArea === 'money' ? 'rgba(255,255,255,0.08)' : 'transparent',
-                border: `1px solid ${adminArea === 'money' ? ADMIN_THEME.borderStrong : 'rgba(255,255,255,0.2)'}`,
-                borderRadius: 8,
-                color: adminArea === 'money' ? '#fff' : 'rgba(255,255,255,0.85)',
-                cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                fontWeight: 800,
-                opacity: actionsLocked ? 0.45 : 1,
-              }}
-            >
-              Facturación y pagos
-            </button>
-            <button
-              type="button"
-              disabled={actionsLocked}
-              title={actionsLocked ? 'Requiere conexión al API' : undefined}
-              onClick={() => !actionsLocked && navigate('/admin/users')}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 8,
-                color: '#fff',
-                cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                opacity: actionsLocked ? 0.45 : 1,
-              }}
-            >
-              Usuarios
-            </button>
-            <button
-              type="button"
-              disabled={actionsLocked}
-              title={actionsLocked ? 'Requiere conexión al API' : undefined}
-              onClick={() => !actionsLocked && navigate('/admin/pricing')}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 8,
-                color: '#fff',
-                cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                opacity: actionsLocked ? 0.45 : 1,
-              }}
-            >
-              Precios
-            </button>
-            <button
-              type="button"
-              disabled={actionsLocked}
-              title={actionsLocked ? 'Requiere conexión al API' : 'Inversión semanal por canal, audiencia y CAC'}
-              onClick={() => !actionsLocked && navigate('/admin/marketing')}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(126, 184, 212, 0.45)',
-                borderRadius: 8,
-                color: ADMIN_PALETTE.info,
-                cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                opacity: actionsLocked ? 0.45 : 1,
-              }}
-            >
-              Marketing & CAC
-            </button>
-            <button
-              type="button"
-              disabled={actionsLocked}
-              title={actionsLocked ? 'Requiere conexión al API' : 'Cerebro comercial MAQGO'}
-              onClick={() => !actionsLocked && navigate('/admin/growth-ai')}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(236, 104, 25, 0.45)',
-                borderRadius: 8,
-                color: ADMIN_PALETTE.brand,
-                cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                opacity: actionsLocked ? 0.45 : 1,
-              }}
-            >
-              Growth AI
-            </button>
-            <button
-              type="button"
-              onClick={downloadPlanillaGuarded}
-              disabled={actionsLocked}
-              title={actionsLocked ? 'Sin conexión al servidor' : undefined}
-              style={{
-                padding: '8px 16px',
-                background: stats.invoiced > 0 ? 'rgba(236, 104, 25, 0.22)' : 'transparent',
-                border: `1px solid ${stats.invoiced > 0 ? 'rgba(236, 104, 25, 0.55)' : 'rgba(255,255,255,0.2)'}`,
-                borderRadius: 8,
-                color: stats.invoiced > 0 ? '#fff' : 'rgba(255,255,255,0.8)',
-                cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                opacity: actionsLocked ? 0.45 : 1,
-              }}
-            >
-              📥 Planilla pagos
-            </button>
-            <button
-              type="button"
-              id="admin-operacion"
-              onClick={() => fetchWeeklyReportGuarded(0)}
-              disabled={loadingReport || actionsLocked}
-              style={{
-                padding: '8px 16px',
-                background: '#EC6819',
-                border: 'none',
-                borderRadius: 8,
-                color: '#fff',
-                cursor: loadingReport || actionsLocked ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-                opacity: actionsLocked ? 0.45 : 1,
-              }}
-              title="Informe semanal de operación (semana actual)"
-            >
-              {loadingReport ? 'Cargando...' : '📋 Operación (semana actual)'}
-            </button>
-            <button
-              type="button"
-              id="admin-operacion-prev-week"
-              onClick={() => fetchWeeklyReportGuarded(1)}
-              disabled={loadingReport || actionsLocked}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.25)',
-                borderRadius: 8,
-                color: '#fff',
-                cursor: loadingReport || actionsLocked ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-                opacity: actionsLocked ? 0.45 : 1,
-              }}
-              title="Informe listo para imprimir los lunes a las 10: semana anterior completa"
-            >
-              {loadingReport ? 'Cargando...' : '🖨 Weekly report (semana anterior)'}
-            </button>
-            <button
-              type="button"
-              onClick={() => downloadWeeklyPdfGuarded(1)}
-              disabled={actionsLocked}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(129, 199, 132, 0.5)',
-                borderRadius: 8,
-                color: '#81C784',
-                cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-                opacity: actionsLocked ? 0.45 : 1,
-              }}
-              title="Descargar informe semanal en PDF (semana anterior, listo para imprimir)"
-            >
-              🖨 PDF semana anterior
-            </button>
-            <button
-              type="button"
-              onClick={openReportSubscriptions}
-              disabled={actionsLocked}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.25)',
-                borderRadius: 8,
-                color: '#fff',
-                cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-                opacity: actionsLocked ? 0.45 : 1,
-              }}
-              title={actionsLocked ? 'Sin conexión al servidor' : 'Configurar destinatarios de reportes semanales y mensuales'}
-            >
-              📧 Destinatarios
-            </button>
-            <button
-              type="button"
-              className="maqgo-btn-secondary"
-              onClick={() => navigate('/welcome?preview=1')}
-              aria-label="Vista previa de la portada pública MAQGO (sin CTAs de mercado)"
-            >
-              Ver portada pública
-            </button>
-            <button
-              onClick={() => {
-                clearLocalSession();
-                navigate('/welcome', { replace: true });
-              }}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: `1px solid rgba(229, 115, 115, 0.45)`,
-                borderRadius: 8,
-                color: ADMIN_PALETTE.danger,
-                cursor: 'pointer',
-                fontSize: 13
-              }}
-            >
-              Cerrar sesión
-            </button>
           </div>
         </div>
         <div style={{ maxWidth: 1400, margin: '6px auto 0' }}>
