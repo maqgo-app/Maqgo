@@ -1227,26 +1227,6 @@ function AdminDashboard() {
                 >
                   Operación
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAdminArea('money')}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 999,
-                    border: 'none',
-                    background: adminArea === 'money' ? 'rgba(255,255,255,0.08)' : 'transparent',
-                    color: adminArea === 'money' ? '#fff' : 'rgba(255,255,255,0.75)',
-                    cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                    fontSize: 13,
-                    fontWeight: 800,
-                    whiteSpace: 'nowrap',
-                    opacity: actionsLocked ? 0.55 : 1,
-                  }}
-                  disabled={actionsLocked}
-                >
-                  Finanzas
-                </button>
                 <button
                   type="button"
                   onClick={() => setAdminArea('access')}
