@@ -1227,23 +1227,7 @@ function AdminDashboard() {
                 >
                   Operación
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setAdminArea('platform')}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 999,
-                    border: 'none',
-                    background: adminArea === 'platform' ? 'rgba(255,255,255,0.08)' : 'transparent',
-                    color: adminArea === 'platform' ? '#fff' : 'rgba(255,255,255,0.75)',
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    fontWeight: 800,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Plataforma
-                </button>
+
                 <button
                   type="button"
                   onClick={() => setAdminArea('money')}
