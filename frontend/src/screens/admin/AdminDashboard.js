@@ -1245,61 +1245,8 @@ function AdminDashboard() {
                   Acceso
                 </button>
               </div>
-              {/* FILA 1 · LINKS A OTRAS PANTALLAS ADMIN (Fuera de este Dashboard). Evita repetición de "Facturación/Precios/Marketing" */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  padding: 4,
-                  borderRadius: 12,
-                  border: `1px solid ${ADMIN_THEME.border}`,
-                  background: 'rgba(255,255,255,0.03)',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                }}
-              >
-                <button
-                  type="button"
-                  disabled={actionsLocked}
-                  title={actionsLocked ? 'Requiere conexión al API' : 'Inversión semanal por canal, audiencia y CAC'}
-                  onClick={() => !actionsLocked && navigate('/admin/marketing')}
-                  style={{
-                    padding: '8px 14px',
-                    background: 'transparent',
-                    border: '1px solid rgba(126, 184, 212, 0.45)',
-                    borderRadius: 10,
-                    color: ADMIN_PALETTE.info,
-                    cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    opacity: actionsLocked ? 0.55 : 1,
-                  }}
-                >
-                  Marketing &amp; CAC
-                </button>
-                <button
-                  type="button"
-                  disabled={actionsLocked}
-                  title={actionsLocked ? 'Requiere conexión al API' : 'Cerebro comercial MAQGO'}
-                  onClick={() => !actionsLocked && navigate('/admin/growth-ai')}
-                  style={{
-                    padding: '8px 14px',
-                    background: 'transparent',
-                    border: '1px solid rgba(236,104,25,0.55)',
-                    borderRadius: 10,
-                    color: ADMIN_PALETTE.brand,
-                    cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    opacity: actionsLocked ? 0.55 : 1,
-                  }}
-                >
-                  Growth AI
-                </button>
-              </div>
             </div>
 
-            {/* FILA 2 · ACCIONES / REPORTES / DESCARGAS (no navegación). Elimina la repetición de Facturación/Precios y Planilla duplicada */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', width: '100%' }}>
               <button
                 type="button"

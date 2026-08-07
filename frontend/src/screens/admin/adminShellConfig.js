@@ -43,6 +43,7 @@ export const ADMIN_NAV_GROUPS = [
   {
     label: 'Ajustes',
     items: [
+      { key: 'marketing', label: 'Marketing & CAC', path: '/admin/marketing' },
       { key: 'growth-ai', label: 'Growth AI', path: '/admin/growth-ai' },
       { key: 'configuracion', label: 'Configuracion', path: '/admin/configuracion' },
       { key: 'parametros', label: 'Reglas de negocio', path: '/admin/parametros' },
@@ -267,6 +268,20 @@ export const ADMIN_DOMAIN_META = {
     ],
     actions: [
       { label: 'Abrir Growth AI', to: '/admin/growth-ai', tone: 'primary' },
+    ],
+  },
+  marketing: {
+    title: 'Marketing & CAC',
+    subtitle: 'Inversion, canales y costo de adquisicion',
+    summary:
+      'Ordena la inversion por canal, audiencia y mide el costo de adquisicion contra el crecimiento del marketplace.',
+    responsibilities: [
+      'Gobernar inversion por canal y semana',
+      'Medir CAC y comparar con valor por cliente',
+      'Relacionar audiencia, canales y conversion a reserva pagada',
+    ],
+    actions: [
+      { label: 'Abrir Marketing & CAC', to: '/admin/marketing', tone: 'primary' },
     ],
   },
 };
