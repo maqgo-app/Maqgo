@@ -606,7 +606,7 @@ function AdminPricingScreen() {
                             if (getMachineryCapacityOptions(id)) {
                               return (
                                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 700 }}>
-                                  Sin cap.
+                                  Sin especif.
                                 </span>
                               );
                             }
@@ -636,7 +636,7 @@ function AdminPricingScreen() {
                       {selectedMachineId && getMachineryCapacityOptions(selectedMachineId) && (prices.by_capacity || {})[selectedMachineId] ? (
                         <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
                           <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
-                            Precio hora por capacidad
+                            Precio hora por especificacion
                           </div>
                           <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
                             <span>{getMachineryCapacityOptions(selectedMachineId)?.providerLabel || 'Capacidad'}</span>
@@ -760,7 +760,7 @@ function AdminPricingScreen() {
                       }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 800, color: ADMIN_PALETTE.brand, textTransform: 'uppercase' }}>
-                            Precio hora por capacidad
+                            Precio hora por especificacion
                           </div>
                           <div style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginTop: 4 }}>
                             {MACHINE_NAMES[machineId] || machineId}
