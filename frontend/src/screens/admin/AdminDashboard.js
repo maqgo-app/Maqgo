@@ -1261,44 +1261,6 @@ function AdminDashboard() {
                 <button
                   type="button"
                   disabled={actionsLocked}
-                  title={actionsLocked ? 'Requiere conexión al API' : undefined}
-                  onClick={() => !actionsLocked && navigate('/admin/users')}
-                  style={{
-                    padding: '8px 14px',
-                    background: 'transparent',
-                    border: '1px solid rgba(255,255,255,0.18)',
-                    borderRadius: 10,
-                    color: '#fff',
-                    cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    opacity: actionsLocked ? 0.55 : 1,
-                  }}
-                >
-                  Usuarios
-                </button>
-                <button
-                  type="button"
-                  disabled={actionsLocked}
-                  title={actionsLocked ? 'Requiere conexión al API' : undefined}
-                  onClick={() => !actionsLocked && navigate('/admin/pricing')}
-                  style={{
-                    padding: '8px 14px',
-                    background: 'transparent',
-                    border: '1px solid rgba(236,104,25,0.45)',
-                    borderRadius: 10,
-                    color: ADMIN_PALETTE.brand,
-                    cursor: actionsLocked ? 'not-allowed' : 'pointer',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    opacity: actionsLocked ? 0.55 : 1,
-                  }}
-                >
-                  Precios
-                </button>
-                <button
-                  type="button"
-                  disabled={actionsLocked}
                   title={actionsLocked ? 'Requiere conexión al API' : 'Inversión semanal por canal, audiencia y CAC'}
                   onClick={() => !actionsLocked && navigate('/admin/marketing')}
                   style={{
