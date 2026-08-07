@@ -37,6 +37,28 @@ function AdminPricingScreen() {
   const [selectedMachineId, setSelectedMachineId] = useState('');
   const [search, setSearch] = useState('');
 
+  const formatCapacityRangeLabel = (machineId, configuredCapacityKeys) => {
+    const cfg = getMachineryCapacityOptions(machineId);
+    if (!cfg) return null;
+    const keys = Array.isArray(configuredCapacityKeys) && configuredCapacityKeys.length
+      ? configuredCapacityKeys
+      : cfg.options || [];
+    if (!keys.length) return null;
+    const numeric = keys
+      .map((k) => {
+        const n = Number(k);
+        return Number.isFinite(n) ? n : null;
+      })
+      .filter((n) => n !== null);
+    numeric.sort((a, b) => a - b);
+    if (numeric.length === 0) return null;
+    const unit = cfg.unitDisplay || '';
+    if (numeric.length === 1) return `${numeric[0]} ${unit}`.trim();
+    const min = numeric[0];
+    const max = numeric[numeric.length - 1];
+    return `${min}-${max} ${unit}`.trim();
+  };
+
   const goDashboardArea = (area) => {
     const routeByArea = {
       today: '/admin/reservas',
@@ -570,9 +592,25 @@ function AdminPricingScreen() {
                           <span style={{ fontSize: 13, fontWeight: 900, opacity: active ? 1 : 0.9 }}>
                             {MACHINE_NAMES[id] || id}
                           </span>
-                          {getMachineryCapacityOptions(id) ? (
-                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 800 }}>Cap.</span>
-                          ) : null}
+                          {(function () {
+                            const configuredCapacityKeys = Object.keys((prices.by_capacity || {})[id] || {});
+                            const rangeLabel = formatCapacityRangeLabel(id, configuredCapacityKeys);
+                            if (rangeLabel) {
+                              return (
+                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 800 }}>
+                                  {rangeLabel}
+                                </span>
+                              );
+                            }
+                            if (getMachineryCapacityOptions(id)) {
+                              return (
+                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontWeight: 700 }}>
+                                  Sin cap.
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                         </button>
                       );
                     })}
@@ -606,25 +644,6 @@ function AdminPricingScreen() {
                         </div>
                         {selectedMachineId && (prices.per_hour || {})[selectedMachineId] ? (
                           <PriceRow type="per_hour" machineId={selectedMachineId} />
-                        ) : (
-                          <div style={{ padding: '12px 16px', color: ADMIN_THEME.textMuted, fontSize: 13 }}>
-                            No aplica / no configurado.
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
-                        <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
-                          Precio base por servicio
-                        </div>
-                        <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
-                          <span>Maquinaria</span>
-                          <span>Mín</span>
-                          <span>Máx</span>
-                          <span>Sugerido</span>
-                        </div>
-                        {selectedMachineId && (prices.per_service || {})[selectedMachineId] ? (
-                          <PriceRow type="per_service" machineId={selectedMachineId} />
                         ) : (
                           <div style={{ padding: '12px 16px', color: ADMIN_THEME.textMuted, fontSize: 13 }}>
                             No aplica / no configurado.
@@ -692,29 +711,6 @@ function AdminPricingScreen() {
                 <span>Sugerido</span>
               </div>
               {Object.keys(prices.per_hour || {}).map(id => <PriceRow key={id} type="per_hour" machineId={id} />)}
-            </div>
-
-            <div style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', border: `1px solid ${ADMIN_THEME.border}` }}>
-              <div style={{
-                padding: '14px 16px',
-                background: ADMIN_THEME.panelBgSoft,
-                fontSize: 12,
-                color: ADMIN_PALETTE.brand,
-                fontWeight: 600,
-                textTransform: 'uppercase'
-              }}>
-                Precio base por servicio
-              </div>
-              <div style={{ padding: '10px 16px', color: ADMIN_THEME.textMuted, fontSize: 12, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
-                Precio general por viaje o servicio. Si el equipo cambia mucho por capacidad, usa además el detalle por capacidad.
-              </div>
-              <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
-                <span>Maquinaria</span>
-                <span>Mín (CLP)</span>
-                <span>Máx (CLP)</span>
-                <span>Sugerido</span>
-              </div>
-              {Object.keys(prices.per_service || {}).map(id => <PriceRow key={id} type="per_service" machineId={id} />)}
             </div>
 
             {capacityMachineIds.length > 0 && (
