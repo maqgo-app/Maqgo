@@ -350,6 +350,7 @@ function AdminPricingScreen() {
   };
 
   const capacityMachineIds = Object.keys(prices.by_capacity || {}).filter((machineId) => getMachineryCapacityOptions(machineId));
+  const genericHourMachineIds = Object.keys(prices.per_hour || {}).filter((machineId) => !getMachineryCapacityOptions(machineId));
   const transport = prices.transport || {};
 
   const machineIds = React.useMemo(() => {
@@ -632,34 +633,15 @@ function AdminPricingScreen() {
                     </div>
 
                     <div style={{ padding: 16, display: 'grid', gap: 14 }}>
-                      <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
-                        <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
-                          Precio base por hora
-                        </div>
-                        <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
-                          <span>Maquinaria</span>
-                          <span>Mín</span>
-                          <span>Máx</span>
-                          <span>Sugerido</span>
-                        </div>
-                        {selectedMachineId && (prices.per_hour || {})[selectedMachineId] ? (
-                          <PriceRow type="per_hour" machineId={selectedMachineId} />
-                        ) : (
-                          <div style={{ padding: '12px 16px', color: ADMIN_THEME.textMuted, fontSize: 13 }}>
-                            No aplica / no configurado.
-                          </div>
-                        )}
-                      </div>
-
                       {selectedMachineId && getMachineryCapacityOptions(selectedMachineId) && (prices.by_capacity || {})[selectedMachineId] ? (
                         <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
                           <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
-                            Referencia por capacidad
+                            Precio hora por capacidad
                           </div>
                           <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
                             <span>{getMachineryCapacityOptions(selectedMachineId)?.providerLabel || 'Capacidad'}</span>
-                            <span>Mín</span>
-                            <span>Máx</span>
+                            <span>Min</span>
+                            <span>Max</span>
                             <span>Sugerido</span>
                           </div>
                           {Object.keys((prices.by_capacity || {})[selectedMachineId] || {}).map((capacityKey) => (
@@ -668,20 +650,62 @@ function AdminPricingScreen() {
                         </div>
                       ) : null}
 
+                      {selectedMachineId && (!getMachineryCapacityOptions(selectedMachineId) || !(prices.by_capacity || {})[selectedMachineId]) ? (
+                        <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                          <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
+                            Precio hora generico
+                          </div>
+                          <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                            <span>Maquinaria</span>
+                            <span>Min</span>
+                            <span>Max</span>
+                            <span>Sugerido</span>
+                          </div>
+                          {(prices.per_hour || {})[selectedMachineId] ? (
+                            <PriceRow type="per_hour" machineId={selectedMachineId} />
+                          ) : (
+                            <div style={{ padding: '12px 16px', color: ADMIN_THEME.textMuted, fontSize: 13 }}>
+                              No aplica / no configurado.
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+
+                      {Object.keys(prices.per_service || {}).length > 0 ? (
+                        <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                          <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
+                            Precio servicio por tramo (TIPO B)
+                          </div>
+                          <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                            <span>Tramo</span>
+                            <span>Min</span>
+                            <span>Max</span>
+                            <span>Sugerido</span>
+                          </div>
+                          {(prices.per_service || {})[selectedMachineId] ? (
+                            <PriceRow type="per_service" machineId={selectedMachineId} />
+                          ) : (
+                            <div style={{ padding: '12px 16px', color: ADMIN_THEME.textMuted, fontSize: 13 }}>
+                              Esta maquinaria no usa precio por servicio.
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+
                       <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
                         <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
-                          Traslado referencial (intra / inter)
+                          Traslado por tramo
                         </div>
                         <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
                           <span>Tramo</span>
-                          <span>Mín</span>
-                          <span>Máx</span>
+                          <span>Min</span>
+                          <span>Max</span>
                           <span>Sugerido</span>
                         </div>
                         <div style={{ padding: 12, display: 'grid', gap: 10 }}>
                           <TransportRangeEditor title="Dentro de la comuna" segmentKey="same_comuna" tone="intra" />
-                          <TransportRangeEditor title="Entre comunas (misma región)" segmentKey="intercomuna" tone="inter" />
-                          <TransportRangeEditor title="Interregional" segmentKey="interregional" tone="interreg" />
+                          <TransportRangeEditor title="Entre comunas (misma region)" segmentKey="intercomuna" tone="inter" />
+                          <TransportRangeEditor title="Interregional / hasta 150 km" segmentKey="interregional" tone="interreg" />
                         </div>
                       </div>
                     </div>
@@ -690,31 +714,33 @@ function AdminPricingScreen() {
               </div>
             ) : (
               <>
-            <div style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', marginBottom: 24, border: `1px solid ${ADMIN_THEME.border}` }}>
-              <div style={{
-                padding: '14px 16px',
-                background: ADMIN_THEME.panelBgSoft,
-                fontSize: 12,
-                color: ADMIN_PALETTE.brand,
-                fontWeight: 600,
-                textTransform: 'uppercase'
-              }}>
-                Precio base por hora
+            {genericHourMachineIds.length > 0 && (
+              <div style={{ background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', marginBottom: 24, border: `1px solid ${ADMIN_THEME.border}` }}>
+                <div style={{
+                  padding: '14px 16px',
+                  background: ADMIN_THEME.panelBgSoft,
+                  fontSize: 12,
+                  color: ADMIN_PALETTE.brand,
+                  fontWeight: 600,
+                  textTransform: 'uppercase'
+                }}>
+                  Precio hora generico
+                </div>
+                <div style={{ padding: '10px 16px', color: ADMIN_THEME.textMuted, fontSize: 12, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+                  Maquinaria sin distincion por capacidad (1 tarifa por hora).
+                </div>
+                <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                  <span>Maquinaria</span>
+                  <span>Min (CLP)</span>
+                  <span>Max (CLP)</span>
+                  <span>Sugerido</span>
+                </div>
+                {genericHourMachineIds.map((id) => <PriceRow key={id} type="per_hour" machineId={id} />)}
               </div>
-              <div style={{ padding: '10px 16px', color: ADMIN_THEME.textMuted, fontSize: 12, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
-                Piso general por tipo. Si la maquinaria distingue capacidad, ajusta también su bloque específico más abajo.
-              </div>
-              <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
-                <span>Maquinaria</span>
-                <span>Mín (CLP)</span>
-                <span>Máx (CLP)</span>
-                <span>Sugerido</span>
-              </div>
-              {Object.keys(prices.per_hour || {}).map(id => <PriceRow key={id} type="per_hour" machineId={id} />)}
-            </div>
+            )}
 
             {capacityMachineIds.length > 0 && (
-              <div style={{ marginTop: 24, display: 'grid', gap: 16 }}>
+              <div style={{ marginTop: genericHourMachineIds.length ? 24 : 0, display: 'grid', gap: 16 }}>
                 {capacityMachineIds.map((machineId) => {
                   const capacityConfig = getMachineryCapacityOptions(machineId);
                   const capacityKeys = Object.keys((prices.by_capacity || {})[machineId] || {});
@@ -734,7 +760,7 @@ function AdminPricingScreen() {
                       }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 800, color: ADMIN_PALETTE.brand, textTransform: 'uppercase' }}>
-                            Referencia por capacidad
+                            Precio hora por capacidad
                           </div>
                           <div style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginTop: 4 }}>
                             {MACHINE_NAMES[machineId] || machineId}
@@ -746,8 +772,8 @@ function AdminPricingScreen() {
                       </div>
                       <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
                         <span>{capacityConfig?.providerLabel || 'Capacidad'}</span>
-                        <span>Mín (CLP)</span>
-                        <span>Máx (CLP)</span>
+                        <span>Min (CLP)</span>
+                        <span>Max (CLP)</span>
                         <span>Sugerido</span>
                       </div>
                       {capacityKeys.map((capacityKey) => (
@@ -759,6 +785,31 @@ function AdminPricingScreen() {
               </div>
             )}
 
+            {Object.keys(prices.per_service || {}).length > 0 ? (
+              <div style={{ marginTop: 24, background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', border: `1px solid ${ADMIN_THEME.border}` }}>
+                <div style={{
+                  padding: '14px 16px',
+                  background: ADMIN_THEME.panelBgSoft,
+                  fontSize: 12,
+                  color: ADMIN_PALETTE.brand,
+                  fontWeight: 600,
+                  textTransform: 'uppercase'
+                }}>
+                  Precio servicio por tramo (TIPO B)
+                </div>
+                <div style={{ padding: '10px 16px', color: ADMIN_THEME.textMuted, fontSize: 12, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
+                  Maquinaria o vehiculo que cobra por servicio fijo en 3 tramos (no por hora). El traslado va incluido.
+                </div>
+                <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                  <span>Maquinaria</span>
+                  <span>Min (CLP)</span>
+                  <span>Max (CLP)</span>
+                  <span>Sugerido</span>
+                </div>
+                {Object.keys(prices.per_service || {}).map((id) => <PriceRow key={id} type="per_service" machineId={id} />)}
+              </div>
+            ) : null}
+
             <div style={{ marginTop: 24, background: ADMIN_THEME.panelBg, borderRadius: 12, overflow: 'hidden', border: `1px solid ${ADMIN_THEME.border}` }}>
               <div style={{
                 padding: '14px 16px',
@@ -768,15 +819,15 @@ function AdminPricingScreen() {
                 fontWeight: 600,
                 textTransform: 'uppercase'
               }}>
-                Traslado referencial general
+                Traslado general
               </div>
               <div style={{ padding: '10px 16px', color: ADMIN_THEME.textMuted, fontSize: 12, borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
-                Este bloque se mantiene para lectura y edicion general. El desglose intra/inter esta en "Vista por maquinaria".
+                Rango general de traslado. El detalle por 3 tramos (misma comuna / entre comunas / interregional / hasta 150 km) se edita en Vista por maquinaria.
               </div>
               <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
                 <span>Concepto</span>
-                <span>Mín (CLP)</span>
-                <span>Máx (CLP)</span>
+                <span>Min (CLP)</span>
+                <span>Max (CLP)</span>
                 <span>Sugerido</span>
               </div>
               <div
