@@ -164,11 +164,7 @@ function AdminUsersScreen({
 
   const operatorUsers = useMemo(() => {
     const list = Array.isArray(data.providers) ? data.providers : [];
-    return list.filter((u) => {
-      const providerRole = String(u?.provider_role || '').trim();
-      const ownerId = String(u?.owner_id || '').trim();
-      return providerRole === 'operator' || ownerId;
-    });
+    return list.filter((u) => String(u?.provider_role || '').trim() === 'operator');
   }, [data.providers]);
 
   const users = useMemo(() => {
@@ -198,7 +194,7 @@ function AdminUsersScreen({
       return st === 'active' || !u?.status;
     });
     if (tab === 'operators') {
-      return filtered.filter((u) => String(u?.provider_role || '').trim() === 'operator' || String(u?.owner_id || '').trim());
+      return filtered.filter((u) => String(u?.provider_role || '').trim() === 'operator');
     }
     if (tab !== 'providers') return filtered;
     return filtered.filter((u) => {
@@ -639,197 +635,6 @@ function AdminUsersScreen({
             </div>
           </div>
           <div style={{ flex: 1, minWidth: 260 }} />
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              type="button"
-              aria-label="Sin alertas urgentes"
-              disabled
-              style={{
-                position: 'relative',
-                width: 38,
-                height: 38,
-                borderRadius: '999px',
-                border: '1px solid rgba(255,255,255,0.2)',
-                background: 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'default',
-                opacity: 0.6,
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M12 3C9.79086 3 8 4.79086 8 7V8.2C8 9.09411 7.70361 9.96449 7.1577 10.7L6.44721 11.6524C5.53397 12.872 6.4022 14.6 7.92462 14.6H16.0754C17.5978 14.6 18.466 12.872 17.5528 11.6524L16.8423 10.7C16.2964 9.96449 16 9.09411 16 8.2V7C16 4.79086 14.2091 3 12 3Z"
-                  stroke="#FFFFFF"
-                  strokeWidth="1.6"
-                />
-                <path
-                  d="M10 16C10.1709 17.1652 10.9882 18 12 18C13.0118 18 13.8291 17.1652 14 16"
-                  stroke="#FFFFFF"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-            <div style={{ display: 'flex', gap: 6, padding: 4, borderRadius: 999, border: `1px solid ${ADMIN_THEME.border}`, background: 'rgba(255,255,255,0.04)' }}>
-              <button
-                type="button"
-                onClick={() => goDashboardArea('today')}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 999,
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'rgba(255,255,255,0.75)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Hoy
-              </button>
-              <button
-                type="button"
-                onClick={() => goDashboardArea('system')}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 999,
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'rgba(255,255,255,0.75)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Operación
-              </button>
-              <button
-                type="button"
-                onClick={() => goDashboardArea('platform')}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 999,
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'rgba(255,255,255,0.75)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Plataforma
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => goDashboardArea('money')}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 8,
-                color: '#fff',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 800,
-              }}
-            >
-              Facturación y pagos
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/admin/users')}
-              style={{
-                padding: '8px 16px',
-                background: 'rgba(236, 104, 25, 0.22)',
-                border: '1px solid rgba(236, 104, 25, 0.55)',
-                borderRadius: 8,
-                color: '#fff',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 800,
-              }}
-            >
-              Usuarios
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/admin/pricing')}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 8,
-                color: '#fff',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 800,
-              }}
-            >
-              Precios
-            </button>
-            <button
-              type="button"
-              title="Inversión semanal por canal, audiencia y CAC"
-              onClick={() => navigate('/admin/marketing')}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(126, 184, 212, 0.45)',
-                borderRadius: 8,
-                color: ADMIN_PALETTE.info,
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 800,
-              }}
-            >
-              Marketing & CAC
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                try {
-                  localStorage.setItem('maqgo_open_report_subscriptions', '1');
-                } catch {
-                  void 0;
-                }
-                navigate('/admin');
-              }}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 8,
-                color: 'rgba(255,255,255,0.8)',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 800,
-              }}
-            >
-              📧 Destinatarios
-            </button>
-            <button
-              type="button"
-              onClick={() => goDashboardArea('money')}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 8,
-                color: 'rgba(255,255,255,0.8)',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 800,
-              }}
-            >
-              Planilla pagos
-            </button>
-          </div>
         </div>
       </div>
       ) : null}
@@ -980,7 +785,7 @@ function AdminUsersScreen({
               <span style={{ width: 32, height: 32, border: '3px solid rgba(236,104,25,0.25)', borderTopColor: ADMIN_PALETTE.brand, borderRadius: '50%', animation: 'maqgo-spin 0.8s linear infinite' }} />
               <p style={{ color: ADMIN_THEME.textMuted, fontSize: 14 }}>Cargando usuarios...</p>
             </div>
-          ) : (tab === 'machines' ? machineRows.length === 0 : users.length === 0) ? (
+          ) : (tab === 'machines' ? machineRows.length === 0 : filteredUsers.length === 0) ? (
             <div style={{ padding: 50, textAlign: 'center' }}>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 40, margin: '0 0 12px' }}>👥</p>
               <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, margin: 0 }}>
@@ -989,11 +794,15 @@ function AdminUsersScreen({
                   : tab === 'providers'
                     ? 'No hay proveedores registrados'
                     : tab === 'operators'
-                      ? 'No hay operadores registrados'
-                    : 'No hay maquinarias registradas'}
+                      ? ((Array.isArray(operatorUsers) && operatorUsers.length > 0)
+                          ? `Ningún operador coincide con el filtro "${statusFilter === 'active' ? 'Activos' : statusFilter === 'inactive' ? 'Inactivos' : statusFilter === 'test' ? 'Test' : statusFilter === 'deleted' ? 'Eliminados' : 'Actual'}" (${operatorUsers.length} totales)`
+                          : 'No hay operadores registrados')
+                      : 'No hay maquinarias registradas'}
               </p>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 8 }}>
-                Los usuarios aparecerán aquí cuando se registren desde la app
+                {(tab === 'operators' && Array.isArray(operatorUsers) && operatorUsers.length > 0)
+                  ? 'Prueba cambiar el filtro de estado (Activos / Inactivos / Test / Eliminados) para verlos.'
+                  : 'Los usuarios aparecerán aquí cuando se registren desde la app.'}
               </p>
             </div>
           ) : (
