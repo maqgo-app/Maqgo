@@ -203,7 +203,6 @@ export const ADMIN_DOMAIN_META = {
     ],
     actions: [
       { label: 'Abrir reportes', to: '/admin/reportes', tone: 'primary' },
-      { label: 'Ir a marketing', to: '/admin/marketing', tone: 'secondary' },
     ],
   },
   logs: {

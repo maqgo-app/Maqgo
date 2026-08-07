@@ -158,7 +158,6 @@ export default function AdminReportsDomainScreen() {
       <AdminSurface
         title="Reportes"
         subtitle="Consulta informes semanales y mensuales, revisa destinatarios y descarga los PDF ejecutivos desde una sola vista."
-        right={<AdminActionLink to="/admin/marketing" label="Abrir distribucion" tone="secondary" />}
       >
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <AdminStatChip label="Destinatarios semanales" value={String(stats.weeklyEmails)} tone="brand" />
