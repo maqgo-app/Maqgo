@@ -111,10 +111,28 @@ async def _notify_provider_offer(db: AsyncIOMotorDatabase, *, provider_id: str, 
 
 _DEBUG_MATCH = os.environ.get("DEBUG_MATCH", "").lower() == "true"
 
-# Ventanas de respuesta (maquinaria pesada: no estilo Uber)
-PRIMARY_RESPONSE_WINDOW = 600
-SECONDARY_RESPONSE_WINDOW = 1200
-ROTATION_GLOBAL_OFFER_TTL_SECONDS = 1200
+# Ventanas de respuesta por tipo de reserva (maquinaria pesada: no estilo Uber)
+ROTATION_WAVE_WINDOW_IMMEDIATE_SECONDS = 600       # 10 min · ola inmediata
+ROTATION_WAVE_WINDOW_SCHEDULED_SECONDS = 900       # 15 min · ola programada
+ROTATION_MAX_WAVES = 3
+
+
+def _is_scheduled_reservation(service_request: Any) -> bool:
+    sr = service_request or {}
+    rt = str(sr.get("reservationType") or sr.get("reservation_type") or "").strip().lower()
+    has_scheduled_date = bool(str(sr.get("scheduledDate") or sr.get("scheduled_date") or "").strip())
+    return rt == "scheduled" or (not rt and has_scheduled_date)
+
+
+def _wave_window_seconds(service_request: Any) -> int:
+    if _is_scheduled_reservation(service_request):
+        return ROTATION_WAVE_WINDOW_SCHEDULED_SECONDS
+    return ROTATION_WAVE_WINDOW_IMMEDIATE_SECONDS
+
+
+def _rotation_global_ttl_seconds(service_request: Any) -> int:
+    per_wave = _wave_window_seconds(service_request)
+    return int(per_wave) * int(ROTATION_MAX_WAVES)
 
 # Configuración del matching (pesos de score en services/matching_score.py)
 MATCHING_CONFIG = {
@@ -138,6 +156,8 @@ _ROTATION_UNSET = {
     'matchingRotationWave3At': '',
     'matchingWave2Applied': '',
     'matchingWave3Applied': '',
+    'matchingWaveStartsAt': '',
+    'matchingWaveSizes': '',
 }
 
 # Estados que indican que el proveedor está ocupado
@@ -161,7 +181,7 @@ async def _busy_provider_ids(db: AsyncIOMotorDatabase, provider_ids: List[str]) 
 
 def _rotation_waiting_for_more_waves(sr: Mapping[str, Any], now: datetime) -> bool:
     """
-    True si aún puede entrar una ola futura (3–4 o 5) por tiempo, sin reiniciar matching.
+    True si aún puede entrar una ola futura (2 o 3) por tiempo, sin reiniciar matching.
     """
     if not sr.get("matchingRotationMode"):
         return False
@@ -169,19 +189,16 @@ def _rotation_waiting_for_more_waves(sr: Mapping[str, Any], now: datetime) -> bo
     offered = set(sr.get("offeredProviderIds") or [])
     if len(offered) >= len(candidate_ids):
         return False
-    w2 = _parse_iso_utc(sr.get("matchingRotationWave2At"))
-    w3 = _parse_iso_utc(sr.get("matchingRotationWave3At"))
-    if not sr.get("matchingWave2Applied") and len(candidate_ids) > 3 and w2 and now < w2:
-        return True
-    if (
-        sr.get("matchingWave2Applied")
-        and not sr.get("matchingWave3Applied")
-        and len(candidate_ids) >= 5
-        and w3
-        and now < w3
-    ):
-        return True
-    return False
+    next_wave = int(sr.get("matchingRotationStage") or 1) + 1
+    if next_wave > 3:
+        return False
+    wave_starts_field = sr.get("matchingWaveStartsAt") or {}
+    if not isinstance(wave_starts_field, dict):
+        return False
+    target_at = _parse_iso_utc(wave_starts_field.get(str(next_wave)))
+    if not target_at:
+        return False
+    return now < target_at
 
 
 def _parse_iso_utc(raw: Any) -> Optional[datetime]:
@@ -800,23 +817,47 @@ async def send_rotation_wave_one(
     db: AsyncIOMotorDatabase,
     service_request_id: str,
     providers: List[dict],
+    service_request: Optional[Mapping[str, Any]] = None,
 ) -> dict:
-    """Rotación por olas (maquinaria pesada).
+    """Rotación por olas adaptativa (Regla oficial MAQGO Dispatch Engine).
 
-    - Pool: top-N (N=rotation_pool_size, default 5)
-    - Ola 1: envía a los primeros 3 (o menos si no hay 3)
-    - Ola 2: a T+PRIMARY_RESPONSE_WINDOW agrega el resto del pool (hasta completar 5)
+    - Ola 1 = min(5, proveedores elegibles)
+    - Ola 2 = siguientes elegibles después de ola 1
+    - Ola 3 = siguientes elegibles después de ola 2
+    - Ventana por ola: inmediata 10 min / programada 15 min
     """
-    pool_size = int(MATCHING_CONFIG.get("rotation_pool_size") or 5)
-    candidate_ids = [p["id"] for p in providers[:pool_size]]
-    wave1 = candidate_ids[:3]
+    if not providers:
+        return {"error": "Sin proveedores para rotación"}
+
+    all_candidate_ids = [str(p["id"]) for p in providers]
+
+    first_wave_size = min(5, len(all_candidate_ids))
+    remaining_after_first = all_candidate_ids[first_wave_size:]
+    second_wave_size = min(5, len(remaining_after_first))
+    remaining_after_second = remaining_after_first[second_wave_size:]
+    third_wave_size = min(5, len(remaining_after_second))
+
+    wave_sizes: Dict[str, int] = {
+        "1": int(first_wave_size),
+        "2": int(second_wave_size),
+        "3": int(third_wave_size),
+    }
+
+    wave1 = all_candidate_ids[:first_wave_size]
     if len(wave1) < 1:
         return {"error": "Sin proveedores para rotación"}
 
     now = datetime.now(timezone.utc)
-    global_exp = now + timedelta(seconds=ROTATION_GLOBAL_OFFER_TTL_SECONDS)
-    wave2_at = now + timedelta(seconds=PRIMARY_RESPONSE_WINDOW)
-    wave3_at = now + timedelta(seconds=SECONDARY_RESPONSE_WINDOW)
+    per_wave = int(_wave_window_seconds(service_request))
+    global_ttl = int(_rotation_global_ttl_seconds(service_request))
+    global_exp = now + timedelta(seconds=global_ttl)
+    wave2_at = now + timedelta(seconds=per_wave)
+    wave3_at = now + timedelta(seconds=per_wave * 2)
+    wave_starts_at = {
+        "1": now.isoformat(),
+        "2": wave2_at.isoformat(),
+        "3": wave3_at.isoformat(),
+    }
 
     attempts = [
         {
@@ -837,7 +878,7 @@ async def send_rotation_wave_one(
                 "offeredProviderIds": wave1,
                 "offerSentAt": now.isoformat(),
                 "offerExpiresAt": global_exp.isoformat(),
-                "matchingCandidateIds": candidate_ids,
+                "matchingCandidateIds": all_candidate_ids,
                 "matchingRotationMode": True,
                 "matchingRotationStage": 1,
                 "matchingRotationStartedAt": now.isoformat(),
@@ -845,6 +886,8 @@ async def send_rotation_wave_one(
                 "matchingRotationWave3At": wave3_at.isoformat(),
                 "matchingWave2Applied": False,
                 "matchingWave3Applied": False,
+                "matchingWaveStartsAt": wave_starts_at,
+                "matchingWaveSizes": wave_sizes,
             },
             "$push": {"matchingAttempts": {"$each": attempts}},
             "$inc": {"attemptCount": len(wave1)},
@@ -862,6 +905,7 @@ async def send_rotation_wave_one(
                     "stage": 1,
                     "providerIds": list(wave1),
                     "currentOfferId": wave1[0],
+                    "waveSize": first_wave_size,
                 }
             }
         },
@@ -874,10 +918,12 @@ async def send_rotation_wave_one(
                 "serviceRequestId": service_request_id,
                 "stage": 1,
                 "sentProviderIds": wave1,
-                "candidateIds": candidate_ids,
+                "candidateIds": all_candidate_ids,
+                "waveSizes": wave_sizes,
                 "wave2At": wave2_at.isoformat(),
                 "wave3At": wave3_at.isoformat(),
                 "globalExpiresAt": global_exp.isoformat(),
+                "scheduled": _is_scheduled_reservation(service_request),
             },
         )
 
@@ -903,8 +949,9 @@ async def send_rotation_wave_one(
             "providerIds": wave1,
             "sentAt": now.isoformat(),
             "expiresAt": global_exp.isoformat(),
-            "timeoutSeconds": ROTATION_GLOBAL_OFFER_TTL_SECONDS,
+            "timeoutSeconds": global_ttl,
             "rotation": True,
+            "waveSize": first_wave_size,
         },
         "attemptNumber": len(wave1),
         "maxAttempts": MATCHING_CONFIG["max_attempts"],
@@ -914,8 +961,10 @@ async def send_rotation_wave_one(
 
 async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_request_id: str) -> None:
     """
-    Aplica ola 2 agregando el resto del pool (hasta completar top 5). No revoca ofertas previas.
-    Idempotente por matchingWave2Applied.
+    Aplica ola 2 y ola 3: hasta 5 nuevos proveedores por ola (siguientes en el pool).
+    Ola 2 = window inmediato/programado después de ola 1.
+    Ola 3 = 2x window después de ola 1.
+    Idempotente por matchingWave2Applied / matchingWave3Applied.
     """
     sr = await db.service_requests.find_one({"id": service_request_id}, {"_id": 0})
     if not sr or sr.get("status") != "offer_sent" or not sr.get("matchingRotationMode"):
@@ -928,202 +977,158 @@ async def apply_matching_rotation_waves(db: AsyncIOMotorDatabase, service_reques
     if not candidate_ids:
         return
 
+    wave_sizes = (sr.get("matchingWaveSizes") or {}) if isinstance(sr.get("matchingWaveSizes"), dict) else {}
+
+    wave1_size = int(wave_sizes.get("1") or 0) or min(5, len(candidate_ids))
+    wave2_size_defined = int(wave_sizes.get("2") or 0)
+    wave3_size_defined = int(wave_sizes.get("3") or 0)
+    if wave2_size_defined <= 0:
+        remaining_after_w1 = candidate_ids[wave1_size:]
+        wave2_size_defined = min(5, len(remaining_after_w1))
+    if wave3_size_defined <= 0:
+        remaining_after_w2 = candidate_ids[(wave1_size + wave2_size_defined):]
+        wave3_size_defined = min(5, len(remaining_after_w2))
+
     global_exp = _parse_iso_utc(sr.get("offerExpiresAt")) or (
-        now + timedelta(seconds=ROTATION_GLOBAL_OFFER_TTL_SECONDS)
+        now + timedelta(seconds=_rotation_global_ttl_seconds(sr))
     )
 
     wave2_at = _parse_iso_utc(sr.get("matchingRotationWave2At"))
     wave3_at = _parse_iso_utc(sr.get("matchingRotationWave3At"))
     t0 = _parse_iso_utc(sr.get("matchingRotationStartedAt")) or now
 
-    # Ola 2: agregar solo el cuarto proveedor del pool
-    if not sr.get("matchingWave2Applied") and len(candidate_ids) > 3 and wave2_at and now >= wave2_at:
-        raw_ids = candidate_ids[3:4]
+    async def _apply_wave(stage: int, wave_start_at: Optional[datetime], start_idx: int, wave_size: int, applied_flag_key: str):
+        if stage > 1 and (not wave_start_at or now < wave_start_at):
+            return
+        if sr.get(applied_flag_key):
+            return
+        if stage == 2 and len(candidate_ids) <= wave1_size:
+            await db.service_requests.update_one(
+                {"id": service_request_id},
+                {"$set": {applied_flag_key: True, "matchingRotationStage": stage}}
+            )
+            return
+        if stage == 3 and len(candidate_ids) <= wave1_size + wave2_size_defined:
+            await db.service_requests.update_one(
+                {"id": service_request_id},
+                {"$set": {applied_flag_key: True, "matchingRotationStage": stage}}
+            )
+            return
+        raw_ids = candidate_ids[start_idx: start_idx + wave_size]
+        if not raw_ids:
+            await db.service_requests.update_one(
+                {"id": service_request_id},
+                {"$set": {applied_flag_key: True, "matchingRotationStage": stage}}
+            )
+            logger.info(f"WAVE_GUARD: Wave {stage} aplicada sin candidatos nuevos para {service_request_id}")
+            return
         new_ids = await filter_valid_providers_for_wave(db, raw_ids)
         if not new_ids:
             await db.service_requests.update_one(
                 {"id": service_request_id},
-                {"$set": {"matchingWave2Applied": True, "matchingRotationStage": 2}}
+                {"$set": {applied_flag_key: True, "matchingRotationStage": stage}}
             )
-            logger.info(f"WAVE_GUARD: Wave 2 aplicada sin candidatos válidos para {service_request_id}")
-        elif new_ids:
-            attempts = [
-                {
-                    "providerId": pid,
-                    "sentAt": now.isoformat(),
-                    "expiresAt": global_exp.isoformat() if global_exp else now.isoformat(),
-                    "status": "pending",
-                }
-                for pid in new_ids
-            ]
-            offered = list(sr.get("offeredProviderIds") or [])
-            for pid in new_ids:
-                if pid not in offered:
-                    offered.append(pid)
-            await db.service_requests.update_one(
-                {"id": service_request_id},
-                {
-                    "$set": {
-                        "offeredProviderIds": offered,
-                        "matchingRotationStage": 2,
-                        "matchingWave2Applied": True,
-                    },
-                    "$push": {"matchingAttempts": {"$each": attempts}},
-                    "$inc": {"attemptCount": len(new_ids)},
+            logger.info(f"WAVE_GUARD: Wave {stage} aplicada sin candidatos válidos para {service_request_id}")
+            return
+        attempts = [
+            {
+                "providerId": pid,
+                "sentAt": now.isoformat(),
+                "expiresAt": global_exp.isoformat() if global_exp else now.isoformat(),
+                "status": "pending",
+            }
+            for pid in new_ids
+        ]
+        offered = list(sr.get("offeredProviderIds") or [])
+        for pid in new_ids:
+            if pid not in offered:
+                offered.append(pid)
+        await db.service_requests.update_one(
+            {"id": service_request_id},
+            {
+                "$set": {
+                    "offeredProviderIds": offered,
+                    "matchingRotationStage": stage,
+                    applied_flag_key: True,
                 },
-            )
-            await db.service_requests.update_one(
-                {"id": service_request_id},
-                {
-                    "$push": {
-                        "events": {
-                            "type": "matching_rotation_wave_added",
-                            "at": now.isoformat(),
-                            "stage": 2,
-                            "providerIds": list(new_ids),
-                        }
+                "$push": {"matchingAttempts": {"$each": attempts}},
+                "$inc": {"attemptCount": len(new_ids)},
+            },
+        )
+        await db.service_requests.update_one(
+            {"id": service_request_id},
+            {
+                "$push": {
+                    "events": {
+                        "type": "matching_rotation_wave_added",
+                        "at": now.isoformat(),
+                        "stage": stage,
+                        "providerIds": list(new_ids),
+                        "waveSize": len(new_ids),
                     }
+                }
+            },
+        )
+
+        for pid in new_ids:
+            await _notify_provider_offer(
+                db,
+                provider_id=pid,
+                service_request_id=service_request_id,
+                kind='nueva_oferta',
+                occurred_at=now.isoformat(),
+            )
+
+        client_id = str(sr.get("clientId") or "").strip()
+        if client_id:
+            try:
+                from services.notification_items_service import upsert_notification_item, record_delivery
+                from services.webpush_service import notify_user
+
+                item = await upsert_notification_item(
+                    db,
+                    recipient_user_id=client_id,
+                    audience_role='client',
+                    service_request_id=str(service_request_id),
+                    kind='search_expanded',
+                    extra={'stage': stage, 'added': len(new_ids)},
+                    pinned=False,
+                )
+                push = await notify_user(
+                    db=db,
+                    user_id=client_id,
+                    title='Ampliamos la búsqueda',
+                    body='Estamos contactando a más proveedores para confirmar disponibilidad.',
+                    url='/client/searching',
+                    tag=f'sr:{str(service_request_id)}',
+                )
+                await record_delivery(
+                    db,
+                    notification_id=item['id'],
+                    channel='push_web',
+                    status='sent' if int(push.get('sent', 0) or 0) > 0 else 'skipped',
+                    meta={'sent': int(push.get('sent', 0) or 0), 'skipped': int(push.get('skipped', 0) or 0)},
+                )
+            except Exception as e:
+                logger.warning("search_expanded notify error id=%s err=%s", service_request_id, e)
+        if _DEBUG_MATCH:
+            dt_s = (now - t0).total_seconds()
+            logger.info(
+                "MATCH_ROTATION %s",
+                {
+                    "serviceRequestId": service_request_id,
+                    "stage": stage,
+                    "sentProviderIds": new_ids,
+                    "elapsedSecondsApprox": round(dt_s, 2),
                 },
             )
 
-            for pid in new_ids:
-                await _notify_provider_offer(
-                    db,
-                    provider_id=pid,
-                    service_request_id=service_request_id,
-                    kind='nueva_oferta',
-                    occurred_at=now.isoformat(),
-                )
-
-            client_id = str(sr.get("clientId") or "").strip()
-            if client_id:
-                try:
-                    from services.notification_items_service import upsert_notification_item, record_delivery
-                    from services.webpush_service import notify_user
-
-                    item = await upsert_notification_item(
-                        db,
-                        recipient_user_id=client_id,
-                        audience_role='client',
-                        service_request_id=str(service_request_id),
-                        kind='search_expanded',
-                        extra={'stage': 2, 'added': len(new_ids)},
-                        pinned=False,
-                    )
-                    push = await notify_user(
-                        db=db,
-                        user_id=client_id,
-                        title='Ampliamos la búsqueda',
-                        body='Estamos contactando a más proveedores para confirmar disponibilidad.',
-                        url='/client/searching',
-                        tag=f'sr:{str(service_request_id)}',
-                    )
-                    await record_delivery(
-                        db,
-                        notification_id=item['id'],
-                        channel='push_web',
-                        status='sent' if int(push.get('sent', 0) or 0) > 0 else 'skipped',
-                        meta={'sent': int(push.get('sent', 0) or 0), 'skipped': int(push.get('skipped', 0) or 0)},
-                    )
-                except Exception as e:
-                    logger.warning("search_expanded notify error id=%s err=%s", service_request_id, e)
-            if _DEBUG_MATCH:
-                dt_s = (now - t0).total_seconds()
-                logger.info(
-                    "MATCH_ROTATION %s",
-                    {
-                        "serviceRequestId": service_request_id,
-                        "stage": 2,
-                        "sentProviderIds": new_ids,
-                        "elapsedSecondsApprox": round(dt_s, 2),
-                    },
-                )
-
+    await _apply_wave(2, wave2_at, wave1_size, wave2_size_defined, "matchingWave2Applied")
+    # Refrescar SR antes de ola 3
     sr = await db.service_requests.find_one({"id": service_request_id}, {"_id": 0})
-    if not sr or sr.get("status") != "offer_sent" or not sr.get("matchingRotationMode"):
+    if not sr or sr.get("status") != "offer_sent" or not sr.get("matchingRotationMode") or sr.get("providerId"):
         return
-
-    candidate_ids = list(sr.get("matchingCandidateIds") or [])
-    global_exp = _parse_iso_utc(sr.get("offerExpiresAt")) or (
-        now + timedelta(seconds=ROTATION_GLOBAL_OFFER_TTL_SECONDS)
-    )
-    t0 = _parse_iso_utc(sr.get("matchingRotationStartedAt")) or now
-
-    # Ola 3: índice 4 (quinto) — requiere haber aplicado ola 2
-    # Wave Guard: filtrar providers que ya no son válidos
-    if (
-        sr.get("matchingWave2Applied")
-        and not sr.get("matchingWave3Applied")
-        and len(candidate_ids) >= 5
-        and wave3_at
-        and now >= wave3_at
-    ):
-        raw_ids = candidate_ids[4:5]
-        new_ids = await filter_valid_providers_for_wave(db, raw_ids)
-        if not new_ids:
-            await db.service_requests.update_one(
-                {"id": service_request_id},
-                {"$set": {"matchingWave3Applied": True, "matchingRotationStage": 3}}
-            )
-            logger.info(f"WAVE_GUARD: Wave 3 aplicada sin candidatos válidos para {service_request_id}")
-        elif new_ids:
-            attempts = [
-                {
-                    "providerId": pid,
-                    "sentAt": now.isoformat(),
-                    "expiresAt": global_exp.isoformat() if global_exp else now.isoformat(),
-                    "status": "pending",
-                }
-                for pid in new_ids
-            ]
-            offered = list(sr.get("offeredProviderIds") or [])
-            for pid in new_ids:
-                if pid not in offered:
-                    offered.append(pid)
-            await db.service_requests.update_one(
-                {"id": service_request_id},
-                {
-                    "$set": {
-                        "offeredProviderIds": offered,
-                        "matchingRotationStage": 3,
-                        "matchingWave3Applied": True,
-                    },
-                    "$push": {"matchingAttempts": {"$each": attempts}},
-                    "$inc": {"attemptCount": len(new_ids)},
-                },
-            )
-            await db.service_requests.update_one(
-                {"id": service_request_id},
-                {
-                    "$push": {
-                        "events": {
-                            "type": "matching_rotation_wave_added",
-                            "at": now.isoformat(),
-                            "stage": 3,
-                            "providerIds": list(new_ids),
-                        }
-                    }
-                },
-            )
-            for pid in new_ids:
-                await _notify_provider_offer(
-                    db,
-                    provider_id=pid,
-                    service_request_id=service_request_id,
-                    kind='nueva_oferta',
-                    occurred_at=now.isoformat(),
-                )
-            if _DEBUG_MATCH:
-                dt_s = (now - t0).total_seconds()
-                logger.info(
-                    "MATCH_ROTATION %s",
-                    {
-                        "serviceRequestId": service_request_id,
-                        "stage": 3,
-                        "sentProviderIds": new_ids,
-                        "elapsedSecondsApprox": round(dt_s, 2),
-                    },
-                )
+    await _apply_wave(3, wave3_at, wave1_size + wave2_size_defined, wave3_size_defined, "matchingWave3Applied")
 
 
 async def _supersede_pending_attempts_for_winner(
@@ -1353,9 +1358,9 @@ async def start_matching(
                 'message': 'No hay proveedores disponibles en este momento. Intenta más tarde.'
             }
 
-        # Rotación por olas: 2 + (3–4) + (5); sin presión tipo 60 s por cabeza
+        # Rotación por olas adaptativa: ola 1 = min(5, len(providers)); sin presión tipo Uber por cabeza
         if not normalized_selected_ids and len(providers) >= 2:
-            return await send_rotation_wave_one(db, service_request_id, providers)
+            return await send_rotation_wave_one(db, service_request_id, providers, service_request=request)
 
         offer = await send_offer_to_provider(db, service_request_id, target_provider['id'])
 

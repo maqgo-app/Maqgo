@@ -117,17 +117,19 @@ class PaymentServiceTransbankIdempotencyTest(unittest.IsolatedAsyncioTestCase):
             }
         )
 
-        calls = {"n": 0, "buy_orders": []}
+        calls = {"n": 0, "buy_orders": [], "detail_buy_orders": []}
 
-        def fake_authorize(*, username, tbk_user, buy_order, amount):
+        def fake_authorize(*, username, tbk_user, buy_order, amount, detail_buy_order=None, installments_number=None):
             calls["n"] += 1
             calls["buy_orders"].append(buy_order)
+            calls["detail_buy_orders"].append(detail_buy_order)
+            dtbo = detail_buy_order or buy_order
             return {
                 "buy_order": buy_order,
                 "details": [
                     {
                         "commerce_code": "child",
-                        "buy_order": buy_order,
+                        "buy_order": dtbo,
                         "response_code": 0,
                         "status": "AUTHORIZED",
                         "authorization_code": "AUTH123",
@@ -145,7 +147,13 @@ class PaymentServiceTransbankIdempotencyTest(unittest.IsolatedAsyncioTestCase):
             ps_mod.provider_oneclick_authorize = old_authorize
 
         self.assertEqual(calls["n"], 1)
-        self.assertEqual(calls["buy_orders"], [booking_id])
+        expected_buy_order_src = booking_id
+        import hashlib
+        h = hashlib.sha256(expected_buy_order_src.encode("utf-8")).hexdigest()
+        expected_buy_order = f"SR{h[:24]}"
+        expected_detail = f"DT{h[24:48]}"
+        self.assertEqual(calls["buy_orders"], [expected_buy_order])
+        self.assertEqual(calls["detail_buy_orders"], [expected_detail])
         self.assertEqual(r1.get("status"), "charged")
         self.assertTrue(r2.get("short_circuit") or r2.get("skipped_authorize"))
         self.assertEqual(r2.get("status"), "charged")
@@ -156,7 +164,8 @@ class PaymentServiceTransbankIdempotencyTest(unittest.IsolatedAsyncioTestCase):
 
         p = await db.payments.find_one({"id": sr.get("paymentId")})
         self.assertEqual(p.get("status"), "charged")
-        self.assertEqual(p.get("tbkBuyOrder"), booking_id)
+        self.assertEqual(p.get("tbkBuyOrder"), expected_buy_order)
+        self.assertEqual(p.get("tbkDetailBuyOrder"), expected_detail)
         self.assertEqual(p.get("bookingId"), booking_id)
         self.assertEqual(p.get("response_code"), 0)
         self.assertEqual(p.get("authorization_code"), "AUTH123")
