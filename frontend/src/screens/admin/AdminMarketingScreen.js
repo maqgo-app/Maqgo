@@ -346,35 +346,6 @@ function AdminMarketingScreen() {
 
   return (
     <div className="maqgo-admin-page" style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
-      <div className="maqgo-admin-topbar" style={{ background: ADMIN_THEME.panelBg, padding: '20px 24px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
-        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button
-              type="button"
-              onClick={() => navigate('/welcome', { replace: false })}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 999,
-                background: 'transparent',
-                border: `1px solid ${ADMIN_THEME.borderStrong}`,
-                color: '#fff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              aria-label="Volver a portada"
-              title="Volver a portada"
-            >
-              <BackArrowIcon size={18} style={{ display: 'block' }} />
-            </button>
-            <MaqgoLogo size="small" style={{ margin: 0 }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 260 }} />
-        </div>
-      </div>
-
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
         <div style={{ marginBottom: 14 }}>
           <div className="maqgo-admin-title">Marketing & CAC</div>

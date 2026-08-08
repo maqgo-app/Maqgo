@@ -101,7 +101,7 @@ export default function AdminHomeScreen() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <AdminSurface title="Dashboard" subtitle="Centro de control del marketplace para seguir operación, oferta, servicio y dinero desde una sola entrada.">
+      <AdminSurface>
         <div style={{ fontSize: 12, fontWeight: 900, color: theme.brand, textTransform: 'uppercase', letterSpacing: 0.45 }}>
           Admin MAQGO
         </div>

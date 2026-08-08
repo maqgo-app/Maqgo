@@ -20,6 +20,12 @@ export const ADMIN_NAV_GROUPS = [
     ],
   },
   {
+    label: 'Desarrollo Comercial',
+    items: [
+      { key: 'growth-ai', label: 'Growth AI', path: '/admin/growth-ai' },
+    ],
+  },
+  {
     label: 'Marketplace',
     items: [
       { key: 'clientes', label: 'Clientes', path: '/admin/clientes' },
@@ -44,7 +50,6 @@ export const ADMIN_NAV_GROUPS = [
     label: 'Ajustes',
     items: [
       { key: 'marketing', label: 'Marketing & CAC', path: '/admin/marketing' },
-      { key: 'growth-ai', label: 'Growth AI', path: '/admin/growth-ai' },
       { key: 'configuracion', label: 'Configuracion', path: '/admin/configuracion' },
       { key: 'parametros', label: 'Reglas de negocio', path: '/admin/parametros' },
       { key: 'roles-permisos', label: 'Equipo y accesos', path: '/admin/roles-permisos' },

@@ -605,40 +605,6 @@ function AdminUsersScreen({
 
   return (
     <div className="maqgo-admin-page" style={{ minHeight: embedded ? 'auto' : '100dvh', background: embedded ? 'transparent' : ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
-      {!embedded ? (
-      <div className="maqgo-admin-topbar" style={{ background: ADMIN_THEME.panelBg, padding: '20px 24px', borderBottom: `1px solid ${ADMIN_THEME.border}` }}>
-        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button
-              type="button"
-              onClick={() => navigate('/welcome', { replace: false })}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 999,
-                background: 'transparent',
-                border: `1px solid ${ADMIN_THEME.borderStrong}`,
-                color: '#fff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              aria-label="Volver a portada"
-              title="Volver a portada"
-            >
-              <BackArrowIcon size={18} style={{ display: 'block' }} />
-            </button>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, lineHeight: 1 }}>
-              <img src={maqgoLogo} alt="MAQGO" style={{ height: 22, width: 'auto', display: 'block' }} />
-              <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.4, color: 'rgba(255,255,255,0.78)' }}>Administrador</div>
-            </div>
-          </div>
-          <div style={{ flex: 1, minWidth: 260 }} />
-        </div>
-      </div>
-      ) : null}
-
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: embedded ? 0 : 24 }}>
         <div style={{ marginBottom: 14 }}>
           <div className="maqgo-admin-title">{title}</div>
