@@ -458,14 +458,23 @@ async def create_invitation(
     
     invite_token = await _generate_unique_token()
     rut_norm = _normalize_rut(operator_rut)
-    pending_user = await _ensure_pending_team_user(
-        owner_id=data.owner_id,
-        provider_role="operator",
-        name=operator_name,
-        phone=str(data.operator_phone or "").strip(),
-        rut=operator_rut,
-        invitation_code=invite_token,
-    )
+    try:
+        pending_user = await _ensure_pending_team_user(
+            owner_id=data.owner_id,
+            provider_role="operator",
+            name=operator_name,
+            phone=str(data.operator_phone or "").strip(),
+            rut=operator_rut,
+            invitation_code=invite_token,
+        )
+    except DuplicateKeyError:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "El celular o RUT del operador ya está asociado a otra cuenta MAQGO. "
+                "Cada usuario operador requiere un teléfono único."
+            ),
+        )
     machine_ids = [str(machine.get("id") or "").strip() for machine in validated_machines if str(machine.get("id") or "").strip()]
     await attach_operator_to_machines(
         db,
@@ -602,14 +611,23 @@ async def create_invitations_batch(
             if str(machine.get("id") or "").strip()
         ]
         invite_token = await _generate_unique_token()
-        pending_user = await _ensure_pending_team_user(
-            owner_id=data.owner_id,
-            provider_role="operator",
-            name=name,
-            phone=phone or "",
-            rut=rut,
-            invitation_code=invite_token,
-        )
+        try:
+            pending_user = await _ensure_pending_team_user(
+                owner_id=data.owner_id,
+                provider_role="operator",
+                name=name,
+                phone=phone or "",
+                rut=rut,
+                invitation_code=invite_token,
+            )
+        except DuplicateKeyError:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"El operador {name} ya tiene una cuenta MAQGO asociada al mismo "
+                    "celular o RUT. Cada operador requiere un teléfono único."
+                ),
+            )
         await attach_operator_to_machines(
             db,
             provider_id=data.owner_id,
@@ -1028,15 +1046,24 @@ async def create_master_invitation(
     
     # Generar código único
     invite_token = await _generate_unique_token()
-    pending_user = await _ensure_pending_team_user(
-        owner_id=data.owner_id,
-        provider_role="master",
-        name=" ".join(part for part in [str(data.master_name or "").strip(), str(data.master_last_name or "").strip()] if part).strip(),
-        phone=str(data.master_phone or "").strip(),
-        rut=master_rut,
-        invitation_code=invite_token,
-        permissions=invitation_permissions,
-    )
+    try:
+        pending_user = await _ensure_pending_team_user(
+            owner_id=data.owner_id,
+            provider_role="master",
+            name=" ".join(part for part in [str(data.master_name or "").strip(), str(data.master_last_name or "").strip()] if part).strip(),
+            phone=str(data.master_phone or "").strip(),
+            rut=master_rut,
+            invitation_code=invite_token,
+            permissions=invitation_permissions,
+        )
+    except DuplicateKeyError:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "El celular o RUT del Gerente ya está asociado a otra cuenta MAQGO. "
+                "Cada usuario Gerente requiere un teléfono único."
+            ),
+        )
     reusable = await _find_reusable_pending_invitation(
         owner_id=data.owner_id,
         invite_type="master",
