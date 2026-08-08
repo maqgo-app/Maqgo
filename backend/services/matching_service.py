@@ -1405,6 +1405,16 @@ async def handle_offer_response(
             "providerIntentAt": 1,
             "providerIntentByUserId": 1,
             "providerIntentByRole": 1,
+            "operator_id": 1,
+            "operatorId": 1,
+            "providerOperatorName": 1,
+            "operatorFirstName": 1,
+            "operatorLastName": 1,
+            "operatorRut": 1,
+            "operator_assigned_at": 1,
+            "operatorAssignedAt": 1,
+            "machineId": 1,
+            "machine_id": 1,
         },
     )
     winning_attempt = None
@@ -1412,12 +1422,11 @@ async def handle_offer_response(
         if str(attempt.get("providerId") or "").strip() == str(provider_id):
             winning_attempt = attempt
             break
-    
+
     if accepted:
-        # Calcular tiempos de jornada (8h trabajo + 1h colación = 9h total)
         end_time = now + timedelta(hours=9)
         last_30_time = end_time - timedelta(minutes=30)
-        
+
         provider = await db.users.find_one({'id': provider_id}, {'_id': 0})
         selected_machine = None
         selected_machine_id = str(((sr or {}).get('machineId') or (sr or {}).get('machine_id') or '')).strip()
@@ -1431,11 +1440,44 @@ async def handle_offer_response(
             provider_for_service['machineData'] = selected_machine
             if selected_machine.get('licensePlate') or selected_machine.get('license_plate'):
                 provider_for_service['licensePlate'] = selected_machine.get('licensePlate') or selected_machine.get('license_plate')
-        # Cliente ve solo operador, nunca empresa (providerName interno para facturas)
-        operator_display = _get_operator_display_name(provider_for_service) if provider_for_service else 'Operador'
+
+        sr_operator_id = str((sr or {}).get('operator_id') or (sr or {}).get('operatorId') or '').strip()
+        if sr_operator_id:
+            operator_user = await db.users.find_one({'id': sr_operator_id}, {'_id': 0})
+            if operator_user and str(operator_user.get('provider_role') or '').strip().lower() == 'operator' and str(operator_user.get('owner_id') or '').strip() == str(provider_id):
+                operator_display = str(operator_user.get('name') or (sr or {}).get('providerOperatorName') or 'Operador').strip()
+                op_name_raw = str(operator_user.get('name') or '').strip()
+                if op_name_raw:
+                    parts = [p for p in op_name_raw.split(' ') if p]
+                    op_first = parts[0] if parts else (sr or {}).get('operatorFirstName')
+                    op_last = ' '.join(parts[1:]) if len(parts) > 1 else (sr or {}).get('operatorLastName')
+                else:
+                    op_first = (sr or {}).get('operatorFirstName')
+                    op_last = (sr or {}).get('operatorLastName')
+                operator_rut = str(operator_user.get('rut') or (sr or {}).get('operatorRut') or '').strip() or None
+            else:
+                operator_display = str((sr or {}).get('providerOperatorName') or _get_operator_display_name(provider_for_service) if provider_for_service else 'Operador').strip() or 'Operador'
+                op_first = (sr or {}).get('operatorFirstName') or _get_operator_name_parts_for_service(provider_for_service)[0]
+                op_last = (sr or {}).get('operatorLastName') or _get_operator_name_parts_for_service(provider_for_service)[1]
+                operator_rut = (sr or {}).get('operatorRut') or _get_operator_rut_for_service(provider_for_service)
+        else:
+            operator_display = _get_operator_display_name(provider_for_service) if provider_for_service else 'Operador'
+            op_first, op_last = _get_operator_name_parts_for_service(provider_for_service)
+            operator_rut = _get_operator_rut_for_service(provider_for_service)
+            sr_assigned_name = (sr or {}).get('providerOperatorName')
+            if sr_assigned_name:
+                operator_display = str(sr_assigned_name).strip() or operator_display
+            sr_first = (sr or {}).get('operatorFirstName')
+            sr_last = (sr or {}).get('operatorLastName')
+            if sr_first or sr_last:
+                op_first = str(sr_first).strip() if sr_first else op_first
+                op_last = str(sr_last).strip() if sr_last else op_last
+                if not sr_assigned_name:
+                    operator_display = f"{op_first or ''} {op_last or ''}".strip() or operator_display
+            sr_rut = (sr or {}).get('operatorRut')
+            if sr_rut:
+                operator_rut = str(sr_rut).strip() or operator_rut
         license_plate = _get_license_plate_for_service(provider_for_service)
-        operator_rut = _get_operator_rut_for_service(provider_for_service)
-        op_first, op_last = _get_operator_name_parts_for_service(provider_for_service)
 
         # paymentStatus=charging hasta que PaymentService.charge_service confirme TBK (evita "cobrado" sin pago).
         set_confirmed: Dict[str, Any] = {

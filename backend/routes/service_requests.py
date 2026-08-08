@@ -1525,10 +1525,10 @@ async def patch_assigned_operator(
             detail="Como operador no puedes asignar operador",
         )
     st = (req.get("status") or "").lower()
-    if st not in ("confirmed", "en_route", "in_progress", "last_30"):
+    if st not in ("offer_sent",):
         raise HTTPException(
             status_code=400,
-            detail="Estado no permite actualizar operador",
+            detail="Estado no permite actualizar operador (solo antes de aceptar)",
         )
 
     nombre = (body.nombre or "").strip()
