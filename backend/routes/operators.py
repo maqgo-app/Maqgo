@@ -434,7 +434,10 @@ async def create_invitation(
     if not owner:
         raise HTTPException(status_code=404, detail="Titular no encontrado")
     
-    if owner.get("role") != "provider":
+    owner_role = owner.get("role")
+    owner_roles = owner.get("roles") or []
+    is_provider_owner = (owner_role == "provider") or ("provider" in owner_roles)
+    if not is_provider_owner:
         raise HTTPException(status_code=400, detail="Solo proveedores pueden invitar operadores")
 
     operator_name = _join_person_name(
@@ -571,7 +574,10 @@ async def create_invitations_batch(
     owner = await db.users.find_one({"id": data.owner_id}, {"_id": 0})
     if not owner:
         raise HTTPException(status_code=404, detail="Titular no encontrado")
-    if owner.get("role") != "provider":
+    owner_role = owner.get("role")
+    owner_roles = owner.get("roles") or []
+    is_provider_owner = (owner_role == "provider") or ("provider" in owner_roles)
+    if not is_provider_owner:
         raise HTTPException(status_code=400, detail="Solo proveedores pueden invitar operadores")
     if not isinstance(data.operators, list) or len(data.operators) == 0:
         raise HTTPException(status_code=400, detail="Selecciona al menos 1 operador.")
@@ -989,7 +995,10 @@ async def create_master_invitation(
     if not owner:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    if owner.get("role") != "provider":
+    owner_role = owner.get("role")
+    owner_roles = owner.get("roles") or []
+    is_provider_owner = (owner_role == "provider") or ("provider" in owner_roles)
+    if not is_provider_owner:
         raise HTTPException(status_code=400, detail="Solo proveedores pueden invitar")
     
     # Verificar que es Super Master (o owner para compatibilidad)
