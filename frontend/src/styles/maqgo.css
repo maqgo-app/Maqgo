@@ -1609,36 +1609,3 @@ a:focus-visible,
   border: 1px solid rgba(255, 255, 255, 0.10);
   box-shadow: 0 26px 72px rgba(0, 0, 0, 0.62);
 }
-
-/* Desktop premium: fondo ilustrado exclusivo alrededor del viewport movil.
-   Móvil sin cambios (media min 1024px). Imagen estática WEBP servida desde /public.
-   No cambia tamaño, ni proporciones, ni navegación, ni pantalla del teléfono. */
-@media (min-width: 1024px) {
-  html,
-  body {
-    background-color: #0d0d0d;
-  }
-  body {
-    background-image:
-      linear-gradient(180deg, rgba(7, 11, 18, 0.48) 0%, rgba(7, 11, 18, 0.28) 40%, rgba(7, 11, 18, 0.62) 100%),
-      url("/assets/desktop/maqgo-desktop-background.webp");
-    background-repeat: no-repeat;
-    background-position: center center;
-    background-size: cover;
-    background-attachment: fixed;
-  }
-  .maqgo-app-shell,
-  .maqgo-app-shell-inner {
-    background: transparent !important;
-  }
-  .maqgo-app-shell-main {
-    background: transparent;
-  }
-  .maqgo-app-shell-routes {
-    background: transparent;
-  }
-  /* Admin usa fondo propio y no requiere wrap mobile; respeta tambien la ilustracion fuera del panel */
-  .maqgo-admin-page {
-    background: transparent !important;
-  }
-}
