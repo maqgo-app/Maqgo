@@ -1610,3 +1610,40 @@ a:focus-visible,
   box-shadow: 0 26px 72px rgba(0, 0, 0, 0.62);
 }
 
+/* IMPL-DESKTOP-001 Desktop Premium — asset decorativo SOLO para desktop ≥ 1024 px.
+   NINGÚN cambio en viewport móvil. Viewport React = viewport; ancho/alto/tipografía/navegación intactos.
+   Asset reemplazable sin tocar código: sustituir /assets/desktop/maqgo-desktop-bg.webp */
+@media (min-width: 1024px) {
+  html,
+  body,
+  #root {
+    background-color: transparent !important;
+  }
+  html,
+  body {
+    background-color: #07070A;
+  }
+  body {
+    background-image:
+      linear-gradient(180deg, rgba(5, 8, 14, 0.60) 0%, rgba(5, 8, 14, 0.32) 42%, rgba(5, 8, 14, 0.70) 100%),
+      url("/assets/desktop/maqgo-desktop-bg.webp");
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: cover;
+    background-attachment: fixed;
+  }
+  .maqgo-app-shell,
+  .maqgo-app-shell-inner,
+  .maqgo-admin {
+    background: transparent !important;
+  }
+  .maqgo-app-shell-main,
+  .maqgo-app-shell-routes,
+  .maqgo-admin-page {
+    background: transparent;
+  }
+  .maqgo-app.welcome-desktop {
+    isolation: isolate;
+  }
+}
+
