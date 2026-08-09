@@ -1616,6 +1616,11 @@ a:focus-visible,
    cambiar frontend/public/assets/desktop/maqgo-desktop-bg-concept.webp. */
 @media (min-width: 1024px) {
   html,
+  body,
+  #root {
+    background-color: transparent !important;
+  }
+  html,
   body {
     background-color: #09090b;
   }
