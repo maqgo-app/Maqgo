@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>MAQGO · Desktop preview (temporal)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <style>
+    :root{
+      --bg:#070B12;
+      --panel:#0F172A;
+      --stroke:rgba(255,255,255,0.10);
+      --stroke-strong:rgba(255,255,255,0.18);
+      --text:rgba(255,255,255,0.88);
+      --muted:rgba(255,255,255,0.60);
+      --brand:#EC6819;
+      --brand-soft:rgba(236,104,25,0.14);
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased}
+    a{color:inherit;text-decoration:underline}
+    .wrap{min-height:100%;display:flex;flex-direction:column}
+    .topbar{
+      position:sticky;top:0;z-index:20;
+      background:rgba(15,23,42,0.86);
+      -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+      border-bottom:1px solid var(--stroke);
+      padding:14px 18px;
+    }
+    .topbar-inner{max-width:1500px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:0.3px}
+    .brand .dot{width:10px;height:10px;border-radius:999px;background:var(--brand);box-shadow:0 0 0 4px var(--brand-soft)}
+    .meta{font-size:12px;color:var(--muted);margin-left:8px}
+    .spacer{flex:1 1 auto;min-width:12px}
+    .fields{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    label{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+    input[type="text"], input[type="url"]{
+      background:#0B1220;color:var(--text);
+      border:1px solid var(--stroke-strong);
+      padding:9px 12px;border-radius:10px;min-width:380px;max-width:60vw;
+      font:inherit;font-size:13px
+    }
+    input[type="checkbox"]{accent-color:var(--brand)}
+    button{
+      appearance:none;border:1px solid var(--stroke-strong);background:#0B1220;color:var(--text);
+      padding:9px 14px;border-radius:10px;cursor:pointer;font:inherit;font-size:13px;font-weight:600
+    }
+    button.primary{background:var(--brand);border-color:transparent;color:#fff}
+    button.ghost{background:transparent}
+    .stage{
+      flex:1 1 auto;
+      position:relative;
+      overflow:hidden;
+    }
+    .canvas{
+      position:absolute;inset:0;
+      background-repeat:no-repeat;background-position:center center;background-size:cover;background-attachment:fixed;
+      background-color:#0a0a0a;
+      transition:opacity .2s ease
+    }
+    .canvas::after{
+      content:"";position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(180deg, rgba(7,11,18,0.50) 0%, rgba(7,11,18,0.28) 40%, rgba(7,11,18,0.62) 100%);
+    }
+    .device-wrap{
+      position:absolute;inset:0;
+      display:flex;align-items:center;justify-content:center;
+      padding:28px 24px;
+    }
+    .device{
+      width:100%;max-width:430px;
+      aspect-ratio: 9 / 19.5;
+      max-height:calc(100vh - 84px);
+      background:#0a0a0a;
+      border:1px solid rgba(255,255,255,0.08);
+      border-radius:40px;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        inset 0 0 0 0.5px rgba(255,255,255,0.08),
+        0 0 0 1px rgba(255,255,255,0.06),
+        0 40px 120px rgba(0,0,0,0.60),
+        0 10px 30px rgba(0,0,0,0.50);
+      overflow:hidden;
+      position:relative;
+    }
+    .device.guides::after{
+      content:"";position:absolute;inset:0;border-radius:40px;pointer-events:none;z-index:5;
+      box-shadow:inset 0 0 0 2px var(--brand)
+    }
+    iframe{
+      position:absolute;inset:0;width:100%;height:100%;
+      border:0;border-radius:40px;background:#0a0a0a;
+    }
+    .sizes{display:flex;gap:6px;flex-wrap:wrap}
+    .chip{
+      padding:7px 10px;border-radius:999px;border:1px solid var(--stroke);background:#0B1220;color:var(--text);
+      font-size:12px;cursor:pointer
+    }
+    .chip.active{border-color:var(--brand);background:var(--brand-soft);color:#fff}
+    .banner{
+      display:none;
+      padding:16px 18px;border-bottom:1px solid var(--stroke);background:var(--panel);
+    }
+    .banner strong{color:var(--brand)}
+    @media (max-width: 1023px){
+      .banner{display:block}
+      .topbar .hide-mobile{display:none !important}
+      input[type="text"], input[type="url"]{min-width:0;max-width:100%;width:100%}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="banner">
+      <strong>Preview solo visible en desktop (≥ 1024 px).</strong> Esta página es una herramienta temporal para validar el fondo decorativo alrededor del viewport real de MAQGO. No integra cambios en el producto.
+    </div>
+
+    <div class="topbar hide-mobile">
+      <div class="topbar-inner">
+        <div class="brand"><span class="dot"></span>MAQGO <span class="meta">Desktop · preview temporal</span></div>
+        <div class="spacer"></div>
+        <div class="fields" style="width:100%;margin-top:4px">
+          <label style="flex:1 1 auto">
+            Background URL
+            <input id="bg" type="url" placeholder="https://.../fondo.webp  ····  3840px · WEBP · sin textos ni teléfono" />
+          </label>
+          <button id="apply" class="primary">Aplicar</button>
+          <button id="empty" class="ghost">Limpiar</button>
+          <label><input type="checkbox" id="guides" /> Guias</label>
+          <div class="sizes">
+            <button class="chip active" data-w="1440">1440</button>
+            <button class="chip" data-w="1920">1920</button>
+            <button class="chip" data-w="2560">2560</button>
+            <button class="chip" data-w="3440">3440</button>
+            <button class="chip" data-w="3840">4K</button>
+            <button class="chip" data-w="0">Natural</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage hide-mobile">
+      <div id="canvas" class="canvas" aria-hidden="true"></div>
+      <div class="device-wrap">
+        <div id="device" class="device" aria-label="Viewport MAQGO (430px, tamaño original)">
+          <iframe id="app" title="MAQGO · viewport real" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="/"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const canvas = $('canvas');
+  const device = $('device');
+  const bg = $('bg');
+  const apply = $('apply');
+  const empty = $('empty');
+  const guides = $('guides');
+  const STORAGE_KEY = 'maqgo.desktop.preview.bg.v1';
+
+  function applyBg(){
+    const url = (bg.value || '').trim();
+    if(!url){
+      canvas.style.backgroundImage = 'none';
+      canvas.style.opacity = '1';
+      try { localStorage.removeItem(STORAGE_KEY); } catch(_){}
+      return;
+    }
+    canvas.style.backgroundImage =
+      'linear-gradient(180deg, rgba(7,11,18,0.48) 0%, rgba(7,11,18,0.28) 40%, rgba(7,11,18,0.62) 100%), url("'+ url.replace(/"/g,'%22') +'")';
+    canvas.style.opacity = '1';
+    try { localStorage.setItem(STORAGE_KEY, url); } catch(_){}
+  }
+
+  apply.addEventListener('click', applyBg);
+  bg.addEventListener('keydown', (e)=>{ if(e.key==='Enter') applyBg(); });
+  empty.addEventListener('click', ()=>{ bg.value=''; applyBg(); });
+  guides.addEventListener('change', ()=>{ device.classList.toggle('guides', guides.checked); });
+
+  document.querySelectorAll('.chip').forEach(ch => {
+    ch.addEventListener('click', ()=>{
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      ch.classList.add('active');
+      const w = parseInt(ch.dataset.w || '0', 10);
+      const stage = document.querySelector('.stage');
+      if(!w || !stage){
+        stage.style.maxWidth='none';stage.style.margin='auto';stage.style.position='relative';
+        document.querySelector('.wrap').style.alignItems='stretch';
+        return;
+      }
+      stage.style.maxWidth = w+'px';
+      stage.style.margin = '0 auto';
+      stage.style.borderLeft = '1px solid var(--stroke)';
+      stage.style.borderRight = '1px solid var(--stroke)';
+    });
+  });
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if(saved){ bg.value = saved; applyBg(); }
+  } catch(_){}
+})();
+</script>
+</body>
+</html>
