@@ -346,17 +346,22 @@ function ProviderOptionsScreen({ previewPublic = false }) {
     } catch {
       void 0;
     }
-    setAvailabilityToast({
-      kind: 'enabled',
-      message: 'Listo. Verás aquí las opciones cuando aparezcan.',
-    });
 
-    if (!canUseNotifications) return;
+    const baseMessage = 'Aviso activado. Verás aquí las opciones cuando aparezcan.';
+
+    if (!canUseNotifications) {
+      setAvailabilityToast({
+        kind: 'enabled',
+        message: baseMessage,
+      });
+      return;
+    }
+
     try {
       if (Notification.permission === 'denied') {
         setAvailabilityToast({
           kind: 'enabled',
-          message: 'Aviso activado. Para notificaciones, habilítalas en tu navegador.',
+          message: `${baseMessage} Para notificaciones push, habilítalas en tu navegador.`,
         });
         return;
       }
@@ -366,14 +371,21 @@ function ProviderOptionsScreen({ previewPublic = false }) {
         if (r?.denied) {
           setAvailabilityToast({
             kind: 'enabled',
-            message: 'Aviso activado. Si quieres notificaciones, permite notificaciones en el navegador.',
+            message: `${baseMessage} Si quieres notificaciones push, permite notificaciones en el navegador.`,
           });
-        } else if (r?.success) {
+          return;
+        }
+        if (r?.success) {
           setAvailabilityToast({
             kind: 'enabled',
-            message: 'Aviso activado. Te enviaremos una notificación si aparecen opciones.',
+            message: `${baseMessage} Si aparecen opciones, te enviaremos una notificación.`,
           });
+          return;
         }
+        setAvailabilityToast({
+          kind: 'enabled',
+          message: baseMessage,
+        });
         return;
       }
 
@@ -382,12 +394,26 @@ function ProviderOptionsScreen({ previewPublic = false }) {
         if (r?.success) {
           setAvailabilityToast({
             kind: 'enabled',
-            message: 'Aviso activado. Te enviaremos una notificación si aparecen opciones.',
+            message: `${baseMessage} Si aparecen opciones, te enviaremos una notificación.`,
           });
+          return;
         }
+        setAvailabilityToast({
+          kind: 'enabled',
+          message: baseMessage,
+        });
+        return;
       }
+
+      setAvailabilityToast({
+        kind: 'enabled',
+        message: baseMessage,
+      });
     } catch {
-      void 0;
+      setAvailabilityToast({
+        kind: 'enabled',
+        message: baseMessage,
+      });
     }
   }, [canUseNotifications]);
 
