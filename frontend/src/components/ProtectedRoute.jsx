@@ -21,6 +21,7 @@ function shouldEnforceLegalForPath(path) {
   }
   if (p.startsWith("/client/")) {
     return (
+      p === "/client/home" ||
       p === "/client/booking" ||
       p === "/client/machinery" ||
       p === "/client/urgency" ||
@@ -32,6 +33,9 @@ function shouldEnforceLegalForPath(path) {
       p === "/client/workday-confirmation" ||
       p === "/client/card"
     );
+  }
+  if (p.startsWith("/operator/")) {
+    return p === "/operator/home";
   }
   if (p === "/oneclick/complete") return true;
   return false;
