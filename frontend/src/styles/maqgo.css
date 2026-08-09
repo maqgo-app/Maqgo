@@ -1609,3 +1609,37 @@ a:focus-visible,
   border: 1px solid rgba(255, 255, 255, 0.10);
   box-shadow: 0 26px 72px rgba(0, 0, 0, 0.62);
 }
+
+/* IMPL-DESKTOP-001 Concept Art Temporal — validación integración visual.
+   Solo desktop ≥ 1024 px. Móvil intacto (0 cambios en viewport).
+   Asset reemplazable posteriormente sin tocar código:
+   cambiar frontend/public/assets/desktop/maqgo-desktop-bg-concept.webp. */
+@media (min-width: 1024px) {
+  html,
+  body {
+    background-color: #09090b;
+  }
+  body {
+    background-image:
+      linear-gradient(180deg, rgba(5,8,14,0.58) 0%, rgba(5,8,14,0.30) 38%, rgba(5,8,14,0.66) 100%),
+      url("/assets/desktop/maqgo-desktop-bg-concept.webp");
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: cover;
+    background-attachment: fixed;
+  }
+  .maqgo-app-shell,
+  .maqgo-app-shell-inner,
+  .maqgo-admin {
+    background: transparent !important;
+  }
+  .maqgo-app-shell-main,
+  .maqgo-app-shell-routes,
+  .maqgo-admin-page {
+    background: transparent;
+  }
+  /* Layout Welcome desktop también hereda el fondo (no rompe marco Tesla) */
+  .maqgo-app.welcome-desktop {
+    isolation: isolate;
+  }
+}
