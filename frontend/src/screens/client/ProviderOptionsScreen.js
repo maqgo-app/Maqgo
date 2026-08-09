@@ -347,7 +347,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
       void 0;
     }
 
-    const baseMessage = 'Aviso activado. Verás aquí las opciones cuando aparezcan.';
+    const baseMessage = 'Perfecto. Te avisaremos apenas haya maquinaria disponible.';
 
     if (!canUseNotifications) {
       setAvailabilityToast({
@@ -361,7 +361,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
       if (Notification.permission === 'denied') {
         setAvailabilityToast({
           kind: 'enabled',
-          message: `${baseMessage} Para notificaciones push, habilítalas en tu navegador.`,
+          message: `${baseMessage} Para recibir notificaciones, habilítalas en tu navegador.`,
         });
         return;
       }
@@ -378,7 +378,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
         if (r?.success) {
           setAvailabilityToast({
             kind: 'enabled',
-            message: `${baseMessage} Si aparecen opciones, te enviaremos una notificación.`,
+            message: `${baseMessage} También recibirás una notificación.`,
           });
           return;
         }
@@ -394,7 +394,7 @@ function ProviderOptionsScreen({ previewPublic = false }) {
         if (r?.success) {
           setAvailabilityToast({
             kind: 'enabled',
-            message: `${baseMessage} Si aparecen opciones, te enviaremos una notificación.`,
+            message: `${baseMessage} También recibirás una notificación.`,
           });
           return;
         }
