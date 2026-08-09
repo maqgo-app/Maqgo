@@ -1,4 +1,4 @@
-import json
+frontend/public/assets/desktop/maqgo-desktop-bg.webpfrontend/public/assets/desktop/maqgo-desktop-bg.webpimport json
 import os
 import random
 import string
