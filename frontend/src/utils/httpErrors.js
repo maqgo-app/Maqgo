@@ -85,19 +85,30 @@ export function getHttpErrorMessage(error, options = {}) {
   }
 
   const msg = String(error.message || '');
-  if (error.code === 'ECONNABORTED' || msg.includes('timeout')) {
-    return 'El servidor tardó demasiado en responder. Revisa tu conexión.';
+  const causeCode = String(error?.cause?.code || '');
+  const errCode = String(error.code || '');
+  const isTimeout =
+    errCode === 'ECONNABORTED' ||
+    errCode === 'ETIMEDOUT' ||
+    errCode === 'ECONNRESET' ||
+    errCode === 'ERR_CANCELED' ||
+    causeCode === 'ETIMEDOUT' ||
+    causeCode === 'ECONNABORTED' ||
+    /timeout|timed.?out|demoró|cancel(ed|ó)/i.test(msg);
+
+  if (isTimeout) {
+    return 'El servidor está tardando más de lo normal. Espera unos segundos y vuelve a intentar. Desactiva VPN/Private Relay/DNS privado si lo usas, o prueba con datos móviles.';
   }
 
   const isFetchNetwork =
-    error.name === 'TypeError' && /failed to fetch|network|load failed/i.test(msg);
+    error.name === 'TypeError' && /failed to fetch|network|load failed|cors|networkerror/i.test(msg);
 
   const res = error.response;
   if (!res) {
     if (error.request || isFetchNetwork) {
       return (
         networkUnavailableMessage ||
-        'Sin conexión o el servidor no responde. Verifica tu internet.'
+        'Sin conexión o el servidor no responde. Revisa internet, desactiva VPN/Private Relay/DNS privado si lo usas, o prueba con datos móviles.'
       );
     }
     return fallback;

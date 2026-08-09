@@ -499,10 +499,10 @@ function LoginScreen({ setUserRole, setUserId }) {
         getHttpErrorMessage(e, {
           fallback: 'No pudimos enviarte el código. Intenta nuevamente.',
           networkUnavailableMessage:
-            'Sin conexión con el servidor. Revisa tu internet, desactiva VPN/Private DNS si aplica, o prueba con datos móviles.',
+            'No pudimos conectarnos. Desactiva VPN/Private Relay/iCloud Relay/DNS privado si lo estás usando, revisa tu internet o prueba con datos móviles. Espera 10 segundos y vuelve a intentar.',
           statusMessages: {
             404:
-              'Inicio de sesión por celular no disponible (404). Revisa conexión, actualiza la página o confirma que la API en producción incluya login por SMS.',
+              'Inicio de sesión por celular no disponible (404). Actualiza la página y vuelve a intentar.',
           },
         })
       );
@@ -567,11 +567,11 @@ function LoginScreen({ setUserRole, setUserId }) {
         getHttpErrorMessage(e, {
           fallback: 'El código no es correcto. Intenta nuevamente.',
           networkUnavailableMessage:
-            'Sin conexión con el servidor. Revisa tu internet, desactiva VPN/Private DNS si aplica, o prueba con datos móviles.',
+            'No pudimos conectarnos. Desactiva VPN/Private Relay/iCloud Relay/DNS privado si lo estás usando, revisa tu internet o prueba con datos móviles. Espera 10 segundos y vuelve a intentar.',
           statusMessages: {
             400: 'El código no es correcto. Intenta nuevamente.',
             404:
-              'No pudimos validar el código (404). Revisa conexión o que la API esté actualizada.',
+              'No pudimos validar el código (404). Actualiza la página y vuelve a intentar.',
           },
         })
       );
