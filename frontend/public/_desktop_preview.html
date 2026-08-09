@@ -144,7 +144,16 @@
       <div id="canvas" class="canvas" aria-hidden="true"></div>
       <div class="device-wrap">
         <div id="device" class="device" aria-label="Viewport MAQGO (430px, tamaño original)">
-          <iframe id="app" title="MAQGO · viewport real" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="/"></iframe>
+          <iframe
+            id="app"
+            title="MAQGO · viewport real"
+            loading="eager"
+            importance="high"
+            allow="clipboard-read; clipboard-write; geolocation; fullscreen"
+            referrerpolicy="strict-origin-when-cross-origin"
+            sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals allow-popups-to-escape-sandbox allow-downloads"
+            src="https://www.maqgo.cl/welcome"
+          ></iframe>
         </div>
       </div>
     </div>
@@ -159,7 +168,18 @@
   const apply = $('apply');
   const empty = $('empty');
   const guides = $('guides');
+  const iframeApp = $('app');
+  const reloadBtn = document.createElement('button');
+  reloadBtn.className = 'ghost';
+  reloadBtn.textContent = 'Reload MAQGO';
+  reloadBtn.title = 'Recargar iframe MAQGO Welcome forzado';
+  apply.insertAdjacentElement('afterend', reloadBtn);
+  reloadBtn.addEventListener('click', ()=>{
+    const u = 'https://www.maqgo.cl/welcome?_=' + Date.now();
+    try { iframeApp.contentWindow.location.replace(u); } catch(_){ iframeApp.src = u; }
+  });
   const STORAGE_KEY = 'maqgo.desktop.preview.bg.v1';
+  const BG_IFRAME = 'maqgo.desktop.preview.iframe.v1';
 
   function applyBg(){
     const url = (bg.value || '').trim();
