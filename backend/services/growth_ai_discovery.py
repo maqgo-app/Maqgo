@@ -31,12 +31,25 @@ HREF_RE = re.compile(r"href\s*=\s*['\"]([^'\"]+)['\"]", re.IGNORECASE)
 
 IRRELEVANT_RSS_KEYWORDS_RE = re.compile(
     r"(?i)\b("
-    r"fallecid[oa]|muerto|muert[oa]|fatal|accident(?:e|es)?|colisi[oó]n|choque|atropell[ao]|atropellamiento|"
-    r"incendio|incendiado|rob[ao]|robo|asalto|homicidio|asesinat[oa]|secuestr[ao]|disparos|baleado|tiroteo|"
-    r"polic(?:[ií]a|ial)|carabineros|pdi|investigaci[oó]n|denuncia|delito|criminal|juicio|prisi[oó]n|detenid[oa]|"
-    r"herid[oa]|lesionad[oa]|graves|gravemente|evacuado|rescat[ea]|rescate|ambulancia|samu|bombero|"
-    r"tr[áa]nsito(?:\s*cerrado)?|desv[ií]o|corte(?:\s*de\s*calle)?|vialidad\s*(?:cerrada|cortada)"
+    r"fallecid[oa]|muerto|muert[oa]|fatal|accident(?:e|es)?|colisi[oó]n|choque(?:s)?|siniestro(?:s)?|atropell[ao]|atropellamiento|imprudencia|velocidad excesiva|"
+    r"incendio|incendiado|rob[ao]|robo|asalto|homicidio|asesinat[oa]|secuestr[ao]|disparos?|balead[ao]|tiroteo|"
+    r"polic(?:[ií]a|ial)|carabineros|pdi|investigaci[oó]n|denuncia|delito|criminal|juicio|prisi[oó]n|detenid[oa]|imputad[oa]|"
+    r"herid[oa]|lesionad[oa]|graves|gravemente|evacuado|rescat[ea]do|rescate|ambulancia|samu|bombero|param[ée]dic[ao]|"
+    r"tr[áa]nsito(?:\s*cerrado)?|desv[ií]o|corte(?:\s*de\s*calle)?|vialidad\s*(?:cerrada|cortada)|congestionamiento|taco"
     r")\b"
+)
+NEWS_MEDIA_KEYWORDS_RE = re.compile(
+    r"(?i)\b("
+    r"la\s*tercera|cnn\s*chile|cnnchile|24\s*horas|24horas|bio\s*bio|biobio|cooperativa|adn\s*radio|adnradio|mega|canal\s*(?:13|trece)|tvn|emol|el\s*mercurio|la\s*cuarta|las\s*[úu]ltimas\s*noticias|lun|mercuriovalpo|"
+    r"notici(?:a|as|ero)|noticiero|diari(?:o|os)|prensa|period[ií]stic[oa]|periodista|reportaj(?:e|es)|redacci[oó]n|fuente\s*period[ií]stica|portada"
+    r")\b"
+)
+KNOWN_NEWS_HOST_RE = re.compile(
+    r"(?i)(^|\.)("
+    r"latercera\.com|cnnchile\.com|24horas\.cl|biobiochile\.cl|cooperativa\.cl|adnradio\.cl|mega\.cl|canal13\.cl|tvn\.cl|emol\.com|elmercurio\.com|lacuarta\.com|"
+    r"lun\.com|mercuriovalpo\.cl|laserenaonline\.cl|noticiasdelsur\.cl|chilevision\.cl|t13\.cl|elmostrador\.cl|publimetro\.cl|eldinamo\.cl|nuevoelrancaguino\.cl|"
+    r"diariofinanciero\.com|df\.cl|larazon\.es|theclinic\.cl|ciper\.cl|interferencia\.cl"
+    r")(/|$)"
 )
 RELEVANT_SUPPLY_KEYWORDS_RE = re.compile(
     r"(?i)\b("
@@ -183,6 +196,17 @@ def is_irrelevant_rss_title(title: str) -> bool:
         return True
     if IRRELEVANT_RSS_KEYWORDS_RE.search(t):
         return True
+    if NEWS_MEDIA_KEYWORDS_RE.search(t):
+        return True
+    return False
+
+
+def is_irrelevant_rss_link(link: str) -> bool:
+    h = _host(link or "").lower()
+    if not h:
+        return False
+    if KNOWN_NEWS_HOST_RE.search("/" + h + "/"):
+        return True
     return False
 
 
@@ -274,6 +298,8 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
                         link = it.get("link") or ""
 
                         if is_irrelevant_rss_title(title):
+                            continue
+                        if is_irrelevant_rss_link(link):
                             continue
                         if not is_relevant_rss_title(title=title, kind=src.kind):
                             continue
