@@ -550,6 +550,12 @@ class DiscoverySourceUpsert(BaseModel):
 @router.get("/overview")
 async def overview(_: dict = Depends(get_current_admin_strict)):
     await _bootstrap_nodes_if_empty()
+    runtime_flags = await _autopilot_runtime_flags()
+    auto_go_live = bool(
+        runtime_flags.get("enabled")
+        and runtime_flags.get("outreach_demand_enabled")
+        and not runtime_flags.get("require_go_live_approval_for_demand")
+    )
     nodes = await db.growth_nodes.find({}, {"_id": 0}).sort("sequence", 1).to_list(length=200)
     top_nodes = []
     for n in nodes[:6]:

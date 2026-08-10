@@ -8,7 +8,7 @@ export function friendlyFetchError(err, fallback = 'Error de conexión') {
     return 'El servidor tardó demasiado en responder. Reintenta en unos segundos.';
   }
   if (m === 'Failed to fetch' || err?.name === 'TypeError') {
-    return 'Sin respuesta del servidor. Revisa que el backend esté en línea y REACT_APP_BACKEND_URL (Vercel) apunte al API con HTTPS.';
+    return 'Sin respuesta del servidor. Revisa que el backend esté en línea y VITE_BACKEND_URL (o REACT_APP_BACKEND_URL legacy) en Vercel apunte al API con HTTPS.';
   }
   if (m === 'Sesión expirada') return m;
   return m || fallback;

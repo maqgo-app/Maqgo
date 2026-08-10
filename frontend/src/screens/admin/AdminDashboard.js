@@ -1825,7 +1825,7 @@ function AdminDashboard() {
               <p style={{ margin: '0 0 10px', color: 'rgba(255,255,255,0.85)' }}>
                 <strong>/healthz no OK</strong>
                 {healthSnapshot.error ? ` (${healthSnapshot.error})` : ''}. Revisa DNS (sin NXDOMAIN),{' '}
-                <code style={{ color: '#7EB8D4' }}>REACT_APP_BACKEND_URL</code> en Vercel y redeploy del frontend tras
+                <code style={{ color: '#7EB8D4' }}>VITE_BACKEND_URL</code> (o <code style={{ color: '#7EB8D4' }}>REACT_APP_BACKEND_URL</code> legacy) en Vercel y redeploy del frontend tras
                 cambiar env.
               </p>
             ) : (
