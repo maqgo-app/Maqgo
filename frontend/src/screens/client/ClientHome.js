@@ -4,17 +4,24 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import MaqgoPill from '../../components/base/MaqgoPill';
 import { getClientBookingRoute, resetBookingState } from '../../utils/bookingFlow';
 import { preloadClientBookingFunnel } from '../../utils/preloadClientBookingFunnel';
+import { useAuth } from '../../context/authHooks';
 
-/**
- * C10 - Tipo de Reserva - Diseño Premium
- * Inmediata → Maquinaria → Horas (si aplica) → Proveedores
- * Programada → Calendario multi-día → Maquinaria
- * Incluye acceso a Historial y Perfil
- */
 function ClientHome() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [pendingRoute, setPendingRoute] = useState(null);
+
+  const displayName = (() => {
+    const raw = auth?.user?.name;
+    if (!raw) return null;
+    const trimmed = String(raw).trim();
+    if (!trimmed) return null;
+    const firstSpace = trimmed.search(/\s/);
+    const first = firstSpace > 0 ? trimmed.slice(0, firstSpace) : trimmed;
+    return first || null;
+  })();
+  const hasDisplayName = Boolean(displayName);
 
   useEffect(() => {
     preloadClientBookingFunnel();
@@ -76,7 +83,17 @@ function ClientHome() {
       >
         <>
           <div style={{ width: '100%', textAlign: 'center', marginBottom: 18 }}>
-            <MaqgoLogo customSize={130} style={{ marginBottom: 14 }} />
+            <MaqgoLogo customSize={130} style={{ marginBottom: hasDisplayName ? 10 : 14 }} />
+            {hasDisplayName && (
+              <>
+                <h2 style={{ margin: 0, marginBottom: 4, color: '#FFFFFF', fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                  Hola, {displayName} 👋
+                </h2>
+                <p style={{ margin: 0, marginBottom: 14, color: 'rgba(255,255,255,0.70)', fontSize: 14, lineHeight: 1.35 }}>
+                  Qué bueno tenerte de vuelta.
+                </p>
+              </>
+            )}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
               <div
                 style={{
