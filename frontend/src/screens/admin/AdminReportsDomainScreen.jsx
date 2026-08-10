@@ -167,38 +167,6 @@ export default function AdminReportsDomainScreen() {
         </div>
       </AdminSurface>
 
-      <AdminSurface title="Plantillas activas" subtitle="Los reportes semanales y mensuales mantienen el formato MAQGO ya desarrollado y siguen disponibles como PDF para distribución interna.">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-          <AdminDomainCard
-            title="Informe semanal"
-            subtitle="Misma lógica del reporte operativo que ya venía usando el equipo"
-            bullets={[
-              'Incluye resumen, negocio, operación, demanda e insights',
-              'Disponible en JSON y PDF',
-              'Sirve para revisión interna y envío por correo',
-            ]}
-          />
-          <AdminDomainCard
-            title="Informe mensual"
-            subtitle="Mantiene la lectura financiera consolidada del mes"
-            bullets={[
-              'Incluye ventas, contribución, IVA, ingresos MAQGO y volumen',
-              'Disponible en JSON y PDF',
-              'Sirve como base del cierre mensual y seguimiento ejecutivo',
-            ]}
-          />
-          <AdminDomainCard
-            title="Destinatarios"
-            subtitle="La distribución semanal y mensual sigue vigente"
-            bullets={[
-              `Informe semanal: ${stats.weeklyEmails}`,
-              `Informe mensual: ${stats.monthlyEmails}`,
-              'La distribucion vigente mantiene el control de destinatarios y del flujo de envio',
-            ]}
-          />
-        </div>
-      </AdminSurface>
-
       <AdminSurface title="Reporte semanal" subtitle="Busca la semana que necesitas, revisa el resumen y descarga el PDF en el mismo flujo.">
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
           <select value={weeksAgo} onChange={(e) => setWeeksAgo(Number(e.target.value))} style={INPUT_STYLE}>
@@ -291,46 +259,6 @@ export default function AdminReportsDomainScreen() {
                 `Proveedores nuevos: ${monthlyReport?.volume?.new_providers ?? 0}`,
                 `Maquinarias nuevas: ${monthlyReport?.volume?.new_machines ?? 0}`,
               ]}
-            />
-          </div>
-        )}
-      </AdminSurface>
-
-      <AdminSurface title="Destinatarios y envíos" subtitle="Control visible de quién recibe cada informe y qué pantalla sigue gestionando el envio actual.">
-        {loading ? (
-          <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>Cargando reportes…</div>
-        ) : error ? (
-          <div style={{ color: '#E8A34B', fontSize: 13 }}>{error}</div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-            <AdminDomainCard
-              title="Distribución semanal"
-              subtitle="Destinatarios del informe semanal"
-              bullets={[
-                `Destinatarios: ${stats.weeklyEmails}`,
-                'El envío sigue utilizando la plantilla MAQGO semanal',
-                'La distribucion vigente permite administrar continuidad y envio',
-              ]}
-            />
-            <AdminDomainCard
-              title="Distribución mensual"
-              subtitle="Destinatarios del informe mensual"
-              bullets={[
-                `Destinatarios: ${stats.monthlyEmails}`,
-                'El envío sigue utilizando la plantilla MAQGO mensual',
-                'Conserva el flujo ejecutivo ya desarrollado',
-              ]}
-            />
-            <AdminDomainCard
-              title="Acceso complementario"
-              subtitle="Superficie disponible para la operación actual"
-              bullets={[
-                'La pantalla vigente concentra las acciones auxiliares de distribucion',
-                'Reportes queda como espacio de consulta y descarga',
-                'El panel resume, pero no reemplaza esta area',
-              ]}
-              to="/admin/marketing"
-              actionLabel="Abrir distribucion vigente"
             />
           </div>
         )}

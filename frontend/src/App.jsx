@@ -300,6 +300,7 @@ function AppContent() {
           <Route element={<AdminShellLayout />}>
             <Route index element={<AdminHomeScreen />} />
             <Route path="dashboard" element={<Navigate to="/admin" replace />} />
+            <Route path="legacy/dashboard" element={<Navigate to="/admin" replace />} />
             <Route path="clientes" element={<AdminClientsDomainScreen />} />
             <Route path="proveedores" element={<AdminSupplyDomainScreen mode="providers" />} />
             <Route path="operadores" element={<AdminSupplyDomainScreen mode="operators" />} />
@@ -312,10 +313,8 @@ function AppContent() {
             <Route path="reportes" element={<AdminReportsDomainScreen />} />
             <Route path="logs" element={<AdminGovernanceDomainScreen mode="logs" />} />
             <Route path="configuracion" element={<AdminGovernanceDomainScreen mode="configuracion" />} />
-            <Route path="parametros" element={<AdminGovernanceDomainScreen mode="parametros" />} />
+            <Route path="parametros" element={<Navigate to="/admin/pricing" replace />} />
             <Route path="roles-permisos" element={<AdminGovernanceDomainScreen mode="roles-permisos" />} />
-            <Route path="legacy/dashboard" element={<AdminDashboard />} />
-            <Route path="legacy/area/:areaId" element={<AdminLegacyAreaRedirect />} />
             <Route path="users" element={<AdminUsersScreen />} />
             <Route path="pricing" element={<AdminPricingScreen />} />
             <Route path="marketing" element={<AdminMarketingScreen />} />

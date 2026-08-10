@@ -140,41 +140,6 @@ export default function AdminMatchingDomainScreen() {
           </div>
         )}
       </AdminSurface>
-
-      <AdminSurface
-        title="Resumen del periodo"
-        subtitle="Interpretacion rapida para entender avance, volumen y resultado de la asignacion en el periodo."
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
-          <AdminDomainCard
-            title="Avance de casos"
-            subtitle="Casos que avanzaron o siguen pendientes"
-            bullets={[
-              `Buscando oferta: ${stats.matching}`,
-              `Ofertas enviadas: ${stats.offers}`,
-              `Asignadas: ${stats.active}`,
-            ]}
-          />
-          <AdminDomainCard
-            title="Volumen de trabajo"
-            subtitle="Cantidad e intensidad de la asignacion"
-            bullets={[
-              `Solicitudes en rango: ${stats.total}`,
-              `Intentos acumulados: ${stats.attempts}`,
-              `Promedio por caso: ${stats.total ? (stats.attempts / stats.total).toFixed(1) : '0.0'}`,
-            ]}
-          />
-          <AdminDomainCard
-            title="Casos resueltos"
-            subtitle="Casos que ya salieron del trabajo activo"
-            bullets={[
-              `Cerradas: ${stats.closed}`,
-              statusScope === 'active' ? 'El filtro actual deja fuera los casos ya resueltos' : 'Incluye estados que ya no requieren gestion activa',
-              'Sirve para entender si la asignacion resuelve o acumula friccion',
-            ]}
-          />
-        </div>
-      </AdminSurface>
     </div>
   );
 }

@@ -34,14 +34,14 @@ export const ADMIN_NAV_GROUPS = [
       { key: 'maquinarias', label: 'Maquinarias', path: '/admin/maquinarias' },
       { key: 'precios', label: 'Precios', path: '/admin/pricing' },
       { key: 'reservas', label: 'Reservas', path: '/admin/reservas' },
-      { key: 'matching', label: 'Asignacion', path: '/admin/matching' },
+      { key: 'matching', label: 'Asignación', path: '/admin/matching' },
     ],
   },
   {
-    label: 'Operacion',
+    label: 'Operación',
     items: [
       { key: 'pagos', label: 'Pagos', path: '/admin/pagos' },
-      { key: 'facturacion', label: 'Facturacion', path: '/admin/facturacion' },
+      { key: 'facturacion', label: 'Facturación', path: '/admin/facturacion' },
       { key: 'soporte', label: 'Soporte', path: '/admin/soporte' },
       { key: 'logs', label: 'Actividad', path: '/admin/logs' },
     ],
@@ -50,8 +50,7 @@ export const ADMIN_NAV_GROUPS = [
     label: 'Ajustes',
     items: [
       { key: 'marketing', label: 'Marketing & CAC', path: '/admin/marketing' },
-      { key: 'configuracion', label: 'Configuracion', path: '/admin/configuracion' },
-      { key: 'parametros', label: 'Reglas de negocio', path: '/admin/parametros' },
+      { key: 'configuracion', label: 'Configuración', path: '/admin/configuracion' },
       { key: 'roles-permisos', label: 'Equipo y accesos', path: '/admin/roles-permisos' },
     ],
   },
@@ -141,17 +140,17 @@ export const ADMIN_DOMAIN_META = {
     ],
   },
   matching: {
-    title: 'Asignacion',
-    subtitle: 'Asignacion separada de la ejecucion',
+    title: 'Asignación',
+    subtitle: 'Asignación separada de la ejecución',
     summary:
-      'Muestra la carga de asignacion y los intentos realizados antes de la ejecucion.',
+      'Muestra la carga de asignación y los intentos realizados antes de la ejecución.',
     responsibilities: [
-      'Gobernar la carga activa de asignacion',
+      'Gobernar la carga activa de asignación',
       'Registrar intentos, fallos y reintentos',
-      'Escalar senales estructurales de avance insuficiente',
+      'Escalar señales estructurales de avance insuficiente',
     ],
     actions: [
-      { label: 'Abrir asignacion', to: '/admin/matching', tone: 'primary' },
+      { label: 'Abrir asignación', to: '/admin/matching', tone: 'primary' },
     ],
   },
   pagos: {
@@ -161,7 +160,7 @@ export const ADMIN_DOMAIN_META = {
       'Concentra cobros, pagos, comisiones y alertas financieras del marketplace.',
     responsibilities: [
       'Gobernar cobros, pagos y comisiones',
-      'Mostrar diferencias y conciliacion operativa',
+      'Mostrar diferencias y conciliación operativa',
       'Separar dinero de facturas y documentos tributarios',
     ],
     actions: [
@@ -169,7 +168,7 @@ export const ADMIN_DOMAIN_META = {
     ],
   },
   facturacion: {
-    title: 'Facturacion',
+    title: 'Facturación',
     subtitle: 'Facturas y documentos tributarios',
     summary:
       'Ordena facturas, validaciones y documentos tributarios de cada servicio.',
@@ -223,7 +222,7 @@ export const ADMIN_DOMAIN_META = {
     actions: [],
   },
   configuracion: {
-    title: 'Configuracion',
+    title: 'Configuración',
     subtitle: 'Integraciones y ajustes globales',
     summary:
       'Centraliza integraciones y ajustes globales sensibles del sistema.',
