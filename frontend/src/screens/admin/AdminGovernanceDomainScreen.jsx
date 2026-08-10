@@ -18,7 +18,7 @@ const CONFIG = {
     action: null,
   },
   configuracion: {
-    title: 'Configuracion',
+    title: 'Configuración',
     subtitle: 'Integraciones y ajustes globales, separados de las reglas de negocio.',
     chips: [
       { label: 'Disponible', value: 'Si', tone: 'brand' },

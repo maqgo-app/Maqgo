@@ -115,7 +115,7 @@ export default function AdminReservationsDomainScreen({ mode }) {
   const titleMap = {
     reservas: 'Reservas',
     payments: 'Pagos',
-    facturacion: 'Facturacion',
+    facturacion: 'Facturación',
   };
 
   const subtitleMap = {
