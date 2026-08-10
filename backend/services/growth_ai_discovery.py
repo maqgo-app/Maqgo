@@ -29,6 +29,31 @@ EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
 PHONE_CHILE_RE = re.compile(r"(?:\+56\s*)?(?:\(?9\)?\s*)?(\d\s*\d\s*\d\s*\d\s*\d\s*\d\s*\d\s*\d)")
 HREF_RE = re.compile(r"href\s*=\s*['\"]([^'\"]+)['\"]", re.IGNORECASE)
 
+IRRELEVANT_RSS_KEYWORDS_RE = re.compile(
+    r"(?i)\b("
+    r"fallecid[oa]|muerto|muert[oa]|fatal|accident(?:e|es)?|colisi[oó]n|choque|atropell[ao]|atropellamiento|"
+    r"incendio|incendiado|rob[ao]|robo|asalto|homicidio|asesinat[oa]|secuestr[ao]|disparos|baleado|tiroteo|"
+    r"polic(?:[ií]a|ial)|carabineros|pdi|investigaci[oó]n|denuncia|delito|criminal|juicio|prisi[oó]n|detenid[oa]|"
+    r"herid[oa]|lesionad[oa]|graves|gravemente|evacuado|rescat[ea]|rescate|ambulancia|samu|bombero|"
+    r"tr[áa]nsito(?:\s*cerrado)?|desv[ií]o|corte(?:\s*de\s*calle)?|vialidad\s*(?:cerrada|cortada)"
+    r")\b"
+)
+RELEVANT_SUPPLY_KEYWORDS_RE = re.compile(
+    r"(?i)\b("
+    r"arriendo|alquiler|alquilar|renta|rentar|arrendar|"
+    r"retroexcavador[ao]|excavador[ao]|minicargador[ao]?|skid\s*steer|camion\s*tolva|camión\s*tolva|"
+    r"motonivelador[ao]?|rodillo\s*compactador|compactador[ao]|gr[úu]a\s*horquilla|grua\s*horquilla|"
+    r"maquinaria\s*pesada|equipos?\s*de\s*construcci[oó]n|obra|faena|movimiento\s*de\s*tierr[ao]|demolic[ió]n|carg[uí][oó]n"
+    r")\b"
+)
+RELEVANT_DEMAND_KEYWORDS_RE = re.compile(
+    r"(?i)\b("
+    r"licitaci[oó]n|adjudicaci[oó]n|proyecto|obra\s*nueva|edifici[oó]|condominio|inmobiliario|barrio\s*nuevo|"
+    r"construcci[oó]n\s*(?:nueva|residencial|industrial)?|faena\s*(?:nueva|de\s*infraestructura)|infraestructura|"
+    r"caminos?\s*nuevos|puente\s*nuevo|hospital\s*nuevo|colegio\s*nuevo|vialidad\s*nueva|remodelaci[oó]n"
+    r")\b"
+)
+
 
 def extract_emails(text: str) -> list[str]:
     raw = EMAIL_RE.findall(text or "")
@@ -152,6 +177,25 @@ def load_sources_from_config(config: dict[str, Any]) -> list[DiscoverySource]:
     return out
 
 
+def is_irrelevant_rss_title(title: str) -> bool:
+    t = _norm_ws(title or "").lower()
+    if not t:
+        return True
+    if IRRELEVANT_RSS_KEYWORDS_RE.search(t):
+        return True
+    return False
+
+
+def is_relevant_rss_title(*, title: str, kind: str) -> bool:
+    t = _norm_ws(title or "").lower()
+    if not t:
+        return False
+    kind_n = str(kind or "supply").strip().lower() or "supply"
+    if kind_n == "demand":
+        return bool(RELEVANT_DEMAND_KEYWORDS_RE.search(t))
+    return bool(RELEVANT_SUPPLY_KEYWORDS_RE.search(t))
+
+
 def _host(url: str) -> str:
     try:
         return urlparse(url).netloc.lower()
@@ -228,6 +272,12 @@ async def run_discovery_once(*, db, config: dict[str, Any]) -> dict[str, Any]:
                     for it in items:
                         title = it.get("title") or ""
                         link = it.get("link") or ""
+
+                        if is_irrelevant_rss_title(title):
+                            continue
+                        if not is_relevant_rss_title(title=title, kind=src.kind):
+                            continue
+
                         dk = discovery_dedupe_key(source_id=src.id, link=link, email="", phone="", title=title)
 
                         contact: dict[str, Any] = {}
