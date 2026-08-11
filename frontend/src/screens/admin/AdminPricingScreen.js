@@ -7,6 +7,11 @@ import {
   getMachineryCapacityOptions,
   formatMachineryCapacityChipLabel,
 } from '../../utils/machineryNames';
+import {
+  MACHINERY_NO_TRANSPORT,
+  MACHINERY_PER_SERVICE,
+  MACHINERY_NEEDS_TRANSPORT,
+} from '../../utils/machineryConstants';
 import { BackArrowIcon } from '../../components/BackArrowIcon';
 import MaqgoLogo from '../../components/MaqgoLogo';
 
@@ -642,7 +647,7 @@ function AdminPricingScreen() {
                         </div>
                       ) : null}
 
-                      {Object.keys(prices.per_service || {}).length > 0 ? (
+                      {selectedMachineId && (prices.per_service || {})[selectedMachineId] ? (
                         <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
                           <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
                             Precio servicio por tramo (TIPO B)
@@ -653,32 +658,28 @@ function AdminPricingScreen() {
                             <span>Max</span>
                             <span>Sugerido</span>
                           </div>
-                          {(prices.per_service || {})[selectedMachineId] ? (
-                            <PriceRow type="per_service" machineId={selectedMachineId} />
-                          ) : (
-                            <div style={{ padding: '12px 16px', color: ADMIN_THEME.textMuted, fontSize: 13 }}>
-                              Esta maquinaria no usa precio por servicio.
-                            </div>
-                          )}
+                          <PriceRow type="per_service" machineId={selectedMachineId} />
                         </div>
                       ) : null}
 
-                      <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
-                        <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
-                          Traslado por tramo
+                      {selectedMachineId && (MACHINERY_NEEDS_TRANSPORT.includes(selectedMachineId) || !(MACHINERY_NO_TRANSPORT || []).includes(selectedMachineId) ? (
+                        <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                          <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
+                            Traslado por tramo
+                          </div>
+                          <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                            <span>Tramo</span>
+                            <span>Min</span>
+                            <span>Max</span>
+                            <span>Sugerido</span>
+                          </div>
+                          <div style={{ padding: 12, display: 'grid', gap: 10 }}>
+                            <TransportRangeEditor title="Dentro de la comuna" segmentKey="same_comuna" tone="intra" />
+                            <TransportRangeEditor title="Entre comunas (misma region)" segmentKey="intercomuna" tone="inter" />
+                            <TransportRangeEditor title="Interregional / hasta 150 km" segmentKey="interregional" tone="interreg" />
+                          </div>
                         </div>
-                        <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
-                          <span>Tramo</span>
-                          <span>Min</span>
-                          <span>Max</span>
-                          <span>Sugerido</span>
-                        </div>
-                        <div style={{ padding: 12, display: 'grid', gap: 10 }}>
-                          <TransportRangeEditor title="Dentro de la comuna" segmentKey="same_comuna" tone="intra" />
-                          <TransportRangeEditor title="Entre comunas (misma region)" segmentKey="intercomuna" tone="inter" />
-                          <TransportRangeEditor title="Interregional / hasta 150 km" segmentKey="interregional" tone="interreg" />
-                        </div>
-                      </div>
+                      ) : null)}
                     </div>
                   </div>
                 </div>
