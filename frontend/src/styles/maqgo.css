@@ -292,19 +292,69 @@ html, body, #root {
   font-family: 'Inter', sans-serif;
 }
 
-/* Desktop: columna sobre --maqgo-bg-outer (#000); sumamos aro exterior para marcar el “teléfono” */
+/* Desktop: columna sobre --maqgo-bg-outer (#000); marco Premium Tesla único para TODAS las pantallas móvil-mockup (.maqgo-app) = mismo dispositivo visual todo el recorrido. Mobile sin tocar. */
 @media (min-width: var(--maqgo-breakpoint-mobile)) {
-  .maqgo-app:not(.welcome-desktop),
+  /* Marco Premium Tesla (antes solo Welcome). Ahora TODOS los .maqgo-app Desktop usan mismo marco. */
+  .maqgo-app,
   .maqgo-login-container {
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 40px;
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.12),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+      inset 0 1px 0 var(--maqgo-welcome-frame-stroke-inset),
+      inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
       0 0 0 1px rgba(255, 255, 255, 0.14),
-      0 0 0 2px rgba(255, 255, 255, 0.05),
-      0 24px 60px rgba(0, 0, 0, 0.66),
-      0 10px 28px rgba(0, 0, 0, 0.42);
+      0 22px 56px rgba(0, 0, 0, 0.62),
+      0 8px 24px rgba(0, 0, 0, 0.38);
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    border-radius: 40px;
+  }
+  /* Protección 1: contenido siempre por encima de ::after (línea naranja inferior home indicator). */
+  .maqgo-app > .maqgo-screen,
+  .maqgo-login-container > .maqgo-screen {
+    position: relative;
+    z-index: 1;
+  }
+  /* Protección 2: sombras exteriores no se recortan; Mobile sigue con overflow-x:hidden. */
+  .maqgo-app {
+    overflow: visible;
+  }
+  /* Brillo esquina hardware (antes welcome-desktop). Ahora todos .maqgo-app Desktop. */
+  .maqgo-app::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.085) 0%,
+      rgba(255, 255, 255, 0.032) 22%,
+      rgba(255, 255, 255, 0) 42%
+    );
+    opacity: 0.52;
+  }
+
+  /*
+   * Home indicator mockup móvil: acento marca (línea suave inferior naranja).
+   * Antes solo Welcome Desktop → Ahora TODAS las pantallas Desktop usan marco Premium.
+   */
+  .maqgo-app::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    z-index: 2;
+    left: 11%;
+    right: 11%;
+    bottom: 5px;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(236, 104, 25, 0.18) 20%,
+      rgba(236, 104, 25, 0.72) 50%,
+      rgba(236, 104, 25, 0.18) 80%,
+      transparent 100%
+    );
+    box-shadow: 0 0 16px rgba(236, 104, 25, 0.22);
   }
 }
 
@@ -1335,60 +1385,10 @@ a:focus-visible,
   cursor: pointer;
 }
 
-/* Responsive para desktop — marco “Tesla”: solo Welcome (.welcome-desktop). Login/registro/etc. quedan columna plana centrada. */
-@media (min-width: var(--maqgo-breakpoint-mobile)) {
-  .maqgo-app.welcome-desktop {
-    box-shadow:
-      inset 0 1px 0 var(--maqgo-welcome-frame-stroke-inset),
-      inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
-      0 0 0 1px rgba(255, 255, 255, 0.14),
-      0 22px 56px rgba(0, 0, 0, 0.62),
-      0 8px 24px rgba(0, 0, 0, 0.38);
-    border: 1px solid rgba(255, 255, 255, 0.38);
-    border-radius: 40px;
-    /* margin, min-height, overflow: bloque superior (.maqgo-app.welcome-desktop) para no pisar overflow:visible (caluga/sombras) */
-  }
-  /* Brillo esquina: más contenido, estilo hardware */
-  .maqgo-app.welcome-desktop::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    border-radius: inherit;
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.085) 0%,
-      rgba(255, 255, 255, 0.032) 22%,
-      rgba(255, 255, 255, 0) 42%
-    );
-    opacity: 0.52;
-  }
-
-  /*
-   * Welcome desktop: acento de marca en el “home” del mockup (solo /welcome).
-   * Línea inferior suave — no filete colorido en todo el perímetro (criterio CTO/UX).
-   */
-  .maqgo-app.welcome-desktop::after {
-    content: '';
-    position: absolute;
-    pointer-events: none;
-    z-index: 2;
-    left: 11%;
-    right: 11%;
-    bottom: 5px;
-    height: 2px;
-    border-radius: 999px;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(236, 104, 25, 0.18) 20%,
-      rgba(236, 104, 25, 0.72) 50%,
-      rgba(236, 104, 25, 0.18) 80%,
-      transparent 100%
-    );
-    box-shadow: 0 0 16px rgba(236, 104, 25, 0.22);
-  }
-}
+/* Responsive para desktop — marco Premium Tesla UNIFICADO. 
+   Definición canónica y completa en bloque L295. Este bloque queda ELIMINADO (no duplicado) —
+   Welcome (welcome-desktop), Cliente, Proveedor, Operador, Login, Auth, Funnel, Protected Route 
+   usan el mismo selector .maqgo-app L295 = mismo dispositivo visual. */
 
 /* Logo MAQGO - imagen PNG transparente */
 .maqgo-logo {
