@@ -447,7 +447,7 @@ function OperatorHomeScreen() {
     <div className="maqgo-app maqgo-provider-funnel">
       <div className="maqgo-screen" style={{ paddingBottom: 80, justifyContent: 'flex-start' }}>
         {/* Header con logo */}
-        <MaqgoLogo size="small" style={{ marginBottom: 16, marginTop: 20 }} />
+        <MaqgoLogo customSize={130} style={{ marginBottom: 16, marginTop: 20 }} />
 
         {/* Info de la empresa - más amigable */}
         <div style={{
