@@ -187,7 +187,7 @@ function OperatorJoinScreen() {
         className="maqgo-screen"
         style={{ justifyContent: 'flex-start', padding: 'var(--maqgo-screen-padding-top) 24px 24px' }}
       >
-        <MaqgoLogo size="small" style={{ marginBottom: 30 }} />
+        <MaqgoLogo customSize={130} style={{ marginBottom: 30 }} />
 
         <h1
           style={{

@@ -139,7 +139,7 @@ function OperatorServiceCompletedScreen() {
         {/* PASO 3: Estadísticas */}
         {step === 'stats' && (
           <div style={{ textAlign: 'center', maxWidth: 340, margin: '0 auto' }}>
-            <MaqgoLogo size="small" style={{ margin: '0 auto 20px' }} />
+            <MaqgoLogo customSize={130} style={{ margin: '0 auto 20px' }} />
             
             <h2 style={{ 
               color: '#fff', 
