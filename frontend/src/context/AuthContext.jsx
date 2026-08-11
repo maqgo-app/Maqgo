@@ -225,7 +225,7 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
-  const login = useCallback(async (userId, userRole, provRole = 'super_master', ownerIdFromApi = null, canPayAutomaticallyFromApi = null) => {
+  const login = useCallback(async (userId, userRole, provRole = 'super_master', ownerIdFromApi = null, canPayAutomaticallyFromApi = null, profileFromApi = null) => {
     let normalizedRole = provRole;
     if (normalizedRole === 'owner') normalizedRole = 'super_master';
     localStorage.setItem('userId', userId);
@@ -244,7 +244,8 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('ownerId');
       setOwnerId(null);
     }
-    const baseUser = { id: userId, role: userRole };
+    const profile = profileFromApi && typeof profileFromApi === 'object' ? profileFromApi : {};
+    const baseUser = { id: userId, role: userRole, ...profile };
     if (typeof canPayAutomaticallyFromApi === 'boolean') {
       baseUser.canPayAutomatically = canPayAutomaticallyFromApi;
     }
@@ -348,7 +349,14 @@ export function AuthProvider({ children }) {
           // re-inscripción? Viene SIN conocimiento de OneClick. Si el backend
           // no lo envía (versión vieja o error), por defecto false → flujo actual.
           const canPayApi = typeof data.canPayAutomatically === 'boolean' ? data.canPayAutomatically : null;
-          await login(userId, userRole, rawProviderRole, oid, canPayApi);
+          await login(
+            userId,
+            userRole,
+            rawProviderRole,
+            oid,
+            canPayApi,
+            { name: data.name, email: data.email, phone: data.phone }
+          );
           if (userRole === 'provider') {
             const role = (rawProviderRole === 'owner' ? 'super_master' : rawProviderRole) || 'super_master';
             const basePerms = DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS.super_master;
