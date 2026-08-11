@@ -245,7 +245,7 @@ export function AuthProvider({ children }) {
       setOwnerId(null);
     }
     const profile = profileFromApi && typeof profileFromApi === 'object' ? profileFromApi : {};
-    const baseUser = { id: userId, role: userRole, ...profile };
+    const baseUser = { ...profile, id: userId, role: userRole };
     if (typeof canPayAutomaticallyFromApi === 'boolean') {
       baseUser.canPayAutomatically = canPayAutomaticallyFromApi;
     }
@@ -395,6 +395,23 @@ export function AuthProvider({ children }) {
     if (!user?.id) return;
     ensurePushSubscribedIfGranted();
   }, [user?.id]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = (e) => {
+      const d = (e && e.detail) ? e.detail : null;
+      if (!d) return;
+      setUser((prev) => {
+        if (!prev || !prev.id) return prev;
+        const safe = { name: d.name || undefined, email: d.email || undefined, phone: d.phone || undefined, rut: d.rut || undefined, razon_social: d.razon_social || undefined };
+        const next = { ...safe, id: prev.id, role: prev.role };
+        if (typeof prev.canPayAutomatically === 'boolean') next.canPayAutomatically = prev.canPayAutomatically;
+        return next;
+      });
+    };
+    window.addEventListener('maqgo:profile-updated', handler);
+    return () => window.removeEventListener('maqgo:profile-updated', handler);
+  }, []);
 
   const value = {
     user,

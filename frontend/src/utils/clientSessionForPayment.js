@@ -96,6 +96,20 @@ export async function ensureBackendSessionForClientBooking(email, options = {}) 
     }
     persistClientEmailToStorage(trimmed);
     if (data?.id) localStorage.setItem('userId', String(data.id));
+    try {
+      const ev = new CustomEvent('maqgo:profile-updated', {
+        detail: {
+          name: data?.name || displayName || null,
+          email: data?.email || trimmed || null,
+          phone: data?.phone || null,
+          rut: data?.rut || rut || null,
+          razon_social: data?.razon_social || razonSocial || null,
+        },
+      });
+      if (typeof window !== 'undefined') window.dispatchEvent(ev);
+    } catch {
+      /* ignore: evento opcional de sincronización UI en memoria */
+    }
     return;
   }
 
@@ -133,4 +147,18 @@ export async function ensureBackendSessionForClientBooking(email, options = {}) 
   localStorage.setItem('token', sessionToken);
   localStorage.setItem('authToken', sessionToken);
   if (data.id) localStorage.setItem('userId', data.id);
+  try {
+    const ev = new CustomEvent('maqgo:profile-updated', {
+      detail: {
+        name: data?.name || name || null,
+        email: data?.email || trimmed || null,
+        phone: data?.phone || phone || null,
+        rut: data?.rut || rut || null,
+        razon_social: data?.razon_social || razonSocial || null,
+      },
+    });
+    if (typeof window !== 'undefined') window.dispatchEvent(ev);
+  } catch {
+    /* ignore: evento opcional de sincronización UI en memoria */
+  }
 }
