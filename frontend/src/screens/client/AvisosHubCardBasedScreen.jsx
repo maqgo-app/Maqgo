@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ServiceTopBar from '../../components/serviceState/ServiceTopBar';
 import MaqgoCard from '../../components/base/MaqgoCard';
+import { ensurePushSubscribedIfGranted } from '../../utils/pushNotifications';
 
 function toneToColor(tone) {
   if (tone === 'success') return '#4CAF50';
@@ -128,6 +129,7 @@ function AvisosHubCardBasedScreen() {
 
     if (window.Notification.permission === 'default') {
       const result = await window.Notification.requestPermission();
+      if (result === 'granted') await ensurePushSubscribedIfGranted();
       setPushPermission(result);
       return;
     }
