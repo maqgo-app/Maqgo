@@ -5,7 +5,7 @@ import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgr
 import axios from 'axios';
 import MaqgoLogo from '../../components/MaqgoLogo';
 
-import BACKEND_URL, { clearLocalSession } from '../../utils/api';
+import BACKEND_URL, { fetchWithAuth, clearLocalSession } from '../../utils/api';
 import { MACHINERY_NAMES, getMachineryCapacityOptions, getProviderSpecLabelShort } from '../../utils/machineryNames';
 import { getObject } from '../../utils/safeStorage';
 import { createMachineInApi } from '../../utils/providerMachines';
@@ -102,13 +102,13 @@ function ReviewScreen() {
       const payloadWithEmail = emailCandidate ? { ...payloadBase, email: emailCandidate } : payloadBase;
 
       try {
-        await axios.patch(`${BACKEND_URL}/api/users/${userId}`, payloadWithEmail, { timeout: 20000 });
+        await fetchWithAuth(`${BACKEND_URL}/api/users/${userId}`, { method: 'PATCH', body: payloadWithEmail }, 20000);
       } catch (e) {
-        const status = e?.response?.status;
-        const detail = e?.response?.data?.detail;
+        const status = e?.response?.status || e?.status;
+        const detail = e?.response?.data?.detail || e?.detail;
         const detailText = typeof detail === 'string' ? detail : '';
         if (status === 409 && emailCandidate) {
-          await axios.patch(`${BACKEND_URL}/api/users/${userId}`, payloadBase, { timeout: 20000 });
+          await fetchWithAuth(`${BACKEND_URL}/api/users/${userId}`, { method: 'PATCH', body: payloadBase }, 20000);
           toast.warning('El correo ya está asociado a otra cuenta. Finalizamos tu registro sin correo; puedes actualizarlo luego en Perfil.');
         } else if (status === 403 && detailText.toLowerCase().includes('inactivo')) {
           toast.error('Tu cuenta está desactivada. Usa otro número o revisa la ayuda de acceso.');

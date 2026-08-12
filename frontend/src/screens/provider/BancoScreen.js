@@ -5,7 +5,7 @@ import axios from 'axios';
 import ProviderOnboardingProgress from '../../components/ProviderOnboardingProgress';
 import { validateRut, formatRut } from '../../utils/chileanValidation';
 import { getObject } from '../../utils/safeStorage';
-import BACKEND_URL from '../../utils/api';
+import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../context/authHooks';
 
@@ -172,13 +172,16 @@ function BancoScreen() {
           ...providerData,
           bankData: toSave,
         };
-        await axios.patch(
+        await fetchWithAuth(
           `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`,
           {
-            providerData: nextProviderData,
-            ...(finalizeOnboarding ? { onboarding_completed: true } : {}),
+            method: 'PATCH',
+            body: {
+              providerData: nextProviderData,
+              ...(finalizeOnboarding ? { onboarding_completed: true } : {}),
+            },
           },
-          { timeout: 8000 }
+          8000
         );
         localStorage.setItem('providerData', JSON.stringify(nextProviderData));
       }
@@ -200,10 +203,10 @@ function BancoScreen() {
         if (userId && !isDemoId) {
           const machineData = getObject('machineData', {});
           const machineryType = machineData?.machineryType || undefined;
-          await axios.put(
+          await fetchWithAuth(
             `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}/availability`,
-            { isAvailable: true, machineryType },
-            { timeout: 8000 }
+            { method: 'PUT', body: { isAvailable: true, machineryType } },
+            8000
           );
           localStorage.setItem('providerAvailable', 'true');
         }

@@ -10,7 +10,7 @@ import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/Addre
 import { getObject } from '../../utils/safeStorage';
 import { getProviderBackRoute } from '../../utils/bookingFlow';
 import { useAuth } from '../../context/authHooks';
-import BACKEND_URL from '../../utils/api';
+import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 
 const PRESET_CLOSING_TIMES = ['17:00', '17:30', '18:00', '18:30', '19:00', '20:00', '21:00', '22:00'];
 
@@ -121,10 +121,10 @@ function ProviderDataScreen() {
         userId &&
         (userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-'));
       if (userId && !isDemoId) {
-        axios.patch(
+        fetchWithAuth(
           `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`,
-          { providerData: nextProviderData },
-          { timeout: 8000 }
+          { method: 'PATCH', body: { providerData: nextProviderData } },
+          8000
         ).catch(() => void 0);
       }
     } catch {

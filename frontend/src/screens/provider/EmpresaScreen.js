@@ -7,7 +7,7 @@ import { getObject } from '../../utils/safeStorage';
 import ComunaAutocomplete from '../../components/ComunaAutocomplete';
 import { AddressAutocomplete, getGoogleMapsApiKey } from '../../components/AddressAutocomplete';
 import { useAuth } from '../../context/authHooks';
-import BACKEND_URL from '../../utils/api';
+import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 
 /**
@@ -100,10 +100,10 @@ function EmpresaScreen() {
         userId &&
         (userId.startsWith('provider-') || userId.startsWith('demo-') || userId.startsWith('operator-'));
       if (userId && !isDemoId) {
-        await axios.patch(
+        await fetchWithAuth(
           `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`,
-          { providerData: next },
-          { timeout: 8000 }
+          { method: 'PATCH', body: { providerData: next } },
+          8000
         );
       }
     } catch {
