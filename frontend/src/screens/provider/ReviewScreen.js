@@ -58,7 +58,7 @@ function ReviewScreen() {
       const userId = localStorage.getItem('userId');
       if (!userId) {
         if (isDev) {
-          navigate('/provider/home', { replace: true });
+          navigate('/provider/profile/banco', { replace: true, state: { finalizeOnboarding: true, returnTo: '/provider/home' } });
           return;
         }
         toast.error('Tu sesión expiró. Inicia sesión nuevamente para finalizar el registro.');
@@ -175,7 +175,7 @@ function ReviewScreen() {
         });
         return;
       }
-      navigate('/provider/home', { replace: true, state: { finalizeOnboarding: true } });
+      navigate('/provider/profile/banco', { replace: true, state: { finalizeOnboarding: true, returnTo: '/provider/home' } });
     } catch (e) {
       if (import.meta.env.PROD) {
         const status = e?.response?.status;
@@ -192,7 +192,7 @@ function ReviewScreen() {
         return;
       }
       localStorage.setItem('providerOnboardingStep', '7');
-      navigate('/provider/home', { replace: true, state: { finalizeOnboarding: true } });
+      navigate('/provider/profile/banco', { replace: true, state: { finalizeOnboarding: true, returnTo: '/provider/home' } });
     } finally {
       setLoading(false);
     }
