@@ -961,6 +961,48 @@ function MachineDataScreen() {
     setTransportOtherRegionWizard('');
   }, [form.machineryType, isAddMachineEntry, isEditMode]);
 
+  const resolveRequiredOperators = useCallback(async (machineryType) => {
+    const onboardingOperators = getProviderDraftArray('operatorsData', [])
+      .map((op, index) => normalizeRequiredOperator(op, `op-onboarding-${index}`))
+      .filter(Boolean);
+    if (onboardingOperators.length > 0) {
+      return onboardingOperators.map((op, index) => ({ ...op, isPrimary: index === 0 }));
+    }
+
+    const ownerId = String(localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+    if (!ownerId) {
+      throw new Error('Debes registrar al menos un operador antes de guardar la maquinaria.');
+    }
+
+    let response;
+    try {
+      response = await axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 8000 });
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      throw new Error(
+        typeof detail === 'string' && detail.trim()
+          ? detail.trim()
+          : 'No pudimos cargar los operadores de tu empresa. Registra uno antes de guardar la maquinaria.'
+      );
+    }
+
+    const teamOperators = (response.data?.operators || [])
+      .filter((op) => (op?.provider_role || '') === 'operator' || !op?.provider_role)
+      .map((op, index) => normalizeRequiredOperator(op, `op-team-${index}`))
+      .filter(Boolean);
+
+    if (teamOperators.length === 0) {
+      throw new Error('Debes registrar al menos un operador antes de guardar la maquinaria.');
+    }
+
+    const preferredId = String(getObject(DEFAULT_OPERATOR_BY_MACHINERY_KEY, {})?.[machineryType] || '').trim();
+    const preferred = preferredId ? teamOperators.find((op) => op.id === preferredId) : null;
+    const principalId = String(preferred?.id || teamOperators[0]?.id || '').trim();
+    return teamOperators
+      .filter((op) => op.id === principalId)
+      .map((op) => ({ ...op, isPrimary: true }));
+  }, []);
+
   const handleInlineProviderSubmit = useCallback(async () => {
     setInlineError('');
     const cel9 = getUserAuthState().phone;
@@ -1265,48 +1307,6 @@ function MachineDataScreen() {
     },
     [providerBaseData]
   );
-
-  const resolveRequiredOperators = useCallback(async (machineryType) => {
-    const onboardingOperators = getProviderDraftArray('operatorsData', [])
-      .map((op, index) => normalizeRequiredOperator(op, `op-onboarding-${index}`))
-      .filter(Boolean);
-    if (onboardingOperators.length > 0) {
-      return onboardingOperators.map((op, index) => ({ ...op, isPrimary: index === 0 }));
-    }
-
-    const ownerId = String(localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
-    if (!ownerId) {
-      throw new Error('Debes registrar al menos un operador antes de guardar la maquinaria.');
-    }
-
-    let response;
-    try {
-      response = await axios.get(`${BACKEND_URL}/api/operators/team/${ownerId}`, { timeout: 8000 });
-    } catch (e) {
-      const detail = e?.response?.data?.detail;
-      throw new Error(
-        typeof detail === 'string' && detail.trim()
-          ? detail.trim()
-          : 'No pudimos cargar los operadores de tu empresa. Registra uno antes de guardar la maquinaria.'
-      );
-    }
-
-    const teamOperators = (response.data?.operators || [])
-      .filter((op) => (op?.provider_role || '') === 'operator' || !op?.provider_role)
-      .map((op, index) => normalizeRequiredOperator(op, `op-team-${index}`))
-      .filter(Boolean);
-
-    if (teamOperators.length === 0) {
-      throw new Error('Debes registrar al menos un operador antes de guardar la maquinaria.');
-    }
-
-    const preferredId = String(getObject(DEFAULT_OPERATOR_BY_MACHINERY_KEY, {})?.[machineryType] || '').trim();
-    const preferred = preferredId ? teamOperators.find((op) => op.id === preferredId) : null;
-    const principalId = String(preferred?.id || teamOperators[0]?.id || '').trim();
-    return teamOperators
-      .filter((op) => op.id === principalId)
-      .map((op) => ({ ...op, isPrimary: true }));
-  }, []);
 
   const yearError = form.year && !validateYear();
 
