@@ -452,9 +452,6 @@ function AdminRoute() {
     );
   }
 
-  if (isAdmin && mustChangePassword && !isChangePasswordPath) {
-    return <Navigate to="/admin/change-password" replace />;
-  }
   if (isAdmin && !mustChangePassword && isChangePasswordPath) {
     return <Navigate to="/admin" replace />;
   }

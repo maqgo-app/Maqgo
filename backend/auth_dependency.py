@@ -157,11 +157,6 @@ async def get_current_admin(
 async def get_current_admin_strict(
     user: dict = Depends(get_current_admin),
 ) -> dict:
-    if user.get("must_change_password"):
-        raise HTTPException(
-            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
-            detail="Debes cambiar tu contraseña antes de acceder al panel",
-        )
     return user
 
 

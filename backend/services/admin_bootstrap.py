@@ -37,7 +37,7 @@ async def ensure_initial_admin(db) -> dict:
         "createdAt": now,
         "phoneVerified": True,
         "isAvailable": False,
-        "must_change_password": True,
+        "must_change_password": False,
         "temp_password_issued_at": now,
     }
     await db.users.insert_one(admin_doc)
