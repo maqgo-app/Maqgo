@@ -345,11 +345,10 @@ function AdminMarketingScreen() {
   };
 
   return (
-    <div className="maqgo-admin-page" style={{ minHeight: '100dvh', background: ADMIN_THEME.appBg, color: '#fff', fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
-        <div style={{ marginBottom: 14 }}>
-          <div className="maqgo-admin-title">Marketing & CAC</div>
-          <div className="maqgo-admin-subtitle">Inversión semanal por canal/audiencia (clave: lunes de la semana).</div>
+    <div className="maqgo-admin-page" style={{ minHeight: '100dvh', background: 'transparent', color: '#fff', fontFamily: "'Inter', sans-serif" }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+        <div style={{ margin: '0 0 18px' }}>
+          <div className="maqgo-admin-subtitle" style={{ marginTop: 0 }}>Inversión semanal por canal/audiencia (clave: lunes de la semana).</div>
         </div>
         {/* Semana: campo fecha + rango efectivo */}
         <section
