@@ -52,7 +52,13 @@ function AdminRoute() {
   const token = localStorage.getItem('adminToken') || localStorage.getItem('adminAuthToken');
   const rolesRaw = localStorage.getItem('adminRoles');
   const [verifiedAdmin, setVerifiedAdmin] = useState(false);
-  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(() => {
+    try {
+      return localStorage.getItem('adminMustChangePassword') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [retryNonce, setRetryNonce] = useState(0);
   /** Tras primer intento de verificación: true si falló la red y el usuario creía ser admin. */
   const [statsNetworkFailure, setStatsNetworkFailure] = useState(false);
@@ -138,13 +144,15 @@ function AdminRoute() {
             localStorage.setItem('adminEmail', payload.email);
           }
         } else if (res.status === 401 || res.status === 403) {
-          clearAdminSession();
+          if (res.status === 401) {
+            clearAdminSession();
+            clearAdminVerifiedCache();
+            clearAdminDemoBypass();
+            setDemoBypassState(false);
+          }
           setVerifiedAdmin(false);
           setMustChangePassword(false);
-          clearAdminVerifiedCache();
           setStatsNetworkFailure(false);
-          clearAdminDemoBypass();
-          setDemoBypassState(false);
         } else {
           setVerifiedAdmin(isAdminByStorage);
           setMustChangePassword(localStorage.getItem('adminMustChangePassword') === '1');
