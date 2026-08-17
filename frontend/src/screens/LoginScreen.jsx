@@ -12,7 +12,7 @@ import BackToPortadaButton from '../components/BackToPortadaButton';
 import LoginPhoneChileInput from '../components/LoginPhoneChileInput';
 import OtpSixDigitsInput from '../components/OtpSixDigitsInput';
 import BACKEND_URL, { clearLocalSession } from '../utils/api';
-import { establishSession } from '../utils/sessionPersistence';
+import { establishSession, establishAdminSession, persistAdminSessionMetadata } from '../utils/sessionPersistence';
 import { getDeviceId } from '../utils/deviceId';
 import { getHttpErrorMessage } from '../utils/httpErrors';
 import { getObject } from '../utils/safeStorage';
@@ -339,6 +339,10 @@ function LoginScreen({ setUserRole, setUserId }) {
     }
 
     const isAdmin = effectiveRole === 'admin';
+    if (isAdmin) {
+      establishAdminSession(data);
+      persistAdminSessionMetadata(data);
+    }
     const mustChangePassword = isAdmin && Boolean(data.must_change_password);
     const providerRole = roles.includes('provider')
       ? String(data.provider_role || '').trim() || 'super_master'
