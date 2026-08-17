@@ -923,7 +923,7 @@ function MachineDataScreen() {
   useProviderOnboardingDraftCleanup();
   const [form, setForm] = useState(() => buildMachineForm(isEditMode, editMachine));
   const existingMachinesSnapshot = Array.isArray(getMachines()) ? getMachines() : [];
-  const isFirstMachineFlow = isFirstMachineFlow(isAddMachineEntry, isEditMode, existingMachinesSnapshot);
+  const isFirstFlow = isFirstMachineFlow(isAddMachineEntry, isEditMode, existingMachinesSnapshot);
   const [mfStep, setMfStep] = useState(1);
   const [firstOperator, setFirstOperator] = useState(() => {
     try {
@@ -994,7 +994,7 @@ function MachineDataScreen() {
   }, [form.machineryType, isAddMachineEntry, isEditMode]);
 
   const resolveRequiredOperators = useCallback(async (machineryType, firstMachineOperatorOverride) => {
-    if (isFirstMachineFlow && firstMachineOperatorOverride) {
+    if (isFirstFlow && firstMachineOperatorOverride) {
       const op = firstMachineOperatorOverride;
       const firstName = String(op.firstName || '').trim();
       const lastName = String(op.lastName || '').trim();
@@ -1022,7 +1022,7 @@ function MachineDataScreen() {
 
     const ownerId = String(localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
     if (!ownerId) {
-      if (isFirstMachineFlow) {
+      if (isFirstFlow) {
         throw new Error('Completa los datos del operador en el paso anterior.');
       }
       throw new Error('Debes registrar al menos un operador antes de guardar la maquinaria.');
@@ -1046,7 +1046,7 @@ function MachineDataScreen() {
       .filter(Boolean);
 
     if (teamOperators.length === 0) {
-      if (isFirstMachineFlow) {
+      if (isFirstFlow) {
         throw new Error('Completa los datos del operador en el paso anterior.');
       }
       throw new Error('Debes registrar al menos un operador antes de guardar la maquinaria.');
@@ -1058,7 +1058,7 @@ function MachineDataScreen() {
     return teamOperators
       .filter((op) => op.id === principalId)
       .map((op) => ({ ...op, isPrimary: true }));
-  }, [isFirstMachineFlow]);
+  }, [isFirstFlow]);
 
   const handleInlineProviderSubmit = useCallback(async () => {
     setInlineError('');
@@ -1243,7 +1243,7 @@ function MachineDataScreen() {
     let requiredOperators = [];
     let firstMachineUserTargetUserId = null;
     try {
-      if (isFirstMachineFlow) {
+      if (isFirstFlow) {
         const firstName = String(firstOperator.firstName || '').trim();
         const lastName = String(firstOperator.lastName || '').trim();
         const fullName = `${firstName} ${lastName}`.trim();
@@ -1319,9 +1319,9 @@ function MachineDataScreen() {
         transportSameComuna: needsTransport ? sameComunaTransport : 0,
         transportSameRegion: needsTransport ? sameRegionTransport : 0,
         transportOtherRegion: needsTransport ? otherRegionTransport : 0,
-        available: isFirstMachineFlow ? false : true,
-        published: isFirstMachineFlow ? false : true,
-        status: isFirstMachineFlow ? 'draft' : 'active',
+        available: isFirstFlow ? false : true,
+        published: isFirstFlow ? false : true,
+        status: isFirstFlow ? 'draft' : 'active',
         operators: requiredOperators,
         ...resolveOriginFields(form),
       };
@@ -1358,7 +1358,7 @@ function MachineDataScreen() {
       }
 
       toast.success(
-        isFirstMachineFlow
+        isFirstFlow
           ? 'Máquina guardada. Invitación SMS enviada al operador. Cuando confirme OTP, quedará operativa.'
           : 'Maquinaria guardada y lista para operar.'
       );
@@ -1379,7 +1379,7 @@ function MachineDataScreen() {
     transportSameComunaWizard,
     transportSameRegionWizard,
     resolveRequiredOperators,
-    isFirstMachineFlow,
+    isFirstFlow,
     firstOperator,
   ]);
 
@@ -1460,7 +1460,7 @@ function MachineDataScreen() {
       setMfStep(2);
       return;
     }
-    if (mfStep === 2 && isFirstMachineFlow) {
+    if (mfStep === 2 && isFirstFlow) {
       const firstName = String(firstOperator.firstName || '').trim();
       const lastName = String(firstOperator.lastName || '').trim();
       const rut = String(firstOperator.rut || '').trim();
@@ -1728,7 +1728,7 @@ function MachineDataScreen() {
   const isPerHourW = MACHINERY_PER_HOUR.includes(form.machineryType);
   const minForType = isPerHourW ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE;
   const priceAlertW =
-    (isFirstMachineFlow
+    (isFirstFlow
       ? mfStep === 3
       : mfStep === 2) && priceBaseNumWizard >= minForType
       ? getPriceAlert(priceBaseNumWizard, refForType)
@@ -1740,15 +1740,15 @@ function MachineDataScreen() {
     Boolean(form.machineryType) && !MACHINERY_NO_TRANSPORT.includes(form.machineryType);
   const maxTransportW = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
   const transportSameComunaAlertW =
-    (isFirstMachineFlow ? mfStep === 3 : mfStep === 2) && needsTransportW
+    (isFirstFlow ? mfStep === 3 : mfStep === 2) && needsTransportW
       ? getTransportFieldAlert(transportSameComunaNumW)
       : null;
   const transportSameRegionAlertW =
-    (isFirstMachineFlow ? mfStep === 3 : mfStep === 2) && needsTransportW
+    (isFirstFlow ? mfStep === 3 : mfStep === 2) && needsTransportW
       ? getTransportFieldAlert(transportSameRegionNumW)
       : null;
   const transportOtherRegionAlertW =
-    (isFirstMachineFlow ? mfStep === 3 : mfStep === 2) && needsTransportW
+    (isFirstFlow ? mfStep === 3 : mfStep === 2) && needsTransportW
       ? getTransportFieldAlert(transportOtherRegionNumW)
       : null;
   const transportOrderValidW =
@@ -1811,13 +1811,13 @@ function MachineDataScreen() {
             style={{ textAlign: 'center', marginBottom: mfStep === 2 || mfStep === 3 ? 22 : 8 }}
           >
             {mfStep === 1 && 'Agregar maquinaria'}
-            {mfStep === 2 && isFirstMachineFlow && 'Operador principal'}
-            {mfStep === 2 && !isFirstMachineFlow && 'Fotos y tarifas'}
-            {mfStep === 3 && isFirstMachineFlow && 'Fotos y tarifas'}
-            {mfStep === 3 && !isFirstMachineFlow && 'Revisa y guarda'}
+            {mfStep === 2 && isFirstFlow && 'Operador principal'}
+            {mfStep === 2 && !isFirstFlow && 'Fotos y tarifas'}
+            {mfStep === 3 && isFirstFlow && 'Fotos y tarifas'}
+            {mfStep === 3 && !isFirstFlow && 'Revisa y guarda'}
             {mfStep === 4 && 'Revisa y guarda'}
           </h1>
-          {(mfStep === 3 || (mfStep === 2 && !isFirstMachineFlow)) && (
+          {(mfStep === 3 || (mfStep === 2 && !isFirstFlow)) && (
             <p
               style={{
                 color: 'rgba(255,255,255,0.82)',
@@ -1834,11 +1834,11 @@ function MachineDataScreen() {
               </span>
             </p>
           )}
-          {!((mfStep === 3 && isFirstMachineFlow) || (mfStep === 2 && !isFirstMachineFlow)) && (
+          {!((mfStep === 3 && isFirstFlow) || (mfStep === 2 && !isFirstFlow)) && (
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 14, textAlign: 'center', marginBottom: 22 }}>
               {mfStep === 1 && 'Tipo, marca, modelo, capacidad si aplica y patente'}
-              {mfStep === 2 && isFirstMachineFlow && 'MAQGO envía invitación por SMS; la máquina queda activa cuando el operador confirme OTP.'}
-              {mfStep === 3 && !isFirstMachineFlow && 'Revisión final antes de guardar.'}
+              {mfStep === 2 && isFirstFlow && 'MAQGO envía invitación por SMS; la máquina queda activa cuando el operador confirme OTP.'}
+              {mfStep === 3 && !isFirstFlow && 'Revisión final antes de guardar.'}
               {mfStep === 4 && 'Revisión final antes de guardar.'}
             </p>
           )}
@@ -1867,7 +1867,7 @@ function MachineDataScreen() {
             </form>
           )}
 
-          {mfStep === 2 && isFirstMachineFlow && (
+          {mfStep === 2 && isFirstFlow && (
             <div style={{ padding: '4px 0 0' }}>
               <input
                 type="text"
@@ -1905,7 +1905,7 @@ function MachineDataScreen() {
             </div>
           )}
 
-          {mfStep === 2 && !isFirstMachineFlow && (
+          {mfStep === 2 && !isFirstFlow && (
             <form
               id="maqgo-mf-step2"
               noValidate
@@ -2089,7 +2089,7 @@ function MachineDataScreen() {
             </form>
           )}
 
-          {mfStep === 3 && isFirstMachineFlow && (
+          {mfStep === 3 && isFirstFlow && (
             <form
               id="maqgo-mf-step3"
               noValidate
@@ -2273,7 +2273,7 @@ function MachineDataScreen() {
             </form>
           )}
 
-          {(mfStep === 4 || (mfStep === 3 && !isFirstMachineFlow)) && (
+          {(mfStep === 4 || (mfStep === 3 && !isFirstFlow)) && (
             <div>
               {(() => {
                 const photos = Array.isArray(mfPhotos) ? mfPhotos : [];
@@ -2621,17 +2621,17 @@ function MachineDataScreen() {
         </div>
 
         <div
-          className={`maqgo-fixed-bottom-bar${(mfStep === 4 || (mfStep === 3 && !isFirstMachineFlow)) ? ' maqgo-fixed-bottom-bar--final' : ''}`}
+          className={`maqgo-fixed-bottom-bar${(mfStep === 4 || (mfStep === 3 && !isFirstFlow)) ? ' maqgo-fixed-bottom-bar--final' : ''}`}
         >
-          {((isFirstMachineFlow && mfStep < 4) || (!isFirstMachineFlow && mfStep < 3)) ? (
+          {((isFirstFlow && mfStep < 4) || (!isFirstFlow && mfStep < 3)) ? (
             <button
               type="submit"
               form={
                 mfStep === 1
                   ? 'maqgo-mf-step1'
-                  : (isFirstMachineFlow && mfStep === 2)
+                  : (isFirstFlow && mfStep === 2)
                   ? undefined
-                  : (isFirstMachineFlow && mfStep === 3)
+                  : (isFirstFlow && mfStep === 3)
                   ? 'maqgo-mf-step3'
                   : 'maqgo-mf-step2'
               }

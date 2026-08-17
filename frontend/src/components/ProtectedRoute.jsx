@@ -4,40 +4,6 @@ import BACKEND_URL, { clearLocalSession, fetchWithAuth, hasPersistedSessionCrede
 import MaqgoLogo from "./MaqgoLogo";
 
 function shouldEnforceLegalForPath(path) {
-  const p = String(path || "");
-  if (p.startsWith("/provider/")) {
-    return (
-      p === "/provider/home" ||
-      p === "/provider/dashboard" ||
-      p === "/provider/my-services" ||
-      p === "/provider/cobros" ||
-      p === "/provider/profile" ||
-      p === "/provider/profile/empresa" ||
-      p === "/provider/profile/banco" ||
-      p === "/provider/tariffs" ||
-      p === "/provider/team" ||
-      p === "/provider/managers"
-    );
-  }
-  if (p.startsWith("/client/")) {
-    return (
-      p === "/client/home" ||
-      p === "/client/booking" ||
-      p === "/client/machinery" ||
-      p === "/client/urgency" ||
-      p === "/client/calendar" ||
-      p === "/client/service-location" ||
-      p === "/client/providers" ||
-      p === "/client/confirm" ||
-      p === "/client/billing" ||
-      p === "/client/workday-confirmation" ||
-      p === "/client/card"
-    );
-  }
-  if (p.startsWith("/operator/")) {
-    return p === "/operator/home";
-  }
-  if (p === "/oneclick/complete") return true;
   return false;
 }
 
