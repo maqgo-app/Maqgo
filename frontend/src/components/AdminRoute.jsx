@@ -236,7 +236,11 @@ function AdminRoute() {
       }
       clearAdminVerifiedCache();
       setRetryNonce((n) => n + 1);
-      navigate('/admin', { replace: true });
+      if (Boolean(data?.must_change_password)) {
+        navigate('/admin/change-password', { replace: true });
+      } else {
+        navigate('/admin', { replace: true });
+      }
     } catch {
       setAdminLoginError('No hay conexión con el servidor MAQGO.');
     } finally {
@@ -454,6 +458,9 @@ function AdminRoute() {
 
   if (isAdmin && !mustChangePassword && isChangePasswordPath) {
     return <Navigate to="/admin" replace />;
+  }
+  if (isAdmin && mustChangePassword && !isChangePasswordPath) {
+    return <Navigate to="/admin/change-password" replace />;
   }
 
   return (
