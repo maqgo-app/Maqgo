@@ -471,6 +471,26 @@ function AdminRoute() {
     return <Navigate to="/admin/change-password" replace />;
   }
 
+  if (checkingAdmin) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#fff',
+          padding: 24,
+          textAlign: 'center',
+          background: '#0a0a0a',
+        }}
+      >
+        <p style={{ fontSize: 16, margin: 0 }}>Cargando panel administrativo…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="maqgo-admin">
       <Suspense
