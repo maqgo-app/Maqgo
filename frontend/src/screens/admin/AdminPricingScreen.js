@@ -636,7 +636,9 @@ function AdminPricingScreen() {
                       {selectedMachineId && getMachineryCapacityOptions(selectedMachineId) && (prices.by_capacity || {})[selectedMachineId] ? (
                         <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
                           <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
-                            Precio hora por especificacion
+                            {MACHINERY_PER_HOUR.includes(selectedMachineId)
+                              ? `Precio por hora · por capacidad de ${String(getMachineryCapacityOptions(selectedMachineId)?.providerLabel || 'capacidad').toLowerCase()}`
+                              : `Precio por viaje · por capacidad de ${String(getMachineryCapacityOptions(selectedMachineId)?.providerLabel || 'capacidad').toLowerCase()}`}
                           </div>
                           <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
                             <span>{getMachineryCapacityOptions(selectedMachineId)?.providerLabel || 'Capacidad'}</span>
@@ -650,60 +652,66 @@ function AdminPricingScreen() {
                         </div>
                       ) : null}
 
-                      {selectedMachineId && !MACHINERY_PER_SERVICE.includes(selectedMachineId) && (!getMachineryCapacityOptions(selectedMachineId) || !(prices.by_capacity || {})[selectedMachineId]) ? (
-                        <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
-                          <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
-                            Precio hora generico
-                          </div>
-                          <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
-                            <span>Maquinaria</span>
-                            <span>Min</span>
-                            <span>Max</span>
-                            <span>Sugerido</span>
-                          </div>
-                          {(prices.per_hour || {})[selectedMachineId] ? (
-                            <PriceRow type="per_hour" machineId={selectedMachineId} />
-                          ) : (
-                            <div style={{ padding: '12px 16px', color: ADMIN_THEME.textMuted, fontSize: 13 }}>
-                              No aplica / no configurado.
+                      {/* Precio genérico: SÓLO cuando la categoría NO usa capacidades configuradas.
+                          FIX 3: TIPO B con capacidad (Aljibe/Pluma/Tolva) no muestra doble edición. */}
+                      {(() => {
+                        if (!selectedMachineId) return null;
+                        const isPerHour = MACHINERY_PER_HOUR.includes(selectedMachineId);
+                        const type = isPerHour ? 'per_hour' : 'per_service';
+                        const hasCapacityConfig = Boolean(
+                          getMachineryCapacityOptions(selectedMachineId) && (prices.by_capacity || {})[selectedMachineId]
+                            && Object.keys((prices.by_capacity || {})[selectedMachineId] || {}).length > 0
+                        );
+                        // Para TIPO B siempre que hay capacidades configuradas, NO mostrar genérico editable.
+                        // Para TIPO A con capacidades configuradas, mostrar genérico sólo como fallback informativo?
+                        // Fundador FIX 3: TIPO B con capacidad NO doble edit -> ocultar.
+                        if (MACHINERY_PER_SERVICE.includes(selectedMachineId) && hasCapacityConfig) {
+                          return null;
+                        }
+                        // Si TIPO A con capacidad: mostrar pero para no confundir? Fundador no dice ocultar A.
+                        return (
+                          <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                            <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
+                              {isPerHour
+                                ? 'Precio por hora genérico (TIPO A · fallback si sin capacidad)'
+                                : 'Precio por viaje genérico (TIPO B · fallback si sin capacidad)'}
                             </div>
-                          )}
-                        </div>
-                      ) : null}
+                            <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                              <span>{isPerHour ? 'Maquinaria' : 'Unidad'}</span>
+                              <span>Min</span>
+                              <span>Max</span>
+                              <span>Sugerido</span>
+                            </div>
+                            {((prices[type] || {})[selectedMachineId]) ? (
+                              <PriceRow type={type} machineId={selectedMachineId} />
+                            ) : (
+                              <div style={{ padding: '12px 16px', color: ADMIN_THEME.textMuted, fontSize: 13 }}>
+                                No aplica / no configurado.
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
-                      {selectedMachineId && (prices.per_service || {})[selectedMachineId] ? (
+                      {/* Traslado: SÓLO TIPO A (necesita transporte). FIX 2: TIPO B (Aljibe/Pluma/Tolva = SIN TRASLADO) */}
+                      {selectedMachineId && MACHINERY_NEEDS_TRANSPORT.includes(selectedMachineId) ? (
                         <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
                           <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
-                            Precio servicio por tramo (TIPO B)
+                            Traslado (TIPO A · cobro por tramo geográfico)
                           </div>
                           <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
-                            <span>Tramo</span>
-                            <span>Min</span>
-                            <span>Max</span>
-                            <span>Sugerido</span>
-                          </div>
-                          <PriceRow type="per_service" machineId={selectedMachineId} />
-                        </div>
-                      ) : null}
-
-                      {selectedMachineId && (MACHINERY_NEEDS_TRANSPORT.includes(selectedMachineId) || !(MACHINERY_NO_TRANSPORT || []).includes(selectedMachineId) ? (
-                        <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
-                          <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
-                            Traslado por tramo
-                          </div>
-                          <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
-                            <span>Tramo</span>
+                            <span>Tramo geográfico</span>
                             <span>Min</span>
                             <span>Max</span>
                             <span>Sugerido</span>
                           </div>
                           <div style={{ padding: 12, display: 'grid', gap: 10 }}>
                             <TransportRangeEditor title="Dentro de la comuna" segmentKey="same_comuna" tone="intra" />
-                            <TransportRangeEditor title="Entre comunas (misma region)" segmentKey="intercomuna" tone="inter" />
+                            <TransportRangeEditor title="Entre comunas (misma región)" segmentKey="intercomuna" tone="inter" />
                             <TransportRangeEditor title="Interregional / hasta 150 km" segmentKey="interregional" tone="interreg" />
                           </div>
                         </div>
-                      ) : null)}
+                      ) : null}
                     </div>
                   </div>
                 </div>

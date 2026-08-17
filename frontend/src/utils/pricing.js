@@ -16,10 +16,6 @@ import {
 } from './machineryConstants.js';
 import { getMachineryId } from './machineryNames.js';
 
-// ===========================================
-// CONSTANTES (alineadas con backend)
-// ===========================================
-
 export {
   MACHINERY_PER_HOUR,
   MACHINERY_PER_SERVICE,
@@ -38,102 +34,260 @@ export const IMMEDIATE_MULTIPLIERS = {
 export const MAQGO_CLIENT_COMMISSION_RATE = 0.10;
 export const IVA_RATE = 0.19;
 
-/** Factor para pasar de total sin factura a total con factura (IVA sobre base + comisión). 1.3685/1.1785 */
 export const CON_FACTURA_FACTOR = (1 + MAQGO_CLIENT_COMMISSION_RATE) * (1 + IVA_RATE) / (1 + MAQGO_CLIENT_COMMISSION_RATE * (1 + IVA_RATE));
-
-/**
- * Dado el total sin factura (subtotal + comisión con IVA solo en comisión), devuelve el total con factura (IVA sobre todo).
- */
 export function totalConFactura(sinFacturaTotal) {
   return Math.round(sinFacturaTotal * CON_FACTURA_FACTOR);
 }
 
-// Límites vs promedio de mercado (estilo Uber: cap razonable, transparencia)
-export const MAX_PRICE_ABOVE_MARKET_PCT = 2.0;  // Máx 2x referencia (buena práctica marketplace)
-export const REFERENCE_TRANSPORT = 30000;        // Promedio mercado traslado lowboy (CLP)
+export const MAX_PRICE_ABOVE_MARKET_PCT = 2.0;
+export const REFERENCE_TRANSPORT = 30000;
 
-// Texto visible para el proveedor (regla + incentivo tracción)
 export const PRICE_CAP_RULE_LABEL = 'Máx. 2x referencia de mercado';
 export const PRICING_TRACTION_MSG = 'Precios competitivos = más reservas';
 
-// Precios referencia mercado (alineados con backend/pricing/constants.py)
-export const REFERENCE_PRICES = {
+// ========== SINGLE SOURCE OF TRUTH (ADMIN → DB → PROVEEDOR) ==========
+//
+// Los precios de referencia NO están hardcodeados aquí.
+// Se obtienen desde:  GET /api/pricing/reference-prices
+// (endpoint público, mismo valor que Admin escribe en DB).
+//
+// - Cache en memoria con TTL 30s para evitar requests redundantes.
+// - Si el GET falla (offline/error), se usa FALLBACK_TECHNICAL como valor
+//   transitorio SIN AFIRMAR QUE ES EL VIGENTE. El usuario de esta lib debe
+//   indicar loading/error si prefiere antes de mostrar un valor.
+// - REFERENCE_PRICES exportado SE LLENA con el fetch (no hardcode).
+//   Si el fetch no se ejecutó aún y alguien accede síncronamente, está vacío.
+
+const REFERENCE_PRICES_CACHE_TTL_MS = 30 * 1000;
+
+const FALLBACK_TECHNICAL = {
   retroexcavadora: 80000, excavadora: 110000, bulldozer: 140000,
   motoniveladora: 155000, compactadora: 75000, minicargador: 62500,
   grua: 120000, camion_pluma: 285000, camion_aljibe: 260000, camion_tolva: 240000,
 };
 
-/** Mínimos publicación proveedor (mismo criterio que wizard add-machine). */
+let _referenceCache = null;
+let _referenceCacheAt = 0;
+let _loadPromise = null;
+
+/** Estructura DB pública. */
+export const REFERENCE_PRICES_DATA = {
+  per_hour: {},
+  per_service: {},
+  by_capacity: {},
+  transport: {
+    min: 15000, default: REFERENCE_TRANSPORT, max: REFERENCE_TRANSPORT * 2,
+    same_comuna: { min: 15000, default: REFERENCE_TRANSPORT, max: REFERENCE_TRANSPORT * 2 },
+    intercomuna: { min: 25000, default: Math.round(REFERENCE_TRANSPORT * 1.5), max: REFERENCE_TRANSPORT * 3 },
+    interregional: { min: 50000, default: Math.round(REFERENCE_TRANSPORT * 2.5), max: REFERENCE_TRANSPORT * 5 },
+  },
+};
+
+/** Map flat (mantener backwards compat). Pre-populado con fallback técnico
+ *  para pantallas que acceden síncronamente. Luego _applyPayload() lo
+ *  sobreescribe con el valor real desde DB (Admin). */
+export const REFERENCE_PRICES = { ...FALLBACK_TECHNICAL };
+
+function _isFresh() {
+  return Boolean(_referenceCache && Date.now() - _referenceCacheAt <= REFERENCE_PRICES_CACHE_TTL_MS);
+}
+
+function _applyPayload(data) {
+  if (!data || typeof data !== 'object') return;
+  REFERENCE_PRICES_DATA.per_hour = { ...(data.per_hour || {}) };
+  REFERENCE_PRICES_DATA.per_service = { ...(data.per_service || {}) };
+  REFERENCE_PRICES_DATA.by_capacity = { ...(data.by_capacity || {}) };
+  if (data.transport && typeof data.transport === 'object') {
+    REFERENCE_PRICES_DATA.transport = { ...REFERENCE_PRICES_DATA.transport, ...data.transport };
+  }
+  // Llenar REFERENCE_PRICES (flat backwards compat): default sugerido por máquina.
+  Object.keys(REFERENCE_PRICES).forEach(k => delete REFERENCE_PRICES[k]);
+  for (const [k, v] of Object.entries(REFERENCE_PRICES_DATA.per_hour || {})) {
+    if (v && typeof v === 'object' && typeof v.default === 'number') REFERENCE_PRICES[k] = v.default;
+  }
+  for (const [k, v] of Object.entries(REFERENCE_PRICES_DATA.per_service || {})) {
+    if (v && typeof v === 'object' && typeof v.default === 'number') REFERENCE_PRICES[k] = v.default;
+  }
+  // Garantizar que las 10 categorías existan aunque falle el merge (fallback técnico sólo si faltan)
+  for (const [k, fallbackDefault] of Object.entries(FALLBACK_TECHNICAL)) {
+    if (!(k in REFERENCE_PRICES)) {
+      REFERENCE_PRICES[k] = fallbackDefault;
+    }
+  }
+}
+
+async function _load(timeoutMs = 15000) {
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch('/api/pricing/reference-prices?_=' + Date.now(), {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    clearTimeout(tid);
+    if (!res || res.status !== 200) throw new Error('non-200');
+    const data = await res.json();
+    _applyPayload(data);
+    _referenceCache = data;
+    _referenceCacheAt = Date.now();
+    return true;
+  } catch (_err) {
+    _applyPayload({});
+    _referenceCache = { ok: false, fallback: true };
+    _referenceCacheAt = Date.now();
+    return false;
+  }
+}
+
+export async function ensureReferencePricesLoaded({ force = false } = {}) {
+  if (force) {
+    _loadPromise = null;
+  }
+  if (_loadPromise && !force && _isFresh()) return _loadPromise;
+  if (_isFresh() && _referenceCache) return true;
+  if (!_loadPromise) {
+    _loadPromise = _load().finally(() => {});
+  }
+  return _loadPromise;
+}
+
+export function isReferencePricesFallback() {
+  return Boolean(_referenceCache && !_isFresh() === false && _referenceCache && _referenceCache.fallback);
+}
+
+// =====================================================================
+// PRECARGA INMEDIATA (background, no bloquea).
+// Assim como el módulo se importa, lanzamos fetch ASÍNCRONO sin await
+// para que los datos estén listos ~300ms después cuando los screens
+// (MachineDataScreen, MyMachinesScreen, ProviderOptionsScreen,
+// ConfirmServiceScreen, AdminPricingScreen) los necesiten.
+// =====================================================================
+(function _preloadImmediate() {
+  try {
+    _load().catch(() => {});
+  } catch (_e) {}
+})();
+
 const PROVIDER_PUBLISH_MIN_HOUR = 20000;
 const PROVIDER_PUBLISH_MIN_SERVICE = 100000;
 
-/**
- * Rango referencial por tipo (ayuda UI; la validación al publicar sigue en pantalla).
- * @returns {{ min: number, max: number, ref: number, isPerHour: boolean, suggested: number, isTruckTrip: boolean }}
- */
-export function getProviderPriceReferenceRange(machineryType) {
-  const id = getMachineryId(machineryType) || String(machineryType || '').trim();
-  const ref = REFERENCE_PRICES[id] ?? REFERENCE_PRICES.retroexcavadora;
-  const isPerHour = MACHINERY_PER_HOUR.includes(id);
-  const min = isPerHour ? PROVIDER_PUBLISH_MIN_HOUR : PROVIDER_PUBLISH_MIN_SERVICE;
-  const max = Math.round(ref * MAX_PRICE_ABOVE_MARKET_PCT);
-  const suggested = Math.round((min + max) / 2);
-  const isTruckTrip = MACHINERY_PER_SERVICE.includes(id);
-  return { min, max, ref, isPerHour, suggested, isTruckTrip };
+function _capacityKeyFor(machineId, capacityValue) {
+  if (capacityValue === undefined || capacityValue === null || capacityValue === '') return null;
+  const s = String(capacityValue);
+  // Intentar exacto ("0.5", "10000"), luego float rounded, luego int str
+  const bycap = REFERENCE_PRICES_DATA.by_capacity && REFERENCE_PRICES_DATA.by_capacity[machineId];
+  if (!bycap) return null;
+  if (s in bycap) return s;
+  const tryNum = Number(s);
+  if (!Number.isNaN(tryNum)) {
+    const intKey = String(Math.round(tryNum));
+    if (intKey in bycap) return intKey;
+    const floatKey1 = tryNum.toFixed(1);
+    if (floatKey1 in bycap) return floatKey1;
+    const floatKey2 = tryNum.toFixed(2);
+    if (floatKey2 in bycap) return floatKey2;
+    for (const k of Object.keys(bycap)) {
+      const kn = Number(k);
+      if (!Number.isNaN(kn) && Math.abs(kn - tryNum) < 1e-9) return k;
+    }
+  }
+  return null;
 }
 
-/** Mapa estático min/max por id de máquina (misma regla que getProviderPriceReferenceRange). */
+/**
+ * Devuelve el rango sugerido para publicación del proveedor.
+ * @param {string} machineryType id o nombre visible
+ * @param {string|number|undefined} [capacity] valor de capacidad (ej: "0.5", "10000", 200)
+ * @returns {{ min: number, max: number, ref: number, suggested: number, isPerHour: boolean, isTruckTrip: boolean, source: 'capacity'|'generic'|'fallback' }}
+ */
+export function getProviderPriceReferenceRange(machineryType, capacity) {
+  const id = getMachineryId(machineryType) || String(machineryType || '').trim();
+  const isPerHour = MACHINERY_PER_HOUR.includes(id);
+  const isTruckTrip = MACHINERY_PER_SERVICE.includes(id);
+  const baseMin = isPerHour ? PROVIDER_PUBLISH_MIN_HOUR : PROVIDER_PUBLISH_MIN_SERVICE;
+  // Intento 1: por capacidad
+  let ref = undefined;
+  let source = 'generic';
+  if (capacity !== undefined && capacity !== null && capacity !== '') {
+    const bycap = REFERENCE_PRICES_DATA.by_capacity?.[id];
+    const ck = _capacityKeyFor(id, capacity);
+    if (ck && bycap && bycap[ck] && typeof bycap[ck].default === 'number') {
+      ref = bycap[ck].default;
+      source = 'capacity';
+    }
+  }
+  // Intento 2: genérico por máquina
+  if (ref === undefined || ref === null || ref === 0) {
+    const bucket = isPerHour ? REFERENCE_PRICES_DATA.per_hour : REFERENCE_PRICES_DATA.per_service;
+    if (bucket && bucket[id] && typeof bucket[id].default === 'number' && bucket[id].default > 0) {
+      ref = bucket[id].default;
+      source = 'generic';
+    }
+  }
+  // Intento 3: flat map REFERENCE_PRICES (llenado por fetch)
+  if (!ref && REFERENCE_PRICES[id]) {
+    ref = REFERENCE_PRICES[id];
+    source = 'generic';
+  }
+  // Intento 4 (fallback técnico, marcado)
+  if (!ref) {
+    ref = FALLBACK_TECHNICAL[id] ?? FALLBACK_TECHNICAL.retroexcavadora;
+    source = 'fallback';
+  }
+  const min = baseMin;
+  const max = Math.round(ref * MAX_PRICE_ABOVE_MARKET_PCT);
+  const suggested = Math.round((min + max) / 2);
+  return { min, max, ref, suggested, isPerHour, isTruckTrip, source };
+}
+
 export const PRICE_REFERENCE = Object.fromEntries(
-  Object.keys(REFERENCE_PRICES).map((k) => {
+  Object.keys(FALLBACK_TECHNICAL).map((k) => {
     const r = getProviderPriceReferenceRange(k);
     return [k, { min: r.min, max: r.max }];
   })
 );
 
-// Alias para compatibilidad
 export const MACHINERY_PER_TRIP = MACHINERY_PER_SERVICE;
 
-/** true si la maquinaria se cobra por viaje (pluma, aljibe, tolva). Acepta id o nombre visible. */
 export function isPerTripMachinery(machinery) {
   const id = getMachineryId(machinery);
   return Boolean(id && MACHINERY_PER_SERVICE.includes(id));
 }
 
-/** true si la maquinaria lleva costo de traslado (no es camión pluma/aljibe/tolva). Acepta id o nombre visible. */
 export function needsTransportMachinery(machinery) {
   const id = getMachineryId(machinery);
   return Boolean(id && MACHINERY_NEEDS_TRANSPORT.includes(id));
 }
 
-// ===========================================
-// DEMOS: traslado y precios por maquinaria (una sola fuente de verdad)
-// ===========================================
-/** Traslado para demos: 0 si la maquinaria no lleva traslado (pluma, aljibe, tolva). */
+/** Traslado demo: 0 si maquinaria no lleva traslado. */
 export function getDemoTransportFee(machinery) {
-  return needsTransportMachinery(machinery) ? REFERENCE_TRANSPORT : 0;
+  const id = getMachineryId(machinery);
+  if (!needsTransportMachinery(id)) return 0;
+  const tr = REFERENCE_PRICES_DATA?.transport?.default;
+  return typeof tr === 'number' && tr > 0 ? tr : REFERENCE_TRANSPORT;
 }
 
-/** Precios demo por hora (5 valores) para maquinaria por hora. */
 const DEMO_HOURLY_PRICES = [45000, 42000, 48000, 44000, 46000];
-
-/** Spread sobre referencia para precios por viaje (5 valores). */
 const TRIP_PRICE_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
 
-/**
- * Array de 5 precios demo según maquinaria: por hora o por viaje (referencia × spread).
- * Usar en ProviderOptionsScreen y SearchingProviderScreen para listas demo.
- */
-export function getDemoPriceList(machinery) {
+export function getDemoPriceList(machinery, capacity) {
   const id = getMachineryId(machinery);
-  const ref = REFERENCE_PRICES[id];
+  const range = getProviderPriceReferenceRange(id ?? machinery, capacity);
+  const ref = range.ref;
   const isPerTrip = id && MACHINERY_PER_SERVICE.includes(id);
   if (isPerTrip && ref) {
     return TRIP_PRICE_SPREAD.map(mult => Math.round(ref * mult));
   }
+  if (isPerTrip) return [...DEMO_HOURLY_PRICES];
+  // por hora: basado en referencia si existe
+  if (ref && ref > 0) {
+    return DEMO_HOURLY_PRICES.map((_, idx) => Math.round(ref * (0.93 + (idx * 0.035))));
+  }
   return [...DEMO_HOURLY_PRICES];
 }
 
-/** Transport fees por proveedor demo (5 valores). 0 si maquinaria no lleva traslado. */
 const DEMO_TRANSPORT_FEES = [25000, 30000, 22000, 28000, 24000];
 
 /**
