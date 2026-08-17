@@ -634,22 +634,35 @@ function AdminPricingScreen() {
 
                     <div style={{ padding: 16, display: 'grid', gap: 14 }}>
                       {selectedMachineId && getMachineryCapacityOptions(selectedMachineId) && (prices.by_capacity || {})[selectedMachineId] ? (
-                        <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
-                          <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
-                            {MACHINERY_PER_HOUR.includes(selectedMachineId)
-                              ? `Precio por hora · por capacidad de ${String(getMachineryCapacityOptions(selectedMachineId)?.providerLabel || 'capacidad').toLowerCase()}`
-                              : `Precio por viaje · por capacidad de ${String(getMachineryCapacityOptions(selectedMachineId)?.providerLabel || 'capacidad').toLowerCase()}`}
-                          </div>
-                          <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
-                            <span>{getMachineryCapacityOptions(selectedMachineId)?.providerLabel || 'Capacidad'}</span>
-                            <span>Min</span>
-                            <span>Max</span>
-                            <span>Sugerido</span>
-                          </div>
-                          {Object.keys((prices.by_capacity || {})[selectedMachineId] || {}).map((capacityKey) => (
-                            <CapacityRow key={`${selectedMachineId}-${capacityKey}`} machineId={selectedMachineId} capacityKey={capacityKey} />
-                          ))}
-                        </div>
+                        (() => {
+                          const rawCapLabel = String(getMachineryCapacityOptions(selectedMachineId)?.providerLabel || 'Capacidad');
+                          const CAPACITY_LABEL_FIXES = {
+                            'Capacidad de estanque (L)': 'Capacidad del estanque (L)',
+                            'Capacidad de balde (m³)': 'Capacidad del balde (m³)',
+                            'Capacidad de pluma (ton·m)': 'Capacidad de la pluma (ton·m)',
+                            'Capacidad de carga (m³)': 'Capacidad de la carga (m³)',
+                          };
+                          const cleanCap = CAPACITY_LABEL_FIXES[rawCapLabel] || rawCapLabel;
+                          const headerTitle = MACHINERY_PER_HOUR.includes(selectedMachineId)
+                            ? `Precio por hora · ${cleanCap}`
+                            : `Precio por viaje · ${cleanCap}`;
+                          return (
+                            <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                              <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
+                                {headerTitle}
+                              </div>
+                              <div style={{ ...headerGridStyle, gridTemplateColumns: '1fr 100px 100px 120px' }}>
+                                <span>{cleanCap}</span>
+                                <span>Min</span>
+                                <span>Max</span>
+                                <span>Sugerido</span>
+                              </div>
+                              {Object.keys((prices.by_capacity || {})[selectedMachineId] || {}).map((capacityKey) => (
+                                <CapacityRow key={`${selectedMachineId}-${capacityKey}`} machineId={selectedMachineId} capacityKey={capacityKey} />
+                              ))}
+                            </div>
+                          );
+                        })()
                       ) : null}
 
                       {/* Precio genérico: SÓLO cuando la categoría NO usa capacidades configuradas.
