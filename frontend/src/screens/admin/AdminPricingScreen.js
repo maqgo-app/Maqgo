@@ -76,7 +76,18 @@ function AdminPricingScreen() {
 
   async function fetchPrices() {
     try {
-      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reference-prices`);
+      const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reference-prices`, { redirectOn401: false });
+      if (res.status === 401) {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminAuthToken');
+        localStorage.removeItem('adminUserId');
+        localStorage.removeItem('adminRoles');
+        localStorage.removeItem('adminMustChangePassword');
+        localStorage.removeItem('adminEmail');
+        toast.error('Sesión expirada. Ingresa nuevamente.');
+        navigate('/admin', { replace: true });
+        return;
+      }
       const data = await res.json();
       const transport = data?.transport && typeof data.transport === 'object' ? data.transport : {};
       const normTransport = {
@@ -229,8 +240,20 @@ function AdminPricingScreen() {
       const res = await fetchWithAuth(`${BACKEND_URL}/api/admin/reference-prices`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ per_hour: perHour, per_service: perService, by_capacity: byCapacity, transport })
+        body: JSON.stringify({ per_hour: perHour, per_service: perService, by_capacity: byCapacity, transport }),
+        redirectOn401: false
       });
+      if (res.status === 401) {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminAuthToken');
+        localStorage.removeItem('adminUserId');
+        localStorage.removeItem('adminRoles');
+        localStorage.removeItem('adminMustChangePassword');
+        localStorage.removeItem('adminEmail');
+        toast.error('Sesión expirada. Ingresa nuevamente.');
+        navigate('/admin', { replace: true });
+        return;
+      }
       const data = await res.json();
       if (data.ok) {
         toast.success('Precios guardados correctamente');
