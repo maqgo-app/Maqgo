@@ -8,6 +8,7 @@ export const PROVIDER_ONBOARDING_DRAFT_KEYS = [
   'operatorsData',
   'providerOnboardingStep',
   'providerCameFromWelcome',
+  'firstMachineOperator',
 ];
 
 export function isProviderOnboardingDraftEnabled() {
@@ -32,6 +33,19 @@ export function getProviderDraftObject(key, defaultValue = {}) {
 
 export function getProviderDraftArray(key, defaultValue = []) {
   return isProviderOnboardingDraftEnabled() ? getArray(key, defaultValue) : defaultValue;
+}
+
+export function setProviderDraftObject(key, value) {
+  if (!isProviderOnboardingDraftEnabled()) return;
+  try {
+    if (value === null || value === undefined) {
+      globalThis.localStorage?.removeItem(key);
+      return;
+    }
+    globalThis.localStorage?.setItem(key, JSON.stringify(value));
+  } catch {
+    /* ignore storage failures */
+  }
 }
 
 export function useProviderOnboardingDraftCleanup() {

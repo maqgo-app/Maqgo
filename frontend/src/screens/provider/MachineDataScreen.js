@@ -11,7 +11,8 @@ import { createMachineInApi, updateMachine, updateMachineInApi, getMachineById, 
 import { getMachineryCapacityOptions, getProviderSpecLabel } from '../../utils/machineryNames';
 import { getObject } from '../../utils/safeStorage';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
-import { validateCelularChile } from '../../utils/chileanValidation';
+import { validateCelularChile, validatePersonRut, formatRut, normalizeChileanMobileE164 } from '../../utils/chileanValidation';
+import { getHttpErrorMessage } from '../../utils/httpErrors';
 import BACKEND_URL from '../../utils/api';
 import { getUserAuthState } from '../../utils/userAuthState';
 import { submitBecomeProviderMinimal, hasProviderRoleInStorage } from '../../utils/providerBecomeApi';
@@ -33,6 +34,7 @@ import {
 import {
   getProviderDraftArray,
   getProviderDraftObject,
+  setProviderDraftObject,
   useProviderOnboardingDraftCleanup,
 } from '../../utils/providerOnboardingDraftState';
 import {
@@ -114,12 +116,30 @@ function getTransportFieldAlert(value) {
   return getTransportAlert(value);
 }
 
-/** Wizard /provider/add-machine: 3 pasos; mismos segmentos que el texto (sin mezclar con el embudo de 6). */
+/** Wizard /provider/add-machine: 4 pasos; Operador se fusiona en Paso 2 para primera máquina. */
 const MACHINE_FIRST_ONBOARDING_STEPS = [
   { label: 'Tu máquina' },
+  { label: 'Operador' },
   { label: 'Precio' },
   { label: 'Confirmar' },
 ];
+
+function isFirstMachineFlow(isAdd, edit, existing) {
+  if (!isAdd || edit) return false;
+  try {
+    const machines = Array.isArray(existing) ? existing : [];
+    return !machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()));
+  } catch {
+    return true;
+  }
+}
+
+const FIRST_MACHINE_OPERATOR_STEP_DEFAULT = {
+  firstName: '',
+  lastName: '',
+  rut: '',
+  phone: '+569',
+};
 
 /** Referencia sólo para persistencia local/API; la posición útil al cotizar = operador + GPS en servicio. */
 const DEFAULT_SERVICE_AREA_LABEL = 'Chile';
@@ -902,8 +922,17 @@ function MachineDataScreen() {
   const editMachine = location.state?.machine ?? (id ? getMachineById(id) : null);
   useProviderOnboardingDraftCleanup();
   const [form, setForm] = useState(() => buildMachineForm(isEditMode, editMachine));
-
+  const existingMachinesSnapshot = Array.isArray(getMachines()) ? getMachines() : [];
+  const isFirstMachineFlow = isFirstMachineFlow(isAddMachineEntry, isEditMode, existingMachinesSnapshot);
   const [mfStep, setMfStep] = useState(1);
+  const [firstOperator, setFirstOperator] = useState(() => {
+    try {
+      const fromDraft = getProviderDraftObject('firstMachineOperator', null);
+      return fromDraft && typeof fromDraft === 'object' ? { ...FIRST_MACHINE_OPERATOR_STEP_DEFAULT, ...fromDraft } : { ...FIRST_MACHINE_OPERATOR_STEP_DEFAULT };
+    } catch {
+      return { ...FIRST_MACHINE_OPERATOR_STEP_DEFAULT };
+    }
+  });
   const [priceBaseWizard, setPriceBaseWizard] = useState('');
   const [transportSameComunaWizard, setTransportSameComunaWizard] = useState('');
   const [transportSameRegionWizard, setTransportSameRegionWizard] = useState('');
@@ -964,7 +993,26 @@ function MachineDataScreen() {
     setTransportOtherRegionWizard('');
   }, [form.machineryType, isAddMachineEntry, isEditMode]);
 
-  const resolveRequiredOperators = useCallback(async (machineryType) => {
+  const resolveRequiredOperators = useCallback(async (machineryType, firstMachineOperatorOverride) => {
+    if (isFirstMachineFlow && firstMachineOperatorOverride) {
+      const op = firstMachineOperatorOverride;
+      const firstName = String(op.firstName || '').trim();
+      const lastName = String(op.lastName || '').trim();
+      const fullName = `${firstName} ${lastName}`.trim();
+      const rut = formatRut(String(op.rut || '').trim());
+      const phone = normalizeChileanMobileE164(String(op.phone || ''));
+      const id = String(op.id || op.targetUserId || `pending-${firstName}-${phone || Date.now()}`).trim();
+      if (!fullName || !rut || !phone) {
+        throw new Error('Completa nombre, apellido, RUT y celular de tu operador antes de guardar la primera máquina.');
+      }
+      return [{
+        id,
+        name: fullName || 'Operador',
+        rut,
+        phone,
+        isPrimary: true,
+      }];
+    }
     const onboardingOperators = getProviderDraftArray('operatorsData', [])
       .map((op, index) => normalizeRequiredOperator(op, `op-onboarding-${index}`))
       .filter(Boolean);
@@ -974,6 +1022,9 @@ function MachineDataScreen() {
 
     const ownerId = String(localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
     if (!ownerId) {
+      if (isFirstMachineFlow) {
+        throw new Error('Completa los datos del operador en el paso anterior.');
+      }
       throw new Error('Debes registrar al menos un operador antes de guardar la maquinaria.');
     }
 
@@ -995,6 +1046,9 @@ function MachineDataScreen() {
       .filter(Boolean);
 
     if (teamOperators.length === 0) {
+      if (isFirstMachineFlow) {
+        throw new Error('Completa los datos del operador en el paso anterior.');
+      }
       throw new Error('Debes registrar al menos un operador antes de guardar la maquinaria.');
     }
 
@@ -1004,7 +1058,7 @@ function MachineDataScreen() {
     return teamOperators
       .filter((op) => op.id === principalId)
       .map((op) => ({ ...op, isPrimary: true }));
-  }, []);
+  }, [isFirstMachineFlow]);
 
   const handleInlineProviderSubmit = useCallback(async () => {
     setInlineError('');
@@ -1187,8 +1241,64 @@ function MachineDataScreen() {
     const capOpts = getMachineryCapacityOptions(machineryType);
 
     let requiredOperators = [];
+    let firstMachineUserTargetUserId = null;
     try {
-      requiredOperators = await resolveRequiredOperators(machineryType);
+      if (isFirstMachineFlow) {
+        const firstName = String(firstOperator.firstName || '').trim();
+        const lastName = String(firstOperator.lastName || '').trim();
+        const fullName = `${firstName} ${lastName}`.trim();
+        const rawRut = String(firstOperator.rut || '').trim();
+        const normalizedPhone = normalizeChileanMobileE164(String(firstOperator.phone || ''));
+        if (!firstName || !lastName || !rawRut || !normalizedPhone) {
+          setPublishError('Completa nombre, apellido, RUT y celular del operador en el paso 2 antes de guardar la primera máquina.');
+          return;
+        }
+        if (!validatePersonRut(rawRut)) {
+          setPublishError('Ingresa un RUT de persona válido para tu operador.');
+          return;
+        }
+        const phoneErr = validateCelularChile(normalizedPhone);
+        if (phoneErr) {
+          setPublishError(phoneErr);
+          return;
+        }
+        const ownerId = String(localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
+        if (!ownerId) {
+          setPublishError('Tu sesión expiró. Cierra y vuelve a iniciar sesión.');
+          return;
+        }
+        try {
+          const invitePayload = {
+            owner_id: ownerId,
+            operator_name: fullName,
+            operator_first_name: firstName,
+            operator_last_name: lastName,
+            operator_rut: formatRut(rawRut),
+            operator_phone: normalizedPhone,
+            machine_ids: [],
+          };
+          const res = await axios.post(`${BACKEND_URL}/api/operators/invite`, invitePayload, { timeout: 8000 });
+          const op = res?.data?.operator || res?.data?.user || {};
+          firstMachineUserTargetUserId = String(op.id || op.user_id || res?.data?.target_user_id || '').trim();
+          if (!firstMachineUserTargetUserId) {
+            throw new Error('No pudimos registrar el operador. Intenta de nuevo.');
+          }
+        } catch (ie) {
+          setPublishError(getHttpErrorMessage(ie, {
+            fallback: 'No pudimos enviar la invitación del operador. Revisa el número de teléfono o internet.',
+            statusMessages: {
+              401: 'Tu sesión expiró. Cierra y vuelve a iniciar sesión.',
+              403: 'No tienes permisos para invitar operadores en esta empresa.',
+              409: 'El operador ya fue invitado anteriormente; reintenta en 60 segundos o usa el mismo operador en Roles y Usuarios.',
+            },
+          }));
+          return;
+        }
+        const override = { ...firstOperator, id: firstMachineUserTargetUserId, targetUserId: firstMachineUserTargetUserId };
+        requiredOperators = await resolveRequiredOperators(machineryType, override);
+      } else {
+        requiredOperators = await resolveRequiredOperators(machineryType);
+      }
     } catch (e) {
       setPublishError(e?.message || 'Debes registrar al menos un operador antes de guardar la maquinaria.');
       return;
@@ -1209,9 +1319,9 @@ function MachineDataScreen() {
         transportSameComuna: needsTransport ? sameComunaTransport : 0,
         transportSameRegion: needsTransport ? sameRegionTransport : 0,
         transportOtherRegion: needsTransport ? otherRegionTransport : 0,
-        available: true,
-        published: true,
-        status: 'active',
+        available: isFirstMachineFlow ? false : true,
+        published: isFirstMachineFlow ? false : true,
+        status: isFirstMachineFlow ? 'draft' : 'active',
         operators: requiredOperators,
         ...resolveOriginFields(form),
       };
@@ -1224,17 +1334,34 @@ function MachineDataScreen() {
       }
 
       const photosForStore = Array.isArray(mfPhotos) ? mfPhotos : [];
-      const created = await createMachineInApi({ ...next, photos: photosForStore, machinePhotos: photosForStore });
+      let createdMachine = null;
+      try {
+        createdMachine = await createMachineInApi({ ...next, photos: photosForStore, machinePhotos: photosForStore });
+      } catch (createErr) {
+        const msg = getHttpErrorMessage(createErr, {
+          fallback: 'No se pudo guardar la maquinaria.',
+          statusMessages: {
+            409: 'El operador no está activo aún. La invitación SMS fue enviada; cuando el operador confirme OTP, podrás publicar la máquina.',
+          },
+        });
+        setPublishError(msg);
+        return;
+      }
 
       try {
         localStorage.removeItem('machineData');
         localStorage.removeItem('machinePricing');
         localStorage.removeItem('machinePhotos');
+        setProviderDraftObject('firstMachineOperator', null);
       } catch {
         void 0;
       }
 
-      toast.success('Maquinaria guardada y lista para operar.');
+      toast.success(
+        isFirstMachineFlow
+          ? 'Máquina guardada. Invitación SMS enviada al operador. Cuando confirme OTP, quedará operativa.'
+          : 'Maquinaria guardada y lista para operar.'
+      );
       navigate('/provider/machines', { replace: true });
     } catch (e) {
       setPublishError(e?.message || 'No se pudo guardar la maquinaria. Intenta de nuevo.');
@@ -1252,6 +1379,8 @@ function MachineDataScreen() {
     transportSameComunaWizard,
     transportSameRegionWizard,
     resolveRequiredOperators,
+    isFirstMachineFlow,
+    firstOperator,
   ]);
 
   const currentYear = new Date().getFullYear();
@@ -1331,6 +1460,33 @@ function MachineDataScreen() {
       setMfStep(2);
       return;
     }
+    if (mfStep === 2 && isFirstMachineFlow) {
+      const firstName = String(firstOperator.firstName || '').trim();
+      const lastName = String(firstOperator.lastName || '').trim();
+      const rut = String(firstOperator.rut || '').trim();
+      const phoneNorm = normalizeChileanMobileE164(String(firstOperator.phone || ''));
+      if (!firstName || !lastName || !rut || !phoneNorm) {
+        setStepHint('Completa nombre, apellido, RUT y celular del operador.');
+        return;
+      }
+      if (!validatePersonRut(rut)) {
+        setStepHint('Ingresa un RUT de persona válido para tu operador.');
+        return;
+      }
+      const phoneErr = validateCelularChile(phoneNorm);
+      if (phoneErr) {
+        setStepHint(phoneErr);
+        return;
+      }
+      setProviderDraftObject('firstMachineOperator', {
+        firstName,
+        lastName,
+        rut,
+        phone: phoneNorm,
+      });
+      setMfStep(3);
+      return;
+    }
     if (mfStep === 2) {
       const hasFrontalPhoto =
         Array.isArray(mfPhotos) &&
@@ -1385,6 +1541,62 @@ function MachineDataScreen() {
         }
       }
       setMfStep(3);
+      return;
+    }
+    if (mfStep === 3) {
+      const hasFrontalPhoto =
+        Array.isArray(mfPhotos) &&
+        mfPhotos.some((p, i) => {
+          if (i === 0 && typeof p === 'string') return true;
+          if (p && typeof p === 'object') {
+            return String(p.label || '')
+              .trim()
+              .toLowerCase() === 'frontal';
+          }
+          return false;
+        });
+      if (!hasFrontalPhoto) {
+        setStepHint('La foto frontal es obligatoria. Sube al menos una foto (Frontal).');
+        return;
+      }
+      const machineryType = form.machineryType;
+      const priceBaseNum = parseInt(String(priceBaseWizard).replace(/\D/g, ''), 10) || 0;
+      const isPerHour = MACHINERY_PER_HOUR.includes(machineryType);
+      const refPrice = REFERENCE_PRICES[machineryType] || 80000;
+      const maxPrice = Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT);
+      const minPrice = isPerHour ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE;
+      if (priceBaseNum < minPrice || priceBaseNum > maxPrice) {
+        setStepHint(tariffBaseRangeMessage(isPerHour, minPrice, maxPrice));
+        return;
+      }
+      const needsT = !MACHINERY_NO_TRANSPORT.includes(machineryType);
+      if (needsT) {
+        const sameComunaTransport = parseInt(String(transportSameComunaWizard).replace(/\D/g, ''), 10) || 0;
+        const sameRegionTransport = parseInt(String(transportSameRegionWizard).replace(/\D/g, ''), 10) || 0;
+        const otherRegionTransport = parseInt(String(transportOtherRegionWizard).replace(/\D/g, ''), 10) || 0;
+        const maxT = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
+        if (
+          sameComunaTransport < MIN_TRANSPORT ||
+          sameRegionTransport < MIN_TRANSPORT ||
+          otherRegionTransport < MIN_TRANSPORT
+        ) {
+          setStepHint('Completa los tres valores de traslado: misma comuna, misma región y región colindante (máx. 150 km).');
+          return;
+        }
+        if (
+          sameComunaTransport > maxT ||
+          sameRegionTransport > maxT ||
+          otherRegionTransport > maxT
+        ) {
+          setStepHint(`El traslado neto no puede superar ${maxT.toLocaleString('es-CL')} CLP (sin IVA).`);
+          return;
+        }
+        if (sameRegionTransport < sameComunaTransport || otherRegionTransport < sameRegionTransport) {
+          setStepHint('El traslado de misma región no puede ser menor que misma comuna, y región colindante (máx. 150 km) no puede ser menor que misma región.');
+          return;
+        }
+      }
+      setMfStep(4);
     }
   };
 
@@ -1516,7 +1728,9 @@ function MachineDataScreen() {
   const isPerHourW = MACHINERY_PER_HOUR.includes(form.machineryType);
   const minForType = isPerHourW ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE;
   const priceAlertW =
-    mfStep === 2 && priceBaseNumWizard >= minForType
+    (isFirstMachineFlow
+      ? mfStep === 3
+      : mfStep === 2) && priceBaseNumWizard >= minForType
       ? getPriceAlert(priceBaseNumWizard, refForType)
       : null;
   const transportSameComunaNumW = parseInt(String(transportSameComunaWizard).replace(/\D/g, ''), 10) || 0;
@@ -1526,11 +1740,17 @@ function MachineDataScreen() {
     Boolean(form.machineryType) && !MACHINERY_NO_TRANSPORT.includes(form.machineryType);
   const maxTransportW = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
   const transportSameComunaAlertW =
-    mfStep === 2 && needsTransportW ? getTransportFieldAlert(transportSameComunaNumW) : null;
+    (isFirstMachineFlow ? mfStep === 3 : mfStep === 2) && needsTransportW
+      ? getTransportFieldAlert(transportSameComunaNumW)
+      : null;
   const transportSameRegionAlertW =
-    mfStep === 2 && needsTransportW ? getTransportFieldAlert(transportSameRegionNumW) : null;
+    (isFirstMachineFlow ? mfStep === 3 : mfStep === 2) && needsTransportW
+      ? getTransportFieldAlert(transportSameRegionNumW)
+      : null;
   const transportOtherRegionAlertW =
-    mfStep === 2 && needsTransportW ? getTransportFieldAlert(transportOtherRegionNumW) : null;
+    (isFirstMachineFlow ? mfStep === 3 : mfStep === 2) && needsTransportW
+      ? getTransportFieldAlert(transportOtherRegionNumW)
+      : null;
   const transportOrderValidW =
     !needsTransportW ||
     (transportSameRegionNumW >= transportSameComunaNumW && transportOtherRegionNumW >= transportSameRegionNumW);
@@ -1561,7 +1781,7 @@ function MachineDataScreen() {
       <div className="maqgo-app maqgo-provider-funnel">
         <div
           className="maqgo-screen"
-          style={{ paddingBottom: mfStep === 3 ? 136 : 120, overflowY: 'auto' }}
+          style={{ paddingBottom: mfStep === 4 ? 136 : 120, overflowY: 'auto' }}
         >
           <div
             style={{
@@ -1588,13 +1808,16 @@ function MachineDataScreen() {
 
           <h1
             className="maqgo-h1"
-            style={{ textAlign: 'center', marginBottom: mfStep === 2 ? 22 : 8 }}
+            style={{ textAlign: 'center', marginBottom: mfStep === 2 || mfStep === 3 ? 22 : 8 }}
           >
             {mfStep === 1 && 'Agregar maquinaria'}
-            {mfStep === 2 && 'Fotos y tarifas'}
-            {mfStep === 3 && 'Revisa y guarda'}
+            {mfStep === 2 && isFirstMachineFlow && 'Operador principal'}
+            {mfStep === 2 && !isFirstMachineFlow && 'Fotos y tarifas'}
+            {mfStep === 3 && isFirstMachineFlow && 'Fotos y tarifas'}
+            {mfStep === 3 && !isFirstMachineFlow && 'Revisa y guarda'}
+            {mfStep === 4 && 'Revisa y guarda'}
           </h1>
-          {mfStep === 2 && (
+          {(mfStep === 3 || (mfStep === 2 && !isFirstMachineFlow)) && (
             <p
               style={{
                 color: 'rgba(255,255,255,0.82)',
@@ -1611,10 +1834,12 @@ function MachineDataScreen() {
               </span>
             </p>
           )}
-          {mfStep !== 2 && (
+          {!((mfStep === 3 && isFirstMachineFlow) || (mfStep === 2 && !isFirstMachineFlow)) && (
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 14, textAlign: 'center', marginBottom: 22 }}>
               {mfStep === 1 && 'Tipo, marca, modelo, capacidad si aplica y patente'}
-              {mfStep === 3 && 'Revisión final antes de guardar.'}
+              {mfStep === 2 && isFirstMachineFlow && 'MAQGO envía invitación por SMS; la máquina queda activa cuando el operador confirme OTP.'}
+              {mfStep === 3 && !isFirstMachineFlow && 'Revisión final antes de guardar.'}
+              {mfStep === 4 && 'Revisión final antes de guardar.'}
             </p>
           )}
 
@@ -1642,7 +1867,45 @@ function MachineDataScreen() {
             </form>
           )}
 
-          {mfStep === 2 && (
+          {mfStep === 2 && isFirstMachineFlow && (
+            <div style={{ padding: '4px 0 0' }}>
+              <input
+                type="text"
+                placeholder="Nombre del operador"
+                value={firstOperator.firstName}
+                onChange={(e) => setFirstOperator((s) => ({ ...s, firstName: e.target.value }))}
+                style={{ ...wizardTariffInputStyle, marginBottom: 14 }}
+                autoComplete="given-name"
+              />
+              <input
+                type="text"
+                placeholder="Apellido del operador"
+                value={firstOperator.lastName}
+                onChange={(e) => setFirstOperator((s) => ({ ...s, lastName: e.target.value }))}
+                style={{ ...wizardTariffInputStyle, marginBottom: 14 }}
+                autoComplete="family-name"
+              />
+              <input
+                type="text"
+                placeholder="RUT (ej: 12.345.678-5)"
+                value={firstOperator.rut}
+                onChange={(e) => setFirstOperator((s) => ({ ...s, rut: e.target.value }))}
+                style={{ ...wizardTariffInputStyle, marginBottom: 14 }}
+                autoComplete="off"
+              />
+              <input
+                type="tel"
+                placeholder="Celular (ej: +56 9 1234 5678)"
+                value={firstOperator.phone}
+                onChange={(e) => setFirstOperator((s) => ({ ...s, phone: e.target.value }))}
+                style={wizardTariffInputStyle}
+                autoComplete="tel"
+                inputMode="tel"
+              />
+            </div>
+          )}
+
+          {mfStep === 2 && !isFirstMachineFlow && (
             <form
               id="maqgo-mf-step2"
               noValidate
@@ -1826,7 +2089,191 @@ function MachineDataScreen() {
             </form>
           )}
 
-          {mfStep === 3 && (
+          {mfStep === 3 && isFirstMachineFlow && (
+            <form
+              id="maqgo-mf-step3"
+              noValidate
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleWizardContinue();
+              }}
+            >
+              <div>
+              <MachineWizardPhotosBlock photos={mfPhotos} setPhotos={setMfPhotos} />
+              <div id="machine-wizard-tarifas" style={{ scrollMarginTop: 72 }}>
+              <label
+                style={{
+                  color: 'rgba(255,255,255,0.8)',
+                  fontSize: 14,
+                  marginBottom: 8,
+                  display: 'block',
+                  fontWeight: 500,
+                }}
+              >
+                {isPerHourW ? 'Tarifa por hora neto (sin IVA)' : 'Tarifa por servicio neto (sin IVA)'}
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: 16,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#666',
+                    fontSize: 16,
+                    zIndex: 1,
+                  }}
+                >
+                  $
+                </span>
+                <input
+                  ref={priceBaseInputRef}
+                  type="text"
+                  inputMode="numeric"
+                  value={
+                    priceBaseWizard
+                      ? (parseInt(String(priceBaseWizard).replace(/\D/g, ''), 10) || 0).toLocaleString(
+                          'es-CL'
+                        )
+                      : ''
+                  }
+                  onChange={(e) => setPriceBaseWizard(e.target.value.replace(/\D/g, ''))}
+                  placeholder={priceRefPlaceholder}
+                  style={wizardTariffInputStyle}
+                  data-testid="mf-wizard-price-input"
+                />
+              </div>
+              {priceAlertW ? (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: 10,
+                    borderRadius: 8,
+                    background: `${priceAlertW.color}20`,
+                    border: `1px solid ${priceAlertW.color}60`,
+                  }}
+                >
+                  <p
+                    style={{
+                      color: priceAlertW.color,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      margin: 0,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {priceAlertW.msg}
+                  </p>
+                </div>
+              ) : null}
+              {needsTransportW ? (
+                <>
+                  {[
+                    {
+                      key: 'same-comuna',
+                      label: 'Costo de traslado neto (sin IVA) dentro de la misma comuna',
+                      value: transportSameComunaWizard,
+                      setValue: setTransportSameComunaWizard,
+                      alert: transportSameComunaAlertW,
+                    },
+                    {
+                      key: 'same-region',
+                      label: 'Costo de traslado neto (sin IVA) entre comunas de la misma región',
+                      value: transportSameRegionWizard,
+                      setValue: setTransportSameRegionWizard,
+                      alert: transportSameRegionAlertW,
+                    },
+                    {
+                      key: 'other-region',
+                      label: 'Costo de traslado neto (sin IVA) a región colindante (máx. 150 km)',
+                      value: transportOtherRegionWizard,
+                      setValue: setTransportOtherRegionWizard,
+                      alert: transportOtherRegionAlertW,
+                    },
+                  ].map((field) => (
+                    <div key={field.key} style={{ marginTop: 18 }}>
+                      <label
+                        style={{
+                          color: 'rgba(255,255,255,0.8)',
+                          fontSize: 14,
+                          marginBottom: 8,
+                          display: 'block',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {field.label}
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            left: 16,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#666',
+                            fontSize: 16,
+                          }}
+                        >
+                          $
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={
+                            field.value
+                              ? (parseInt(String(field.value).replace(/\D/g, ''), 10) || 0).toLocaleString('es-CL')
+                              : ''
+                          }
+                          onChange={(e) => field.setValue(e.target.value.replace(/\D/g, ''))}
+                          style={wizardTariffInputStyle}
+                          data-testid={`add-machine-transport-input-${field.key}`}
+                        />
+                      </div>
+                      {field.alert ? (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            padding: 10,
+                            borderRadius: 8,
+                            background: `${field.alert.color}20`,
+                            border: `1px solid ${field.alert.color}60`,
+                          }}
+                        >
+                          <p
+                            style={{
+                              color: field.alert.color,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              margin: 0,
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {field.alert.msg}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 10, marginLeft: 4, lineHeight: 1.4 }}>
+                    MAQGO calculará el traslado por comuna y región. Máx por tramo: {maxTransportW.toLocaleString('es-CL')} CLP netos.
+                  </p>
+                  {!transportOrderValidW ? (
+                    <p style={{ color: '#ffb36b', fontSize: 12, marginTop: 8, marginBottom: 0, lineHeight: 1.4 }}>
+                      Revisa el orden: misma región no puede ser menor que misma comuna, y región colindante (máx. 150 km) no puede ser menor que misma región.
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: 8, lineHeight: 1.35 }}>
+                  Este tipo no lleva traslado en el cálculo MAQGO (precio por servicio/viaje).
+                </p>
+              )}
+              </div>
+              </div>
+            </form>
+          )}
+
+          {(mfStep === 4 || (mfStep === 3 && !isFirstMachineFlow)) && (
             <div>
               {(() => {
                 const photos = Array.isArray(mfPhotos) ? mfPhotos : [];
@@ -2174,12 +2621,20 @@ function MachineDataScreen() {
         </div>
 
         <div
-          className={`maqgo-fixed-bottom-bar${mfStep === 3 ? ' maqgo-fixed-bottom-bar--final' : ''}`}
+          className={`maqgo-fixed-bottom-bar${(mfStep === 4 || (mfStep === 3 && !isFirstMachineFlow)) ? ' maqgo-fixed-bottom-bar--final' : ''}`}
         >
-          {mfStep < 3 ? (
+          {((isFirstMachineFlow && mfStep < 4) || (!isFirstMachineFlow && mfStep < 3)) ? (
             <button
               type="submit"
-              form={mfStep === 1 ? 'maqgo-mf-step1' : 'maqgo-mf-step2'}
+              form={
+                mfStep === 1
+                  ? 'maqgo-mf-step1'
+                  : (isFirstMachineFlow && mfStep === 2)
+                  ? undefined
+                  : (isFirstMachineFlow && mfStep === 3)
+                  ? 'maqgo-mf-step3'
+                  : 'maqgo-mf-step2'
+              }
               className="maqgo-btn-primary"
             >
               Continuar
