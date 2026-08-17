@@ -19,6 +19,7 @@ import os
 from starlette.concurrency import run_in_threadpool
 
 from db_config import get_db_name, get_mongo_url
+from services.operator_guards import require_active_operator
 
 router = APIRouter(prefix="/services", tags=["services"])
 
@@ -655,7 +656,17 @@ async def update_service_status(service_id: str, update: ServiceUpdate, _: dict 
     current_service = await _run_sync(services_collection.find_one, {"_id": ObjectId(service_id)})
     if not current_service:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
-    
+
+    candidate_operator = (
+        str(current_service.get("operator_id") or current_service.get("operatorId") or "").strip()
+        or None
+    )
+    if candidate_operator:
+        await require_active_operator(
+            candidate_operator,
+            context="services_admin_force_status_update",
+        )
+
     update_data = {
         "status": update.status,
         "updated_at": datetime.utcnow()
@@ -1106,6 +1117,10 @@ async def operator_accept_service(
     Operador acepta un servicio disponible (service_request confirmado del dueño).
     Asigna operator_id y registra evento en_route.
     """
+    await require_active_operator(
+        operator_id,
+        context="services_operator_self_assign_service",
+    )
     AccessPolicy.assert_self_or_admin(current_user, operator_id)
     operator = await _run_sync(users_collection.find_one, {"id": operator_id}, {"_id": 0})
     if not operator or operator.get('provider_role') != 'operator':

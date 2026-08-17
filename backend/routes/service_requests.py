@@ -3,7 +3,7 @@ import os
 
 from fastapi import APIRouter, HTTPException, Body, Depends, status, Request, Query
 from fastapi.responses import JSONResponse
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel
 
@@ -40,6 +40,7 @@ from services.payment_rollout import (
     record_legacy_booking_id_generated,
     resolve_idempotency_key,
 )
+from services.operator_guards import require_active_operator
 from utils.rbac import has_permission
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ServerSelectionTimeoutError
@@ -1037,6 +1038,33 @@ async def provider_intent(
         for a in (req.get("matchingAttempts") or [])
         if str(a.get("status") or "").strip().lower() == "pending"
     ]
+
+    machine_id = req.get("machineId") or req.get("machine_id")
+    if machine_id:
+        primary_operator_id = None
+        machine = await db.machines.find_one(
+            {"id": str(machine_id).strip()},
+            {"_id": 0, "operators": 1, "primaryOperatorId": 1, "primary_operator_id": 1},
+        )
+        if machine:
+            candidate = machine.get("primaryOperatorId") or machine.get("primary_operator_id")
+            if candidate:
+                primary_operator_id = str(candidate).strip()
+            if not primary_operator_id and isinstance(machine.get("operators"), list):
+                for op in machine["operators"]:
+                    if isinstance(op, dict):
+                        is_primary = op.get("isPrimary") is True or op.get("is_primary") is True
+                        if is_primary:
+                            op_id = op.get("id") or op.get("operatorId") or op.get("operator_id")
+                            if op_id:
+                                primary_operator_id = str(op_id).strip()
+                                break
+        if primary_operator_id:
+            await require_active_operator(
+                primary_operator_id,
+                context="service_request_provider_intent_confirm",
+            )
+
     update_filter = {
         "id": request_id,
         "status": "offer_sent",
@@ -1137,6 +1165,7 @@ async def accept_service_request(
         if not req:
             raise HTTPException(status_code=404, detail="Solicitud no encontrada")
 
+        # A. Pertenencia proveedor + estado correcto
         offered_provider_id = provider_id
         reservation_type = str(req.get("reservationType") or "").lower()
         if reservation_type == "immediate":
@@ -1167,6 +1196,7 @@ async def accept_service_request(
         if not _provider_matches_user(current_user, offered_provider_id):
             raise HTTPException(status_code=403, detail="Solo puedes aceptar ofertas dirigidas a ti")
 
+        # B. Estado correcto de la solicitud
         if req.get("status") != "offer_sent":
             raise HTTPException(status_code=400, detail="Esta solicitud ya no está disponible")
 
@@ -1185,6 +1215,106 @@ async def accept_service_request(
                     detail="Tu rol no tiene permisos para aceptar esta solicitud",
                 )
 
+        # C. Resolver operador:
+        # C1. service_request.operator_id existe y no vacío → PRIORIDAD 1 (asignado por G11 SelectOperator)
+        # C2. si no → resolver primary/default desde machine
+        # C3. si ninguno → RECHAZAR 400 OPERATOR_ID_REQUIRED
+        sr_operator_id = str(req.get("operator_id") or req.get("operatorId") or "").strip() or None
+        resolved_operator_id: Optional[str] = None
+        resolved_from_machine = False
+
+        if sr_operator_id:
+            resolved_operator_id = sr_operator_id
+        else:
+            machine_id = req.get("machineId") or req.get("machine_id")
+            if machine_id:
+                machine = await db.machines.find_one(
+                    {"id": str(machine_id).strip()},
+                    {"_id": 0, "operators": 1, "primaryOperatorId": 1, "primary_operator_id": 1},
+                )
+                if machine:
+                    candidate = machine.get("primaryOperatorId") or machine.get("primary_operator_id")
+                    if candidate:
+                        resolved_operator_id = str(candidate).strip()
+                    if not resolved_operator_id and isinstance(machine.get("operators"), list):
+                        for op in machine["operators"]:
+                            if isinstance(op, dict):
+                                is_primary = op.get("isPrimary") is True or op.get("is_primary") is True
+                                if is_primary:
+                                    op_id = op.get("id") or op.get("operatorId") or op.get("operator_id")
+                                    if op_id:
+                                        resolved_operator_id = str(op_id).strip()
+                                        resolved_from_machine = True
+                                        break
+                    else:
+                        resolved_from_machine = bool(resolved_operator_id)
+            else:
+                resolved_operator_id = str(req.get("operator_id") or "").strip() or None
+
+        # OBL-04 P0: NUNCA saltar guard si id null. Sin operador RECHAZAR 400/409.
+        await require_active_operator(
+            resolved_operator_id,
+            context="service_request_provider_accept",
+        )
+
+        # D. Verificar que el usuario operador es operator + pertenece a la empresa (OBL-05)
+        operator_user = await db.users.find_one(
+            {"id": resolved_operator_id},
+            {"_id": 0, "id": 1, "provider_role": 1, "owner_id": 1, "name": 1, "rut": 1},
+        )
+        if not operator_user or str(operator_user.get("provider_role") or "").strip().lower() != "operator":
+            raise HTTPException(status_code=409, detail={
+                "code": "OPERATOR_NOT_ACTIVE",
+                "operator_status_found": "not_operator_role",
+                "message": "Usuario asignado no es un operador válido",
+                "context": "service_request_provider_accept",
+                "hint": "Asigna un operador válido antes de aceptar la solicitud",
+            })
+        if str(operator_user.get("owner_id") or "").strip() != str(offered_provider_id or "").strip():
+            raise HTTPException(status_code=403, detail="El operador no pertenece a esta empresa")
+
+        # E. OBL-05 OBLIGATORIO P0: Si fue resuelto automáticamente (no existía SR.operator_id o era diferente),
+        #    persistir operator_id + datos snapshot + evento ANTES de handle_offer_response y cobro.
+        op_changed = (not sr_operator_id) or (sr_operator_id and sr_operator_id != resolved_operator_id)
+        if op_changed:
+            op_id_resolved = resolved_operator_id
+            update_assign: dict[str, Any] = {"operator_id": op_id_resolved}
+
+            op_name = str(operator_user.get("name") or "").strip()
+            op_rut = str(operator_user.get("rut") or "").strip()
+            parts = [p for p in op_name.split(' ') if p]
+            op_first = ""
+            op_last = ""
+            if parts:
+                op_first = parts[0]
+                if len(parts) > 1:
+                    op_last = ' '.join(parts[1:])
+            if op_first:
+                update_assign["operatorFirstName"] = op_first
+            if op_last:
+                update_assign["operatorLastName"] = op_last
+            if op_name:
+                update_assign["providerOperatorName"] = op_name
+            if op_rut:
+                update_assign["operatorRut"] = op_rut
+
+            now_assign = datetime.now(timezone.utc)
+            update_assign["operator_assigned_at"] = now_assign.isoformat()
+            event_assign = {
+                "type": "assigned_operator_updated",
+                "at": now_assign.isoformat(),
+                "byUserId": current_user.get("id"),
+                "byRole": provider_role,
+                **update_assign,
+            }
+            await db.service_requests.update_one(
+                {"id": request_id, "status": "offer_sent"},
+                {"$set": update_assign, "$push": {"events": event_assign}},
+            )
+            # Refrescar req local para que uses posteriores vean el operator_id asignado
+            req = await db.service_requests.find_one({"id": request_id}, {"_id": 0}) or req
+
+        # F y G: handle_offer_response y luego charge_for_accept (ORDEN EXACTO FUNDADOR)
         now_iso = datetime.now(timezone.utc).isoformat()
         accepted_role = current_user.get("provider_role") or (
             "operator" if current_user.get("owner_id") else "super_master"
@@ -1539,6 +1669,7 @@ async def patch_assigned_operator(
     update: dict = {}
     operator_id = str(body.operatorId or '').strip()
     if operator_id:
+        await require_active_operator(operator_id, context="service_request_reassign_operator")
         operator = await db.users.find_one({"id": operator_id}, {"_id": 0, "id": 1, "provider_role": 1, "owner_id": 1, "name": 1, "rut": 1})
         if not operator or str(operator.get("provider_role") or '').strip().lower() != 'operator':
             raise HTTPException(status_code=400, detail="Operador inválido")
@@ -1607,6 +1738,11 @@ async def mark_arrival(
 
     if request.get('arrivalDetectedAt'):
         raise HTTPException(status_code=400, detail="La llegada ya fue registrada")
+
+    await require_active_operator(
+        request.get("operator_id"),
+        context="service_request_mark_arrival",
+    )
 
     job_location = request.get('location') or {}
     job_lat = job_location.get('lat')
@@ -1720,6 +1856,11 @@ async def start_service(
     if str(current_user.get("provider_role") or "").strip().lower() == "operator":
         raise HTTPException(status_code=403, detail="Como operador no puedes iniciar el servicio")
 
+    await require_active_operator(
+        request.get("operator_id"),
+        context="service_request_start",
+    )
+
     now = datetime.now(timezone.utc)
     role = current_user.get("provider_role") or ("operator" if current_user.get("owner_id") else "super_master")
     started_event = {
@@ -1769,6 +1910,12 @@ async def auto_start_service(
         raise HTTPException(status_code=403, detail="Como operador no puedes iniciar el servicio")
 
     status_now = str(request.get("status") or "").strip()
+
+    await require_active_operator(
+        request.get("operator_id"),
+        context="service_request_auto_start",
+    )
+
     if status_now == "in_progress":
         return {"success": True, "status": "in_progress", "already_started": True}
 
@@ -1863,6 +2010,10 @@ async def confirm_entry(
         t = str(raw_start).strip().lower()
         start_now = t in {"1", "true", "yes", "y", "on"}
     if start_now and request.get("status") in {"confirmed", "en_route"}:
+        await require_active_operator(
+            request.get("operator_id"),
+            context="service_request_client_start_now",
+        )
         update.update(
             {
                 "status": "in_progress",
@@ -2070,6 +2221,11 @@ async def finish_service(
         effective_provider_id = _effective_provider_account_id(current_user)
         if not provider_id or provider_id != effective_provider_id:
             raise HTTPException(status_code=403, detail="Sin permiso para finalizar este servicio")
+
+    await require_active_operator(
+        service_request.get("operator_id"),
+        context="service_request_finish",
+    )
 
     finished_event = {
         "type": "finished",

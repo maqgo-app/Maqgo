@@ -14,6 +14,7 @@ from security.policy import AccessPolicy
 from security.access_context import build_access_context
 from models.user import User, UserCreate, ProviderAvailabilityUpdate
 from services.provider_activation_service import is_provider_activation_complete
+from services.machines_service import enforce_machine_publishable_state
 from motor.motor_asyncio import AsyncIOMotorClient
 import bcrypt
 
@@ -893,6 +894,11 @@ async def _detach_operator_from_machines(owner_id: str, operator_id: str, *, act
                     "deactivatedByLifecycle": "operator_inactive",
                 }
             )
+        virtual = {**machine, **update}
+        virtual = await enforce_machine_publishable_state(db, virtual, reject_on_violation=False)
+        for k in ("available", "published", "status"):
+            if k in virtual:
+                update[k] = virtual[k]
         if actor_id:
             update["lastOperatorLifecycleActorId"] = actor_id
         await db.machines.update_one({"id": machine.get("id")}, {"$set": update})

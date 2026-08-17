@@ -210,15 +210,20 @@ function getServiceLocationBackRoute() {
 
 /**
  * Rutas de retroceso para onboarding proveedor.
+ * Tabla canónica: cada paso conoce SU RETROCESO, sin usar navigate(-1).
+ * - No agrega rutas que no existen en PROVIDER_ONBOARDING_STEP_ROUTES.
+ * - Si el usuario llega por deep-link sin historial, cae en esta tabla.
+ * - Banco NO está aquí porque Banco usa state (returnTo / finalizeOnboarding).
  */
 export const PROVIDER_ONBOARDING_BACK_ROUTES = {
-  '/provider/data': '/login',
+  '/provider/data': '/welcome',
   '/provider/machine-data': '/provider/data',
   '/provider/machine-photos-pricing': '/provider/machine-data',
   '/provider/machine-photos': '/provider/machine-data',
   '/provider/pricing': '/provider/machine-photos-pricing',
   '/provider/operator-data': '/provider/machine-photos-pricing',
   '/provider/review': '/provider/operator-data',
+  '/provider/profile/banco': '/provider/review',
 };
 
 /**
@@ -247,26 +252,54 @@ export function getBookingBackRoute(pathname) {
 
 /**
  * Obtiene la ruta de "volver" para el onboarding proveedor.
- * Si el proveedor vino desde Welcome (provider/register), /provider/data vuelve a /.
+ *
+ * Regla dura: NUNCA volver a portada cliente ('/') ni a rutas /client/* a menos que
+ * el usuario sea totalmente nuevo EN /welcome.
+ *
+ * El back NUNCA depende de providerCameFromWelcome ni del historial del navegador.
+ * Orden: 1) state (returnTo, activationEdit, isEditMode), 2) tabla canónica exacta,
+ * 3) fallback seguro siempre dentro de proveedor o welcome.
  */
-export function getProviderBackRoute(pathname) {
-  if (pathname === '/provider/data' && typeof localStorage !== 'undefined' && localStorage.getItem('providerCameFromWelcome')) {
-    return '/';
+export function getProviderBackRoute(pathname, state = {}) {
+  if (typeof state === 'object' && state) {
+    if (state.activationEdit && state.returnTo) return state.returnTo;
+    if (state.isEditMode) return '/provider/machines';
+    if (state.explicitReturnTo) return state.explicitReturnTo;
   }
-  if (pathname === '/provider/machine-data' && typeof localStorage !== 'undefined' && localStorage.getItem('providerCameFromWelcome')) {
+  const path = (pathname || '').replace(/\/$/, '') || '/';
+  if (path === '/provider/data' || path === '/provider/machine-data') {
     try {
-      if (localStorage.getItem('providerOnboardingCompleted') === 'true') return '/';
-      const pid = String(localStorage.getItem('ownerId') || localStorage.getItem('userId') || '').trim();
-      const namespacedKey = pid ? `providerMachines:${pid}` : 'providerMachines';
-      const raw = localStorage.getItem(namespacedKey) || localStorage.getItem('providerMachines');
-      const machines = raw ? JSON.parse(raw) : [];
-      const hasRegisteredMachine = Array.isArray(machines)
-        ? machines.some((m) => Boolean(m?.machineryType && String(m.licensePlate || '').trim()))
-        : false;
-      if (hasRegisteredMachine) return '/';
+      const pid =
+        typeof localStorage !== 'undefined'
+          ? String(localStorage?.getItem('userId') || localStorage?.getItem('ownerId') || '').trim()
+          : '';
+      const hasCompany = (() => {
+        try {
+          if (typeof localStorage === 'undefined') return false;
+          const raw = localStorage?.getItem('providerData');
+          if (!raw) return false;
+          const pd = JSON.parse(raw);
+          return Boolean(pd?.businessName && pd?.rut);
+        } catch {
+          return false;
+        }
+      })();
+      if (pid || hasCompany) {
+        return PROVIDER_ONBOARDING_BACK_ROUTES[path] || null;
+      }
+      // Caso: usuario totalmente nuevo, sin sesión ni datos empresa → Welcome.
+      return '/welcome';
     } catch {
       /* ignore */
     }
   }
-  return PROVIDER_ONBOARDING_BACK_ROUTES[pathname] || null;
+  const tableRoute = PROVIDER_ONBOARDING_BACK_ROUTES[pathname];
+  if (tableRoute) return tableRoute;
+  if (PROVIDER_ONBOARDING_BACK_ROUTES[path]) return PROVIDER_ONBOARDING_BACK_ROUTES[path];
+  // Fallback seguro final: sin ruta en tabla → proveedor home o welcome
+  if (typeof localStorage !== 'undefined') {
+    const pid = String(localStorage.getItem('userId') || localStorage.getItem('ownerId') || '').trim();
+    if (pid) return '/provider/home';
+  }
+  return null;
 }

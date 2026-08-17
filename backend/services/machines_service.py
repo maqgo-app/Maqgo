@@ -293,6 +293,54 @@ def get_primary_machine_operator(machine: Optional[dict]) -> Optional[dict]:
     return next((op for op in operators if op.get("isPrimary")), None) or (operators[0] if operators else None)
 
 
+async def _primary_operator_is_active(db, machine: Optional[dict]) -> bool:
+    if not isinstance(machine, dict):
+        return False
+    if not bool(machine.get("published")) and not bool(machine.get("available")):
+        return True
+    primary = get_primary_machine_operator(machine)
+    if not primary:
+        return False
+    raw_id = _clean_str(primary.get("id"))
+    if not raw_id:
+        return False
+    try:
+        user = await db.users.find_one({"id": raw_id}, {"_id": 0, "id": 1, "status": 1, "provider_role": 1, "roles": 1})
+    except Exception:
+        return False
+    if not isinstance(user, dict):
+        return False
+    status = _clean_str(user.get("status") or user.get("visible_status"))
+    if status != "active":
+        return False
+    role = _clean_str(user.get("provider_role"))
+    roles = user.get("roles")
+    is_operator = role == "operator"
+    if not is_operator and isinstance(roles, list):
+        is_operator = "operator" in roles
+    if not is_operator:
+        return False
+    return True
+
+
+async def enforce_machine_publishable_state(db, doc: Dict[str, Any], *, reject_on_violation: bool = False) -> Dict[str, Any]:
+    if not isinstance(doc, dict):
+        return doc
+    wants_publishable = bool(doc.get("published")) or bool(doc.get("available"))
+    if not wants_publishable:
+        return doc
+    ok = await _primary_operator_is_active(db, doc)
+    if ok:
+        return doc
+    doc["available"] = False
+    doc["published"] = False
+    current_status = _clean_str(doc.get("status") or "draft")
+    doc["status"] = current_status if current_status in {"draft", "deleted"} else "draft"
+    if reject_on_violation:
+        raise ValueError("MACHINE_OPERATOR_NOT_ACTIVE")
+    return doc
+
+
 def normalize_machine_payload(payload: Dict[str, Any], provider_id: str, *, existing: Optional[dict] = None) -> Dict[str, Any]:
     existing = existing or {}
     machinery_type = _clean_str(
@@ -529,15 +577,19 @@ async def attach_operator_to_machines(
                 next_operators.append(operator)
         if not replaced:
             next_operators.append({**snapshot, "isPrimary": len(next_operators) == 0})
+        set_doc: Dict[str, Any] = {
+            "operators": next_operators,
+            "primaryOperatorId": next((op.get("id") for op in next_operators if op.get("isPrimary")), ""),
+            "updatedAt": utcnow().isoformat(),
+        }
+        virtual = {**machine, **set_doc}
+        virtual = await enforce_machine_publishable_state(db, virtual, reject_on_violation=False)
+        for k in ("available", "published", "status"):
+            if k in virtual:
+                set_doc[k] = virtual[k]
         await db.machines.update_one(
             {"id": machine.get("id"), "provider_id": provider_id},
-            {
-                "$set": {
-                    "operators": next_operators,
-                    "primaryOperatorId": next((op.get("id") for op in next_operators if op.get("isPrimary")), ""),
-                    "updatedAt": utcnow().isoformat(),
-                }
-            },
+            {"$set": set_doc},
         )
         attached_ids.append(_clean_str(machine.get("id")))
     if attached_ids:
@@ -577,15 +629,19 @@ async def sync_operator_snapshot_across_machines(
                 next_operators.append(operator)
         if not changed:
             continue
+        set_doc: Dict[str, Any] = {
+            "operators": next_operators,
+            "primaryOperatorId": next((op.get("id") for op in next_operators if op.get("isPrimary")), ""),
+            "updatedAt": utcnow().isoformat(),
+        }
+        virtual = {**machine, **set_doc}
+        virtual = await enforce_machine_publishable_state(db, virtual, reject_on_violation=False)
+        for k in ("available", "published", "status"):
+            if k in virtual:
+                set_doc[k] = virtual[k]
         await db.machines.update_one(
             {"id": machine.get("id"), "provider_id": provider_id},
-            {
-                "$set": {
-                    "operators": next_operators,
-                    "primaryOperatorId": next((op.get("id") for op in next_operators if op.get("isPrimary")), ""),
-                    "updatedAt": utcnow().isoformat(),
-                }
-            },
+            {"$set": set_doc},
         )
         updated += 1
     if updated:
@@ -691,6 +747,7 @@ async def create_machine(db, provider_id: str, payload: Dict[str, Any]) -> dict:
         raise ValueError("machineryType y licensePlate son obligatorios")
     if not machine_has_real_assigned_operator(doc):
         raise ValueError("Cada máquina debe tener al menos un operador real asignado")
+    doc = await enforce_machine_publishable_state(db, doc, reject_on_violation=True)
     existing = await db.machines.find_one(
         {
             "provider_id": provider_id,
@@ -726,6 +783,7 @@ async def update_machine(db, machine_id: str, payload: Dict[str, Any]) -> Option
     doc = normalize_machine_payload(payload, provider_id, existing=existing)
     if not machine_has_real_assigned_operator(doc):
         raise ValueError("Cada máquina debe tener al menos un operador real asignado")
+    doc = await enforce_machine_publishable_state(db, doc, reject_on_violation=True)
     doc["updatedAt"] = utcnow()
     await db.machines.update_one({"id": machine_id}, {"$set": doc})
     fresh = await db.machines.find_one({"id": machine_id}, {"_id": 0})

@@ -18,6 +18,7 @@ from services.payment_ledger import (
     EVT_PAYMENT_INTENT_UPDATED,
     append_event,
 )
+from services.operator_guards import require_active_operator
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,22 @@ class PaymentIntentService:
     ) -> Optional[dict]:
         if new_state not in ALL_STATES:
             raise ValueError(f"Estado inválido: {new_state}")
+        # OBL-01 P0: Guard de operador SOLO en estados POST-ACCEPT.
+        # Estados iniciales (INIT / CARD_PENDING / CARD_REGISTERED / PAYMENT_PENDING / PROVIDER_PENDING / PAYMENT_FAILED)
+        # son pre-accept, sin operador asignado todavía o flujos OneClick inscripción tarjeta. No tocar.
+        POST_ACCEPT_OPERATOR_STATES = frozenset({PI_PROVIDER_ACCEPTED, PI_PAYMENT_AUTHORIZED, PI_COMPLETED})
+        if new_state in POST_ACCEPT_OPERATOR_STATES and service_request_id:
+            sreq = await self.db.service_requests.find_one(
+                {"id": str(service_request_id).strip()},
+                {"_id": 0, "operator_id": 1, "operatorId": 1},
+            )
+            opc = sreq or {}
+            sr_operator_id = str(opc.get("operator_id") or opc.get("operatorId") or "").strip() or None
+            if sr_operator_id:
+                await require_active_operator(
+                    sr_operator_id,
+                    context="payment_intent_set_state_booking_guard",
+                )
         prev = await self.get_by_booking_id(booking_id)
         update: dict[str, Any] = {
             "$set": {

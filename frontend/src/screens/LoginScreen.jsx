@@ -278,7 +278,45 @@ function LoginScreen({ setUserRole, setUserId }) {
     let effectiveRole = null;
     
     const hasValidPreviouslySelectedRole = Boolean(previouslySelectedRole && roles.includes(previouslySelectedRole));
-    if (!intentRole && !redirectTo && roles.includes('client') && roles.includes('provider') && !hasValidPreviouslySelectedRole) {
+    const hasDualRoleClientProvider = roles.includes('client') && roles.includes('provider');
+
+    if (intentRole && roles.includes(intentRole)) {
+      effectiveRole = intentRole;
+    } else if (previouslySelectedRole && roles.includes(previouslySelectedRole)) {
+      effectiveRole = previouslySelectedRole;
+    } else if (redirectTo) {
+      if (redirectTo.startsWith('/admin') && (data.role === 'admin' || roles.includes('admin'))) effectiveRole = 'admin';
+      else if (redirectTo.startsWith('/provider') && roles.includes('provider')) effectiveRole = 'provider';
+      else if (redirectTo.startsWith('/client') && roles.includes('client')) effectiveRole = 'client';
+    } else if (roles.length === 1) {
+      effectiveRole = roles[0];
+    }
+
+    localStorage.removeItem('desiredRole');
+
+    // Si nada de lo anterior aplica, usamos el rol por defecto del backend
+    if (!effectiveRole) {
+      effectiveRole = String(data.role || '').trim();
+    }
+
+    // Fallback final si no hay rol definido
+    if (!effectiveRole && roles.length > 0) {
+      effectiveRole = roles.includes('provider') ? 'provider' : roles[0];
+    }
+    if (!effectiveRole) effectiveRole = 'client';
+
+    // B3: Usuario dual client+provider SIN intención explícita proveedor
+    // ni rol previamente seleccionado → reenviar a Welcome selector de rol.
+    // Colocado DESPUÉS del cálculo effectiveRole para asegurar que intentRole
+    // explícito (entry=provider) ya se haya aplicado. NUNCA interceptamos un
+    // flujo explícitamente iniciado como proveedor.
+    if (
+      !intentRole &&
+      !effectiveRole &&
+      !redirectTo &&
+      hasDualRoleClientProvider &&
+      !hasValidPreviouslySelectedRole
+    ) {
       setUserId(uid);
       localStorage.setItem('userId', String(uid || ''));
       localStorage.setItem('userRoles', JSON.stringify(roles));
@@ -299,31 +337,6 @@ function LoginScreen({ setUserRole, setUserId }) {
       navigate('/welcome', { replace: true });
       return true;
     }
-
-    if (intentRole && roles.includes(intentRole)) {
-      effectiveRole = intentRole;
-    } else if (previouslySelectedRole && roles.includes(previouslySelectedRole)) {
-      effectiveRole = previouslySelectedRole;
-    } else if (redirectTo) {
-      if (redirectTo.startsWith('/admin') && (data.role === 'admin' || roles.includes('admin'))) effectiveRole = 'admin';
-      else if (redirectTo.startsWith('/provider') && roles.includes('provider')) effectiveRole = 'provider';
-      else if (redirectTo.startsWith('/client') && roles.includes('client')) effectiveRole = 'client';
-    } else if (roles.length === 1) {
-      effectiveRole = roles[0];
-    }
-
-    localStorage.removeItem('desiredRole');
-    
-    // Si nada de lo anterior aplica, usamos el rol por defecto del backend
-    if (!effectiveRole) {
-      effectiveRole = String(data.role || '').trim();
-    }
-
-    // Fallback final si no hay rol definido
-    if (!effectiveRole && roles.length > 0) {
-      effectiveRole = roles.includes('provider') ? 'provider' : roles[0];
-    }
-    if (!effectiveRole) effectiveRole = 'client';
 
     const isAdmin = effectiveRole === 'admin';
     const mustChangePassword = isAdmin && Boolean(data.must_change_password);
@@ -410,8 +423,9 @@ function LoginScreen({ setUserRole, setUserId }) {
       return true;
     }
     const providerRoleNormalized = String(providerRole || '').trim();
-    const shouldResumeProviderOnboarding =
-      providerRoleNormalized !== 'operator' && providerRoleNormalized !== 'master';
+    // B4: Regla intocable: Operador = nunca retoma onboarding (regla Operadores
+    // congelada). Master/Gerente/Titular SÍ retoman si onboarding incompleto.
+    const shouldResumeProviderOnboarding = providerRoleNormalized !== 'operator';
     if (next.path === '/provider/home' && effectiveRole === 'provider' && shouldResumeProviderOnboarding) {
       try {
         await fetchAndHydrateProviderOnboardingDraft(uid);

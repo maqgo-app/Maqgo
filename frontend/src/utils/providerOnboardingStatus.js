@@ -96,7 +96,11 @@ export function isProviderOnboardingCompleteFromStorage() {
 
 /**
  * Primer onboarding / reanudacion manual del wizard:
- * empresa -> maquina -> operador -> banco -> home.
+ * empresa -> maquina -> fotos/tarifas -> operador -> banco -> home.
+ *
+ * Regla inmutable: datos empresa (providerData) debe estar completo ANTES
+ * de pasar a cualquier paso de maquinaria. Si banco está completo pero
+ * no hay máquinas, no bloquea banco (caso banco completado por fuera).
  */
 export function getProviderOnboardingNextPath() {
   if (isProviderOnboardingCompleteFromStorage()) {
@@ -105,13 +109,12 @@ export function getProviderOnboardingNextPath() {
   const providerData = getObject('providerData', {});
   const bankData = getObject('bankData', {});
   const companyComplete = !!(providerData?.businessName && providerData?.rut);
-  const machineComplete = hasRegisteredMachineFromStorage();
-  const operatorComplete = hasAssignedMachineOperatorFromStorage();
-  const bankComplete = isBankDataComplete(bankData);
-
   if (!companyComplete) return '/provider/data';
+  const machineComplete = hasRegisteredMachineFromStorage();
   if (!machineComplete) return '/provider/machine-data';
+  const operatorComplete = hasAssignedMachineOperatorFromStorage();
   if (!operatorComplete) return '/provider/machines';
+  const bankComplete = isBankDataComplete(bankData);
   if (!bankComplete) return '/provider/profile/banco';
   return '/provider/home';
 }

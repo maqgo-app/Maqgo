@@ -739,7 +739,12 @@ async def admin_update_machine(
     _: dict = Depends(get_current_admin_strict),
 ):
     try:
-        machine = await update_machine(db, machine_id, request)
+        try:
+            machine = await update_machine(db, machine_id, request)
+        except ValueError as e:
+            if str(e) == "MACHINE_OPERATOR_NOT_ACTIVE":
+                raise HTTPException(status_code=409, detail={"code": "MACHINE_OPERATOR_NOT_ACTIVE", "message": "Para publicar la máquina, su operador principal debe estar activo (SMS + OTP verificado)."})
+            raise
         if not machine:
             raise HTTPException(status_code=404, detail="Maquinaria no encontrada")
         return {"ok": True, "machine": serialize_machine(machine)}

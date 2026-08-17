@@ -35,6 +35,9 @@ import {
   getProviderDraftObject,
   useProviderOnboardingDraftCleanup,
 } from '../../utils/providerOnboardingDraftState';
+import {
+  getProviderBackRoute,
+} from '../../utils/bookingFlow';
 
 const MACHINERY_TYPES = [
   { id: 'retroexcavadora', name: 'Retroexcavadora' },
@@ -1392,14 +1395,30 @@ function MachineDataScreen() {
       setMfStep((s) => s - 1);
       return;
     }
+    // mfStep === 1: salir del wizard sin usar navigate(-1) porque el historial
+    // puede tener pantallas cliente (reserva, card) y mandar al usuario fuera
+    // del onboarding proveedor. Usar siempre la ruta canónica de back.
     const isProviderSession = hasProviderRoleInStorage() || inlineReady;
-    const hasHistory = typeof window !== 'undefined' && window.history && window.history.length > 1;
-    if (isProviderSession) {
-      if (hasHistory) navigate(-1);
-      else navigate('/provider/machines');
+    if (isEditMode) {
+      navigate('/provider/machines');
       return;
     }
-    navigate('/welcome');
+    if (isAddMachineEntry && !activationEdit && !hasProviderRoleInStorage()) {
+      const backRoute = getProviderBackRoute(location.pathname);
+      navigate(backRoute || '/welcome');
+      return;
+    }
+    if (isProviderSession) {
+      const backRoute = getProviderBackRoute(location.pathname);
+      if (backRoute) {
+        navigate(backRoute);
+        return;
+      }
+      navigate('/provider/home');
+      return;
+    }
+    const backRoute = getProviderBackRoute(location.pathname);
+    navigate(backRoute || '/welcome');
   };
 
   const handleContinue = async () => {
@@ -1466,8 +1485,18 @@ function MachineDataScreen() {
       navigate(explicitReturnTo);
       return;
     }
-    if (isEditMode) navigate('/provider/machines');
-    else if (isAddMachineEntry) navigate('/welcome');
+    // Fuera del wizard interno (mfStep > 0), usar siempre ruta canónica; nunca
+    // navigate(-1) ni /welcome si el usuario tiene sesión proveedor o datos empresa.
+    if (isEditMode) {
+      navigate('/provider/machines');
+      return;
+    }
+    const canonical = getProviderBackRoute(location.pathname);
+    if (canonical) {
+      navigate(canonical);
+      return;
+    }
+    if (isAddMachineEntry) navigate('/welcome');
     else navigate('/provider/data');
   };
 
