@@ -796,13 +796,13 @@ async def update_reference_prices(request: UpdateReferencePricesRequest, _: dict
 
         if request.per_hour:
             for machine_id, vals in request.per_hour.items():
-                if machine_id in current["per_hour"]:
-                    current["per_hour"][machine_id].update(vals)
+                current["per_hour"].setdefault(machine_id, {})
+                current["per_hour"][machine_id].update(vals)
 
         if request.per_service:
             for machine_id, vals in request.per_service.items():
-                if machine_id in current["per_service"]:
-                    current["per_service"][machine_id].update(vals)
+                current["per_service"].setdefault(machine_id, {})
+                current["per_service"][machine_id].update(vals)
 
         if request.by_capacity:
             for machine_id, variants in request.by_capacity.items():

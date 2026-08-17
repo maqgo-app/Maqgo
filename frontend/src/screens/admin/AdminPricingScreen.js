@@ -234,6 +234,7 @@ function AdminPricingScreen() {
       const data = await res.json();
       if (data.ok) {
         toast.success('Precios guardados correctamente');
+        await fetchPrices();
       } else {
         toast.error('Error al guardar');
       }
@@ -609,7 +610,7 @@ function AdminPricingScreen() {
                     </div>
 
                     <div style={{ padding: 16, display: 'grid', gap: 14 }}>
-                      {selectedMachineId && !MACHINERY_PER_SERVICE.includes(selectedMachineId) && getMachineryCapacityOptions(selectedMachineId) && (prices.by_capacity || {})[selectedMachineId] ? (
+                      {selectedMachineId && getMachineryCapacityOptions(selectedMachineId) && (prices.by_capacity || {})[selectedMachineId] ? (
                         <div style={{ border: `1px solid ${ADMIN_THEME.border}`, borderRadius: 12, overflow: 'hidden' }}>
                           <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: 900, textTransform: 'uppercase' }}>
                             Precio hora por especificacion
