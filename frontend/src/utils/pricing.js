@@ -154,7 +154,17 @@ export async function ensureReferencePricesLoaded({ force = false } = {}) {
 }
 
 export function isReferencePricesFallback() {
-  return Boolean(_referenceCache && !_isFresh() === false && _referenceCache && _referenceCache.fallback);
+  return Boolean(_referenceCache && _referenceCache.fallback);
+}
+
+/** true si al menos una vez completó el fetch (éxito o error conocido). */
+export function isReferencePricesLoaded() {
+  return Boolean(_referenceCache);
+}
+
+/** true si la última carga fue exitosa (datos reales vigentes desde DB). */
+export function isReferencePricesValid() {
+  return Boolean(_referenceCache && !_referenceCache.fallback && _isFresh());
 }
 
 // =====================================================================
@@ -169,14 +179,17 @@ export function isReferencePricesFallback() {
     _load().catch(() => {});
   } catch (_e) {}
 })();
-
-const PROVIDER_PUBLISH_MIN_HOUR = 20000;
-const PROVIDER_PUBLISH_MIN_SERVICE = 100000;
+// Mínimos TÉCNICOS absolutos (SÓLO para cuando NO existe referencia en DB,
+// o la referencia cargada viola estos límites por configuración errada).
+// Estos NO se usan si la referencia en Admin está presente y es válida.
+const ABSOLUTE_PUBLISH_MIN = {
+  per_hour: 1000,
+  per_service: 10000,
+};
 
 function _capacityKeyFor(machineId, capacityValue) {
   if (capacityValue === undefined || capacityValue === null || capacityValue === '') return null;
   const s = String(capacityValue);
-  // Intentar exacto ("0.5", "10000"), luego float rounded, luego int str
   const bycap = REFERENCE_PRICES_DATA.by_capacity && REFERENCE_PRICES_DATA.by_capacity[machineId];
   if (!bycap) return null;
   if (s in bycap) return s;
@@ -198,48 +211,97 @@ function _capacityKeyFor(machineId, capacityValue) {
 
 /**
  * Devuelve el rango sugerido para publicación del proveedor.
+ *
+ * REGLAS (FUENTE DE VERDAD = ADMIN DB):
+ * - min:        referencia DB.min (configurada en Admin)
+ * - suggested:  referencia DB.default (valor sugerido en Admin)
+ * - max:        referencia DB.max (configurada en Admin)
+ * - ref:        referencia DB.default
+ *
+ * Si NO existe referencia para capacidad/máquina:
+ * - se busca el fallback genérico por máquina.
+ *
+ * Si NO hay datos reales cargados (fallback técnico red error):
+ * - marca source='fallback' y el caller debe avisar al usuario.
+ *
  * @param {string} machineryType id o nombre visible
- * @param {string|number|undefined} [capacity] valor de capacidad (ej: "0.5", "10000", 200)
- * @returns {{ min: number, max: number, ref: number, suggested: number, isPerHour: boolean, isTruckTrip: boolean, source: 'capacity'|'generic'|'fallback' }}
+ * @param {string|number|undefined} [capacity] valor de capacidad
+ * @returns {{
+ *   min: number, suggested: number, max: number, ref: number,
+ *   isPerHour: boolean, isTruckTrip: boolean,
+ *   source: 'capacity'|'generic'|'fallback',
+ *   valid: boolean
+ * }}
  */
 export function getProviderPriceReferenceRange(machineryType, capacity) {
   const id = getMachineryId(machineryType) || String(machineryType || '').trim();
   const isPerHour = MACHINERY_PER_HOUR.includes(id);
   const isTruckTrip = MACHINERY_PER_SERVICE.includes(id);
-  const baseMin = isPerHour ? PROVIDER_PUBLISH_MIN_HOUR : PROVIDER_PUBLISH_MIN_SERVICE;
-  // Intento 1: por capacidad
-  let ref = undefined;
+  const unitKey = isPerHour ? 'per_hour' : 'per_service';
+
+  let vals = null;
   let source = 'generic';
+
+  // Intento 1: por capacidad (fuente primaria cuando hay capacidad seleccionada)
   if (capacity !== undefined && capacity !== null && capacity !== '') {
-    const bycap = REFERENCE_PRICES_DATA.by_capacity?.[id];
     const ck = _capacityKeyFor(id, capacity);
-    if (ck && bycap && bycap[ck] && typeof bycap[ck].default === 'number') {
-      ref = bycap[ck].default;
-      source = 'capacity';
+    const bycap = REFERENCE_PRICES_DATA.by_capacity?.[id];
+    if (ck && bycap && bycap[ck] && typeof bycap[ck] === 'object') {
+      const capVals = bycap[ck];
+      const hasAny = ['min', 'default', 'max'].some(k => typeof capVals[k] === 'number' && capVals[k] > 0);
+      if (hasAny) {
+        vals = capVals;
+        source = 'capacity';
+      }
     }
   }
-  // Intento 2: genérico por máquina
-  if (ref === undefined || ref === null || ref === 0) {
+
+  // Intento 2: genérico por máquina (fallback si no hay capacidad o no está definida)
+  if (!vals) {
     const bucket = isPerHour ? REFERENCE_PRICES_DATA.per_hour : REFERENCE_PRICES_DATA.per_service;
-    if (bucket && bucket[id] && typeof bucket[id].default === 'number' && bucket[id].default > 0) {
-      ref = bucket[id].default;
-      source = 'generic';
+    if (bucket && bucket[id] && typeof bucket[id] === 'object') {
+      const hasAny = ['min', 'default', 'max'].some(k => typeof bucket[id][k] === 'number' && bucket[id][k] > 0);
+      if (hasAny) {
+        vals = bucket[id];
+        source = 'generic';
+      }
     }
   }
-  // Intento 3: flat map REFERENCE_PRICES (llenado por fetch)
-  if (!ref && REFERENCE_PRICES[id]) {
-    ref = REFERENCE_PRICES[id];
-    source = 'generic';
+
+  // Intento 3 (sólo si NO hay vals válidos): fallback técnico antiguo. MARCADO.
+  let fallbackUsed = false;
+  if (!vals) {
+    const fallbackDefault = FALLBACK_TECHNICAL[id] ?? FALLBACK_TECHNICAL.retroexcavadora ?? 0;
+    if (fallbackDefault > 0) {
+      vals = {
+        min: Math.round(fallbackDefault * 0.7),
+        default: fallbackDefault,
+        max: Math.round(fallbackDefault * MAX_PRICE_ABOVE_MARKET_PCT),
+      };
+      source = 'fallback';
+      fallbackUsed = true;
+    } else {
+      vals = { min: ABSOLUTE_PUBLISH_MIN[unitKey] ?? 1000, default: ABSOLUTE_PUBLISH_MIN[unitKey] ?? 1000, max: ABSOLUTE_PUBLISH_MIN[unitKey] ?? 1000 };
+      source = 'fallback';
+      fallbackUsed = true;
+    }
   }
-  // Intento 4 (fallback técnico, marcado)
-  if (!ref) {
-    ref = FALLBACK_TECHNICAL[id] ?? FALLBACK_TECHNICAL.retroexcavadora;
-    source = 'fallback';
-  }
-  const min = baseMin;
-  const max = Math.round(ref * MAX_PRICE_ABOVE_MARKET_PCT);
-  const suggested = Math.round((min + max) / 2);
-  return { min, max, ref, suggested, isPerHour, isTruckTrip, source };
+
+  // Consumir valores reales desde referencia Admin (FUENTE DE VERDAD).
+  const suggestedRaw = Number(vals.default ?? vals.suggested ?? 0);
+  const minRaw = Number(vals.min ?? 0);
+  const maxRaw = Number(vals.max ?? 0);
+  const suggested = suggestedRaw > 0 ? Math.round(suggestedRaw) : Math.round((minRaw || ABSOLUTE_PUBLISH_MIN[unitKey]) * 1.1);
+  const min = minRaw > 0
+    ? Math.round(minRaw)
+    : Math.round(suggested * 0.7 > (ABSOLUTE_PUBLISH_MIN[unitKey] ?? 0) ? suggested * 0.7 : (ABSOLUTE_PUBLISH_MIN[unitKey] ?? suggested));
+  const max = maxRaw > suggested
+    ? Math.round(maxRaw)
+    : Math.round(Math.max(suggested * MAX_PRICE_ABOVE_MARKET_PCT, min * 1.2));
+
+  const ref = suggested;
+  const valid = !fallbackUsed && (source === 'capacity' || source === 'generic');
+  return { min, suggested, max, ref, isPerHour, isTruckTrip, source, valid };
 }
 
 export const PRICE_REFERENCE = Object.fromEntries(

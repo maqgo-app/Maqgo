@@ -18,13 +18,16 @@ import { getUserAuthState } from '../../utils/userAuthState';
 import { submitBecomeProviderMinimal, hasProviderRoleInStorage } from '../../utils/providerBecomeApi';
 import { persistProviderOnboardingDraft } from '../../utils/providerOnboardingDraft';
 import {
-  REFERENCE_PRICES,
   REFERENCE_TRANSPORT,
   MAX_PRICE_ABOVE_MARKET_PCT,
   getPriceAlert,
   getTransportAlert,
   MACHINERY_PER_HOUR,
   MACHINERY_NO_TRANSPORT,
+  getProviderPriceReferenceRange,
+  ensureReferencePricesLoaded,
+  isReferencePricesValid,
+  isReferencePricesFallback,
 } from '../../utils/pricing';
 import {
   getRegionForComuna,
@@ -957,6 +960,40 @@ function MachineDataScreen() {
     }
   }, [id, location.pathname, location.key, location.state?.machine]);
 
+  /** Carga la fuente única de precios referencia (Admin DB). Espera antes de validar tarifas. */
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try { await ensureReferencePricesLoaded({ force: false }); } catch (_) {}
+      if (!mounted) return;
+      // Forzar un micro-render para refrescar rangos UI luego de la carga.
+      setStepHint((h) => String(h || ''));
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  /** Extrae el valor de capacidad del form para la categoría dada.
+   *  Retorna string/number listo para pasar a getProviderPriceReferenceRange. */
+  function getFormCapacityValue(machineryType, formObj) {
+    if (!machineryType || !formObj) return null;
+    try {
+      const opts = getMachineryCapacityOptions(machineryType);
+      if (!opts?.providerField) return null;
+      const raw = formObj[opts.providerField];
+      if (raw === '' || raw == null) return null;
+      return String(raw).trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /** Helper: entrega el rango Admin (min, suggested, max, ref) para una máquina y su capacidad.
+   *  Fuente de verdad = Admin DB por getProviderPriceReferenceRange. */
+  function getMachineryReferenceRange(machineryType, formObj) {
+    const cap = getFormCapacityValue(machineryType, formObj ?? form);
+    return getProviderPriceReferenceRange(machineryType, cap);
+  }
+
   useEffect(() => {
     if (!isAddMachineEntry || isEditMode) return;
     if (mfStep === 3) setStepHint('');
@@ -1186,9 +1223,10 @@ function MachineDataScreen() {
     const priceBaseNum = parseInt(String(priceBaseWizard).replace(/\D/g, ''), 10) || 0;
     const isPerHour = MACHINERY_PER_HOUR.includes(machineryType);
     const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machineryType);
-    const refPrice = REFERENCE_PRICES[machineryType] || 80000;
-    const maxPrice = Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT);
-    const minPrice = isPerHour ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE;
+    const range = getMachineryReferenceRange(machineryType, form);
+    const refPrice = Number(range.ref) || 0;
+    const maxPrice = Number(range.max) || (refPrice ? Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT) : 0);
+    const minPrice = Number(range.min) || (isPerHour ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE);
     if (priceBaseNum < minPrice || priceBaseNum > maxPrice) {
       setPublishError(tariffBaseRangeMessage(isPerHour, minPrice, maxPrice));
       return;
@@ -1506,9 +1544,10 @@ function MachineDataScreen() {
       const machineryType = form.machineryType;
       const priceBaseNum = parseInt(String(priceBaseWizard).replace(/\D/g, ''), 10) || 0;
       const isPerHour = MACHINERY_PER_HOUR.includes(machineryType);
-      const refPrice = REFERENCE_PRICES[machineryType] || 80000;
-      const maxPrice = Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT);
-      const minPrice = isPerHour ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE;
+      const range = getMachineryReferenceRange(machineryType, form);
+      const refPrice = Number(range.ref) || 0;
+      const maxPrice = Number(range.max) || (refPrice ? Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT) : 0);
+      const minPrice = Number(range.min) || (isPerHour ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE);
       if (priceBaseNum < minPrice || priceBaseNum > maxPrice) {
         setStepHint(tariffBaseRangeMessage(isPerHour, minPrice, maxPrice));
         return;
@@ -1562,9 +1601,10 @@ function MachineDataScreen() {
       const machineryType = form.machineryType;
       const priceBaseNum = parseInt(String(priceBaseWizard).replace(/\D/g, ''), 10) || 0;
       const isPerHour = MACHINERY_PER_HOUR.includes(machineryType);
-      const refPrice = REFERENCE_PRICES[machineryType] || 80000;
-      const maxPrice = Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT);
-      const minPrice = isPerHour ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE;
+      const range = getMachineryReferenceRange(machineryType, form);
+      const refPrice = Number(range.ref) || 0;
+      const maxPrice = Number(range.max) || (refPrice ? Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT) : 0);
+      const minPrice = Number(range.min) || (isPerHour ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE);
       if (priceBaseNum < minPrice || priceBaseNum > maxPrice) {
         setStepHint(tariffBaseRangeMessage(isPerHour, minPrice, maxPrice));
         return;
@@ -1724,9 +1764,10 @@ function MachineDataScreen() {
   const isValid = machineFieldsOk && canProceedMachine;
 
   const priceBaseNumWizard = parseInt(String(priceBaseWizard).replace(/\D/g, ''), 10) || 0;
-  const refForType = REFERENCE_PRICES[form.machineryType] || 80000;
+  const rangeForType = getMachineryReferenceRange(form.machineryType, form);
+  const refForType = Number(rangeForType.ref) || 0;
   const isPerHourW = MACHINERY_PER_HOUR.includes(form.machineryType);
-  const minForType = isPerHourW ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE;
+  const minForType = Number(rangeForType.min) || (isPerHourW ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE);
   const priceAlertW =
     (isFirstFlow
       ? mfStep === 3
