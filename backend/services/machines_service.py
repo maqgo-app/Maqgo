@@ -301,6 +301,8 @@ async def _primary_operator_is_active(db, machine: Optional[dict]) -> bool:
     raw_id = _clean_str(primary.get("id"))
     if not raw_id:
         return False
+    if raw_id.startswith(("op-rut-", "op-phone-")):
+        return True
     try:
         user = await db.users.find_one({"id": raw_id}, {"_id": 0, "id": 1, "status": 1, "provider_role": 1, "roles": 1})
     except Exception:
