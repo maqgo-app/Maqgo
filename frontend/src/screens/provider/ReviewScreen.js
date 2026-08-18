@@ -10,6 +10,8 @@ import { MACHINERY_NAMES, getMachineryCapacityOptions, getProviderSpecLabelShort
 import { getObject } from '../../utils/safeStorage';
 import { createMachineInApi } from '../../utils/providerMachines';
 import { useToast } from '../../components/Toast';
+import { hasProviderRoleInStorage } from '../../utils/providerBecomeApi';
+import { useAuth } from '../../context/authHooks';
 import {
   getProviderDraftArray,
   getProviderDraftObject,
@@ -23,6 +25,7 @@ import {
 function ReviewScreen() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { login } = useAuth();
   const draftEnabled = useProviderOnboardingDraftCleanup();
   const [loading, setLoading] = useState(false);
   const [providerData, setProviderData] = useState({});
@@ -66,6 +69,8 @@ function ReviewScreen() {
         return;
       }
       
+      const needsBecomeProvider = !hasProviderRoleInStorage();
+
       // Guardar datos del proveedor en backend
       let primaryPhoto = null;
       if (Array.isArray(photos) && photos.length > 0) {
@@ -95,20 +100,51 @@ function ReviewScreen() {
         providerData,
         machineData: machinePayload,
         operators: operatorsPayload,
+        ...(needsBecomeProvider ? { add_provider: true } : {}),
       };
       if (machineData?.machineryType) payloadBase.machineryType = machineData.machineryType;
 
       const emailCandidate = String(providerData?.email || '').trim();
       const payloadWithEmail = emailCandidate ? { ...payloadBase, email: emailCandidate } : payloadBase;
 
+      const syncProviderRoleFromPatch = (patchRes, requiredForFallback) => {
+        if (!needsBecomeProvider) return true;
+        const roles = Array.isArray(patchRes?.roles) ? patchRes.roles : [];
+        if (!roles.includes('provider')) {
+          if (requiredForFallback !== true) return false;
+          toast.error('No pudimos activar tu cuenta proveedor. Vuelve a intentarlo o inicia sesión nuevamente.');
+          return false;
+        }
+        const pr = patchRes.provider_role || localStorage.getItem('providerRole') || 'super_master';
+        const prNormalized = pr === 'owner' ? 'super_master' : pr;
+        localStorage.setItem('userRole', 'provider');
+        localStorage.setItem('userRoles', JSON.stringify(roles));
+        localStorage.setItem('providerRole', prNormalized);
+        const uid = String(patchRes.id || userId || localStorage.getItem('userId') || '').trim();
+        if (uid) login(uid, 'provider', prNormalized, patchRes.owner_id || null);
+        return true;
+      };
+
+      let patchRes = null;
       try {
-        await fetchWithAuth(`${BACKEND_URL}/api/users/${userId}`, { method: 'PATCH', body: payloadWithEmail }, 20000);
+        patchRes = await fetchWithAuth(`${BACKEND_URL}/api/users/${userId}`, { method: 'PATCH', body: payloadWithEmail }, 20000);
+        if (needsBecomeProvider) {
+          const ok = syncProviderRoleFromPatch(patchRes, false);
+          if (!ok) {
+            toast.error('No pudimos activar tu cuenta proveedor. Vuelve a intentarlo o inicia sesión nuevamente.');
+            return;
+          }
+        }
       } catch (e) {
         const status = e?.response?.status || e?.status;
         const detail = e?.response?.data?.detail || e?.detail;
         const detailText = typeof detail === 'string' ? detail : '';
         if (status === 409 && emailCandidate) {
-          await fetchWithAuth(`${BACKEND_URL}/api/users/${userId}`, { method: 'PATCH', body: payloadBase }, 20000);
+          patchRes = await fetchWithAuth(`${BACKEND_URL}/api/users/${userId}`, { method: 'PATCH', body: payloadBase }, 20000);
+          if (needsBecomeProvider) {
+            const ok = syncProviderRoleFromPatch(patchRes, true);
+            if (!ok) return;
+          }
           toast.warning('El correo ya está asociado a otra cuenta. Finalizamos tu registro sin correo; puedes actualizarlo luego en Perfil.');
         } else if (status === 403 && detailText.toLowerCase().includes('inactivo')) {
           toast.error('Tu cuenta está desactivada. Usa otro número o revisa la ayuda de acceso.');

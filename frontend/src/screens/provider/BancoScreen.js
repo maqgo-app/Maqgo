@@ -8,6 +8,7 @@ import { getObject } from '../../utils/safeStorage';
 import BACKEND_URL, { fetchWithAuth } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { useAuth } from '../../context/authHooks';
+import { hasProviderRoleInStorage } from '../../utils/providerBecomeApi';
 
 /**
  * Sub-pantalla: Datos Bancarios
@@ -88,7 +89,7 @@ function BancoScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const { hasPermission } = useAuth();
+  const { hasPermission, login } = useAuth();
   const canViewBankData = hasPermission('canViewBankData');
   const blocked = !canViewBankData;
   const [saved, setSaved] = useState(false);
@@ -162,8 +163,28 @@ function BancoScreen() {
     };
     localStorage.setItem('bankData', JSON.stringify(toSave));
 
+    const needsBecomeProvider = Boolean(finalizeOnboarding) && !hasProviderRoleInStorage();
+
+    const syncProviderRoleFromPatch = (userId, patchRes) => {
+      if (!needsBecomeProvider) return true;
+      const roles = Array.isArray(patchRes?.roles) ? patchRes.roles : [];
+      if (!roles.includes('provider')) {
+        toast.error('No pudimos activar tu cuenta proveedor. Vuelve a intentarlo o inicia sesión nuevamente.');
+        return false;
+      }
+      const pr = patchRes.provider_role || localStorage.getItem('providerRole') || 'super_master';
+      const prNormalized = pr === 'owner' ? 'super_master' : pr;
+      localStorage.setItem('userRole', 'provider');
+      localStorage.setItem('userRoles', JSON.stringify(roles));
+      localStorage.setItem('providerRole', prNormalized);
+      const uid = String(patchRes.id || userId || localStorage.getItem('userId') || '').trim();
+      if (uid) login(uid, 'provider', prNormalized, patchRes.owner_id || null);
+      return true;
+    };
+
     // Fuente de verdad: persistir también en backend dentro de providerData.bankData.
     let backendSynced = true;
+    let providerRoleSyncOk = true;
     try {
       const userId = localStorage.getItem('userId');
       if (userId && !userId.startsWith('provider-') && !userId.startsWith('demo-')) {
@@ -172,22 +193,28 @@ function BancoScreen() {
           ...providerData,
           bankData: toSave,
         };
-        await fetchWithAuth(
+        const patchRes = await fetchWithAuth(
           `${BACKEND_URL}/api/users/${encodeURIComponent(userId)}`,
           {
             method: 'PATCH',
             body: {
               providerData: nextProviderData,
               ...(finalizeOnboarding ? { onboarding_completed: true } : {}),
+              ...(needsBecomeProvider ? { add_provider: true } : {}),
             },
           },
           8000
         );
         localStorage.setItem('providerData', JSON.stringify(nextProviderData));
+        if (needsBecomeProvider) {
+          providerRoleSyncOk = syncProviderRoleFromPatch(userId, patchRes);
+        }
       }
     } catch {
       backendSynced = false;
     }
+
+    if (!providerRoleSyncOk) return;
 
     if (!backendSynced && import.meta.env.PROD) {
       toast.error('No pudimos guardar tus datos bancarios. Revisa tu conexión e intenta nuevamente.');
