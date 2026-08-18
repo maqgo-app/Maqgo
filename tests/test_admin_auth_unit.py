@@ -205,3 +205,27 @@ class TestAdminFrontend401PolicyCDEFGHI:
             assert _is_admin_access_endpoint(p), p
         for p in neg:
             assert not _is_admin_access_endpoint(p), p
+
+    # J: R3 FIX (RAÍZ 3): POST login Admin save session → dispatchAdminSessionChanged
+    # Simulación: handle401 children NUNCA toca sesión. Official access NO escribe ?expired=1.
+    # Estado sesión AdminRoute usa useState + suscriptor (dispatch). Prueba de contrato policy:
+    def test_j_child_401_never_uses_expired_param_in_url(self):
+        samples = [
+            ("/admin/pricing", "https://api2.maqgo.cl/api/admin/reference-prices"),
+            ("/admin/users", "https://api2.maqgo.cl/api/admin/users?limit=20"),
+            ("/admin/stats", "https://api2.maqgo.cl/api/admin/stats"),
+            ("/admin/machines", "https://api2.maqgo.cl/api/admin/machines"),
+            ("/admin/reports/subscriptions", "https://api2.maqgo.cl/api/admin/reports/subscriptions"),
+        ]
+        for path, url in samples:
+            s = self._make_session()
+            pol = _admin_401_policy(path, url, s)
+            assert pol["redirect_to_expired_1"] is False, (path, url)
+            assert pol["cleared_session"] is False, (path, url)
+
+    # K: R3: Official access 401 NO usa navigate/redirect ?expired=1 (siempre login inline UI sin cambiar URL)
+    def test_k_official_access_401_never_sets_expired_1_flag(self):
+        s = self._make_session()
+        pol = _admin_401_policy("/admin", "https://api2.maqgo.cl/api/admin/access", s)
+        assert pol["redirect_to_expired_1"] is False
+        assert pol["login_inline_flag"] is True  # sí activa UI inline (cambia el render, no la URL)

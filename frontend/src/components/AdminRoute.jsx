@@ -41,16 +41,69 @@ function clearAdminVerifiedCache() {
 }
 
 /**
- * Protege rutas /admin. Verifica /api/admin/stats antes de mostrar el panel.
+ * Lee el token Admin desde localStorage (helper único para evitar dispersión).
+ */
+function _readAdminTokenLs() {
+  try {
+    return localStorage.getItem('adminToken') || localStorage.getItem('adminAuthToken') || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Dispara un CustomEvent síncrono para avisar a AdminRoute (y otros suscriptores)
+ * que localStorage Admin cambió. Evita reload/navigate hard y fuerza re-render React.
+ */
+function dispatchAdminSessionChanged() {
+  try {
+    window.dispatchEvent(new CustomEvent('maqgo-admin-session-changed'));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Protege rutas /admin. Verifica /api/admin/access antes de mostrar el panel.
  * - Red caída/DNS: pantalla de bloqueo con reintentar o modo demostración (evita falsa sensación de "panel vivo").
  * - 401/403: revoca admin local y muestra acceso restringido.
  */
 function AdminRoute() {
   const location = useLocation();
   const navigate = useNavigate();
-  const userId = localStorage.getItem('adminUserId');
-  const token = localStorage.getItem('adminToken') || localStorage.getItem('adminAuthToken');
-  const rolesRaw = localStorage.getItem('adminRoles');
+
+  // R3 FIX: userId, token, rolesRaw son STATE React con suscripción a cambios localStorage.
+  // Antes (L51-53 histórico): constantes sin suscriptor → submitAdminLogin save → navigate →
+  //   MISMO componente AdminRoute sin remount → valores seguían null → volvía a render login form →
+  //   401 children → flash /admin?expired=1 / error Chrome.
+  const [userId, setUserId] = useState(() => {
+    try { return localStorage.getItem('adminUserId'); } catch { return null; }
+  });
+  const [token, setToken] = useState(() => _readAdminTokenLs());
+  const [rolesRaw, setRolesRaw] = useState(() => {
+    try { return localStorage.getItem('adminRoles'); } catch { return null; }
+  });
+
+  // Suscriptor a cambios en localStorage (trigger por sí mismo / otras pestañas / session sync).
+  useEffect(() => {
+    function refreshFromLs() {
+      try { setUserId(localStorage.getItem('adminUserId')); } catch { setUserId(null); }
+      setToken(_readAdminTokenLs());
+      try { setRolesRaw(localStorage.getItem('adminRoles')); } catch { setRolesRaw(null); }
+    }
+    function onStorage(e) {
+      if (e.key && !e.key.startsWith('admin') && e.key !== 'adminAuthToken') return;
+      refreshFromLs();
+    }
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('maqgo-admin-session-changed', refreshFromLs);
+    refreshFromLs();
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('maqgo-admin-session-changed', refreshFromLs);
+    };
+  }, []);
+
   const [verifiedAdmin, setVerifiedAdmin] = useState(false);
   const [mustChangePassword, setMustChangePassword] = useState(() => {
     try {
@@ -149,6 +202,8 @@ function AdminRoute() {
             clearAdminVerifiedCache();
             clearAdminDemoBypass();
             setDemoBypassState(false);
+            // FIX R3: oficial access 401 → sync state React sin navigate, sin hard reload, sin ?expired=1.
+            dispatchAdminSessionChanged();
           }
           setVerifiedAdmin(false);
           setMustChangePassword(false);
@@ -256,14 +311,21 @@ function AdminRoute() {
         return;
       }
       persistAdminSessionMetadata(data);
-      setVerifiedAdmin(true);
-      setAdminVerifiedNow();
-      setMustChangePassword(Boolean(data?.must_change_password));
       try {
         localStorage.setItem('adminRoles', JSON.stringify(roles.length ? roles : ['admin']));
       } catch {
         /* ignore */
       }
+      // FIX R3: submitAdminLogin SÍ escribe localStorage.
+      // - Antes: constantes userId/token/rolesRaw L51-53 no re-render React
+      //   → volvía a L281 !token || !userId → FORM LOGIN OTRA VEZ sin hard reload
+      //   → 401s children → flash /admin?expired=1.
+      // - Ahora: dispatch event sincroniza el state React de AdminRoute (L87-105 suscriptor)
+      //   sin hard reload ni navigate con ?expired=1.
+      dispatchAdminSessionChanged();
+      setVerifiedAdmin(true);
+      setAdminVerifiedNow();
+      setMustChangePassword(Boolean(data?.must_change_password));
       clearAdminVerifiedCache();
       setRetryNonce((n) => n + 1);
       if (Boolean(data?.must_change_password)) {

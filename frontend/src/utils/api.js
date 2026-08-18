@@ -132,18 +132,19 @@ function handle401(url) {
   if (p.startsWith('/admin')) {
     const isOfficialAccess401 = _isAdminAccessEndpoint(url);
     if (!isOfficialAccess401) {
-      // CASO B: 401 de un endpoint hijo Admin. NO tocar sesión. Dejar que el componente maneje el error
-      // (fetchWithAuth ya lanza Error "Sesión expirada" o el componente lee res.status===401).
+      // CASO B: children 401 en /admin/* (no oficial access).
+      // NO clear sesión. NO dispatch de logout. NO redirect. NO ?expired=1.
+      // Retorna error al componente. Dashboard / Pricing / Users lo maneja.
       return;
     }
-    // CASO A: 401 oficial GET /api/admin/access. SOLO aquí invalidar sesión Admin.
-    // NO ?expired=1. NO window.location.href hard reload. AdminRoute renderiza Login inline.
-    clearAdminSession();
+    // CASO A: 401 oficial GET /api/admin/access.
+    // AdminRoute L199-207 ES EL ÚNICO dueño del clear + state sync inline Login.
+    // No hacemos clear aquí tampoco (AdminRoute lo hace + dispatchAdminSessionChanged).
+    // Solo mandamos evento para sincronizar si el 401 fue lanzado por un fetch fuera de AdminRoute.
     try {
-      const ev = new CustomEvent('maqgo-admin-official-401');
-      window.dispatchEvent(ev);
+      window.dispatchEvent(new CustomEvent('maqgo-admin-official-401'));
     } catch (_e) {
-      // navegador sin CustomEvent: fallback soft re-render
+      // ignore
     }
     return;
   }
