@@ -8,6 +8,7 @@ import {
   formatMachineryCapacityChipLabel,
 } from '../../utils/machineryNames';
 import {
+  MACHINERY_PER_HOUR,
   MACHINERY_NO_TRANSPORT,
   MACHINERY_PER_SERVICE,
   MACHINERY_NEEDS_TRANSPORT,
