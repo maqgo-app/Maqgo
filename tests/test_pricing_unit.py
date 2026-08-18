@@ -252,6 +252,61 @@ class TestReferencePricesByCapacitySourceOfTruth:
         assert not (retro_default.get("min") == retro_admin["min"] and retro_default.get("default") == retro_admin["default"]), \
             "Admin y defaults deben ser distintos (hardcoded default no es 100/150/200)"
 
+    def test_f_tipo_b_sin_traslado(self):
+        """F) Clasificación negocio TIPO B (viaje). Camión Aljibe / Pluma / Tolva NO cobran traslado.
+        Prueba: calculator breakdown is_per_hour=false y transport_cost=0 se mantiene sin alteraciones."""
+        # Tipo B: NO debe modificar transport_cost si el proveedor envía 0.
+        for tipo in ("camion_aljibe", "camion_pluma", "camion_tolva"):
+            r = calculate_immediate_price(
+                machinery_type=tipo,
+                base_price=500000,
+                hours=4,
+                transport_cost=0,
+            )
+            assert r["breakdown"]["is_per_hour"] is False, f"{tipo} debe ser por servicio/viaje"
+            assert r["breakdown"]["transport_cost"] == 0, f"{tipo} TIPO B: transport_cost debe ser 0 (no cobra traslado)"
+            assert r["final_price"] > 0
+
+    def test_g_tipo_a_con_traslado(self):
+        """G) Clasificación negocio TIPO A (hora + traslado). Retroexcavadora / Bulldozer SÍ admiten cobro traslado."""
+        for tipo in ("retroexcavadora", "bulldozer", "excavadora"):
+            r = calculate_immediate_price(
+                machinery_type=tipo,
+                base_price=200000,
+                hours=4,
+                transport_cost=100000,
+            )
+            assert r["breakdown"]["is_per_hour"] is True, f"{tipo} debe ser POR HORA"
+            assert r["breakdown"]["transport_cost"] == 100000, f"{tipo} TIPO A: transport_cost debe sobrevivir intacto"
+            assert r["final_price"] > r["breakdown"]["service_cost"], "Final debe incluir traslado"
+
+    def test_h_nueva_maquinaria_ref_price_administrado(self):
+        """H) Simular «Nueva maquinaria recibe precio vigente»: endpoint merge entrega exactamente
+        los 9 valores de Admin para las 3 máquinas QA."""
+        admin_doc = {
+            "_id": "reference_prices",
+            "by_capacity": self.EXPECTED_ADMIN_PRICES,
+            "transport": {"default": 100, "same_comuna": {"default": 100, "min": 50, "max": 500}},
+        }
+        merged = self._replicate_reference_prices_merge_logic(admin_doc)
+        # Retro 0.5
+        assert merged["by_capacity"]["retroexcavadora"]["0.5"]["min"] == 100
+        assert merged["by_capacity"]["retroexcavadora"]["0.5"]["default"] == 150
+        assert merged["by_capacity"]["retroexcavadora"]["0.5"]["max"] == 200
+        # Aljibe 10000
+        assert merged["by_capacity"]["camion_aljibe"]["10000"]["min"] == 250
+        assert merged["by_capacity"]["camion_aljibe"]["10000"]["default"] == 375
+        assert merged["by_capacity"]["camion_aljibe"]["10000"]["max"] == 500
+        # Bulldozer 200
+        assert merged["by_capacity"]["bulldozer"]["200"]["min"] == 200
+        assert merged["by_capacity"]["bulldozer"]["200"]["default"] == 300
+        assert merged["by_capacity"]["bulldozer"]["200"]["max"] == 400
+        # Transporte Admin vigente
+        assert merged["transport"]["default"] == 100
+        assert merged["transport"]["same_comuna"]["default"] == 100
+        assert merged["transport"]["same_comuna"]["min"] == 50
+        assert merged["transport"]["same_comuna"]["max"] == 500
+
     def test_camion_tolva_service_amount_es_precio_viaje_no_por_horas_restored(self):
         """Restored test: Camión Tolva service = precio viaje, no horas"""
         r = calculate_immediate_price(

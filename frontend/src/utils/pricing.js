@@ -421,14 +421,18 @@ export function getTransportAlert(transport, refTransport = REFERENCE_TRANSPORT)
   return { ...alert, msg: TRANSPORT_ALERT_MSGS[alert.type] || alert.msg };
 }
 
-/** Referencia de precio final al cliente (subtotal ref + 10% + IVA comisión) para comparar con mercado. */
-function getReferenceClientTotal(machineryType, hours, transportFee, reservationType) {
-  const id = getMachineryId(machineryType);
-  const refPrice = REFERENCE_PRICES[id];
+/** Referencia de precio final al cliente (subtotal ref + 10% + IVA comisión) para comparar con mercado.
+ *  Fuente de verdad = getProviderPriceReferenceRange (Admin DB por capacidad o genérico).
+ */
+function getReferenceClientTotal(machineryType, hours, transportFee, reservationType, capacity) {
+  const range = getProviderPriceReferenceRange(machineryType, capacity);
+  const id = range && getMachineryId(machineryType);
+  const refPrice = range.ref;
   if (!refPrice) return null;
-  const isPerHour = Boolean(id && MACHINERY_PER_HOUR.includes(id));
+  const isPerHour = Boolean(range.isPerHour);
   const needsTransport = Boolean(id && MACHINERY_NEEDS_TRANSPORT.includes(id));
-  const transport = needsTransport ? (transportFee ?? REFERENCE_TRANSPORT) : 0;
+  const transportRef = Number(REFERENCE_PRICES_DATA.transport?.default ?? REFERENCE_TRANSPORT);
+  const transport = needsTransport ? (Number.isFinite(transportFee) ? transportFee : transportRef) : 0;
   let refSubtotal;
   if (reservationType === 'immediate') {
     const mult = IMMEDIATE_MULTIPLIERS[hours] || 1.20;
@@ -436,7 +440,7 @@ function getReferenceClientTotal(machineryType, hours, transportFee, reservation
   } else {
     refSubtotal = isPerHour ? refPrice * 8 : refPrice;
   }
-  refSubtotal += transport;
+  refSubtotal += Number(transport) || 0;
   return Math.round(refSubtotal * (1 + MAQGO_CLIENT_COMMISSION_RATE * (1 + IVA_RATE)));
 }
 

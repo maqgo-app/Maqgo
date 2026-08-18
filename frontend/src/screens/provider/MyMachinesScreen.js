@@ -13,7 +13,7 @@ import {
   needsTransport,
   MACHINERY_TYPES
 } from '../../utils/providerMachines';
-import { REFERENCE_PRICES, REFERENCE_TRANSPORT, MAX_PRICE_ABOVE_MARKET_PCT, getPriceAlert, getTransportAlert } from '../../utils/pricing';
+import { REFERENCE_TRANSPORT, MAX_PRICE_ABOVE_MARKET_PCT, getPriceAlert, getTransportAlert, getProviderPriceReferenceRange, ensureReferencePricesLoaded, isReferencePricesLoaded } from '../../utils/pricing';
 import { vibrate } from '../../utils/uberUX';
 import BACKEND_URL from '../../utils/api';
 import { getHttpErrorMessage } from '../../utils/httpErrors';
@@ -740,19 +740,23 @@ function EditPricingModal({ machine, priceVal: initialPrice, transportVal: initi
   const [error, setError] = useState('');
   const machineNeedsTransport = needsTransport(machine.machineryType || machine.type);
   const machineryId = toMachineryId(machine.machineryType || machine.type);
-  const refPrice = REFERENCE_PRICES[machineryId] || 80000;
-  const maxPrice = Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT);
+  const range = getProviderPriceReferenceRange(machineryId, undefined);
+  const refPrice = Number(range.ref) || 0;
+  const maxPrice = Number(range.max) || (refPrice ? Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT) : 0);
   const maxTransport = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
-  const priceNum = parseInt(priceVal.replace(/\D/g, '')) || 0;
-  const transportNum = parseInt(transportVal.replace(/\D/g, '')) || 0;
-  const minPrice = isPerHour ? 20000 : 100000;
-  const priceAlert = priceNum >= minPrice ? getPriceAlert(priceNum, refPrice) : null;
-  const transportAlert = machineNeedsTransport && transportNum >= 15000 ? getTransportAlert(transportNum) : null;
+  const priceNum = parseInt(priceVal.replace(/\D/g, ''), 10) || 0;
+  const transportNum = parseInt(transportVal.replace(/\D/g, ''), 10) || 0;
+  const minPrice = Number(range.min) || (isPerHour ? 1000 : 10000);
+  const priceAlert = priceNum >= minPrice ? getPriceAlert(priceNum, refPrice || minPrice) : null;
+  const transportAlert = machineNeedsTransport && transportNum >= minPrice ? getTransportAlert(transportNum) : null;
 
   const handleSave = () => {
     setError('');
-    if (priceNum < 20000) { setError('El valor mínimo es $20.000'); return; }
-    if (priceNum > maxPrice) { setError(`El valor máximo es ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(maxPrice)}.`); return; }
+    if (priceNum < minPrice) {
+      setError(`El valor mínimo es ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(minPrice)}`);
+      return;
+    }
+    if (maxPrice && priceNum > maxPrice) { setError(`El valor máximo es ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(maxPrice)}.`); return; }
     if (machineNeedsTransport && (transportNum < 0 || transportNum > maxTransport)) { setError(`El traslado máximo es ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(maxTransport)}.`); return; }
     const updates = isPerHour
       ? { pricePerHour: priceNum, pricePerService: null, transportCost: machineNeedsTransport ? transportNum : 0 }

@@ -7,7 +7,7 @@ import { useToast } from '../../components/Toast';
 import { getProviderBackRoute } from '../../utils/bookingFlow';
 import { getMachineryId, MACHINERY_NAMES as MACHINE_NAMES } from '../../utils/machineryNames';
 import {
-  REFERENCE_PRICES,
+  REFERENCE_PRICES_DATA,
   REFERENCE_TRANSPORT,
   MAX_PRICE_ABOVE_MARKET_PCT,
   getPriceAlert,
@@ -15,6 +15,8 @@ import {
   MACHINERY_PER_HOUR,
   needsTransportMachinery,
   PRICE_CAP_RULE_LABEL,
+  getProviderPriceReferenceRange,
+  ensureReferencePricesLoaded,
 } from '../../utils/pricing';
 import { compressImage, MAX_PHOTOS } from '../../utils/machinePhotoLocal';
 import { persistProviderOnboardingDraft } from '../../utils/providerOnboardingDraft';
@@ -35,15 +37,21 @@ const MULTIPLIERS_URGENCY = {
   mismo_dia: { label: 'Mismo día', mult: 1.05, desc: 'Llegada en el día' },
   programada: { label: 'Programada', mult: 1.0, desc: 'Reserva anticipada' },
 };
-const MIN_PRICE_HOUR = 20000;
-const MIN_PRICE_SERVICE = 100000;
-const MIN_TRANSPORT = 15000;
 const PHOTO_SLOT_LABELS = ['Frontal', 'Lateral', 'Trasera'];
 const PHOTO_SLOT_OPTIONALITY = {
   Frontal: 'Obligatoria',
   Lateral: 'Opcional',
   Trasera: 'Opcional',
 };
+
+function getAdminMinTransport() {
+  try {
+    const fromAdmin = REFERENCE_PRICES_DATA?.transport?.same_comuna?.min
+      ?? REFERENCE_PRICES_DATA?.transport?.min;
+    if (typeof fromAdmin === 'number' && fromAdmin > 0) return fromAdmin;
+  } catch (_e) {}
+  return 1000;
+}
 
 /**
  * Orientación vs referencia MAQGO (no validación; no bloquea envío).
@@ -74,11 +82,12 @@ function getPriceImpactLabel(price, reference) {
 
 function getTransportFieldAlert(value) {
   if (!value) return null;
-  if (value < MIN_TRANSPORT) {
+  const minT = getAdminMinTransport();
+  if (value < minT) {
     return {
       type: 'low_range',
       color: '#F2B15E',
-      msg: `Valor fuera de rango. Mínimo ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(MIN_TRANSPORT)} netos.`,
+      msg: `Valor fuera de rango. Mínimo ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(minT)} netos.`,
     };
   }
   return getTransportAlert(value);
@@ -177,10 +186,11 @@ function MachinePhotosPricingScreen() {
   const needsTransport = needsTransportMachinery(rawMachinery);
   const isPerHour = MACHINERY_PER_HOUR.includes(machineType);
   const machineName = MACHINE_NAMES[machineType] || 'Maquinaria';
-  const refPrice = REFERENCE_PRICES[machineType] || 80000;
-  const maxPrice = Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT);
+  const range = getProviderPriceReferenceRange(machineType, undefined);
+  const refPrice = Number(range.ref) || 0;
+  const maxPrice = Number(range.max) || (refPrice ? Math.round(refPrice * MAX_PRICE_ABOVE_MARKET_PCT) : 0);
   const maxTransport = Math.round(REFERENCE_TRANSPORT * MAX_PRICE_ABOVE_MARKET_PCT);
-  const minPrice = isPerHour ? MIN_PRICE_HOUR : MIN_PRICE_SERVICE;
+  const minPrice = Number(range.min) || (isPerHour ? 1000 : 10000);
   const priceBaseNum = parseInt(priceBase, 10) || 0;
   const sameComunaNum = parseInt(transportSameComuna, 10) || 0;
   const sameRegionNum = parseInt(transportSameRegion, 10) || 0;
@@ -208,9 +218,9 @@ function MachinePhotosPricingScreen() {
   const transportOrderValid = !needsTransport || (sameRegionNum >= sameComunaNum && otherRegionNum >= sameRegionNum);
   const canContinue = needsTransport
     ? priceBaseNum >= minPrice &&
-      sameComunaNum >= MIN_TRANSPORT &&
-      sameRegionNum >= MIN_TRANSPORT &&
-      otherRegionNum >= MIN_TRANSPORT &&
+      sameComunaNum >= getAdminMinTransport() &&
+      sameRegionNum >= getAdminMinTransport() &&
+      otherRegionNum >= getAdminMinTransport() &&
       transportOrderValid
     : priceBaseNum >= minPrice;
   const ctaReady = Boolean(canContinue);
@@ -228,14 +238,14 @@ function MachinePhotosPricingScreen() {
       return `La tarifa base no puede superar ${formatPrice(maxPrice)}${isPerHour ? '/hora' : ''}.`;
     }
     if (needsTransport) {
-      if (!sameComunaNum || sameComunaNum < MIN_TRANSPORT) {
-        return `Completa "Dentro de la misma comuna" desde ${formatPrice(MIN_TRANSPORT)} netos.`;
+      if (!sameComunaNum || sameComunaNum < getAdminMinTransport()) {
+        return `Completa "Dentro de la misma comuna" desde ${formatPrice(getAdminMinTransport())} netos.`;
       }
-      if (!sameRegionNum || sameRegionNum < MIN_TRANSPORT) {
-        return `Completa "Entre comunas de la misma región" desde ${formatPrice(MIN_TRANSPORT)} netos.`;
+      if (!sameRegionNum || sameRegionNum < getAdminMinTransport()) {
+        return `Completa "Entre comunas de la misma región" desde ${formatPrice(getAdminMinTransport())} netos.`;
       }
-      if (!otherRegionNum || otherRegionNum < MIN_TRANSPORT) {
-        return `Completa "A región colindante (máx. 150 km)" desde ${formatPrice(MIN_TRANSPORT)} netos.`;
+      if (!otherRegionNum || otherRegionNum < getAdminMinTransport()) {
+        return `Completa "A región colindante (máx. 150 km)" desde ${formatPrice(getAdminMinTransport())} netos.`;
       }
       if (!transportOrderValid) {
         return 'Ordena los tramos: misma región no puede ser menor que misma comuna, y región colindante no puede ser menor que misma región.';
@@ -392,8 +402,8 @@ function MachinePhotosPricingScreen() {
       (normalizedSameRegion >= sameComunaNum && normalizedOtherRegion >= normalizedSameRegion);
 
     if (needsTransport) {
-      if (!sameComunaNum || sameComunaNum < MIN_TRANSPORT) {
-        setError(`El traslado mínimo para misma comuna es ${formatPrice(MIN_TRANSPORT)}.`);
+      if (!sameComunaNum || sameComunaNum < getAdminMinTransport()) {
+        setError(`El traslado mínimo para misma comuna es ${formatPrice(getAdminMinTransport())}.`);
         return;
       }
       if (sameComunaNum > maxTransport || normalizedSameRegion > maxTransport || normalizedOtherRegion > maxTransport) {

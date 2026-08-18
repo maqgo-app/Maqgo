@@ -20,7 +20,7 @@ import BACKEND_URL from '../../utils/api';
  * STABLE FLOW - DO NOT MODIFY WITHOUT PRODUCT APPROVAL
  */
 // MACHINERY_NO_TRANSPORT y REFERENCE_PRICES desde pricing.js; por-viaje: isPerTripMachineryType (machineryNames)
-import { MACHINERY_NO_TRANSPORT, REFERENCE_PRICES, getDemoProviders } from '../../utils/pricing';
+import { MACHINERY_NO_TRANSPORT, getProviderPriceReferenceRange, getDemoProviders } from '../../utils/pricing';
 import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions, isPerTripMachineryType } from '../../utils/machineryNames';
 import { ensurePushSubscribedIfGranted, requestPushPermissionAndSubscribe } from '../../utils/pushNotifications';
 import {
@@ -547,7 +547,9 @@ function ProviderOptionsScreen({ previewPublic = false }) {
       setIsDemoProviders(false);
       setEmptyState(false);
       // Maquinaria por viaje: si el backend envía precios por hora (ej. 42k), normalizar a precio por viaje de mercado
-      const refTrip = isPerTripMachineryType(selectedMachinery) ? REFERENCE_PRICES[selectedMachinery] : null;
+      const refTrip = isPerTripMachineryType(selectedMachinery)
+        ? (() => { try { return getProviderPriceReferenceRange(selectedMachinery)?.ref || 0; } catch (_e) { return 0; } })()
+        : null;
       const providersWithData = rawProviders.map((provider, idx) => {
         let price = provider.price_per_hour ?? 0;
         if (refTrip && price > 0 && price < 100000) {

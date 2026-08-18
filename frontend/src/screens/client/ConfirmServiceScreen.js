@@ -7,7 +7,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
 import { getObject, getArray } from '../../utils/safeStorage';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
-import { buildPricingFallback, calculateClientPrice, MACHINERY_NO_TRANSPORT, totalConFactura, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, REFERENCE_PRICES } from '../../utils/pricing';
+import { buildPricingFallback, calculateClientPrice, MACHINERY_NO_TRANSPORT, totalConFactura, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, getProviderPriceReferenceRange } from '../../utils/pricing';
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getDateRangeShort as getDateRangeShortUtil } from '../../utils/bookingDates';
@@ -101,7 +101,11 @@ function ConfirmServiceScreen() {
   const isPerTrip = isPerTripMachineryType(machinery);
   const needsTransport = !MACHINERY_NO_TRANSPORT.includes(machineryKey) && !MACHINERY_NO_TRANSPORT.includes(machinery);
 
-  const refTrip = isPerTrip ? (REFERENCE_PRICES[machineryKey] ?? REFERENCE_PRICES[machinery]) : null;
+  const refTrip = isPerTrip
+    ? (getProviderPriceReferenceRange(machineryKey)?.ref
+        ?? getProviderPriceReferenceRange(machinery)?.ref
+        ?? null)
+    : null;
   const hoursForPricing = reservationType === 'scheduled' ? 8 : hoursToday;
 
   /** Rango de precios (menor–mayor) y proveedor que da el máximo (para que el desglose coincida con el rango). */
