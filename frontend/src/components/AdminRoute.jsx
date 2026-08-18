@@ -175,6 +175,25 @@ function AdminRoute() {
     };
   }, [token, userId, shouldVerifyAdmin, isAdminByStorage, retryNonce]);
 
+  /** FIX flash expired=1: escucha evento 'maqgo-admin-401' desde api.js handle401.
+   *  Hace navigate SOFT en lugar de window.location.href hard reload.
+   */
+  useEffect(() => {
+    function onAdmin401() {
+      clearAdminVerifiedCache();
+      clearAdminDemoBypass();
+      setVerifiedAdmin(false);
+      setMustChangePassword(false);
+      setStatsNetworkFailure(false);
+      setDemoBypassState(false);
+      const target = new URLSearchParams(window.location.search).get('next') || '/admin';
+      const sep = target.includes('?') ? '&' : '?';
+      navigate(`${target}${sep}expired=1`, { replace: true });
+    }
+    window.addEventListener('maqgo-admin-401', onAdmin401);
+    return () => window.removeEventListener('maqgo-admin-401', onAdmin401);
+  }, [navigate]);
+
   const isAdmin = verifiedAdmin || isAdminByStorage;
   const isChangePasswordPath = location.pathname === '/admin/change-password';
 
@@ -469,26 +488,6 @@ function AdminRoute() {
   }
   if (isAdmin && mustChangePassword && !isChangePasswordPath) {
     return <Navigate to="/admin/change-password" replace />;
-  }
-
-  if (checkingAdmin) {
-    return (
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          padding: 24,
-          textAlign: 'center',
-          background: '#0a0a0a',
-        }}
-      >
-        <p style={{ fontSize: 16, margin: 0 }}>Cargando panel administrativo…</p>
-      </div>
-    );
   }
 
   return (

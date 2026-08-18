@@ -112,6 +112,23 @@ function shouldRedirectToLoginOn401() {
 function handle401() {
   const p = window.location.pathname || '';
   if (p.startsWith('/admin')) {
+    const hasAdminSession = Boolean(
+      (localStorage.getItem('adminToken') || localStorage.getItem('adminAuthToken')) &&
+      localStorage.getItem('adminUserId')
+    );
+    // FIX flash expired=1: solo hard reload si NO había sesión admin (realmente no logeado).
+    // Si había sesión, avisar a AdminRoute por CustomEvent para navigate SOFT sin window.location.
+    // Evita: children Outlet con fetchWithAuth redirectOn401=true → hard reload → flash ?expired=1.
+    if (hasAdminSession) {
+      try {
+        clearAdminSession();
+        const event = new CustomEvent('maqgo-admin-401', { detail: { pathname: p } });
+        window.dispatchEvent(event);
+        return;
+      } catch (_e) {
+        // fallback al hard redirect si CustomEvent falla (navegador muy viejo)
+      }
+    }
     clearAdminSession();
     window.location.href = '/admin?expired=1';
     return;
