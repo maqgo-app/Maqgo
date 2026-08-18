@@ -2751,16 +2751,18 @@ async def login(request: Request, body: LoginRequest):
         )
 
     token = generate_token()
-    
+
     # Guardar token (en producción usar Redis o similar)
+    activeRole = _effective_session_role(roles, user.get("role") or "client")
     await db.sessions.insert_one({
         "userId": user["id"],
         "token": token,
+        "activeRole": activeRole,
         "createdAt": datetime.now(timezone.utc).isoformat()
     })
-    
+
     legacy_role = user.get("role") or "client"
-    effective_role = _effective_session_role(roles, legacy_role)
+    effective_role = activeRole
     pr = _provider_role_for_api(user, roles)
     return {
         "id": user["id"],

@@ -175,24 +175,27 @@ function AdminRoute() {
     };
   }, [token, userId, shouldVerifyAdmin, isAdminByStorage, retryNonce]);
 
-  /** FIX flash expired=1: escucha evento 'maqgo-admin-401' desde api.js handle401.
-   *  Hace navigate SOFT en lugar de window.location.href hard reload.
+  /**
+   * Suscriptor al ÚNICO evento de 401 oficial (solo desde /api/admin/access).
+   * Regla 10O: NO navigate('...?expired=1'). NO window.location.href.
+   * Solo re-sincroniza estado interno para que el render LOGIN inline se active
+   * (token/userId fue clear en api.js CASO A → cae en bloque L278 render Login UI).
    */
   useEffect(() => {
-    function onAdmin401() {
+    function onOfficialAccess401() {
+      // SOLO sync state interno. NO navigate, NO push history, NO ?expired=1.
       clearAdminVerifiedCache();
       clearAdminDemoBypass();
       setVerifiedAdmin(false);
       setMustChangePassword(false);
       setStatsNetworkFailure(false);
       setDemoBypassState(false);
-      const target = new URLSearchParams(window.location.search).get('next') || '/admin';
-      const sep = target.includes('?') ? '&' : '?';
-      navigate(`${target}${sep}expired=1`, { replace: true });
+      setCheckingAdmin(false);
+      setRetryNonce((n) => n + 1);
     }
-    window.addEventListener('maqgo-admin-401', onAdmin401);
-    return () => window.removeEventListener('maqgo-admin-401', onAdmin401);
-  }, [navigate]);
+    window.addEventListener('maqgo-admin-official-401', onOfficialAccess401);
+    return () => window.removeEventListener('maqgo-admin-official-401', onOfficialAccess401);
+  }, []);
 
   const isAdmin = verifiedAdmin || isAdminByStorage;
   const isChangePasswordPath = location.pathname === '/admin/change-password';

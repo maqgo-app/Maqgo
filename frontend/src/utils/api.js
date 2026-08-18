@@ -109,28 +109,42 @@ function shouldRedirectToLoginOn401() {
   return true;
 }
 
-function handle401() {
+function _isAdminAccessEndpoint(url) {
+  try {
+    const u = String(url || '');
+    // El ÚNICO 401 oficial para Admin es /api/admin/access (verificación AdminRoute).
+    // Todo 401 restante en /admin/* children NO invalida la sesión Admin automáticamente.
+    return /\/api\/admin\/access(\?|$)/.test(u);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Manejo 401. Regla dura Admin / FASE 10O:
+ * - NO usar ?expired=1 como mecanismo normal Admin.
+ * - Sólo invalidar sesión Admin si el 401 provino de /api/admin/access (verificación oficial AdminRoute).
+ * - 401 children /api/admin/* (stats, pricing, users, machines, reports, etc):
+ *   NO limpiar sesión Admin, NO redirect, NO flash. Retornar error al componente para mostrar inline.
+ */
+function handle401(url) {
   const p = window.location.pathname || '';
   if (p.startsWith('/admin')) {
-    const hasAdminSession = Boolean(
-      (localStorage.getItem('adminToken') || localStorage.getItem('adminAuthToken')) &&
-      localStorage.getItem('adminUserId')
-    );
-    // FIX flash expired=1: solo hard reload si NO había sesión admin (realmente no logeado).
-    // Si había sesión, avisar a AdminRoute por CustomEvent para navigate SOFT sin window.location.
-    // Evita: children Outlet con fetchWithAuth redirectOn401=true → hard reload → flash ?expired=1.
-    if (hasAdminSession) {
-      try {
-        clearAdminSession();
-        const event = new CustomEvent('maqgo-admin-401', { detail: { pathname: p } });
-        window.dispatchEvent(event);
-        return;
-      } catch (_e) {
-        // fallback al hard redirect si CustomEvent falla (navegador muy viejo)
-      }
+    const isOfficialAccess401 = _isAdminAccessEndpoint(url);
+    if (!isOfficialAccess401) {
+      // CASO B: 401 de un endpoint hijo Admin. NO tocar sesión. Dejar que el componente maneje el error
+      // (fetchWithAuth ya lanza Error "Sesión expirada" o el componente lee res.status===401).
+      return;
     }
+    // CASO A: 401 oficial GET /api/admin/access. SOLO aquí invalidar sesión Admin.
+    // NO ?expired=1. NO window.location.href hard reload. AdminRoute renderiza Login inline.
     clearAdminSession();
-    window.location.href = '/admin?expired=1';
+    try {
+      const ev = new CustomEvent('maqgo-admin-official-401');
+      window.dispatchEvent(ev);
+    } catch (_e) {
+      // navegador sin CustomEvent: fallback soft re-render
+    }
     return;
   }
   clearLocalSession();
@@ -159,7 +173,7 @@ export async function fetchWithAuth(url, options = {}, timeoutMs = DEFAULT_TIMEO
     clearTimeout(id);
     if (outerSignal) outerSignal.removeEventListener('abort', abortBoth);
     if (res.status === 401 && redirectOn401) {
-      handle401();
+      handle401(url);
       throw new Error('Sesión expirada');
     }
     return res;
@@ -219,7 +233,7 @@ axios.interceptors.response.use(
       // Misma lista que request (sin Bearer): no limpiar sesión en OTP/registro/SMS por 401 puntual.
       const isPublic =
         isPublicAuthRequestUrl(reqUrl) || reqUrl.includes('/api/auth/forgot');
-      if (!isPublic) handle401();
+      if (!isPublic) handle401(reqUrl);
     }
     return Promise.reject(err);
   }
