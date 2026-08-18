@@ -206,6 +206,209 @@ def test_create_machine_rejects_machine_without_real_operator() -> None:
         )
 
 
+def test_create_machine_rejects_machine_with_operator_missing_rut_id_phone() -> None:
+    db = _DummyDb()
+    with pytest.raises(ValueError, match="al menos un operador real asignado"):
+        asyncio.run(
+            create_machine(
+                db,
+                "prov_1",
+                {
+                    "machineryType": "retroexcavadora",
+                    "licensePlate": "ABCD12",
+                    "operators": [{"nombre": "Claudio", "apellido": "Valle"}],
+                },
+            )
+        )
+
+
+def test_create_machine_accepts_operator_with_valid_rut_without_phone() -> None:
+    created = {}
+    inserted = {}
+
+    class _InsertMachinesCollection(_DummyMachinesCollection):
+        async def insert_one(self, doc, *args, **kwargs):
+            inserted.update(doc)
+            created.update(doc)
+            return None
+
+    class _ActiveUsersCollection(_DummyUsersCollection):
+        async def find_one(self, query, *args, **kwargs):
+            qid = query.get("id") or query.get("userId")
+            if qid and str(qid).startswith("op-rut-"):
+                return {
+                    "id": qid,
+                    "rut": "11.111.111-1",
+                    "phone": "+56912345678",
+                    "status": "active",
+                    "visible_status": "active",
+                    "provider_role": "operator",
+                    "roles": ["operator"],
+                    "name": "Claudio Valle",
+                }
+            return None
+
+    class _InsertDb(_DummyDb):
+        def __init__(self):
+            super().__init__()
+            self.machines = _InsertMachinesCollection()
+            self.users = _ActiveUsersCollection()
+
+    db = _InsertDb()
+    result = asyncio.run(
+        create_machine(
+            db,
+            "prov_1",
+            {
+                "machineryType": "retroexcavadora",
+                "licensePlate": "AABB-11",
+                "brand": "Tracam",
+                "model": "1969",
+                "year": "1969",
+                "capacityM3": 0.5,
+                "operators": [
+                    {
+                        "nombre": "Claudio",
+                        "apellido": "Valle",
+                        "rut": "11.111.111-1",
+                        "isPrimary": True,
+                        "phone": None,
+                    }
+                ],
+                "pricePerHour": 150,
+                "transportCost": 100,
+                "available": True,
+                "published": True,
+                "status": "active",
+            },
+        )
+    )
+    assert result is not None
+    ops = result.get("operators")
+    assert isinstance(ops, list) and len(ops) == 1
+    op = ops[0]
+    assert "111111111" in str(op.get("rut", "")).replace(".", "").replace("-", "")
+    assert str(op.get("id", "")).startswith("op-rut-")
+    primary = result.get("primaryOperatorId")
+    assert isinstance(primary, str) and primary.startswith("op-rut-")
+    from services.machines_service import machine_has_real_assigned_operator
+
+    assert machine_has_real_assigned_operator(result) is True
+
+
+def test_create_machine_accepts_operator_with_phone_only() -> None:
+    class _InsertMachines2(_DummyMachinesCollection):
+        async def insert_one(self, doc, *args, **kwargs):
+            return None
+
+    class _ActiveUsers2(_DummyUsersCollection):
+        async def find_one(self, query, *args, **kwargs):
+            qid = query.get("id") or query.get("userId")
+            if qid and str(qid).startswith("op-phone-"):
+                return {
+                    "id": qid,
+                    "phone": "+56998765432",
+                    "status": "active",
+                    "visible_status": "active",
+                    "provider_role": "operator",
+                    "roles": ["operator"],
+                    "name": "Ana Perez",
+                }
+            return None
+
+    class _InsertDb2(_DummyDb):
+        def __init__(self):
+            super().__init__()
+            self.machines = _InsertMachines2()
+            self.users = _ActiveUsers2()
+
+    db = _InsertDb2()
+    result = asyncio.run(
+        create_machine(
+            db,
+            "prov_1",
+            {
+                "machineryType": "retroexcavadora",
+                "licensePlate": "BBCC-22",
+                "operators": [
+                    {"name": "Ana Perez", "phone": "+56 9 9876 5432", "isPrimary": True}
+                ],
+            },
+        )
+    )
+    from services.machines_service import machine_has_real_assigned_operator
+
+    assert machine_has_real_assigned_operator(result) is True
+    assert len(result["operators"]) == 1
+
+
+def test_create_machine_accepts_operator_with_stable_raw_id_only() -> None:
+    class _InsertMachines3(_DummyMachinesCollection):
+        async def insert_one(self, doc, *args, **kwargs):
+            return None
+
+    class _ActiveUsers3(_DummyUsersCollection):
+        async def find_one(self, query, *args, **kwargs):
+            qid = query.get("id") or query.get("userId")
+            if qid == "usr_real_operator_id":
+                return {
+                    "id": "usr_real_operator_id",
+                    "phone": "+56900000000",
+                    "rut": "12.345.678-9",
+                    "status": "active",
+                    "visible_status": "active",
+                    "provider_role": "operator",
+                    "roles": ["operator"],
+                    "name": "Luis Soto",
+                }
+            return None
+
+    class _InsertDb3(_DummyDb):
+        def __init__(self):
+            super().__init__()
+            self.machines = _InsertMachines3()
+            self.users = _ActiveUsers3()
+
+    db = _InsertDb3()
+    result = asyncio.run(
+        create_machine(
+            db,
+            "prov_1",
+            {
+                "machineryType": "camion_aljibe",
+                "licensePlate": "CCDD-33",
+                "operators": [
+                    {
+                        "id": "usr_real_operator_id",
+                        "name": "Luis Soto",
+                        "isPrimary": True,
+                    }
+                ],
+            },
+        )
+    )
+    from services.machines_service import machine_has_real_assigned_operator
+
+    assert machine_has_real_assigned_operator(result) is True
+    assert len(result["operators"]) == 1
+
+
+def test_create_machine_rejects_placeholder_operators() -> None:
+    db = _DummyDb()
+    with pytest.raises(ValueError, match="al menos un operador real asignado"):
+        asyncio.run(
+            create_machine(
+                db,
+                "prov_1",
+                {
+                    "machineryType": "bulldozer",
+                    "licensePlate": "DDEE-44",
+                    "operators": [{"name": "Sin operador", "rut": "11.111.111-1"}],
+                },
+            )
+        )
+
+
 def test_update_machine_rejects_machine_without_real_operator() -> None:
     existing = {
         "id": "mach_1",

@@ -252,14 +252,11 @@ def normalize_machine_operators(operators: Any) -> List[dict]:
         raw_id = _operator_raw_id(item)
         rut = _clean_str(item.get("rut") or item.get("operator_rut") or item.get("operatorRut"))
         phone = _normalize_operator_phone(item.get("phone") or item.get("telefono"))
-        if not phone:
-            continue
         stable_id = raw_id if _has_stable_operator_id(raw_id) else ""
-        if not stable_id:
-            if rut:
-                stable_id = f"op-rut-{rut.lower()}"
-            elif phone:
-                stable_id = f"op-phone-{re.sub(r'\D', '', phone)}"
+        if not stable_id and rut:
+            stable_id = f"op-rut-{rut.lower()}"
+        if not stable_id and phone:
+            stable_id = f"op-phone-{re.sub(r'\D', '', phone)}"
         if not stable_id:
             continue
         normalized_item = dict(item)

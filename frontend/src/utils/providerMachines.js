@@ -7,6 +7,7 @@
 
 import { MACHINERY_NO_TRANSPORT, MACHINERY_PER_SERVICE } from './pricing';
 import { getObject } from './safeStorage';
+import { validateRut, sanitizeRutInput } from './chileanValidation';
 import BACKEND_URL, { fetchWithAuth } from './api';
 
 const LEGACY_STORAGE_KEY = 'providerMachines';
@@ -40,11 +41,23 @@ function normalizeOperatorName(op = {}) {
   return fullName.replace(/\s+/g, ' ').trim();
 }
 
+const _RUT_CLEAN_REGEX = /[^0-9kK]/g;
+const _RUT_VERIFY_SEQUENCE = [2, 3, 4, 5, 6, 7, 2, 3];
+const _RUT_BODY_REGEX = /^\d{7,8}$/;
+
+function _cleanRut(raw = '') {
+  return sanitizeRutInput(String(raw || '')).toUpperCase();
+}
+
+function _isValidRut(raw = '') {
+  return validateRut(String(raw || ''));
+}
+
 function buildOperatorStableId(op = {}, index = 0) {
   const directId = String(op.id || op.user_id || op.userId || op.operator_id || op.operatorId || '').trim();
   if (directId) return directId;
-  const rut = String(op.rut || op.operator_rut || op.operatorRut || '').trim();
-  if (rut) return `op-rut-${rut.toLowerCase()}`;
+  const rawRut = String(op.rut || op.operator_rut || op.operatorRut || '').trim();
+  if (rawRut && _isValidRut(rawRut)) return `op-rut-${_cleanRut(rawRut).toLowerCase()}`;
   const digits = String(op.phone || op.telefono || '').replace(/\D/g, '');
   if (digits) return `op-phone-${digits}`;
   return `op-${index}`;
@@ -448,14 +461,17 @@ function normalizeOperators(operators = []) {
       const fullName = normalizeOperatorName(op);
       if (!fullName || PLACEHOLDER_OPERATOR_NAMES.has(fullName.toLowerCase())) return null;
       const phone = String(op.phone || op.telefono || '').trim();
-      const rut = String(op.rut || '').trim();
-      if (!phone) return null;
-      if (!rut && !op.id && !op.user_id && !op.operator_id) return null;
+      const rawRut = String(op.rut || op.operator_rut || op.operatorRut || '').trim();
+      const hasRawId = Boolean(
+        op.id || op.user_id || op.userId || op.operator_id || op.operatorId
+      );
+      const hasStableIdentity = Boolean(phone || (rawRut && _isValidRut(rawRut)) || hasRawId);
+      if (!hasStableIdentity) return null;
       return {
         id: buildOperatorStableId(op, index),
         name: fullName,
         phone,
-        rut,
+        rut: rawRut && _isValidRut(rawRut) ? _cleanRut(rawRut) : rawRut,
         isOwner: Boolean(op.isOwner),
         isPrimary: Boolean(op.isPrimary || op.primary || op.principal),
         online: Boolean(op.online),
