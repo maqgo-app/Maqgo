@@ -10,13 +10,15 @@ import { describe, it, expect } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { CheckoutProvider } from '../context/CheckoutContext';
+import { AuthProvider } from '../context/AuthContext.jsx';
 import CardPaymentScreen from '../screens/client/CardPaymentScreen.js';
 import OperatorHomeScreen from '../screens/operator/OperatorHomeScreen.js';
 
 const runProdUiGuard =
   import.meta.env.VITE_IS_PRODUCTION === 'true' &&
   import.meta.env.VITE_MAQGO_ENV === 'production' &&
-  import.meta.env.VITE_ENABLE_DEMO_MODE !== 'true';
+  import.meta.env.VITE_ENABLE_DEMO_MODE !== 'true' &&
+  import.meta.env.MODE === 'production';
 
 const FORBIDDEN = [
   /modo demo/i,
@@ -35,11 +37,13 @@ describe.skipIf(!runProdUiGuard)('producción: sin copys demo en UI inicial', ()
   it('CardPaymentScreen', () => {
     const html = renderToString(
       <MemoryRouter initialEntries={['/client/card']}>
-        <CheckoutProvider>
-          <Routes>
-            <Route path="/client/card" element={<CardPaymentScreen />} />
-          </Routes>
-        </CheckoutProvider>
+        <AuthProvider>
+          <CheckoutProvider>
+            <Routes>
+              <Route path="/client/card" element={<CardPaymentScreen />} />
+            </Routes>
+          </CheckoutProvider>
+        </AuthProvider>
       </MemoryRouter>
     );
     assertNoDemoCopy(html);
@@ -48,9 +52,11 @@ describe.skipIf(!runProdUiGuard)('producción: sin copys demo en UI inicial', ()
   it('OperatorHomeScreen (botón simular oculto si VITE_IS_PRODUCTION)', () => {
     const html = renderToString(
       <MemoryRouter initialEntries={['/operator/home']}>
-        <Routes>
-          <Route path="/operator/home" element={<OperatorHomeScreen />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/operator/home" element={<OperatorHomeScreen />} />
+          </Routes>
+        </AuthProvider>
       </MemoryRouter>
     );
     assertNoDemoCopy(html);

@@ -7,7 +7,7 @@ import MaqgoLogo from '../../components/MaqgoLogo';
 import BookingProgress from '../../components/BookingProgress';
 import { getObject, getArray } from '../../utils/safeStorage';
 import { saveBookingProgress } from '../../utils/abandonmentTracker';
-import { buildPricingFallback, calculateClientPrice, MACHINERY_NO_TRANSPORT, totalConFactura, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, getProviderPriceReferenceRange } from '../../utils/pricing';
+import { buildPricingFallback, calculateClientPrice, MACHINERY_NO_TRANSPORT, totalConFactura, MAQGO_CLIENT_COMMISSION_RATE, IVA_RATE, getProviderPriceReferenceRange, TRIP_PRICE_SPREAD } from '../../utils/pricing';
 import BACKEND_URL from '../../utils/api';
 import { MACHINERY_NAMES, isPerTripMachineryType } from '../../utils/machineryNames';
 import { getDateRangeShort as getDateRangeShortUtil } from '../../utils/bookingDates';
@@ -24,20 +24,6 @@ import { getTruckUrgencySummaryLine } from '../../utils/clientBookingTruck';
 import { getMachineTransportQuote } from '../../utils/transportZones';
 import { useAuth } from '../../context/authHooks';
 
-/** Referencia estable para useMemo (evita deps falsas por array nuevo cada render). */
-const TRIP_PRICE_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
-
-/**
- * STABLE MODULE — NO MODIFICAR SIN REVISIÓN DE PRODUCCIÓN
- *
- * STABLE FLOW - DO NOT MODIFY WITHOUT PRODUCT APPROVAL
- *
- * Pantalla: Confirma tu Servicio
- * Muestra resumen para 3 casos:
- * 1. Hoy (inmediato)
- * 2. Hoy + días adicionales (híbrido)
- * 3. Programar reserva (fecha futura)
- */
 function ConfirmServiceScreen() {
   const navigate = useNavigate();
   const auth = useAuth();

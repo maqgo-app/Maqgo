@@ -20,7 +20,7 @@ import BACKEND_URL from '../../utils/api';
  * STABLE FLOW - DO NOT MODIFY WITHOUT PRODUCT APPROVAL
  */
 // MACHINERY_NO_TRANSPORT y REFERENCE_PRICES desde pricing.js; por-viaje: isPerTripMachineryType (machineryNames)
-import { MACHINERY_NO_TRANSPORT, getProviderPriceReferenceRange, getDemoProviders } from '../../utils/pricing';
+import { MACHINERY_NO_TRANSPORT, getProviderPriceReferenceRange, getDemoProviders, TRIP_PRICE_SPREAD } from '../../utils/pricing';
 import { MACHINERY_NAMES, getProviderSpecDisplay, getMachineryCapacityOptions, isPerTripMachineryType } from '../../utils/machineryNames';
 import { ensurePushSubscribedIfGranted, requestPushPermissionAndSubscribe } from '../../utils/pushNotifications';
 import {
@@ -40,7 +40,7 @@ function calculateMaxHours(closingTime, etaMinutes) {
   return Math.max(1, Math.floor(availableHours));
 }
 
-const PROVIDER_OPTIONS_TRIP_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
+const PROVIDER_OPTIONS_TRIP_SPREAD = TRIP_PRICE_SPREAD;
 
 const PROVIDER_FIELD_TO_KEYS = {
   capacityM3: ['capacity_m3', 'capacityM3'],

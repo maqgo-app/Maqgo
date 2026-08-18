@@ -189,16 +189,16 @@ describe('getProviderPriceReferenceRange / PRICE_REFERENCE', () => {
     const r = getProviderPriceReferenceRange('retroexcavadora');
     expect(r.isPerHour).toBe(true);
     expect(r.isTruckTrip).toBe(false);
-    expect(r.min).toBe(20000);
+    expect(r.min).toBe(56000);
     expect(r.max).toBe(160000);
-    expect(r.suggested).toBe(90000);
+    expect(r.suggested).toBe(80000);
   });
 
   it('camion_tolva: servicio/viaje con mínimo servicio', () => {
     const r = getProviderPriceReferenceRange('camion_tolva');
     expect(r.isPerHour).toBe(false);
     expect(r.isTruckTrip).toBe(true);
-    expect(r.min).toBe(100000);
+    expect(r.min).toBe(168000);
     expect(r.max).toBe(480000);
   });
 

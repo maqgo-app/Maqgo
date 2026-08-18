@@ -332,7 +332,7 @@ export function getDemoTransportFee(machinery) {
 }
 
 const DEMO_HOURLY_PRICES = [45000, 42000, 48000, 44000, 46000];
-const TRIP_PRICE_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
+export const TRIP_PRICE_SPREAD = [0.85, 0.92, 1, 1.08, 1.15];
 
 export function getDemoPriceList(machinery, capacity) {
   const id = getMachineryId(machinery);

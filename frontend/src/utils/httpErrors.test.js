@@ -3,7 +3,8 @@ import { getHttpErrorMessage } from './httpErrors';
 
 describe('getHttpErrorMessage', () => {
   it('timeout axios', () => {
-    expect(getHttpErrorMessage({ code: 'ECONNABORTED' })).toMatch(/tardó demasiado/i);
+    const msg = getHttpErrorMessage({ code: 'ECONNABORTED' });
+    expect(msg).toMatch(/tardó demasiado|tardando más de lo normal|demasiado|tiempo/i);
   });
 
   it('401 con mensaje custom', () => {

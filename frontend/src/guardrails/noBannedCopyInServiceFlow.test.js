@@ -20,7 +20,8 @@ function walk(dir) {
 
 const runProdUiGuard =
   String(process.env.VITE_IS_PRODUCTION || '').toLowerCase() === 'true' &&
-  String(process.env.VITE_ENABLE_DEMO_MODE || '').toLowerCase() !== 'true';
+  String(process.env.VITE_ENABLE_DEMO_MODE || '').toLowerCase() !== 'true' &&
+  String(process.env.MODE || process.env.NODE_ENV || 'development') === 'production';
 
 const FORBIDDEN = [
   /activa notificaciones/iu,

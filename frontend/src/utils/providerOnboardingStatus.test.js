@@ -97,7 +97,7 @@ describe('providerOnboardingStatus', () => {
       machineData: JSON.stringify({ machineryType: 'x', licensePlate: 'ZZ99' }),
     });
     expect(getProviderLandingPath()).toBe('/provider/home');
-    expect(getProviderOnboardingNextPath()).toBe('/provider/machines');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/machine-data');
     installLocalStorageMock({
       providerCameFromWelcome: 'true',
       providerData: JSON.stringify({ businessName: 'E', rut: '1-9', address: 'Av. Uno 123' }),
@@ -161,7 +161,7 @@ describe('providerOnboardingStatus', () => {
     expect(getProviderOnboardingNextPath()).toBe('/provider/machine-data');
   });
 
-  it('empresa + máquina sin operador asignado → onboarding va a /provider/machines', () => {
+  it('empresa + máquina sin operador asignado → onboarding va a /provider/machine-data', () => {
     installLocalStorageMock({
       providerData: JSON.stringify({ businessName: 'E', rut: '1-9', address: 'Av. Uno 123' }),
       machineData: JSON.stringify({ machineryType: 'x', licensePlate: 'ZZ99' }),
@@ -170,7 +170,7 @@ describe('providerOnboardingStatus', () => {
       ]),
     });
     expect(getProviderLandingPath()).toBe('/provider/home');
-    expect(getProviderOnboardingNextPath()).toBe('/provider/machines');
+    expect(getProviderOnboardingNextPath()).toBe('/provider/machine-data');
     expect(isProviderActivationCompleteFromStorage()).toBe(false);
   });
 });

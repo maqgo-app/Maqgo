@@ -225,11 +225,15 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
-  const login = useCallback(async (userId, userRole, provRole = 'super_master', ownerIdFromApi = null, canPayAutomaticallyFromApi = null, profileFromApi = null) => {
+  const login = useCallback(async (userId, userRole, provRole = 'super_master', ownerIdFromApi = null, canPayAutomaticallyFromApi = null, profileFromApi = null, userRolesFromApi = null) => {
     let normalizedRole = provRole;
     if (normalizedRole === 'owner') normalizedRole = 'super_master';
+    const normalizedRoles = Array.isArray(userRolesFromApi) && userRolesFromApi.length > 0
+      ? userRolesFromApi
+      : (typeof userRole === 'string' && userRole ? [userRole] : []);
     localStorage.setItem('userId', userId);
     localStorage.setItem('userRole', userRole);
+    localStorage.setItem('userRoles', JSON.stringify(normalizedRoles));
     if (userRole === 'provider') {
       localStorage.setItem('providerRole', normalizedRole);
       if (ownerIdFromApi) {
@@ -257,15 +261,43 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(() => {
+    let pid = '';
+    try {
+      pid = String(localStorage.getItem('userId') || '').trim();
+    } catch {
+      pid = '';
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('authToken');
     localStorage.removeItem('userId');
     localStorage.removeItem('userRole');
+    localStorage.removeItem('userRoles');
     localStorage.removeItem('providerRole');
     localStorage.removeItem('ownerId');
+    localStorage.removeItem('providerData');
+    localStorage.removeItem('machineData');
+    localStorage.removeItem('operatorsData');
+    localStorage.removeItem('bankData');
+    localStorage.removeItem('providerOnboardingCompleted');
+    localStorage.removeItem('providerOnboardingStep');
+    localStorage.removeItem('firstMachineOperator');
+    localStorage.removeItem('providerCameFromWelcome');
+    localStorage.removeItem('masterPermissionsByUserId');
+    try {
+      if (pid) {
+        localStorage.removeItem(`providerMachines:${pid}`);
+      }
+    } catch { /* ignore */ }
+    localStorage.removeItem('providerMachines');
+    localStorage.removeItem('bookingDraft');
+    localStorage.removeItem('clientDraft');
+    localStorage.removeItem('activeBookingId');
+    localStorage.removeItem('userPhone');
     setUser(null);
     setProviderRole('super_master');
     setPermissions(DEFAULT_PERMISSIONS.super_master);
+    setOwnerId(null);
+    setOwnerName(null);
   }, []);
 
   const hasPermission = useCallback((permission) => permissions[permission] === true, [permissions]);
@@ -349,13 +381,17 @@ export function AuthProvider({ children }) {
           // re-inscripción? Viene SIN conocimiento de OneClick. Si el backend
           // no lo envía (versión vieja o error), por defecto false → flujo actual.
           const canPayApi = typeof data.canPayAutomatically === 'boolean' ? data.canPayAutomatically : null;
+          const finalRoles = Array.isArray(apiRoles) && apiRoles.length > 0
+            ? apiRoles
+            : (userRole ? [userRole] : []);
           await login(
             userId,
             userRole,
             rawProviderRole,
             oid,
             canPayApi,
-            { name: data.name, email: data.email, phone: data.phone }
+            { name: data.name, email: data.email, phone: data.phone },
+            finalRoles
           );
           if (userRole === 'provider') {
             const role = (rawProviderRole === 'owner' ? 'super_master' : rawProviderRole) || 'super_master';
