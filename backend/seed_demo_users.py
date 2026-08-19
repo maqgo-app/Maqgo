@@ -33,6 +33,7 @@ def main():
             "phone": "912345678",
             "password": hash_password("demo123"),
             "role": "client",
+            "status": "test",
             "createdAt": "2024-01-01T00:00:00Z",
             "phoneVerified": True,
         },
@@ -44,6 +45,7 @@ def main():
             "phone": "987654321",
             "password": hash_password("demo123"),
             "role": "provider",
+            "status": "test",
             "isAvailable": True,
             "machineryType": "retroexcavadora",
             "location": {"lat": -33.45, "lng": -70.67},
@@ -58,6 +60,7 @@ def main():
             "phone": "912345678",
             "password": hash_password("demo123"),
             "role": "provider",
+            "status": "test",
             "isAvailable": True,
             "machineryType": "retroexcavadora",
             "location": {"lat": -33.44, "lng": -70.66},
@@ -72,6 +75,7 @@ def main():
             "phone": "998765432",
             "password": hash_password("demo123"),
             "role": "provider",
+            "status": "test",
             "isAvailable": True,
             "machineryType": "retroexcavadora",
             "location": {"lat": -33.46, "lng": -70.68},
@@ -80,12 +84,13 @@ def main():
             "phoneVerified": True,
         },
         {
-            "id": "admin-maqgo-001",
-            "name": "Admin MAQGO",
-            "email": "admin@maqgo.cl",
-            "phone": "999999999",
-            "password": hash_password("maqgo2026"),
+            "id": "demo-admin-001",
+            "name": "Admin QA DEMO",
+            "email": "demo_admin@demo.cl",
+            "phone": "900000000",
+            "password": hash_password("Demo@2026qa"),
             "role": "admin",
+            "status": "test",
             "createdAt": "2024-01-01T00:00:00Z",
             "phoneVerified": True,
         },
@@ -129,10 +134,12 @@ def main():
     print("|-----------|-------------------|-------------|")
     print("| Cliente   | cliente@demo.cl   | demo123     |")
     print("| Proveedor | proveedor@demo.cl | demo123     |")
-    print("| Admin     | admin@maqgo.cl    | maqgo2026   |")
+    print("| Admin DEMO| demo_admin@demo.cl| Demo@2026qa |")
     print("")
+    print("CUENTA REAL (NO USAR EN QA): admin@maqgo.cl / pass real fundador")
     print("Código enrolamiento operador: DEMO01")
     print("  (Soy operador → Unirme con código → DEMO01)")
+    print("Todas las entidades demo tienen status='test' y id/email prefijo demo-.")
     print("="*50)
 
 

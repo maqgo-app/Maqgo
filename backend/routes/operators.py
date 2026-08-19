@@ -42,12 +42,16 @@ class InvitationCreate(BaseModel):
     operator_phone: Optional[str] = None
     operator_rut: Optional[str] = None
     machine_ids: List[str] = []
+    operator_email: Optional[str] = None
+    operator_id: Optional[str] = None
 
 class OperatorInviteItem(BaseModel):
     operator_name: str
     operator_rut: str
     operator_phone: Optional[str] = None
     machine_ids: List[str] = []
+    operator_email: Optional[str] = None
+    operator_id: Optional[str] = None
 
 class InvitationBatchCreate(BaseModel):
     owner_id: str
@@ -275,6 +279,8 @@ async def _ensure_pending_team_user(
     rut: str,
     invitation_code: str,
     permissions: Optional[Dict[str, bool]] = None,
+    email: Optional[str] = None,
+    operator_id: Optional[str] = None,
 ) -> dict:
     now_iso = datetime.now(timezone.utc).isoformat()
     normalized_phone = _normalize_phone_e164(phone) or str(phone or "").strip()
@@ -300,7 +306,7 @@ async def _ensure_pending_team_user(
         "phone": normalized_phone,
         "rut": rut,
         "rut_norm": rut_norm,
-        "email": str((existing or {}).get("email") or "").strip(),
+        "email": str(email or (existing or {}).get("email") or "").strip(),
         "status": BUSINESS_STATUS_PENDING,
         "activationStage": "invitation_sent",
         "activationCode": invitation_code,
@@ -328,7 +334,7 @@ async def _ensure_pending_team_user(
         fresh = await db.users.find_one({"id": existing["id"]}, {"_id": 0})
         return fresh or {**existing, **base_update}
 
-    user_id = str(uuid.uuid4())
+    user_id = str(operator_id).strip() if operator_id and str(operator_id).strip() else str(uuid.uuid4())
     user_data = {
         "id": user_id,
         **base_update,
@@ -466,6 +472,8 @@ async def create_invitation(
             phone=str(data.operator_phone or "").strip(),
             rut=operator_rut,
             invitation_code=invite_token,
+            email=data.operator_email,
+            operator_id=data.operator_id,
         )
     except DuplicateKeyError:
         raise HTTPException(
@@ -619,6 +627,8 @@ async def create_invitations_batch(
                 phone=phone or "",
                 rut=rut,
                 invitation_code=invite_token,
+                email=getattr(item, "operator_email", None),
+                operator_id=getattr(item, "operator_id", None),
             )
         except DuplicateKeyError:
             raise HTTPException(
