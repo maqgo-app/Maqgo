@@ -74,21 +74,32 @@ class User(BaseModel):
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserCreate(BaseModel):
-    role: str
+    role: Literal['client', 'provider']
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     machineryType: Optional[str] = None
     hourlyRate: Optional[float] = None
     location: Optional[dict] = None
-    # RBAC fields
     provider_role: Optional[Literal['super_master', 'master', 'operator']] = 'super_master'
     owner_id: Optional[str] = None
     rut: Optional[str] = None
     razon_social: Optional[str] = None
     clientBilling: Optional[ClientBilling] = None
-    # Login por correo (opcional en API; el registro cliente la envía tras OTP)
     password: Optional[str] = None
+
+    @field_validator('phone')
+    @classmethod
+    def validate_phone_9_digits_chile(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == '':
+            return None
+        digits = ''.join(c for c in str(v) if c.isdigit())
+        if digits.startswith('56') and len(digits) >= 11:
+            digits = digits[2:]
+        clean = digits[-9:] if len(digits) >= 9 else digits
+        if len(clean) != 9 or not clean.isdigit():
+            raise ValueError('El teléfono debe tener 9 dígitos (Chile) o formato E.164 +569XXXXXXXX')
+        return f'+56{clean}'
 
     @field_validator('password')
     @classmethod

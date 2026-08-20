@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from auth_dependency import verify_user_access, get_current_user
+from auth_dependency import verify_user_access, get_current_user, get_current_user_optional
 from security.policy import AccessPolicy
 from security.access_context import build_access_context
 from models.user import User, UserCreate, ProviderAvailabilityUpdate
@@ -174,9 +174,38 @@ async def _assert_provider_rut_unique(rut_value: str, *, current_user_id: str) -
 
 
 @router.post("", response_model=dict)
-async def create_user(user: UserCreate):
-    """Crear usuario o fusionar rol. Deduplica por email o por teléfono (OTP)."""
+async def create_user(
+    user: UserCreate,
+    current_user_optional: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
+    """Crear usuario o fusionar rol. SÓLO permitido tras verificación OTP válida (Bearer JWT activo).
+    Endpoint protegido: sin sesión autenticada → 403 Forbidden.
+    No permite creación anónima de usuarios.
+    """
+    if current_user_optional is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Acceso denegado. Debes iniciar sesión y verificar tu número antes de crear una cuenta.",
+        )
+
+    role_target = str(user.role or "").strip().lower()
+    if role_target not in {"client", "provider"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Rol inválido. Solo se permite cliente o proveedor en este endpoint.",
+        )
+
     user_data = user.model_dump()
+
+    if role_target == "client":
+        user_data["provider_role"] = None
+        user_data["owner_id"] = None
+        user_data["hourlyRate"] = 0.0
+        user_data["isAvailable"] = False
+    elif role_target == "provider":
+        if not user_data.get("provider_role"):
+            user_data["provider_role"] = "super_master"
+
     plain_password = user_data.pop("password", None)
     email_raw = (user_data.get("email") or "").strip().lower()
     user_data["email"] = email_raw if email_raw else None

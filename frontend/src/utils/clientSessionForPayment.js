@@ -117,6 +117,20 @@ export async function ensureBackendSessionForClientBooking(email, options = {}) 
   const registerData = getObject('registerData', {});
   const celDigits = registerData.celular ? String(registerData.celular).replace(/\D/g, '').slice(-9) : '';
   const phone = celDigits.length >= 9 ? `+56${celDigits}` : undefined;
+  const existingTokenOrAuth =
+    localStorage.getItem('token') ||
+    localStorage.getItem('authToken') ||
+    localStorage.getItem('otpVerified') === 'true';
+  if (!existingTokenOrAuth) {
+    throw new Error(
+      'Tu sesión de seguridad expiró antes de completar el pago. Por favor vuelve al inicio, inicia sesión con tu número y completa el código SMS antes de continuar.'
+    );
+  }
+  const authHeadersFallback = existingTokenOrAuth?.startsWith('Bearer ')
+    ? { Authorization: existingTokenOrAuth }
+    : existingTokenOrAuth && !existingTokenOrAuth.startsWith('otp:')
+    ? { Authorization: `Bearer ${existingTokenOrAuth}` }
+    : undefined;
   const { data } = await axios.post(
     `${BACKEND_URL}/api/users`,
     {
@@ -136,7 +150,10 @@ export async function ensureBackendSessionForClientBooking(email, options = {}) 
         },
       }),
     },
-    { timeout: 12000 }
+    {
+      timeout: 12000,
+      ...(authHeadersFallback ? { headers: authHeadersFallback } : {}),
+    }
   );
   const sessionToken = data?.token;
   if (!sessionToken) {

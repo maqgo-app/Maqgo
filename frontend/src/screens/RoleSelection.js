@@ -149,7 +149,9 @@ function RoleSelection({ setUserRole, setUserId }) {
         setLoading(false);
         return;
       }
-      const apiCall = axios.post(`${BACKEND_URL}/api/users`, payload, { timeout: 15000 });
+      const bearerToken = localStorage.getItem('token') || localStorage.getItem('authToken');
+      const headers = bearerToken ? { Authorization: `Bearer ${bearerToken}` } : undefined;
+      const apiCall = axios.post(`${BACKEND_URL}/api/users`, payload, { timeout: 15000, headers });
       const res = await apiCall;
       setUserRole(roleToUse);
       setUserId(res.data.id);
@@ -189,12 +191,21 @@ function RoleSelection({ setUserRole, setUserId }) {
     } catch (e) {
       // Evitar "usuarios fantasma" sin password real: si falla /api/users,
       // el usuario después no podrá loguearse y terminará en recuperación.
-      const detail =
+      const status = Number(e?.response?.status || 0);
+      const backendDetail =
         e?.response?.data?.detail ||
         e?.response?.data?.error ||
         e?.message ||
         'No se pudo crear tu cuenta. Intenta nuevamente.';
-      setError(String(detail));
+      let detail = String(backendDetail);
+      if (status === 401 || status === 403) {
+        detail = 'Tu sesión expiró o no verificaste tu número. Vuelve a iniciar sesión y completa el código SMS.';
+      } else if (status === 409) {
+        detail = backendDetail;
+      } else if (status >= 400 && status < 500) {
+        detail = `Revisa los datos e intenta nuevamente. ${backendDetail}`;
+      }
+      setError(detail);
     } finally {
       setLoading(false);
     }
